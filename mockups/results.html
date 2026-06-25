@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay Starling — Demand Letter Results</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --cream:#faf8f5; --frame:#e8e5e0;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --border:rgba(15,26,46,0.12);
+    --ink:#0f1a2e; --muted:#5a6472;
+    --serif:Georgia,'Palatino Linotype',serif;
+    --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--frame);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{font-family:var(--serif);font-weight:600;color:var(--navy)}
+  a{color:inherit;text-decoration:none}
+
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:64px}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots span{width:10px;height:10px;border-radius:50%;background:var(--orange);display:block}
+  .logo .dots span:nth-child(2){background:#f26a3d}.logo .dots span:nth-child(3){background:#ff8a5c}
+  .logo .word .d,.logo .word .p{font-family:var(--serif);font-size:15px;font-weight:700;color:#fff;display:block;line-height:1;letter-spacing:1px}
+  .topbar .product{margin-left:14px;padding-left:16px;border-left:1px solid rgba(255,255,255,.18);font-family:var(--serif);font-size:15px;color:#cfd6e0}
+  .topbar .product b{color:#fff}
+
+  .wrap{max-width:980px;margin:0 auto;padding:24px 28px 60px}
+  .crumb{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .crumb a:hover{color:var(--orange)}
+
+  .resulthead{background:#fff;border:1px solid var(--border);padding:20px 26px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .resulthead h1{font-size:22px}
+  .resulthead .m{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .scores{display:flex;gap:14px;align-items:center}
+  .score{text-align:right}
+  .score .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .score .v{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--navy)}
+  .pass{display:inline-flex;align-items:center;gap:7px;background:#e7f6ec;color:var(--green);font-size:13px;font-weight:700;padding:8px 14px;border-radius:2px;border:1px solid #bfe3cb}
+
+  .tabs{display:flex;gap:2px;margin-top:18px;border-bottom:1px solid var(--border);background:#fff;border:1px solid var(--border);border-bottom:none}
+  .tab{font-family:var(--sans);font-size:13.5px;font-weight:600;color:var(--muted);background:transparent;border:none;padding:13px 20px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.on{color:var(--navy);border-bottom-color:var(--orange)}
+  .tab:hover{color:var(--navy)}
+
+  .panelwrap{background:#fff;border:1px solid var(--border);border-top:none}
+  .panel{display:none;padding:0}
+  .panel.on{display:block}
+
+  /* Document view */
+  .docview{padding:36px 56px;max-width:760px;margin:0 auto;font-size:14px;line-height:1.75;color:#1a2433}
+  .docview .wp{font-family:var(--serif);font-weight:700;letter-spacing:.06em;color:var(--navy);margin-bottom:18px}
+  .docview p{margin-bottom:14px}
+  .docview .re{font-weight:700}
+  .v-ind{color:var(--green);font-weight:700;cursor:help}
+  .w-ind{color:var(--amber);font-weight:700;cursor:help}
+  .docview .legend{margin-top:28px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;gap:22px}
+  .docview .legend b{font-weight:600}
+  mark{background:rgba(234,88,12,.10);padding:0 2px}
+
+  /* Issues tab */
+  .pad{padding:24px 28px}
+  .ilist .it{border:1px solid var(--border);border-left:4px solid var(--green);padding:14px 18px;margin-bottom:10px}
+  .ilist .it.mod{border-left-color:var(--amber)}
+  .ilist .it h4{font-size:15px;margin-bottom:4px}
+  .ilist .it p{font-size:13px;color:var(--muted)}
+  .ilist .it .tags{margin-top:8px;display:flex;gap:7px}
+
+  .src{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:2px}
+  .src.verified{background:#e7f6ec;color:var(--green)}
+  .src.web{background:#fdf0dd;color:var(--amber)}
+  .src.statute{background:#eef1f6;color:var(--navy)}
+
+  /* Source map */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:var(--cream)}
+  td .claim{color:var(--ink)}
+  .trust{font-size:11px;font-weight:600;padding:2px 7px;border-radius:2px}
+  .t-high{background:#e7f6ec;color:var(--green)}
+  .t-med{background:#fdf0dd;color:var(--amber)}
+  .t-low{background:#f4f1ec;color:var(--muted)}
+
+  /* Verification */
+  .vrow{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
+  .vrow:last-child{border-bottom:none}
+  .vrow .dim{font-size:14px;font-weight:600;color:var(--ink);width:200px;flex-shrink:0}
+  .vrow .wt{font-size:11.5px;color:var(--muted);width:60px;flex-shrink:0}
+  .vbar{flex:1;height:8px;background:var(--cream);border:1px solid var(--border);border-radius:2px;overflow:hidden}
+  .vbar > span{display:block;height:100%;background:var(--green)}
+  .vbar > span.amber{background:var(--amber)}
+  .vscore{font-size:13px;font-weight:600;width:48px;text-align:right;flex-shrink:0}
+
+  /* Cost tab */
+  .costcard{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+  .cc{border:1px solid var(--border);padding:16px 18px}
+  .cc .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .cc .v{font-family:var(--serif);font-size:24px;color:var(--navy);font-weight:600;margin-top:4px}
+
+  /* Export bar */
+  .exportbar{position:sticky;bottom:0;background:#fff;border:1px solid var(--border);padding:16px 24px;margin-top:20px;display:flex;align-items:center;gap:12px}
+  .exportbar .note{font-size:12.5px;color:var(--muted);margin-right:auto;display:flex;align-items:center;gap:8px}
+  .btn{background:var(--orange);color:#fff;font-size:13.5px;font-weight:600;padding:11px 20px;border-radius:2px;border:none;cursor:pointer}
+  .btn:hover{background:#d24f0a}
+  .btn-2{background:#fff;color:var(--navy);border:1px solid var(--border);font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:2px;cursor:pointer}
+  .btn-2:hover{border-color:var(--navy)}
+  .export-top{position:relative}
+  .export-top .menu{font-size:13px}
+
+  .humangate{display:flex;gap:10px;background:#eef1f6;border:1px solid var(--border);border-left:3px solid var(--navy);padding:12px 16px;margin:20px 0 0;font-size:13px;color:var(--muted)}
+  .humangate b{color:var(--navy)}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div style="display:flex;align-items:center">
+      <a class="logo" href="dashboard.html">
+        <span class="dots"><span></span><span></span><span></span></span>
+        <span class="word"><span class="d">DEMAND</span><span class="p">PAY</span></span>
+      </a>
+      <span class="product"><b>Starling</b> · Employment Law</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="crumb"><a href="dashboard.html">My Matters</a> › <a href="matter-detail.html">Smith v Acme Corp</a> › Demand Letter</div>
+
+    <div class="resulthead">
+      <div>
+        <h1>Demand Letter — Smith v Acme Corp</h1>
+        <div class="m">Generated June 25, 2026 · Adversarial workflow · 8 verification passes</div>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="k">Quality</div><div class="v">92<span style="font-size:14px;color:var(--muted)">/100</span></div></div>
+        <div class="score"><div class="k">Cost</div><div class="v">$3.47</div></div>
+        <span class="pass">✅ PASS</span>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" data-t="document">Document</button>
+      <button class="tab" data-t="issues">Issues</button>
+      <button class="tab" data-t="sourcemap">Source Map</button>
+      <button class="tab" data-t="verification">Verification</button>
+      <button class="tab" data-t="cost">Cost</button>
+    </div>
+
+    <div class="panelwrap">
+      <!-- DOCUMENT -->
+      <div class="panel on" id="document">
+        <div class="docview">
+          <div class="wp">WITHOUT PREJUDICE</div>
+          <p>June 25, 2026</p>
+          <p>Human Resources Department<br>Acme Corporation</p>
+          <p class="re">Re: Termination of Jane Smith</p>
+          <p>We are counsel for Jane Smith in connection with the termination of her employment with Acme Corporation on June 1, 2026. <span class="v-ind" title="Verified against intake data">✓</span></p>
+          <p>Ms. Smith was employed for <mark>8.3 years</mark> as a Marketing Manager. Under the <em>Employment Standards Act, 2000</em>, ss. 57–58, she is entitled to a minimum of <mark>8 weeks'</mark> notice of termination. <span class="v-ind" title="Verified: statute — ESA s.57(h)">✓</span></p>
+          <p>The termination provision in Ms. Smith's 2018 employment agreement purports to limit her entitlements to the statutory minimum. That provision is unenforceable. Its "just cause" language fails to meet the ESA "wilful misconduct" standard, and under <em>Waksdale v Swegon Power &amp; Cooling Systems Inc.</em>, 2020 ONCA 391, the entire termination clause is void. <span class="v-ind" title="Verified: case_db — Waksdale 2020 ONCA 391">✓</span></p>
+          <p>Ms. Smith is therefore entitled to common law reasonable notice. Applying the <em>Bardal</em> factors — her age, 8.3 years of service, the managerial character of her role, and the limited availability of comparable employment <span class="w-ind" title="Web source — verify current market conditions">⚠</span> — reasonable notice falls in the range of <mark>10 to 14 months</mark>, or approximately <mark>$79,167 to $110,833</mark>. <span class="v-ind" title="Verified: case_db — Bardal v Globe & Mail">✓</span></p>
+          <p>We further note that Ms. Smith's termination followed within days of a disability accommodation request, raising potential claims under the <em>Human Rights Code</em> and for aggravated damages per <em>Honda Canada Inc. v Keays</em>, 2008 SCC 39. <span class="v-ind" title="Verified: case_db — Honda v Keays 2008 SCC 39">✓</span></p>
+          <p>We invite Acme Corporation to respond with a reasonable severance proposal within <mark>14 days</mark> of the date of this letter, failing which we are instructed to commence proceedings in the Superior Court of Justice. <span class="v-ind" title="Verified: correct forum">✓</span></p>
+          <p>Yours truly,<br><br>DemandPay Starling — for review by counsel</p>
+
+          <div class="legend">
+            <span><b class="v-ind">✓</b> verified — statute or case database</span>
+            <span><b class="w-ind">⚠</b> web source — verify before sending</span>
+            <span><b style="background:rgba(234,88,12,.10);padding:0 3px">highlight</b> — key figure, check against file</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ISSUES -->
+      <div class="panel" id="issues">
+        <div class="pad ilist">
+          <div class="it"><h4>✅ Wrongful dismissal — without cause <span class="src verified" style="float:right">Strong</span></h4><p>ESA notice 8 weeks; common law 10–14 months under Bardal. Addressed in paragraphs 2–4 of the letter.</p><div class="tags"><span class="src statute">§ ESA s. 57</span><span class="src verified">✓ case_db</span></div></div>
+          <div class="it"><h4>✅ Termination clause void (Waksdale) <span class="src verified" style="float:right">Strong</span></h4><p>"Just cause" language fails ESA "wilful misconduct" standard — entire clause void. Addressed in paragraph 3.</p><div class="tags"><span class="src verified">✓ case_db · Waksdale 2020 ONCA 391</span></div></div>
+          <div class="it mod"><h4>⚠️ Disability discrimination (Human Rights Code) <span class="src web" style="float:right">Moderate</span></h4><p>Raised in paragraph 5 as a preserved claim. Recommend pulling the May 28 accommodation email before relying on this in pleadings.</p><div class="tags"><span class="src web">⚠ ai_knowledge · verify</span></div></div>
+          <div class="it mod"><h4>⚠️ Bad faith / aggravated damages (Honda v Keays) <span class="src web" style="float:right">Moderate</span></h4><p>Same-day termination supports a Honda claim. Referenced in paragraph 5.</p><div class="tags"><span class="src verified">✓ case_db · Honda 2008 SCC 39</span></div></div>
+        </div>
+      </div>
+
+      <!-- SOURCE MAP -->
+      <div class="panel" id="sourcemap">
+        <div class="pad">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Every legal proposition in the letter, traced to its source. Web and AI-knowledge items are flagged for your verification before sending.</p>
+          <table>
+            <thead><tr><th style="width:46%">Claim</th><th>Source</th><th>Type</th><th>Trust</th></tr></thead>
+            <tbody>
+              <tr><td class="claim">8 weeks' ESA notice entitlement</td><td>ESA, 2000 s. 57(h)</td><td><span class="src statute">statute</span></td><td><span class="trust t-high">Highest</span></td></tr>
+              <tr><td class="claim">Termination clause void if any part breaches ESA</td><td>Waksdale v Swegon, 2020 ONCA 391</td><td><span class="src verified">case_db</span></td><td><span class="trust t-high">High</span></td></tr>
+              <tr><td class="claim">Common law reasonable notice via Bardal factors</td><td>Bardal v Globe &amp; Mail, 1960 CanLII 855 (ON SC)</td><td><span class="src verified">case_db</span></td><td><span class="trust t-high">High</span></td></tr>
+              <tr><td class="claim">Aggravated damages for manner of dismissal</td><td>Honda v Keays, 2008 SCC 39</td><td><span class="src verified">case_db</span></td><td><span class="trust t-high">High</span></td></tr>
+              <tr><td class="claim">Limited availability of comparable senior marketing roles</td><td>CanLII / market survey (allowlisted)</td><td><span class="src web">web_search</span></td><td><span class="trust t-med">Medium · verify</span></td></tr>
+              <tr><td class="claim">Termination timing supports Code reprisal inference</td><td>Model knowledge — not independently verified</td><td><span class="src" style="background:#f4f1ec;color:var(--muted)">ai_knowledge</span></td><td><span class="trust t-low">Verify before use</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VERIFICATION -->
+      <div class="panel" id="verification">
+        <div class="pad">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">All 8 verification passes ran. The Evaluator (Opus) recalculated every ESA figure independently. Weighted score: <b style="color:var(--navy)">92 / 100 — PASS</b>.</p>
+          <div class="vrow"><span class="dim">Factual Correctness</span><span class="wt">0.15</span><div class="vbar"><span style="width:96%"></span></div><span class="vscore">0.96</span></div>
+          <div class="vrow"><span class="dim">Legal Accuracy</span><span class="wt">0.20</span><div class="vbar"><span style="width:94%"></span></div><span class="vscore">0.94</span></div>
+          <div class="vrow"><span class="dim">Completeness</span><span class="wt">0.15</span><div class="vbar"><span style="width:90%"></span></div><span class="vscore">0.90</span></div>
+          <div class="vrow"><span class="dim">Internal Consistency</span><span class="wt">0.10</span><div class="vbar"><span style="width:98%"></span></div><span class="vscore">0.98</span></div>
+          <div class="vrow"><span class="dim">Procedural Compliance</span><span class="wt">0.15</span><div class="vbar"><span style="width:92%"></span></div><span class="vscore">0.92</span></div>
+          <div class="vrow"><span class="dim">Source Attribution</span><span class="wt">0.10</span><div class="vbar"><span class="amber" style="width:84%"></span></div><span class="vscore">0.84</span></div>
+          <div class="vrow"><span class="dim">Formal Tone</span><span class="wt">0.10</span><div class="vbar"><span style="width:95%"></span></div><span class="vscore">0.95</span></div>
+          <div class="vrow"><span class="dim">Client Alignment</span><span class="wt">0.05</span><div class="vbar"><span style="width:93%"></span></div><span class="vscore">0.93</span></div>
+        </div>
+      </div>
+
+      <!-- COST -->
+      <div class="panel" id="cost">
+        <div class="pad">
+          <div class="costcard">
+            <div class="cc"><div class="k">Total cost</div><div class="v">$3.47</div></div>
+            <div class="cc"><div class="k">Session budget</div><div class="v">$5.00</div></div>
+            <div class="cc"><div class="k">Time</div><div class="v">6m 12s</div></div>
+          </div>
+          <table>
+            <thead><tr><th>Stage</th><th>Detail</th><th style="text-align:right">Cost</th></tr></thead>
+            <tbody>
+              <tr><td>Drafting</td><td>Employment Counsel — issue analysis, entitlements, draft</td><td style="text-align:right">$1.41</td></tr>
+              <tr><td>Adversarial test</td><td>Red Team + Litigation Partner — employer-side stress test</td><td style="text-align:right">$0.92</td></tr>
+              <tr><td>Strengthening</td><td>Employment Counsel — response to challenges</td><td style="text-align:right">$0.46</td></tr>
+              <tr><td>Verification</td><td>8-pass evaluation + independent ESA recalculation</td><td style="text-align:right">$0.51</td></tr>
+              <tr><td>Synthesis</td><td>Final assembly + audit bundle</td><td style="text-align:right">$0.17</td></tr>
+              <tr><td colspan="2" style="font-weight:600">Total</td><td style="text-align:right;font-weight:600">$3.47</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:11.5px;color:var(--muted);margin-top:12px">Full cost log ships with the audit bundle for this deliverable.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="humangate"><span>⚖️</span><span><b>Human review required.</b> This draft has not been sent. Review and approve before it reaches the employer or the court — a human gate is mandatory on every Starling deliverable.</span></div>
+
+    <div class="exportbar">
+      <div class="note">✅ Saved to matter · Quality 92/100 PASS</div>
+      <button class="btn">⬇ Download DOCX</button>
+      <button class="btn-2">⬇ Download PDF</button>
+      <button class="btn-2" onclick="location.href='matter-detail.html'">Save to Matter</button>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.tab').forEach(function(t){
+      t.addEventListener('click',function(){
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+        document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+        t.classList.add('on');
+        document.getElementById(t.dataset.t).classList.add('on');
+      });
+    });
+  </script>
+</body>
+</html>

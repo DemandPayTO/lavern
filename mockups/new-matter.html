@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay Starling — New Matter</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --cream:#faf8f5; --frame:#e8e5e0;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --border:rgba(15,26,46,0.12);
+    --ink:#0f1a2e; --muted:#5a6472;
+    --serif:Georgia,'Palatino Linotype',serif;
+    --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--frame);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{font-family:var(--serif);font-weight:600;color:var(--navy)}
+  a{color:inherit;text-decoration:none}
+
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:64px}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots span{width:10px;height:10px;border-radius:50%;background:var(--orange);display:block}
+  .logo .dots span:nth-child(2){background:#f26a3d}
+  .logo .dots span:nth-child(3){background:#ff8a5c}
+  .logo .word .d,.logo .word .p{font-family:var(--serif);font-size:15px;font-weight:700;color:#fff;display:block;line-height:1;letter-spacing:1px}
+  .topbar .product{margin-left:14px;padding-left:16px;border-left:1px solid rgba(255,255,255,.18);font-family:var(--serif);font-size:15px;color:#cfd6e0}
+  .topbar .product b{color:#fff}
+
+  .wrap{max-width:760px;margin:0 auto;padding:24px 28px 64px}
+  .back{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13.5px;margin-bottom:18px}
+  .back:hover{color:var(--orange)}
+  .card{background:#fff;border:1px solid var(--border);padding:34px 38px 32px}
+  .card h1{font-size:25px;margin-bottom:4px}
+  .lede{color:var(--muted);font-size:14px;margin-bottom:28px}
+
+  .field{margin-bottom:22px}
+  .field label{display:block;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:7px}
+  .field .hint{font-weight:400;color:var(--muted);font-size:12.5px}
+  .field .opt{font-weight:400;color:var(--muted);font-size:12px;background:var(--cream);border:1px solid var(--border);padding:1px 7px;border-radius:2px;margin-left:6px}
+  input[type=text],textarea{width:100%;font-family:var(--sans);font-size:14px;color:var(--ink);border:1px solid var(--border);border-radius:2px;padding:11px 13px;background:#fff}
+  input[type=text]:focus,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 2px rgba(234,88,12,.12)}
+  input::placeholder,textarea::placeholder{color:#9aa3af}
+  textarea{resize:vertical;min-height:104px;line-height:1.55}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+  .drop{border:1.5px dashed var(--border);border-radius:2px;background:var(--cream);padding:24px;text-align:center;color:var(--muted);cursor:pointer}
+  .drop:hover{border-color:var(--orange);color:var(--ink)}
+  .drop .big{font-size:14px;color:var(--ink);font-weight:600;margin-bottom:4px}
+  .drop .small{font-size:12.5px}
+  .drop .icon{font-size:24px;margin-bottom:8px;opacity:.7}
+  .files{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+  .file{display:flex;align-items:center;gap:10px;font-size:13px;border:1px solid var(--border);border-radius:2px;padding:8px 11px;background:#fff}
+  .file .ft{font-size:11px;color:var(--muted);background:var(--cream);padding:1px 6px;border-radius:2px;border:1px solid var(--border)}
+  .file .x{margin-left:auto;color:var(--muted);cursor:pointer}
+  .file .ok{color:var(--green);font-size:12px}
+
+  .esa-note{display:flex;gap:10px;background:#eef1f6;border:1px solid var(--border);border-left:3px solid var(--navy);padding:12px 14px;font-size:12.5px;color:var(--muted);margin-top:8px;border-radius:2px}
+  .esa-note b{color:var(--navy)}
+
+  .submitbar{display:flex;align-items:center;justify-content:space-between;margin-top:30px;padding-top:22px;border-top:1px solid var(--border)}
+  .cost{font-size:13px;color:var(--muted)}
+  .cost b{color:var(--ink)}
+  .btn{background:var(--orange);color:#fff;font-size:14.5px;font-weight:600;padding:13px 24px;border-radius:2px;border:none;cursor:pointer}
+  .btn:hover{background:#d24f0a}
+  .btn-ghost{background:#fff;color:var(--navy);border:1px solid var(--border);font-size:14px;padding:13px 20px;border-radius:2px;cursor:pointer;margin-right:10px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div style="display:flex;align-items:center">
+      <a class="logo" href="dashboard.html">
+        <span class="dots"><span></span><span></span><span></span></span>
+        <span class="word"><span class="d">DEMAND</span><span class="p">PAY</span></span>
+      </a>
+      <span class="product"><b>Starling</b> · Employment Law</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <a class="back" href="dashboard.html">← Back to My Matters</a>
+    <div class="card">
+      <h1>New Matter</h1>
+      <p class="lede">Give Starling the basics. It will extract dates, identify employment law issues, and flag missing documents automatically.</p>
+
+      <div class="field">
+        <label>Client Name</label>
+        <input type="text" placeholder="e.g., Jane Smith">
+      </div>
+
+      <div class="field">
+        <label>Employer Name</label>
+        <input type="text" placeholder="e.g., Acme Corporation">
+      </div>
+
+      <div class="field">
+        <label>Describe the situation</label>
+        <textarea placeholder="e.g., Client terminated after 8 years as a marketing manager. Employer offered 4 weeks. Client believes they were let go shortly after requesting a disability accommodation."></textarea>
+        <div class="esa-note"><span>ℹ️</span><span>Plain language is fine. Starling will identify the legal issues — <b>wrongful dismissal, ESA entitlements, Waksdale termination-clause analysis, Human Rights Code</b> claims, and limitation periods.</span></div>
+      </div>
+
+      <div class="field">
+        <label>Upload documents <span class="opt">optional</span></label>
+        <div class="drop">
+          <div class="icon">⬆</div>
+          <div class="big">Drop files here or click to browse</div>
+          <div class="small">Employment agreement, termination letter, ROE, pay stubs, severance offer, intake notes</div>
+        </div>
+        <div class="files">
+          <div class="file"><span>📄</span> Smith_Termination_Letter.pdf <span class="ft">PDF</span> <span class="ok">✓ ready</span> <span class="x">✕</span></div>
+          <div class="file"><span>📄</span> Smith_Employment_Agreement_2018.pdf <span class="ft">PDF</span> <span class="ok">✓ ready</span> <span class="x">✕</span></div>
+          <div class="file"><span>📄</span> Record_of_Employment.pdf <span class="ft">PDF</span> <span class="ok">✓ ready</span> <span class="x">✕</span></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Key dates <span class="opt">optional — Starling extracts these from documents</span></label>
+        <div class="row2">
+          <div>
+            <div class="hint" style="margin-bottom:6px">Employment start date</div>
+            <input type="text" placeholder="dd/mm/yyyy" value="14/03/2018">
+          </div>
+          <div>
+            <div class="hint" style="margin-bottom:6px">Termination date</div>
+            <input type="text" placeholder="dd/mm/yyyy" value="01/06/2026">
+          </div>
+        </div>
+        <div class="esa-note"><span>⏳</span><span>From a termination date of <b>June 1, 2026</b>, Starling will track the <b>2-year limitation</b> (Limitations Act) to June 1, 2028, and the <b>1-year HRTO limitation</b> to June 1, 2027.</span></div>
+      </div>
+
+      <div class="submitbar">
+        <div class="cost">Estimated cost: <b>~$0.50–1.00</b> for intake analysis</div>
+        <div>
+          <button class="btn-ghost" onclick="location.href='dashboard.html'">Cancel</button>
+          <button class="btn" onclick="location.href='processing.html'">Create Matter &amp; Analyse →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

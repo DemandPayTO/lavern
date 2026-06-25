@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay Starling — Dashboard</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --cream:#faf8f5; --frame:#e8e5e0;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --border:rgba(15,26,46,0.12);
+    --ink:#0f1a2e; --muted:#5a6472;
+    --serif:Georgia,'Palatino Linotype',serif;
+    --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--frame);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{font-family:var(--serif);font-weight:600;color:var(--navy)}
+  a{color:inherit;text-decoration:none}
+
+  /* Top bar */
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:64px}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots span{width:10px;height:10px;border-radius:50%;background:var(--orange);display:block}
+  .logo .dots span:nth-child(2){background:#f26a3d}
+  .logo .dots span:nth-child(3){background:#ff8a5c}
+  .logo .word{font-family:var(--serif);line-height:1;letter-spacing:1px}
+  .logo .word .d{font-size:15px;font-weight:700;color:#fff;display:block}
+  .logo .word .p{font-size:15px;font-weight:700;color:#fff;display:block}
+  .topbar .product{margin-left:14px;padding-left:16px;border-left:1px solid rgba(255,255,255,.18);font-family:var(--serif);font-size:15px;color:#cfd6e0}
+  .topbar .product b{color:#fff}
+  .navlinks{display:flex;align-items:center;gap:8px}
+  .navlinks a{padding:8px 14px;border-radius:2px;font-size:14px;color:#cfd6e0;border:1px solid transparent}
+  .navlinks a.active{color:#fff;border-color:rgba(255,255,255,.25)}
+  .navlinks a:hover{color:#fff}
+  .gear{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:2px;color:#cfd6e0}
+
+  /* Layout */
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 28px 64px}
+  .pagehead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .pagehead h1{font-size:26px}
+  .pagehead .date{color:var(--muted);font-size:13px}
+  .subhead{color:var(--muted);font-size:14px;margin-bottom:26px}
+
+  /* Quick action cards */
+  .section-label{font-family:var(--serif);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  .actions{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:38px}
+  .action{background:#fff;border:1px solid var(--border);border-radius:0;padding:22px 22px 24px;display:flex;flex-direction:column;min-height:182px;transition:border-color .15s, box-shadow .15s}
+  .action:hover{border-color:var(--orange);box-shadow:0 2px 0 var(--orange)}
+  .action .ic{width:38px;height:38px;border-radius:2px;display:grid;place-items:center;font-size:20px;margin-bottom:14px;background:var(--cream);border:1px solid var(--border)}
+  .action.primary .ic{background:var(--orange);color:#fff;border-color:var(--orange)}
+  .action h3{font-size:18px;margin-bottom:8px}
+  .action p{color:var(--muted);font-size:13.5px;flex:1}
+  .action .cta{margin-top:16px;font-size:13px;font-weight:600;color:var(--orange);display:flex;align-items:center;gap:6px}
+
+  /* Matters */
+  .matters-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 14px}
+  .matters-head h2{font-size:19px}
+  .filters{display:flex;gap:6px}
+  .chip{font-size:12px;padding:5px 11px;border:1px solid var(--border);border-radius:2px;background:#fff;color:var(--muted);cursor:pointer}
+  .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .btn-new{background:var(--orange);color:#fff;font-size:13px;font-weight:600;padding:9px 16px;border-radius:2px;border:none;cursor:pointer}
+
+  .matter-list{background:#fff;border:1px solid var(--border)}
+  .matter{display:grid;grid-template-columns:6px 1fr auto;gap:0;border-bottom:1px solid var(--border);align-items:stretch}
+  .matter:last-child{border-bottom:none}
+  .matter .bar{width:6px}
+  .matter.urgent .bar{background:var(--red)}
+  .matter.stale .bar{background:var(--amber)}
+  .matter.active .bar{background:var(--navy)}
+  .matter.complete .bar{background:var(--green)}
+  .matter .body{padding:16px 20px;cursor:pointer}
+  .matter:hover .body{background:#fcfbf9}
+  .matter .line1{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .matter .status-ic{font-size:14px}
+  .matter .name{font-family:var(--serif);font-size:16.5px;color:var(--navy);font-weight:600}
+  .matter .num{font-size:11.5px;color:var(--muted);margin-left:2px}
+  .matter .flag{margin-left:auto;font-size:12px;font-weight:600;padding:3px 9px;border-radius:2px}
+  .flag.red{background:#fce8e6;color:var(--red)}
+  .flag.amber{background:#fdf0dd;color:var(--amber)}
+  .flag.navy{background:#eef1f6;color:var(--navy)}
+  .flag.green{background:#e7f6ec;color:var(--green)}
+  .matter .line2{font-size:13.5px;color:var(--muted)}
+  .matter .line2 b{color:var(--ink);font-weight:600}
+  .matter .meta{padding:16px 20px;text-align:right;border-left:1px solid var(--border);min-width:150px;display:flex;flex-direction:column;justify-content:center;gap:3px}
+  .matter .meta .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .matter .meta .v{font-size:13.5px;color:var(--ink);font-weight:600}
+
+  .group-label{display:flex;align-items:center;gap:10px;margin:26px 0 12px;color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+  .group-label::after{content:"";flex:1;height:1px;background:var(--border)}
+  .collapsed-note{font-size:13px;color:var(--muted);padding:14px 20px;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .collapsed-note a{color:var(--orange);font-weight:600;font-size:13px}
+
+  .foot{margin-top:40px;color:var(--muted);font-size:12px;text-align:center}
+  .foot b{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div style="display:flex;align-items:center">
+      <a class="logo" href="dashboard.html">
+        <span class="dots"><span></span><span></span><span></span></span>
+        <span class="word"><span class="d">DEMAND</span><span class="p">PAY</span></span>
+      </a>
+      <span class="product"><b>Starling</b> · Employment Law</span>
+    </div>
+    <div class="navlinks">
+      <a href="dashboard.html" class="active">My Cases</a>
+      <a href="#">Library</a>
+      <a class="gear" href="#" title="Settings">⚙</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="pagehead">
+      <h1>Good afternoon, Jordan</h1>
+      <div class="date">Thursday, June 25, 2026</div>
+    </div>
+    <div class="subhead">8 active matters · <span style="color:var(--red);font-weight:600">1 urgent</span> · <span style="color:var(--amber);font-weight:600">2 need attention</span></div>
+
+    <div class="section-label">Quick Actions</div>
+    <div class="actions">
+      <a class="action primary" href="new-matter.html">
+        <div class="ic">＋</div>
+        <h3>New Matter</h3>
+        <p>Start a new client file. Upload an intake transcript or employment documents, or just describe the situation.</p>
+        <div class="cta">Start a matter →</div>
+      </a>
+      <a class="action" href="matter-detail.html">
+        <div class="ic">✍</div>
+        <h3>Draft Document</h3>
+        <p>Generate a demand letter, Statement of Claim, mediation brief, or motion materials for an existing matter.</p>
+        <div class="cta">Draft a document →</div>
+      </a>
+      <a class="action" href="matter-detail.html">
+        <div class="ic">🔍</div>
+        <h3>Review Document</h3>
+        <p>Analyse an employment agreement, termination letter, or severance package for risks and enforceability.</p>
+        <div class="cta">Review a document →</div>
+      </a>
+    </div>
+
+    <div class="matters-head">
+      <h2>My Matters</h2>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="filters">
+          <span class="chip on">All</span>
+          <span class="chip">Urgent</span>
+          <span class="chip">Needs attention</span>
+          <span class="chip">Active</span>
+        </div>
+        <a class="btn-new" href="new-matter.html">＋ New Matter</a>
+      </div>
+    </div>
+
+    <div class="matter-list">
+      <!-- URGENT -->
+      <div class="matter urgent">
+        <div class="bar"></div>
+        <div class="body" onclick="location.href='matter-detail.html'">
+          <div class="line1">
+            <span class="status-ic">🔴</span>
+            <span class="name">Patel v MegaCorp</span>
+            <span class="num">#STR-2026-007</span>
+            <span class="flag red">Limitation in 14 days</span>
+          </div>
+          <div class="line2"><b>Action:</b> File Statement of Claim before July 9, 2026 · SOC not yet filed</div>
+        </div>
+        <div class="meta">
+          <div class="k">Limitation</div>
+          <div class="v" style="color:var(--red)">Jul 9, 2026</div>
+        </div>
+      </div>
+
+      <!-- STALE -->
+      <div class="matter stale">
+        <div class="bar"></div>
+        <div class="body" onclick="location.href='matter-detail.html'">
+          <div class="line1">
+            <span class="status-ic">⚠️</span>
+            <span class="name">Jones v BigCo</span>
+            <span class="num">#STR-2026-005</span>
+            <span class="flag amber">No activity · 12 days</span>
+          </div>
+          <div class="line2"><b>Missing:</b> employment agreement, termination letter · Last step: intake analysis</div>
+        </div>
+        <div class="meta">
+          <div class="k">Last activity</div>
+          <div class="v">Jun 13, 2026</div>
+        </div>
+      </div>
+
+      <div class="matter stale">
+        <div class="bar"></div>
+        <div class="body" onclick="location.href='matter-detail.html'">
+          <div class="line1">
+            <span class="status-ic">⚠️</span>
+            <span class="name">Williams v StartupCo</span>
+            <span class="num">#STR-2026-004</span>
+            <span class="flag amber">No activity · 8 days</span>
+          </div>
+          <div class="line2"><b>Next:</b> Send demand letter to employer or request lawyer review</div>
+        </div>
+        <div class="meta">
+          <div class="k">Last activity</div>
+          <div class="v">Jun 17, 2026</div>
+        </div>
+      </div>
+
+      <!-- ACTIVE -->
+      <div class="matter active">
+        <div class="bar"></div>
+        <div class="body" onclick="location.href='matter-detail.html'">
+          <div class="line1">
+            <span class="status-ic">●</span>
+            <span class="name">Smith v Acme Corp</span>
+            <span class="num">#STR-2026-003</span>
+            <span class="flag navy">Demand letter drafted</span>
+          </div>
+          <div class="line2"><b>Next:</b> Send to employer or request review · Limitation June 1, 2028</div>
+        </div>
+        <div class="meta">
+          <div class="k">Last activity</div>
+          <div class="v">3 days ago</div>
+        </div>
+      </div>
+
+      <div class="matter active">
+        <div class="bar"></div>
+        <div class="body" onclick="location.href='matter-detail.html'">
+          <div class="line1">
+            <span class="status-ic">●</span>
+            <span class="name">Lee v TechFirm</span>
+            <span class="num">#STR-2026-006</span>
+            <span class="flag navy">SOC in progress</span>
+          </div>
+          <div class="line2"><b>Next:</b> Review draft · check limitation Feb 2027</div>
+        </div>
+        <div class="meta">
+          <div class="k">Last activity</div>
+          <div class="v">Today</div>
+        </div>
+      </div>
+
+      <div class="matter active">
+        <div class="bar"></div>
+        <div class="body" onclick="location.href='matter-detail.html'">
+          <div class="line1">
+            <span class="status-ic">●</span>
+            <span class="name">Chen v RetailCo</span>
+            <span class="num">#STR-2026-008</span>
+            <span class="flag navy">Intake received</span>
+          </div>
+          <div class="line2"><b>Next:</b> Run issue analysis on uploaded ROE and termination letter</div>
+        </div>
+        <div class="meta">
+          <div class="k">Last activity</div>
+          <div class="v">2 days ago</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLETED (collapsed) -->
+    <div class="group-label">Completed</div>
+    <div class="collapsed-note">
+      <span>✅ 2 completed matters — <b style="color:var(--ink)">Nguyen v LogiCo</b>, <b style="color:var(--ink)">Okafor v FinServ</b></span>
+      <a href="#">Show completed →</a>
+    </div>
+
+    <div class="foot">DemandPay <b>Starling</b> · Ontario Employment Law Workbench · Matters auto-sorted by urgency · Status inferred from activity</div>
+  </div>
+</body>
+</html>

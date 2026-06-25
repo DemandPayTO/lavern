@@ -69,8 +69,9 @@ const PublicTeamShareView = lazy(() => import('./agent-builder/PublicTeamShareVi
 const LegalView = lazy(() => import('./legal/LegalView.js'));
 const PartnerView = lazy(() => import('./partner/PartnerView.js'));
 const ShowcaseView = lazy(() => import('./showcase/ShowcaseView.js'));
+const StarlingDashboard = lazy(() => import('./starling/StarlingDashboard.js'));
 
-type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph';
+type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard';
 
 function getViewFromHash(): AppView {
   const hash = window.location.hash;
@@ -115,7 +116,8 @@ function getViewFromHash(): AppView {
   if (hash.startsWith('#/landing')) return 'landing';
   if (hash.startsWith('#/showcase')) return 'showcase';
   if (hash.startsWith('#/demo')) return 'demo';
-  return 'foyer';
+  if (hash.startsWith('#/foyer')) return 'foyer';
+  return 'starling-dashboard';
 }
 
 /** Shared loading fallback for lazy-loaded views */
@@ -208,7 +210,7 @@ export function App() {
   }, []);
 
   // Demo containment — if a demo session is active, only allow demo-safe routes
-  const DEMO_SAFE: AppView[] = ['foyer', 'working', 'delivery', 'claw', 'claw-live', 'demo', 'login'];
+  const DEMO_SAFE: AppView[] = ['foyer', 'starling-dashboard', 'working', 'delivery', 'claw', 'claw-live', 'demo', 'login'];
   useEffect(() => {
     const sid = sessionStorage.getItem('shem-session-id') ?? '';
     if (sid.startsWith('demo-session') && !DEMO_SAFE.includes(view)) {
@@ -596,7 +598,7 @@ export function App() {
   // ── View rendering ────────────────────────────────────────────────────
 
   // ── Global M mark — hide on landing (custom cursor) & working (tight header) ──
-  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working';
+  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard';
 
   // ── Global API error handler (listens for shem:api-error events) ────
   useEffect(() => {
@@ -1215,7 +1217,22 @@ export function App() {
     );
   }
 
-  // ── QuickStart — the new default landing ───────────────────────────
+  // ── Starling Dashboard — Phase 2 default landing ────────────────────
+  if (view === 'starling-dashboard') {
+    return (
+      <ErrorBoundary>
+        {skipLink}
+        {toast}
+        {offlineBanner}
+        {verifyBanner}
+        <Suspense fallback={<ViewFallback text="Loading dashboard..." />}>
+          <StarlingDashboard />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // ── QuickStart — previous default landing (still accessible via #/quickstart) ──
   return (
     <ErrorBoundary>
       {skipLink}

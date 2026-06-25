@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay Starling — Smith v Acme Corp</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --cream:#faf8f5; --frame:#e8e5e0;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --border:rgba(15,26,46,0.12);
+    --ink:#0f1a2e; --muted:#5a6472;
+    --serif:Georgia,'Palatino Linotype',serif;
+    --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--frame);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{font-family:var(--serif);font-weight:600;color:var(--navy)}
+  a{color:inherit;text-decoration:none}
+
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:64px}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots span{width:10px;height:10px;border-radius:50%;background:var(--orange);display:block}
+  .logo .dots span:nth-child(2){background:#f26a3d}.logo .dots span:nth-child(3){background:#ff8a5c}
+  .logo .word .d,.logo .word .p{font-family:var(--serif);font-size:15px;font-weight:700;color:#fff;display:block;line-height:1;letter-spacing:1px}
+  .topbar .product{margin-left:14px;padding-left:16px;border-left:1px solid rgba(255,255,255,.18);font-family:var(--serif);font-size:15px;color:#cfd6e0}
+  .topbar .product b{color:#fff}
+
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 28px 60px}
+  .back{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13.5px;margin-bottom:16px}
+  .back:hover{color:var(--orange)}
+
+  /* Matter header */
+  .mhead{background:#fff;border:1px solid var(--border);padding:22px 26px}
+  .mhead .top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+  .mhead h1{font-size:24px}
+  .mhead .num{font-size:12.5px;color:var(--muted);margin-left:4px;font-family:var(--sans)}
+  .status-pill{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--navy);background:#eef1f6;border:1px solid var(--border);padding:6px 12px;border-radius:2px}
+  .status-pill .dot{color:var(--navy)}
+  .facts{display:flex;flex-wrap:wrap;gap:0;margin-top:18px;border-top:1px solid var(--border);padding-top:16px}
+  .fact{padding-right:28px;margin-right:28px;border-right:1px solid var(--border)}
+  .fact:last-child{border-right:none}
+  .fact .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
+  .fact .v{font-size:14.5px;font-weight:600;color:var(--ink)}
+  .fact .v.red{color:var(--red)}
+
+  /* Tabs */
+  .tabs{display:flex;gap:2px;margin-top:18px;border-bottom:1px solid var(--border)}
+  .tab{font-family:var(--sans);font-size:14px;font-weight:600;color:var(--muted);background:transparent;border:none;padding:13px 20px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab .badge{font-size:11px;background:var(--cream);border:1px solid var(--border);color:var(--muted);border-radius:2px;padding:0 6px;margin-left:6px}
+  .tab.on{color:var(--navy);border-bottom-color:var(--orange)}
+  .tab.on .badge{background:var(--orange);color:#fff;border-color:var(--orange)}
+  .tab:hover{color:var(--navy)}
+
+  .panel{display:none;padding-top:22px}
+  .panel.on{display:block}
+
+  /* Source tags */
+  .src{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:2px;white-space:nowrap}
+  .src.verified{background:#e7f6ec;color:var(--green)}
+  .src.web{background:#fdf0dd;color:var(--amber)}
+  .src.statute{background:#eef1f6;color:var(--navy)}
+
+  /* Issues */
+  .issue{background:#fff;border:1px solid var(--border);border-left:4px solid var(--border);padding:16px 20px;margin-bottom:12px}
+  .issue.strong{border-left-color:var(--green)}
+  .issue.moderate{border-left-color:var(--amber)}
+  .issue .ih{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .issue .ih .t{font-family:var(--serif);font-size:16px;font-weight:600;color:var(--navy)}
+  .issue .strength{margin-left:auto;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:2px}
+  .strength.s-strong{background:#e7f6ec;color:var(--green)}
+  .strength.s-moderate{background:#fdf0dd;color:var(--amber)}
+  .issue .desc{font-size:13.5px;color:var(--muted);margin-bottom:10px}
+  .issue .desc b{color:var(--ink)}
+  .issue .srcline{display:flex;gap:8px;align-items:center}
+
+  /* Documents */
+  .doc-group h3{font-size:14px;margin:4px 0 12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--serif)}
+  .doc{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--border);padding:14px 18px;margin-bottom:10px}
+  .doc .di{width:34px;height:34px;border-radius:2px;background:var(--cream);border:1px solid var(--border);display:grid;place-items:center;font-size:16px}
+  .doc .dn{font-size:14.5px;font-weight:600;color:var(--navy)}
+  .doc .dm{font-size:12.5px;color:var(--muted)}
+  .doc .actions{margin-left:auto;display:flex;gap:8px}
+  .mini{font-size:12.5px;color:var(--navy);background:#fff;border:1px solid var(--border);padding:6px 12px;border-radius:2px;cursor:pointer}
+  .mini:hover{border-color:var(--orange);color:var(--orange)}
+  .mini.gen{background:#e7f6ec;border-color:#bfe3cb;color:var(--green)}
+
+  /* Draft tab */
+  .draftgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:8px}
+  .dtype{background:#fff;border:1px solid var(--border);padding:18px;cursor:pointer}
+  .dtype:hover{border-color:var(--orange)}
+  .dtype.rec{border-color:var(--orange);box-shadow:0 2px 0 var(--orange)}
+  .dtype .badge2{font-size:10.5px;font-weight:700;color:#fff;background:var(--orange);padding:2px 7px;border-radius:2px;letter-spacing:.04em}
+  .dtype h4{font-size:15.5px;margin:10px 0 5px}
+  .dtype p{font-size:12.5px;color:var(--muted)}
+  .dtype .c{font-size:12px;color:var(--muted);margin-top:10px}
+
+  /* Timeline */
+  .tl{position:relative;padding-left:24px}
+  .tl::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--border)}
+  .tl .ev{position:relative;margin-bottom:18px}
+  .tl .ev::before{content:"";position:absolute;left:-22px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--navy);border:2px solid #fff;box-shadow:0 0 0 1px var(--border)}
+  .tl .ev.now::before{background:var(--orange)}
+  .tl .ev .d{font-size:12px;color:var(--muted);margin-bottom:2px}
+  .tl .ev .t{font-size:14px;color:var(--ink);font-weight:600}
+  .tl .ev .s{font-size:13px;color:var(--muted)}
+
+  /* Notes */
+  .notes textarea{width:100%;min-height:220px;font-family:var(--sans);font-size:14px;border:1px solid var(--border);border-radius:2px;padding:16px;line-height:1.6;resize:vertical}
+  .notes textarea:focus{outline:none;border-color:var(--orange)}
+  .notes .priv{font-size:12.5px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+
+  /* Actions bar */
+  .actionbar{background:#fff;border:1px solid var(--border);padding:18px 24px;margin-top:24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .actionbar .lbl{font-family:var(--serif);font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:6px}
+  .btn{background:var(--orange);color:#fff;font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:2px;border:none;cursor:pointer}
+  .btn:hover{background:#d24f0a}
+  .btn-2{background:#fff;color:var(--navy);border:1px solid var(--border);font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:2px;cursor:pointer}
+  .btn-2:hover{border-color:var(--navy)}
+  .btn-danger{background:#fff;color:var(--red);border:1px solid #f0c4c0;font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:2px;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div style="display:flex;align-items:center">
+      <a class="logo" href="dashboard.html">
+        <span class="dots"><span></span><span></span><span></span></span>
+        <span class="word"><span class="d">DEMAND</span><span class="p">PAY</span></span>
+      </a>
+      <span class="product"><b>Starling</b> · Employment Law</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <a class="back" href="dashboard.html">← My Matters</a>
+
+    <div class="mhead">
+      <div class="top">
+        <div>
+          <h1>Smith v Acme Corp <span class="num">Matter #STR-2026-003</span></h1>
+        </div>
+        <span class="status-pill"><span class="dot">●</span> Active — Demand letter drafted</span>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="k">Client</div><div class="v">Jane Smith</div></div>
+        <div class="fact"><div class="k">Employer</div><div class="v">Acme Corporation</div></div>
+        <div class="fact"><div class="k">Terminated</div><div class="v">June 1, 2026</div></div>
+        <div class="fact"><div class="k">Tenure</div><div class="v">8.3 years</div></div>
+        <div class="fact"><div class="k">Limitation (Limitations Act)</div><div class="v">June 1, 2028 · 730 days</div></div>
+        <div class="fact"><div class="k">HRTO Limitation</div><div class="v">June 1, 2027</div></div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab on" data-t="issues">Issues Found <span class="badge">4</span></button>
+        <button class="tab" data-t="docs">Documents <span class="badge">5</span></button>
+        <button class="tab" data-t="draft">Draft</button>
+        <button class="tab" data-t="timeline">Timeline</button>
+        <button class="tab" data-t="notes">Notes</button>
+      </div>
+
+      <!-- ISSUES -->
+      <div class="panel on" id="issues">
+        <div class="issue strong">
+          <div class="ih"><span>✅</span><span class="t">Wrongful dismissal (without cause)</span><span class="strength s-strong">Strong</span></div>
+          <div class="desc">ESA statutory notice: <b>8 weeks</b> (s. 57). Common law reasonable notice range under <b>Bardal</b>: <b>10–14 months</b> given age, 8.3 years' service, managerial character, and limited comparable roles.</div>
+          <div class="srcline"><span class="src statute">§ statute ✓ ESA s. 57</span> <span class="src verified">✓ verified · case_db</span></div>
+        </div>
+
+        <div class="issue strong">
+          <div class="ih"><span>✅</span><span class="t">Termination clause likely void</span><span class="strength s-strong">Strong</span></div>
+          <div class="desc">The for-cause provision uses "just cause" rather than the ESA "wilful misconduct" standard. Under <b>Waksdale v Swegon (2020 ONCA 391)</b>, if any part of the termination clause violates the ESA, the <b>entire clause is void</b> — defaulting Ms. Smith to common law notice.</div>
+          <div class="srcline"><span class="src verified">✓ verified · case_db</span> <span class="src statute">§ ESA s. 5(1)</span></div>
+        </div>
+
+        <div class="issue moderate">
+          <div class="ih"><span>⚠️</span><span class="t">Possible disability discrimination</span><span class="strength s-moderate">Moderate</span></div>
+          <div class="desc">Termination followed shortly after a disability accommodation request. Potential <b>Human Rights Code</b> claim (failure to accommodate / reprisal). Requires further evidence on timing and decision-makers.</div>
+          <div class="srcline"><span class="src web">⚠ web source · verify</span> <span class="src" style="background:#f4f1ec;color:var(--muted)">ai_knowledge</span></div>
+        </div>
+
+        <div class="issue moderate">
+          <div class="ih"><span>⚠️</span><span class="t">Bad faith — manner of dismissal</span><span class="strength s-moderate">Moderate</span></div>
+          <div class="desc">Client terminated the <b>same day</b> as the accommodation request, with no notice or explanation. Potential aggravated/moral damages under <b>Honda v Keays (2008 SCC 39)</b>.</div>
+          <div class="srcline"><span class="src verified">✓ verified · case_db</span></div>
+        </div>
+      </div>
+
+      <!-- DOCS -->
+      <div class="panel" id="docs">
+        <div class="doc-group">
+          <h3>Uploaded documents</h3>
+          <div class="doc"><div class="di">📄</div><div><div class="dn">Smith_Termination_Letter.pdf</div><div class="dm">Uploaded Jun 18 · facts extracted · termination date, offer of 4 weeks</div></div><div class="actions"><span class="mini">View</span><span class="mini">Extract data</span></div></div>
+          <div class="doc"><div class="di">📄</div><div><div class="dn">Smith_Employment_Agreement_2018.pdf</div><div class="dm">Uploaded Jun 18 · termination clause flagged (Waksdale)</div></div><div class="actions"><span class="mini">View</span><span class="mini">Review</span></div></div>
+          <div class="doc"><div class="di">📄</div><div><div class="dn">Record_of_Employment.pdf</div><div class="dm">Uploaded Jun 18 · salary $95,000 + benefits confirmed</div></div><div class="actions"><span class="mini">View</span></div></div>
+        </div>
+        <div class="doc-group" style="margin-top:22px">
+          <h3>Generated by Starling</h3>
+          <div class="doc"><div class="di">✍</div><div><div class="dn">Demand Letter — Smith v Acme Corp</div><div class="dm">Generated Jun 22 · Quality 92/100 · PASS · 8 verification passes</div></div><div class="actions"><span class="mini gen">✓ Open</span><a class="mini" href="results.html">Results</a></div></div>
+          <div class="doc"><div class="di">📊</div><div><div class="dn">Entitlements Summary (ESA + Bardal)</div><div class="dm">Generated Jun 22 · CSV / DOCX · per-cell source citations</div></div><div class="actions"><span class="mini">Open</span></div></div>
+        </div>
+      </div>
+
+      <!-- DRAFT -->
+      <div class="panel" id="draft">
+        <p style="font-size:13.5px;color:var(--muted);margin-bottom:16px">Pick a document type. Starling drafts it, stress-tests it from the employer's perspective, runs 8 verification passes, and returns a court-ready draft with inline source attribution.</p>
+        <div class="draftgrid">
+          <a class="dtype rec" href="processing.html"><span class="badge2">RECOMMENDED NEXT</span><h4>Statement of Claim</h4><p>File in the Superior Court of Justice for wrongful dismissal and Code damages.</p><div class="c">~$3–8 · 3–8 min</div></a>
+          <div class="dtype"><h4>Mediation Brief</h4><p>Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.</p><div class="c">~$3–8 · 3–8 min</div></div>
+          <div class="dtype"><h4>Settlement Conference Brief</h4><p>Position summary for a settlement conference, with supporting authorities.</p><div class="c">~$3–8 · 3–8 min</div></div>
+          <div class="dtype"><h4>Counter-Offer Letter</h4><p>Respond to the employer's severance offer with a reasoned counter-position.</p><div class="c">~$2–4 · 2–5 min</div></div>
+          <div class="dtype"><h4>Demand Letter</h4><p style="color:var(--green)">✓ Already drafted Jun 22 — generate a revised version.</p><div class="c">~$3–8 · 3–8 min</div></div>
+          <div class="dtype"><h4>Motion Materials</h4><p>Notice of motion, supporting affidavit, and factum for an interlocutory motion.</p><div class="c">~$5–8 · 5–10 min</div></div>
+        </div>
+      </div>
+
+      <!-- TIMELINE -->
+      <div class="panel" id="timeline">
+        <div class="tl">
+          <div class="ev now"><div class="d">Jun 22, 2026 · 2:14 PM</div><div class="t">Demand letter drafted — Quality 92/100, PASS</div><div class="s">Adversarial workflow · 8 verification passes · cost $3.47</div></div>
+          <div class="ev"><div class="d">Jun 22, 2026 · 2:02 PM</div><div class="t">Entitlements calculated (ESA + Bardal)</div><div class="s">ESA notice 8 weeks; common law 10–14 months</div></div>
+          <div class="ev"><div class="d">Jun 18, 2026 · 4:40 PM</div><div class="t">Issue analysis complete — 4 issues identified</div><div class="s">2 strong, 2 moderate · termination clause flagged under Waksdale</div></div>
+          <div class="ev"><div class="d">Jun 18, 2026 · 4:35 PM</div><div class="t">3 documents uploaded &amp; facts extracted</div><div class="s">Termination letter, employment agreement, ROE</div></div>
+          <div class="ev"><div class="d">Jun 18, 2026 · 4:30 PM</div><div class="t">Matter created</div><div class="s">Client: Jane Smith · Employer: Acme Corporation</div></div>
+        </div>
+      </div>
+
+      <!-- NOTES -->
+      <div class="panel notes" id="notes">
+        <div class="priv">🔒 Private to you — not processed by AI, not included in any deliverable.</div>
+        <textarea>Client call Jun 20: Jane very keen to avoid litigation if possible — prefers a strong demand letter first, mediation second. Confirm accommodation request was emailed to her manager (Rajiv) on May 28, 3 days before termination — pull the email for the HRC claim. Acme's HR contact is Susan Bell.</textarea>
+      </div>
+    </div>
+
+    <!-- CONTEXT-SENSITIVE ACTION BAR -->
+    <div class="actionbar">
+      <span class="lbl">Actions</span>
+      <button class="btn" onclick="location.href='processing.html'">Draft Statement of Claim</button>
+      <button class="btn-2" onclick="location.href='results.html'">Open Demand Letter</button>
+      <button class="btn-2">Upload More Docs</button>
+      <button class="btn-2">Run Case Assessment</button>
+      <button class="btn-2">Analyse Settlement Offer</button>
+      <button class="btn-2">Export Summary</button>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.tab').forEach(function(t){
+      t.addEventListener('click',function(){
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+        document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+        t.classList.add('on');
+        document.getElementById(t.dataset.t).classList.add('on');
+      });
+    });
+  </script>
+</body>
+</html>

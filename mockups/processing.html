@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay Starling — Drafting Demand Letter</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --cream:#faf8f5; --frame:#e8e5e0;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --border:rgba(15,26,46,0.12);
+    --ink:#0f1a2e; --muted:#5a6472;
+    --serif:Georgia,'Palatino Linotype',serif;
+    --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--frame);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{font-family:var(--serif);font-weight:600;color:var(--navy)}
+  a{color:inherit;text-decoration:none}
+
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:64px}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots span{width:10px;height:10px;border-radius:50%;background:var(--orange);display:block}
+  .logo .dots span:nth-child(2){background:#f26a3d}.logo .dots span:nth-child(3){background:#ff8a5c}
+  .logo .word .d,.logo .word .p{font-family:var(--serif);font-size:15px;font-weight:700;color:#fff;display:block;line-height:1;letter-spacing:1px}
+  .topbar .product{margin-left:14px;padding-left:16px;border-left:1px solid rgba(255,255,255,.18);font-family:var(--serif);font-size:15px;color:#cfd6e0}
+  .topbar .product b{color:#fff}
+
+  .wrap{max-width:920px;margin:0 auto;padding:24px 28px 60px}
+  .crumb{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .crumb a:hover{color:var(--orange)}
+
+  .head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .head h1{font-size:23px}
+  .head .matter{font-size:13px;color:var(--muted)}
+  .lede{color:var(--muted);font-size:14px;margin-bottom:24px}
+
+  .grid{display:grid;grid-template-columns:1.15fr 1fr;gap:20px;align-items:start}
+
+  /* Steps */
+  .steps{background:#fff;border:1px solid var(--border);padding:8px 0}
+  .step{display:flex;gap:14px;padding:13px 22px;align-items:flex-start;border-bottom:1px solid var(--border)}
+  .step:last-child{border-bottom:none}
+  .step .ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;flex-shrink:0;margin-top:1px}
+  .step.done .ic{background:var(--green);color:#fff}
+  .step.run .ic{background:var(--orange);color:#fff;animation:pulse 1.2s infinite}
+  .step.todo .ic{background:#fff;border:1.5px solid var(--border);color:transparent}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(234,88,12,.4)}50%{box-shadow:0 0 0 6px rgba(234,88,12,0)}}
+  .step .t{font-size:14px;font-weight:600;color:var(--ink)}
+  .step.todo .t{color:var(--muted);font-weight:500}
+  .step.run .t{color:var(--orange)}
+  .step .sub{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .step .sub b{color:var(--ink)}
+
+  /* Live feed */
+  .side{display:flex;flex-direction:column;gap:18px}
+  .feed{background:var(--navy);color:#e8edf3;border:1px solid var(--navy);padding:18px 20px}
+  .feed h3{color:#fff;font-size:14px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .feed h3 .live{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:.08em;color:#fff;background:var(--orange);padding:2px 7px;border-radius:2px}
+  .act{font-size:13px;line-height:1.55;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+  .act:last-child{border-bottom:none}
+  .act .who{color:#9fb0c4;font-size:11.5px;margin-bottom:3px}
+  .act .find{color:#fff}
+  .act .find b{color:#ffd9c4}
+  .stag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:2px;margin-top:5px}
+  .stag.v{background:rgba(22,163,74,.22);color:#7ee2a0}
+  .stag.w{background:rgba(217,119,6,.22);color:#f4c77a}
+
+  /* Cost */
+  .cost{background:#fff;border:1px solid var(--border);padding:18px 20px}
+  .cost .row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+  .cost .k{font-size:13px;color:var(--muted)}
+  .cost .v{font-family:var(--serif);font-size:20px;color:var(--navy);font-weight:600}
+  .cost .v small{font-size:12px;color:var(--muted);font-weight:400}
+  .pbar{height:9px;background:var(--cream);border:1px solid var(--border);border-radius:2px;overflow:hidden}
+  .pbar > span{display:block;height:100%;width:41%;background:var(--orange)}
+  .cost .note{font-size:11.5px;color:var(--muted);margin-top:8px}
+
+  .cancel{margin-top:18px;text-align:center}
+  .cancel button{background:#fff;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:9px 18px;border-radius:2px;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div style="display:flex;align-items:center">
+      <a class="logo" href="dashboard.html">
+        <span class="dots"><span></span><span></span><span></span></span>
+        <span class="word"><span class="d">DEMAND</span><span class="p">PAY</span></span>
+      </a>
+      <span class="product"><b>Starling</b> · Employment Law</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="crumb"><a href="dashboard.html">My Matters</a> › <a href="matter-detail.html">Smith v Acme Corp</a> › Drafting</div>
+    <div class="head">
+      <h1>Drafting Demand Letter</h1>
+      <div class="matter">Smith v Acme Corp · #STR-2026-003</div>
+    </div>
+    <p class="lede">Starling is working through the matter. You can leave this screen — you'll be notified when the draft is ready for your review.</p>
+
+    <div class="grid">
+      <div class="steps">
+        <div class="step done"><div class="ic">✓</div><div><div class="t">Reading your documents</div><div class="sub">Termination letter, employment agreement, ROE — facts extracted</div></div></div>
+        <div class="step done"><div class="ic">✓</div><div><div class="t">Identifying legal issues</div><div class="sub">Found <b>4 issues</b> — 2 strong, 2 moderate</div></div></div>
+        <div class="step done"><div class="ic">✓</div><div><div class="t">Calculating entitlements</div><div class="sub">ESA notice: <b>8 weeks ($14,615)</b><br>Common law: <b>10–14 months ($79,167–$110,833)</b></div></div></div>
+        <div class="step run"><div class="ic">●</div><div><div class="t">Drafting the demand letter…</div><div class="sub">Positioning the demand, assembling authorities and source attribution</div></div></div>
+        <div class="step todo"><div class="ic">·</div><div><div class="t">Stress-testing from the employer's perspective</div></div></div>
+        <div class="step todo"><div class="ic">·</div><div><div class="t">Strengthening weak points</div></div></div>
+        <div class="step todo"><div class="ic">·</div><div><div class="t">Verifying accuracy (8 checks)</div></div></div>
+        <div class="step todo"><div class="ic">·</div><div><div class="t">Final quality review</div></div></div>
+      </div>
+
+      <div class="side">
+        <div class="feed">
+          <h3>Live Activity <span class="live">LIVE</span></h3>
+          <div class="act">
+            <div class="who">Calculating damages</div>
+            <div class="find">Assessing entitlements across <b>33 potential heads</b> of damage…</div>
+          </div>
+          <div class="act">
+            <div class="who">Finding</div>
+            <div class="find">Termination clause is <b>void</b> under Waksdale v Swegon (2020 ONCA 391) — defaults client to common law notice.</div>
+            <span class="stag v">✓ verified · case_db</span>
+          </div>
+          <div class="act">
+            <div class="who">Finding</div>
+            <div class="find">ESA statutory notice confirmed at <b>8 weeks</b> under s. 57(h).</div>
+            <span class="stag v">✓ verified · statute</span>
+          </div>
+          <div class="act">
+            <div class="who">Finding</div>
+            <div class="find">Comparable-role availability for senior marketing managers appears limited in current market — supports upper Bardal range.</div>
+            <span class="stag w">⚠ web source · verify</span>
+          </div>
+        </div>
+
+        <div class="cost">
+          <div class="row">
+            <span class="k">Cost so far</span>
+            <span class="v">$1.23 <small>/ $5.00 budget</small></span>
+          </div>
+          <div class="pbar"><span></span></div>
+          <div class="note">41% of session budget · within cap · cost logged to audit bundle</div>
+        </div>
+
+        <div class="cancel"><button onclick="location.href='matter-detail.html'">Cancel and return to matter</button></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // lightweight demo: advance to results after a short delay
+    setTimeout(function(){ /* in the real app this navigates on completion */ }, 100);
+  </script>
+</body>
+</html>
