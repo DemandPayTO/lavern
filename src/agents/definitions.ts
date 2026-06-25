@@ -82,6 +82,45 @@ A declined finding triggers human review. A wrong finding causes harm.`);
 // Shared read-only tools available to all agents
 const readOnlyTools = ['Read', 'Grep', 'Glob'];
 
+// Web search tools — restricted to allowlisted Canadian legal domains
+// Claude's native web_search tool with domain restrictions configured
+// in the Anthropic API call (see src/utils/stream-messages.ts)
+const webSearchTools = [
+  'web_search',  // Claude's native web search tool
+];
+
+// Web search domain allowlist — enforced in the API call configuration
+// Only these domains will be searched. All others are blocked.
+export const WEB_SEARCH_ALLOWED_DOMAINS = [
+  // Courts and tribunals
+  'canlii.org',
+  'ontariocourts.ca',
+  'scc-csc.ca',
+  'tribunalsontario.ca',
+  // Government
+  'ontario.ca',
+  'canada.ca',
+  'laws-lois.justice.gc.ca',
+  // Law Society
+  'lso.ca',
+  // Legal publishers
+  'lexisnexis.ca',
+  'thecourt.ca',
+  'mondaq.com',
+  'slaw.ca',
+  // Reputable Ontario law firm blogs
+  'hicksmorley.com',
+  'sherrardkuzz.com',
+  'stringerllp.com',
+  'mccarthy.ca',
+  'torys.com',
+  'blg.com',
+  'fasken.com',
+  'osler.com',
+  'ogilvyrenault.com',
+  'dentons.com',
+];
+
 // Debate board tools (prefixed with MCP server name)
 const debateTools = [
   'mcp__shem__post_finding',
@@ -150,10 +189,10 @@ export const agentDefinitions = {
   },
 
   'synthesis-editor': {
-    description: 'Final document assembly and quality editor. Use when you need to assemble the final dual-artifact output (user-facing version + legal review package) by applying design patterns and maintaining voice/tone consistency. Can save successful precedents. Has access to report cards and institutional knowledge.',
+    description: 'Final document assembly and quality editor. Resolves debate board findings into coherent Ontario employment law documents. Preserves source attribution. Maintains consistent voice.',
     prompt: enrichPrompt('synthesis-editor', synthesisEditorPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools, ...learningReadTools],
-    model: 'sonnet' as const,
+    model: 'opus' as const,  // Resolves complex multi-agent debates — needs strong reasoning
     maxTurns: 10,
     outputFormat: outputFormats['synthesis-editor'],
   },
@@ -190,10 +229,10 @@ export const agentDefinitions = {
   },
 
   'contract-reviewer': {
-    description: 'Contract review specialist. Performs clause-by-clause risk-scored analysis with deviation flagging, standard position comparison, recommended redlines, and negotiation priorities. Posts findings to debate board with contract-specific types.',
+    description: 'Employment agreement first-pass reviewer. Breadth scan of entire contract with risk scoring and referral to Contract Specialist for deep analysis.',
     prompt: enrichPrompt('contract-reviewer', contractReviewerPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...scoringTools],
-    model: 'opus' as const,
+    model: 'sonnet' as const,  // Breadth scan — Sonnet sufficient for checklist-style review
     maxTurns: 12,
     outputFormat: outputFormats['contract-reviewer'],
   },
@@ -201,10 +240,10 @@ export const agentDefinitions = {
   // ── v6: Legal Core and Adversarial Agents ─────────────────────────────
 
   'legal-researcher': {
-    description: 'Legal research specialist. Produces structured research memos with citations, confidence levels, and conflicting authorities. Saves findings as precedents. Escalates when precedent is unclear or conflicting.',
+    description: 'Ontario statute research specialist. Searches statutes via training knowledge and web. Verifies section numbers. NOT for in-depth case law research (lawyer handles that).',
     prompt: enrichPrompt('legal-researcher', legalResearcherPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools],
-    model: 'opus' as const,
+    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools, ...webSearchTools],
+    model: 'sonnet' as const,  // Statute lookup — structured work, Sonnet sufficient
     maxTurns: 10,
     outputFormat: outputFormats['legal-researcher'],
   },
@@ -253,7 +292,7 @@ export const agentDefinitions = {
     description: 'International arbitration and alternative dispute resolution. Diplomatic, seeks efficient resolution. ICC/LCIA/UNCITRAL expertise.',
     prompt: enrichPrompt('arbitration-specialist', arbitrationSpecialistPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
+    model: 'sonnet' as const,  // Specialist role — Sonnet sufficient
     maxTurns: 10,
     outputFormat: outputFormats['litigation-lawyer'],
   },
@@ -273,36 +312,36 @@ export const agentDefinitions = {
     description: 'Data protection and privacy specialist. GDPR, CCPA, PIPL, cross-border data transfers. Chapter-and-verse regulatory knowledge.',
     prompt: enrichPrompt('privacy-counsel', privacyCounselPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
+    model: 'sonnet' as const,  // Founder agent — Sonnet sufficient
     maxTurns: 10,
     outputFormat: outputFormats['specialist-lawyer'],
   },
 
   'employment-counsel': {
-    description: 'Employment and labor law specialist. Hiring, termination, discrimination, benefits, workplace safety. Sensitive to power dynamics.',
+    description: 'Ontario employment law lead analyst. Termination analysis, damages assessment (33 heads), issue identification. Employee-side advocacy.',
     prompt: enrichPrompt('employment-counsel', employmentCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
+    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools],
+    model: 'opus' as const,  // Lead agent — needs strongest reasoning for Bardal analysis and damages assessment
+    maxTurns: 12,
     outputFormat: outputFormats['specialist-lawyer'],
   },
 
   // ── v8: Law Firm — Junior Lawyers ──────────────────────────────────────
 
   'junior-associate': {
-    description: 'Junior lawyer for research, first drafts, and support work. Fast, enthusiastic, thorough researcher with fresh perspective.',
+    description: 'Ontario employment law research and drafting support. Fact extraction, ESA calculations, case summaries, timeline construction.',
     prompt: enrichPrompt('junior-associate', juniorAssociatePrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
+    model: 'sonnet' as const,  // Support role — Sonnet sufficient
     maxTurns: 8,
     outputFormat: outputFormats['junior-lawyer'],
   },
 
   'paralegal': {
-    description: 'Paralegal handling volume work — document review, due diligence, formatting, cite-checking. Fast and precise.',
+    description: 'Ontario procedural compliance specialist. Limitation periods, service rules, filing requirements, RoCP compliance, proper parties.',
     prompt: enrichPrompt('paralegal', paralegalPrompt),
     tools: [...readOnlyTools, ...memoryReadTools, ...scoringTools],
-    model: 'haiku' as const,
+    model: 'sonnet' as const,  // Procedural compliance is critical — upgrade from Haiku
     maxTurns: 6,
     outputFormat: outputFormats['junior-lawyer'],
   },
@@ -332,7 +371,7 @@ export const agentDefinitions = {
     description: 'Behavioral science specialist. Choice architecture, cognitive biases, nudge design, decision-making analysis.',
     prompt: enrichPrompt('behavioral-scientist', behavioralScientistPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
+    model: 'sonnet' as const,  // Founder agent — Sonnet sufficient
     maxTurns: 8,
     outputFormat: outputFormats['research-expert'],
   },
@@ -344,7 +383,7 @@ export const agentDefinitions = {
     description: 'Legal technology specialist. Automation, document assembly, legal tech integration, computational law.',
     prompt: enrichPrompt('legal-engineer', legalEngineerPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools],
-    model: 'opus' as const,
+    model: 'sonnet' as const,  // Founder agent — Sonnet sufficient
     maxTurns: 10,
     outputFormat: outputFormats['tech-expert'],
   },
@@ -353,7 +392,7 @@ export const agentDefinitions = {
     description: 'AI governance and algorithmic fairness specialist. AI regulation, algorithmic bias, model governance, responsible AI.',
     prompt: enrichPrompt('ai-ethics-specialist', aiEthicsSpecialistPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
+    model: 'sonnet' as const,  // Founder agent — Sonnet sufficient
     maxTurns: 8,
     outputFormat: outputFormats['tech-expert'],
   },
@@ -361,10 +400,10 @@ export const agentDefinitions = {
   // ── v20: Previously Profile-Only Agents ───────────────────────────────
 
   'client-relations-partner': {
-    description: 'Client relationship management and business translation. Reviews deliverables for client-appropriateness, ensures communication is accessible, coordinates cross-practice teams.',
+    description: 'Law firm client communication manager. Generates client updates, drafts status emails, tracks client instructions.',
     prompt: enrichPrompt('client-relations-partner', clientRelationsPartnerPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools],
-    model: 'opus' as const,
+    model: 'sonnet' as const,  // Communication role — Sonnet sufficient
     maxTurns: 10,
     outputFormat: outputFormats['evaluator'],
   },

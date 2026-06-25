@@ -14,7 +14,7 @@ import { orchestratorVerificationPrompt } from '../../agents/prompts/orchestrato
 export const verificationTemplate: WorkflowTemplate = {
   id: 'verification',
   name: 'Document Verification',
-  description: '10-pass sequential verification of any legal document. Produces a structured Verification Report with findings by severity and an overall verdict (PASS/CONDITIONAL_PASS/FAIL).',
+  description: '8-pass sequential verification of Ontario employment law documents. Produces a structured Verification Report with findings by severity and an overall verdict (PASS/CONDITIONAL_PASS/FAIL).',
   steps: [
     'intake',
     'verification_pipeline',
@@ -30,7 +30,7 @@ export const verificationTemplate: WorkflowTemplate = {
     },
     verification_pipeline: {
       name: 'verification_pipeline',
-      description: 'Run all 10 verification passes sequentially. Each pass produces scored findings.',
+      description: 'Run all 8 verification passes sequentially: factual accuracy, legal accuracy, completeness, internal consistency, procedural compliance, source attribution, risk assessment, tone.',
       preconditions: ['intake'],
     },
     report_compilation: {
