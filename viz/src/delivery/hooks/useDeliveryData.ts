@@ -937,7 +937,7 @@ function buildHeartConnectDemoData(sessionId: string): DeliveryData {
 
 const HEARTCONNECT_TOS_DOCUMENT = `# HeartConnect Terms of Service
 
-**DRAFT \u2014 For Client Review**  \u00b7  *Plain-language redesign by Lavern*
+**DRAFT \u2014 For Client Review**  \u00b7  *Plain-language redesign by Starling*
 *Effective Date: [Effective Date]*  \u00b7  *Readability: Grade 7.8 (was 16.8)*
 
 ---
@@ -1291,7 +1291,7 @@ For privacy-related inquiries, please see our Privacy Policy at [LINK] or email 
 
 ---
 
-*Prepared by Lavern \u2014 Multi-Agent Legal Design System*
+*Prepared by DemandPay Starling \u2014 Ontario Employment Law Intelligence*
 *This document was produced with AI assistance. It does not constitute legal advice. Always verify with qualified legal professionals.*
 `;
 
@@ -1466,7 +1466,7 @@ function buildHealthPrivacyDemoData(sessionId: string): DeliveryData {
 
 const MEDIVAULT_PRIVACY_DOCUMENT = `# MediVault Privacy Policy
 
-**DRAFT \u2014 For Client Review**  \u00b7  *Compliance redesign by Lavern*
+**DRAFT \u2014 For Client Review**  \u00b7  *Compliance redesign by Starling*
 *Effective Date: [Effective Date]*  \u00b7  *Jurisdiction: United States + European Union*
 
 ---
@@ -1868,7 +1868,7 @@ Mailing Address: [EU Mailing Address]
 
 ---
 
-*Prepared by Lavern \u2014 Multi-Agent Legal Design System*
+*Prepared by DemandPay Starling \u2014 Ontario Employment Law Intelligence*
 *This document was produced with AI assistance and reviewed by multi-agent verification. It does not constitute legal advice. For HIPAA compliance, EU regulatory filings, or any matter involving binding legal obligations, please verify with qualified legal professionals.*
 `;
 
@@ -2033,7 +2033,7 @@ function buildCloudMSADemoData(sessionId: string): DeliveryData {
 
 const CLOUDMSA_NEGOTIATION_DOCUMENT = `# Cloud MSA \u2014 Negotiation Briefing
 
-**DRAFT \u2014 For Client Review**  \u00b7  *Commercial contract review by Lavern*
+**DRAFT \u2014 For Client Review**  \u00b7  *Commercial contract review by Starling*
 *Prepared: [Date]*  \u00b7  *Signing deadline: Friday*  \u00b7  *Priority: Critical*
 
 ---
@@ -2174,7 +2174,7 @@ Before signing:
 
 ---
 
-*Prepared by Lavern \u2014 Multi-Agent Legal Design System*
+*Prepared by DemandPay Starling \u2014 Ontario Employment Law Intelligence*
 *This briefing does not constitute legal advice. For a commercial agreement of this significance, we recommend independent counsel review before signing.*
 `;
 
@@ -2334,7 +2334,7 @@ function buildDevContractDemoData(sessionId: string): DeliveryData {
 
 const CODECRAFT_AGREEMENT_DOCUMENT = `# CodeCraft Developer Services Agreement
 
-**DRAFT \u2014 For Client Review**  \u00b7  *IP and classification risk remediation by Lavern*
+**DRAFT \u2014 For Client Review**  \u00b7  *IP and classification risk remediation by Starling*
 *Effective Date: [Effective Date]*
 
 ---
@@ -2666,6 +2666,6 @@ EXCEPT AS EXPRESSLY STATED IN THIS AGREEMENT, NEITHER PARTY MAKES ANY WARRANTIES
 
 ---
 
-*Prepared by Lavern \u2014 Multi-Agent Legal Design System*
+*Prepared by DemandPay Starling \u2014 Ontario Employment Law Intelligence*
 *This document was produced with AI assistance and reviewed by multi-agent verification. It does not constitute legal advice. For matters involving IP ownership, worker classification, or any binding contractual obligation, please verify with qualified legal professionals.*
 `;

@@ -72,7 +72,7 @@ export function CoworkFolderPanel({ folderName, files, status, onToggleFile, onD
       {/* Footer */}
       <div style={styles.footer}>
         <span style={styles.footerText}>
-          Lavern will read selected files and save results here
+          Starling will read selected files and save results here
         </span>
       </div>
     </div>

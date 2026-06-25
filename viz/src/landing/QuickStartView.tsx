@@ -704,7 +704,7 @@ export default function QuickStartView({ onQuickStart, onGuidedFlow, onChallenge
           </h3>
           <p className="text-[13px] font-sans text-text-muted mt-2 leading-relaxed tracking-[0.15px]">
             Client intake. Guided briefing with AI interviewer. Strategy conference.
-            Hand-picked team selection. The complete Lavern experience.
+            Hand-picked team selection. The complete Starling experience.
           </p>
         </div>
         <div className="shrink-0 w-12 h-12 rounded-full border-[1.5px] border-border flex items-center justify-center transition-[border-color] duration-300 ease-[cubic-bezier(0.28,0.11,0.32,1)]">
@@ -751,7 +751,7 @@ export default function QuickStartView({ onQuickStart, onGuidedFlow, onChallenge
               className="text-[22px] font-light m-0 tracking-tight"
               style={{ fontFamily: fonts.serif, color: '#B8960B' }}
             >
-              The Lavern Challenge
+              The Starling Challenge
             </h3>
             <p
               className="text-[13px] mt-2 leading-relaxed tracking-[0.15px]"

@@ -31,12 +31,12 @@ interface Props {
 
 function shareCopyForLinkedIn(profile: AgentProfile): string {
   const p = profile.provenance;
-  if (!p) return `Made an agent on Lavern. Meet ${profile.displayName}.`;
+  if (!p) return `Made an agent on Starling. Meet ${profile.displayName}.`;
   switch (p.kind) {
-    case 'self':    return `I cloned myself with Lavern. Meet ${profile.displayName} — the agent.`;
-    case 'firm':    return `I cloned ${p.firmName ?? 'a firm'} with Lavern. Full team in 60 seconds.`;
-    case 'scratch': return `I built ${profile.displayName} with Lavern. Here's how it runs.`;
-    case 'goblin':  return `I summoned a goblin with Lavern. Don't ask.`;
+    case 'self':    return `I cloned myself with Starling. Meet ${profile.displayName} — the agent.`;
+    case 'firm':    return `I cloned ${p.firmName ?? 'a firm'} with Starling. Full team in 60 seconds.`;
+    case 'scratch': return `I built ${profile.displayName} with Starling. Here's how it runs.`;
+    case 'goblin':  return `I summoned a goblin with Starling. Don't ask.`;
   }
 }
 
@@ -134,7 +134,7 @@ export function ShareAgentModal({ agent, onClose, onShared, onRevoked }: Props) 
           <div style={styles.title}>Share {agent.profile.displayName}</div>
           <div style={styles.sub}>
             {token
-              ? 'Share this agent on LinkedIn, with another Lavern user, or as a JSON file.'
+              ? 'Share this agent on LinkedIn, with another Starling user, or as a JSON file.'
               : 'Generate a public link. You can revoke it any time.'}
           </div>
         </div>

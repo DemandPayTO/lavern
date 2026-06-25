@@ -559,7 +559,7 @@ export function PacManGame({ onClose }: Props) {
     <div style={panelStyles.overlay} onClick={onClose}>
       <div style={panelStyles.panel} onClick={e => e.stopPropagation()}>
         <div style={panelStyles.header}>
-          <span style={panelStyles.title}>LAVERN MAZE</span>
+          <span style={panelStyles.title}>STARLING MAZE</span>
           <button style={panelStyles.closeBtn} onClick={onClose} title="Close (Esc)">✕</button>
         </div>
         <canvas ref={canvasRef} width={W} height={H} style={panelStyles.canvas} />

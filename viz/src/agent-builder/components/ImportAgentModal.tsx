@@ -37,7 +37,7 @@ export function ImportAgentModal({ onClose, onImported }: Props) {
   const handleUrl = useCallback(async () => {
     setError(null);
     const token = extractTokenFromUrl(urlInput);
-    if (!token) { setError('That doesn\'t look like a Lavern share URL or token.'); return; }
+    if (!token) { setError('That doesn\'t look like a Starling share URL or token.'); return; }
     setBusy(true);
     try {
       const res = await fetch(`/api/agents/share/${encodeURIComponent(token)}`);
@@ -58,7 +58,7 @@ export function ImportAgentModal({ onClose, onImported }: Props) {
       const text = await file.text();
       const parsed = JSON.parse(text) as { _format?: string; profile?: AgentProfile };
       if (parsed._format !== 'lavern-agent-v1') {
-        throw new Error('That file is not a Lavern agent export (missing _format: "lavern-agent-v1").');
+        throw new Error('That file is not a Starling agent export (missing _format: "lavern-agent-v1").');
       }
       if (!parsed.profile?.displayName) {
         throw new Error('That file is missing a valid agent profile.');
@@ -83,7 +83,7 @@ export function ImportAgentModal({ onClose, onImported }: Props) {
         <div style={styles.header}>
           <div style={styles.title}>Import an agent</div>
           <div style={styles.sub}>
-            Paste a Lavern share URL or drop a JSON file.
+            Paste a Starling share URL or drop a JSON file.
           </div>
         </div>
 

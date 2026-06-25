@@ -14,7 +14,7 @@ describe('BriefingView', () => {
       <BriefingView onComplete={noop} onBack={noop} />
     );
 
-    // BriefingHeader renders "Lavern Briefing"
+    // BriefingHeader renders "Starling Briefing"
     expect(screen.getByText(/Briefing/)).toBeInTheDocument();
   });
 

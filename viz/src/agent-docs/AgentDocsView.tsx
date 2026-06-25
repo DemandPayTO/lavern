@@ -420,7 +420,7 @@ export default function AgentDocsView({ onBack }: Props) {
         </div>
 
         {/* ── SIGNAL ──────────────────────────────────── */}
-        <Section label="Why Lavern" delay={0.2}>
+        <Section label="Why Starling" delay={0.2}>
           <div style={sty.pitch}>
             You handle the reasoning.
             <br />

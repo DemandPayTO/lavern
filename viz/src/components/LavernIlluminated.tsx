@@ -33,7 +33,7 @@ export function LavernIlluminated({
         animation: 'lavernIlluminate 8s ease-in-out infinite',
       }}
     >
-      LAVERN
+      STARLING
     </span>
   );
 }

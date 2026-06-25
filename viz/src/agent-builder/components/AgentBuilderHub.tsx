@@ -242,7 +242,7 @@ export function AgentBuilderHub({ onBuildFromScratch, onCloneComplete, onFirmClo
           Import an agent →
         </button>
         <span style={styles.importHint}>
-          Paste a Lavern share URL or drop a JSON file from a colleague.
+          Paste a Starling share URL or drop a JSON file from a colleague.
         </span>
       </div>
 

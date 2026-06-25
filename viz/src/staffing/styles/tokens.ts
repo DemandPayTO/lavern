@@ -1,31 +1,29 @@
 /**
- * Design Tokens — Warm Editorial palette.
+ * Design Tokens — DemandPay Starling palette.
  *
- * Inspired by: Harvey (ink-on-ivory), Monocle (restrained editorial),
- * Apple (premium sans-serif), AI 2027 (serif authority on paper).
- *
+ * Navy + orange + cream. Headings in Georgia serif, body in system sans.
  * Principle: restraint signals quality. Color is punctuation, not decoration.
  */
 
 export const colors = {
-  // Backgrounds — warm paper tones
-  bg: '#FAF9F6',
+  // Backgrounds — DemandPay cream
+  bg: '#faf8f5',
   bgCard: '#FFFFFF',
   bgCardHover: '#FFFFFF',
-  bgPanel: '#F5F4F0',
-  bgInput: '#F0EFEB',
-  bgAlt: '#F5F3EE',
+  bgPanel: '#f5f3ef',
+  bgInput: '#f0ede8',
+  bgAlt: '#f5f3ef',
 
-  // Borders — soft warm greys
-  border: '#E5E3DD',
-  borderHover: '#C5C3BD',
-  borderSelected: '#1A1A1A',
+  // Borders — navy-tinted
+  border: 'rgba(15, 26, 46, 0.12)',
+  borderHover: 'rgba(15, 26, 46, 0.28)',
+  borderSelected: '#0f1a2e',
 
-  // Accent — single warm accent (terracotta/copper)
-  accent: '#C45D3E',
-  accentLight: 'rgba(196, 93, 62, 0.08)',
-  accentMid: 'rgba(196, 93, 62, 0.15)',
-  accentMuted: 'rgba(196, 93, 62, 0.5)',
+  // Accent — DemandPay orange
+  accent: '#ea580c',
+  accentLight: 'rgba(234, 88, 12, 0.08)',
+  accentMid: 'rgba(234, 88, 12, 0.15)',
+  accentMuted: 'rgba(234, 88, 12, 0.5)',
 
   // Cost tiers — muted, desaturated
   opus: '#8B6914',
@@ -35,29 +33,29 @@ export const colors = {
   haiku: '#4A7C50',
   haikuBg: 'rgba(74, 124, 80, 0.07)',
 
-  // Text — warm darks
-  text: '#1A1A1A',
-  textSecondary: '#4A4A4A',
-  textMuted: '#6B6B67',
-  textDim: '#767670',
+  // Text — DemandPay navy
+  text: '#0f1a2e',
+  textSecondary: '#2E3D50',
+  textMuted: '#556070',
+  textDim: '#556070',
 
-  // Semantic — desaturated
-  success: '#4A7C50',
-  successBg: 'rgba(74, 124, 80, 0.07)',
-  warning: '#B8860B',
-  warningBg: 'rgba(184, 134, 11, 0.07)',
-  danger: '#C45D3E',
+  // Semantic
+  success: '#16a34a',
+  successBg: 'rgba(22, 163, 74, 0.07)',
+  warning: '#d97706',
+  warningBg: 'rgba(217, 119, 6, 0.07)',
+  danger: '#dc2626',
 
   // Category colors — muted editorial
   lawyer: '#2E7D9C',
   specialist: '#7B5EA7',
   infrastructure: '#9C7B3E',
-  orchestrator: '#C45D3E',
+  orchestrator: '#ea580c',
 };
 
 export const fonts = {
-  sans: "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  serif: "'Newsreader', Georgia, 'Times New Roman', serif",
+  sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  serif: "Georgia, 'Palatino Linotype', Palatino, serif",
   mono: "'Geist Mono', 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace",
 };
 

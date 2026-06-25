@@ -45,8 +45,8 @@ describe('WorkingView', () => {
       <WorkingView onComplete={noop} onBack={noop} onSkip={noop} />
     );
 
-    // WorkingHeader renders "Lavern" (not "THE SHEM")
-    expect(screen.getByText('Lavern')).toBeInTheDocument();
+    // WorkingHeader renders "Starling" (not "THE SHEM")
+    expect(screen.getByText('Starling')).toBeInTheDocument();
   });
 
   it('shows back button', () => {
@@ -91,7 +91,7 @@ describe('WorkingView', () => {
       { withSessionData: false }
     );
 
-    // WorkingHeader + SessionOverlay (dashboard) both render "Lavern"
-    expect(screen.getAllByText('Lavern').length).toBeGreaterThanOrEqual(1);
+    // WorkingHeader + SessionOverlay (dashboard) both render "Starling"
+    expect(screen.getAllByText('Starling').length).toBeGreaterThanOrEqual(1);
   });
 });

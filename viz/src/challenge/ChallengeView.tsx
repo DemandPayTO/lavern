@@ -142,7 +142,7 @@ function renderShareCardToCanvas(result: ComparisonResult): HTMLCanvasElement {
   ctx.font = '400 16px "Newsreader", Georgia, serif';
   ctx.letterSpacing = '6px';
   ctx.textAlign = 'center';
-  ctx.fillText('LAVERN', W / 2 - 80, 72);
+  ctx.fillText('STARLING', W / 2 - 80, 72);
   ctx.fillStyle = 'rgba(250, 249, 246, 0.35)';
   ctx.fillRect(W / 2 - 18, 60, 1, 16);
   ctx.fillStyle = 'rgba(250, 249, 246, 0.6)';
@@ -171,7 +171,7 @@ function renderShareCardToCanvas(result: ComparisonResult): HTMLCanvasElement {
   ctx.fillStyle = result.winner === 'lavern' ? '#B8960B' : 'rgba(250, 249, 246, 0.6)';
   ctx.font = '700 11px Geist, system-ui, sans-serif';
   ctx.letterSpacing = '3px';
-  ctx.fillText('LAVERN', W / 2 - 160, 200);
+  ctx.fillText('STARLING', W / 2 - 160, 200);
   ctx.font = '300 72px "Newsreader", Georgia, serif';
   ctx.letterSpacing = '0px';
   ctx.fillText(String(mScore), W / 2 - 160, 275);
@@ -261,7 +261,7 @@ function renderShareCardToCanvas(result: ComparisonResult): HTMLCanvasElement {
   ctx.fillStyle = 'rgba(250, 249, 246, 0.35)';
   ctx.font = '500 10px Geist, system-ui, sans-serif';
   ctx.letterSpacing = '2px';
-  ctx.fillText('LAVERN.LAW  \u00B7  BLIND AI COMPARISON', W / 2, H - 32);
+  ctx.fillText('DEMANDPAY.CA  \u00B7  BLIND AI COMPARISON', W / 2, H - 32);
 
   return canvas;
 }
@@ -280,13 +280,13 @@ function shareOnLinkedIn(result: ComparisonResult) {
   const n = result.dimensions.length;
   let text: string;
   if (result.winner === 'lavern') {
-    text = `Lavern ${mScore} \u2013 ${cScore} Challenger.\n\nBlind comparison. ${n} dimensions. Independent AI judge. Neither side knew which document was which.\n\nTry the Lavern Challenge \u2192 lavern.law/challenge`;
+    text = `Starling ${mScore} \u2013 ${cScore} Challenger.\n\nBlind comparison. ${n} dimensions. Independent AI judge. Neither side knew which document was which.\n\nTry the Starling Challenge \u2192 demandpay.ca/challenge`;
   } else if (result.winner === 'human') {
-    text = `Lavern ${mScore} \u2013 ${cScore} Challenger.\n\nWe lost. Blind comparison, ${n} dimensions, independent judge. We publish every result \u2014 wins and losses. The engagement was free.\n\nThink you can beat us too? \u2192 lavern.law/challenge`;
+    text = `Starling ${mScore} \u2013 ${cScore} Challenger.\n\nWe lost. Blind comparison, ${n} dimensions, independent judge. We publish every result \u2014 wins and losses. The engagement was free.\n\nThink you can beat us too? \u2192 demandpay.ca/challenge`;
   } else {
-    text = `Lavern ${mScore} \u2013 ${cScore} Challenger.\n\nDead heat. ${n} dimensions, blind comparison, independent judge. Neither blinked.\n\nTry the Lavern Challenge \u2192 lavern.law/challenge`;
+    text = `Starling ${mScore} \u2013 ${cScore} Challenger.\n\nDead heat. ${n} dimensions, blind comparison, independent judge. Neither blinked.\n\nTry the Starling Challenge \u2192 demandpay.ca/challenge`;
   }
-  const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://lavern.law/challenge')}&text=${encodeURIComponent(text)}`;
+  const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://demandpay.ca/challenge')}&text=${encodeURIComponent(text)}`;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
@@ -357,10 +357,10 @@ function DimensionBar({
   const bWins = dim.scoreB > dim.scoreA;
 
   const labelA = revealed && assignment
-    ? (assignment.A === 'lavern' ? 'LAVERN' : 'CHALLENGER')
+    ? (assignment.A === 'lavern' ? 'STARLING' : 'CHALLENGER')
     : 'DOCUMENT A';
   const labelB = revealed && assignment
-    ? (assignment.B === 'lavern' ? 'LAVERN' : 'CHALLENGER')
+    ? (assignment.B === 'lavern' ? 'STARLING' : 'CHALLENGER')
     : 'DOCUMENT B';
 
   const colorA = revealed && assignment
@@ -599,9 +599,9 @@ export default function ChallengeView({ onBack }: Props) {
       <div style={sty.container}>
         {/* ── Hero ───────────────────────────────────── */}
         <div style={{ ...sty.header, animation: 'chFadeIn 0.6s ease 0.1s both' }}>
-          <h1 style={sty.logoWrap}>LAVERN</h1>
+          <h1 style={sty.logoWrap}>STARLING</h1>
           <div style={sty.rule} />
-          <h2 style={sty.heroTitle}>The Lavern Challenge</h2>
+          <h2 style={sty.heroTitle}>The Starling Challenge</h2>
           <p style={sty.heroSubtitle}>We will beat your lawyer. And their AI.</p>
         </div>
 
@@ -611,7 +611,7 @@ export default function ChallengeView({ onBack }: Props) {
             <div style={sty.rulesGrid}>
               <div style={sty.ruleCard}>
                 <div style={sty.ruleNum}>1</div>
-                <div style={sty.ruleText}>Upload the Lavern version and the challenger. Your lawyer, Harvey, Legora. Anyone.</div>
+                <div style={sty.ruleText}>Upload the Starling version and the challenger. Your lawyer, Harvey, Legora. Anyone.</div>
               </div>
               <div style={sty.ruleCard}>
                 <div style={sty.ruleNum}>2</div>
@@ -643,15 +643,15 @@ export default function ChallengeView({ onBack }: Props) {
                   textAlign: 'center' as const,
                   background: 'rgba(184, 150, 11, 0.08)',
                 }}>
-                  <div style={{ color: D.gold, fontSize: 11, fontWeight: 700, letterSpacing: 2, fontFamily: fonts.sans, marginBottom: 8 }}>LAVERN</div>
+                  <div style={{ color: D.gold, fontSize: 11, fontWeight: 700, letterSpacing: 2, fontFamily: fonts.sans, marginBottom: 8 }}>STARLING</div>
                   <div style={{ color: D.white, fontSize: 14, fontFamily: fonts.sans }}>{lavernSessionTitle}</div>
                   <div style={{ color: D.textDim, fontSize: 12, fontFamily: fonts.sans, marginTop: 4 }}>{lavernSessionText.length.toLocaleString()} chars loaded from session</div>
                 </div>
               ) : (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
                   <UploadZone
-                    label="LAVERN"
-                    prompt="Drop the Lavern document"
+                    label="STARLING"
+                    prompt="Drop the Starling document"
                     upload={lavernUpload}
                   />
                   <button
@@ -817,7 +817,7 @@ export default function ChallengeView({ onBack }: Props) {
                     transition: 'all 0.5s ease',
                   }}>
                     {revealed
-                      ? (result.assignment.A === 'lavern' ? 'LAVERN' : 'CHALLENGER')
+                      ? (result.assignment.A === 'lavern' ? 'STARLING' : 'CHALLENGER')
                       : 'DOCUMENT A'}
                   </div>
                   <div style={{
@@ -839,7 +839,7 @@ export default function ChallengeView({ onBack }: Props) {
                     transition: 'all 0.5s ease',
                   }}>
                     {revealed
-                      ? (result.assignment.B === 'lavern' ? 'LAVERN' : 'CHALLENGER')
+                      ? (result.assignment.B === 'lavern' ? 'STARLING' : 'CHALLENGER')
                       : 'DOCUMENT B'}
                   </div>
                   <div style={{
@@ -884,7 +884,7 @@ export default function ChallengeView({ onBack }: Props) {
               <div style={{ ...sty.shareCard, animation: 'chEnvelope 0.8s ease 0.2s both' }}>
                 {/* Card header — Lavern branding */}
                 <div style={sty.shareCardHeader}>
-                  <span style={sty.shareCardLogo}>LAVERN</span>
+                  <span style={sty.shareCardLogo}>STARLING</span>
                   <span style={sty.shareCardDivider} />
                   <span style={sty.shareCardLabel}>THE CHALLENGE</span>
                 </div>
@@ -909,7 +909,7 @@ export default function ChallengeView({ onBack }: Props) {
                       color: result.winner === 'lavern'
                         ? D.gold
                         : result.winner === 'human' ? D.textDim : D.text,
-                    }}>LAVERN</div>
+                    }}>STARLING</div>
                     <div style={{
                       ...sty.shareSideScore,
                       color: result.winner === 'lavern' ? D.gold : D.textDim,
@@ -1028,7 +1028,7 @@ export default function ChallengeView({ onBack }: Props) {
 
         {/* ── Footer ─────────────────────────────────── */}
         <div style={{ ...sty.footer, animation: 'chFadeIn 0.4s ease 0.8s both' }}>
-          <span style={sty.footerText}>{'LAVERN \u00B7 THE CHALLENGE'}</span>
+          <span style={sty.footerText}>{'STARLING \u00B7 THE CHALLENGE'}</span>
         </div>
       </div>
 

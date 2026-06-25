@@ -34,8 +34,8 @@ export function ShareTeamModal({ agents, defaultTitle, onClose }: Props) {
   const shareUrl = token ? `${window.location.origin}/#/t/${token}` : '';
   const ogImageUrl = token ? `/api/teams/share/${token}/og.png` : '';
   const linkedInText = teamForShare.length === 1
-    ? `Meet my team on Lavern. Just ${teamForShare[0].displayName} for now.`
-    : `Meet my ${teamForShare.length}-person team on Lavern.`;
+    ? `Meet my team on Starling. Just ${teamForShare[0].displayName} for now.`
+    : `Meet my ${teamForShare.length}-person team on Starling.`;
   const linkedInUrl = token
     ? `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`
     : '';

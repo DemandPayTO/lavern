@@ -49,7 +49,7 @@ export function Controls({
       {/* Left: Title + Status */}
       <div style={styles.leftSection}>
         <span style={{ fontFamily: fonts.serif, fontSize: 20, fontWeight: 300, color: colors.text, lineHeight: 1 }}>L</span>
-        <span style={styles.title}>Lavern</span>
+        <span style={styles.title}>Starling</span>
         <div
           style={{
             ...styles.statusDot,

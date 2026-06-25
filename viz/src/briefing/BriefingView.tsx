@@ -46,6 +46,12 @@ const MATTER_TYPE_TO_WORKFLOW: Record<string, string> = {
   'document_redesign': 'roundtable',
   'legal_question': 'counsel',
   'general': 'pre-engagement',
+  // Employment law types
+  'intake_analysis': 'review',
+  'demand_letter': 'adversarial',
+  'statement_of_claim': 'adversarial',
+  'settlement_analysis': 'roundtable',
+  'case_assessment': 'counsel',
 };
 
 interface MatterInfo {

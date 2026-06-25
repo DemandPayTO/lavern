@@ -77,7 +77,7 @@ export function useChallengeState() {
       if (!session.assembledDocument) { setError('Session has no assembled document. Run reassembly first.'); return; }
 
       setLavernSessionText(session.assembledDocument);
-      setLavernSessionTitle(session.matterTitle ?? 'Lavern Work Product');
+      setLavernSessionTitle(session.matterTitle ?? 'Starling Work Product');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load from session');
     }
@@ -105,7 +105,7 @@ export function useChallengeState() {
     const humanText = humanParsed ?? (isHumanText ? humanDoc.content : null);
 
     if (!lavernText) {
-      setError('Could not extract text from the Lavern document. Try "Load from session" or a different format.');
+      setError('Could not extract text from the Starling document. Try "Load from session" or a different format.');
       return;
     }
     if (!humanText) {
@@ -113,7 +113,7 @@ export function useChallengeState() {
       return;
     }
     if (lavernText.length < 50) {
-      setError('Lavern document is too short (minimum 50 characters).');
+      setError('Starling document is too short (minimum 50 characters).');
       return;
     }
     if (humanText.length < 50) {

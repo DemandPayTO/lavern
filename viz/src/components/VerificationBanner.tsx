@@ -109,7 +109,7 @@ export function VerificationBanner() {
       <div style={styles.content}>
         <span style={styles.dot} />
         <span style={styles.text}>
-          Please verify your email to use Lavern.
+          Please verify your email to use Starling.
           {' '}
           Check your inbox for a verification link.
         </span>

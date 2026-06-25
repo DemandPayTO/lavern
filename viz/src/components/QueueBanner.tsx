@@ -53,7 +53,7 @@ export function QueueBanner({ retryAfterMs, onCapacityAvailable, onDismiss }: Pr
   return (
     <div style={styles.banner} role="alert" aria-live="polite">
       <div style={styles.content}>
-        <h2 style={styles.title}>Lavern is at capacity.</h2>
+        <h2 style={styles.title}>Starling is at capacity.</h2>
         <p style={styles.message}>
           All session slots are in use. Estimated wait: ~{minutes} minute{minutes !== 1 ? 's' : ''}.
           {checking && ' Checking...'}

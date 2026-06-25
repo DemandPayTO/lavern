@@ -252,7 +252,7 @@ function TopBar({ isMobile, slide, onExit }: { isMobile: boolean; slide: number;
       background: (isMobile && slide === 0) ? 'none' : 'linear-gradient(to bottom, rgba(250,250,250,0.7) 0%, transparent 100%)',
     }}>
       <span style={{ fontFamily: SERIF, fontSize: isMobile ? 13 : 15, fontWeight: 300, letterSpacing: 7, color: isMobile && slide === 0 ? '#1A1A1A' : CREAM, opacity: 0.55 }}>
-        LAVERN
+        STARLING
       </span>
       <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
         <button onClick={onExit} style={{
@@ -495,7 +495,7 @@ function S1Partner({ isMobile, caseId, onContinue }: { isMobile: boolean; caseId
   return (
     <Shell isMobile={isMobile}
       headline={<>Talk to<br />a <span style={{}}>partner.</span></>}
-      sub={<>Lavern listens, asks the right questions, and assembles the team.<br /><br />Agents grounding the answers and tirelessly checking the quality.</>}
+      sub={<>Starling listens, asks the right questions, and assembles the team.<br /><br />Agents grounding the answers and tirelessly checking the quality.</>}
       footer={phase >= 4 ? (
         <button
           onClick={(e) => { e.stopPropagation(); onContinue(); }}
@@ -608,7 +608,7 @@ function S2Voice({ isMobile, caseId, onContinue }: { isMobile: boolean; caseId: 
 
   return (
     <Shell isMobile={isMobile}
-      headline={<>Lavern<br /><span style={{}}>listens.</span></>}
+      headline={<>Starling<br /><span style={{}}>listens.</span></>}
       sub="Just talk to the agents. Plain language. No forms. Just say what you need."
       footer={phase >= 4 ? (
         <button onClick={(e) => { e.stopPropagation(); onContinue(); }}
@@ -736,7 +736,7 @@ function S2Voice({ isMobile, caseId, onContinue }: { isMobile: boolean; caseId: 
         )}
         {phase >= 4 && (
           <div style={{ animation: 'dBubble .4s ease both', marginTop: 16 }}>
-            <div style={{ fontFamily: SANS, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(20,19,16,.65)', marginBottom: 8 }}>Lavern</div>
+            <div style={{ fontFamily: SANS, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(20,19,16,.65)', marginBottom: 8 }}>Starling</div>
             <p style={{ fontFamily: SERIF, fontSize: isMobile ? 17 : 20, fontWeight: 300, color: 'rgba(20,19,16,.75)', lineHeight: 1.4, margin: 0 }}>
               {c.voiceReply}
             </p>
@@ -1607,7 +1607,7 @@ function SIntro({ isMobile, onContinue }: { isMobile: boolean; onContinue: () =>
         }}>
           It is like your favorite law firm that works for you. Just this time, the specialists are agents. And the office is in a Mac Mini.<br /><br />
           Use it once, or let it run. It will work while you sleep. It is a law firm on autopilot.<br /><br />
-          The firm is called <strong style={{ color: CREAM, fontWeight: 600 }}>Lavern.</strong>
+          The firm is called <strong style={{ color: CREAM, fontWeight: 600 }}>Starling.</strong>
         </p>
 
         {/* CTA */}
@@ -1619,7 +1619,7 @@ function SIntro({ isMobile, onContinue }: { isMobile: boolean; onContinue: () =>
           <button onClick={onContinue}
             style={{ ...PILL_STYLE, padding: isMobile ? '18px 36px' : '20px 44px', fontSize: 11 }}
             onMouseEnter={pillEnter} onMouseLeave={pillLeave}>
-            See Lavern in action →
+            See Starling in action →
           </button>
         </div>
 
@@ -1735,7 +1735,7 @@ function SPricing({ isMobile, onExit }: { isMobile: boolean; onExit: () => void 
               What does this cost?
             </h2>
             <p style={{ fontFamily: SANS, fontSize: 14, color: 'rgba(20,19,16,.42)', lineHeight: 1.6, margin: 0, animation: 'dIn .7s ease .3s both' }}>
-              Two ways to work with Lavern.
+              Two ways to work with Starling.
             </p>
           </div>
 

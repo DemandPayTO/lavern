@@ -40,7 +40,7 @@ const SKILL_LABEL: Record<string, string> = {
 
 function provenanceLine(p: AgentProfile['provenance'], owner: string): string {
   const who = owner || 'Someone';
-  if (!p) return `${who} made this on Lavern`;
+  if (!p) return `${who} made this on Starling`;
   switch (p.kind) {
     case 'self':    return `${who} cloned themselves`;
     case 'firm':    return p.firmName ? `${who} cloned ${p.firmName}` : `${who} cloned a firm`;
@@ -70,7 +70,7 @@ export default function PublicAgentShareView({ token }: Props) {
         <div style={styles.errorBox}>
           <div style={styles.errorTitle}>Not found</div>
           <div style={styles.errorMsg}>{error}</div>
-          <a href="/" style={styles.errorLink}>Lavern.ai →</a>
+          <a href="/" style={styles.errorLink}>DemandPay Starling →</a>
         </div>
       </div>
     );
@@ -97,7 +97,7 @@ export default function PublicAgentShareView({ token }: Props) {
           unfurls, but for client-side preview we still set them so a refresh
           via curl-as-bot still gets the right meta. */}
       <Head
-        title={`${a.displayName} — Lavern`}
+        title={`${a.displayName} — DemandPay Starling`}
         description={a.tagline}
         ogImage={`/api/agents/share/${encodeURIComponent(token)}/og.png`}
       />
@@ -133,16 +133,16 @@ export default function PublicAgentShareView({ token }: Props) {
             href={`/?import=${encodeURIComponent(token)}#/agent-builder`}
             style={styles.ctaBtn}
           >
-            Save this agent to my Lavern →
+            Save this agent to my Starling →
           </a>
           <div style={styles.ctaSub}>
-            Don't have Lavern yet? <a href="/" style={styles.ctaLink}>Try it free →</a>
+            Don't have Starling yet? <a href="/" style={styles.ctaLink}>Try it free →</a>
           </div>
         </div>
       </div>
 
       <footer style={styles.footer}>
-        <div style={styles.wordmark}>LAVERN</div>
+        <div style={styles.wordmark}>STARLING</div>
         <div style={styles.footerMeta}>
           {data.viewCount.toLocaleString()} view{data.viewCount === 1 ? '' : 's'} ·
           shared {new Date(data.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}

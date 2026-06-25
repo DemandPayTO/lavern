@@ -346,7 +346,7 @@ export default function TeamView({ onTeamConfirmed, onBack, onSkip }: Props) {
 
       {/* Title + loading hint \u2014 share content-edge */}
       <div style={styles.titleRow}>
-        <h1 style={styles.title}>Lavern <span style={{ fontWeight: 500 }}>Team</span></h1>
+        <h1 style={styles.title}>Starling <span style={{ fontWeight: 500 }}>Team</span></h1>
         {recommendationLoading && (
           <span style={styles.loadingHint}>{'\u2022'} loading recommendations...</span>
         )}

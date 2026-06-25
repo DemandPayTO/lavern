@@ -25,7 +25,7 @@ export function DeliveryHeader({ matterNumber, matterType, jurisdiction, onBack,
       >{'\u2190'} Back</button>
       <div style={styles.center}>
         <div style={styles.logoType}><LavernIlluminated color={colors.textMuted} /></div>
-        <h1 style={styles.title}>Lavern <span style={{ fontWeight: 500 }}>Delivery</span></h1>
+        <h1 style={styles.title}>Starling <span style={{ fontWeight: 500 }}>Delivery</span></h1>
         {matterNumber && (
           <div style={styles.matterBadge}>
             {matterNumber}

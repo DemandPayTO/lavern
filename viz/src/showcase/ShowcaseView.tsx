@@ -24,8 +24,8 @@ export default function ShowcaseView({ onTap }: { onTap?: () => void }) {
         <div style={{ flex: 1.2 }} />
 
         {/* Firm name */}
-        <h1 style={S.title}>LAVERN</h1>
-        <div style={S.subtitle}>THE AGENTIC LAW FIRM</div>
+        <h1 style={S.title}>STARLING</h1>
+        <div style={S.subtitle}>ONTARIO EMPLOYMENT LAW INTELLIGENCE</div>
         <div style={S.divider} />
         <p style={S.tagline}>Talk to our legal agent</p>
 

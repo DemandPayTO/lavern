@@ -87,7 +87,7 @@ export default function MyPageView({ onBack }: Props) {
       </div>
 
       {/* Page title */}
-      <h1 style={styles.pageTitle}>Lavern <span style={{ fontWeight: 500 }}>Profile</span></h1>
+      <h1 style={styles.pageTitle}>Starling <span style={{ fontWeight: 500 }}>Profile</span></h1>
       <p style={styles.pageSub}>
         Your preferences persist across engagements. Everything saves automatically.
       </p>
@@ -95,7 +95,7 @@ export default function MyPageView({ onBack }: Props) {
       {/* ── Share Lavern (Referral) ──────────────────────────────── */}
       {authEnabled && (
         <>
-          <SectionDivider label="Share Lavern" />
+          <SectionDivider label="Share Starling" />
           <ReferralCard />
         </>
       )}
@@ -243,7 +243,7 @@ export default function MyPageView({ onBack }: Props) {
 
           <div style={styles.soulLabel}>Soul</div>
           <h2 style={styles.soulHeading}>
-            What kind of firm<br />is Lavern <span style={{ fontWeight: 500 }}>for you?</span>
+            What kind of firm<br />is Starling <span style={{ fontWeight: 500 }}>for you?</span>
           </h2>
           <p style={styles.soulSub}>
             Voice. Principles. Values. The character that shapes every decision your agents make.

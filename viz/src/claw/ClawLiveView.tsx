@@ -103,7 +103,7 @@ function buildScript(): Step[] {
 
   // Boot
   add(0,   set => set(() => ({ ...INIT })));
-  add(500, set => set(s => log(s, { type: 'system', icon: '⬡', message: 'LAVERN · CLAW daemon initialised', detail: 'PID 58241 · watch path ~/Documents/Lavern · budget $5.00' })));
+  add(500, set => set(s => log(s, { type: 'system', icon: '⬡', message: 'STARLING · CLAW daemon initialised', detail: 'PID 58241 · watch path ~/Documents/Starling · budget $5.00' })));
   add(500, set => set(s => log(s, { type: 'system', icon: '◈', message: 'Anthropic API connected', detail: 'claude-sonnet-4-5 · latency 82ms' })));
   add(400, set => set(s => log(s, { type: 'system', icon: '✓', message: 'Precedent board loaded', detail: '24 institutional patterns · last updated 2h ago' })));
 
@@ -136,7 +136,7 @@ function buildScript(): Step[] {
   add(500, set => set(s => deliver(complete(s, 'd1', '$0.84', 0.84, '00:08'),
     { id: 'del1', docName: 'venture-nda-2025.pdf', findings: 2, severity: 'major', elapsed: '00:08' },
     'venture-nda-2025.pdf reviewed — 2 findings · $0.84 · 00:08',
-    'venture-nda-review.md saved to ~/Documents/Lavern/deliveries/')));
+    'venture-nda-review.md saved to ~/Documents/Starling/deliveries/')));
 
   // Doc 2 processing
   add(500, set => set(s => ({ ...prog(log(s, { type: 'agent', icon: '▶', agent: 'Commercial Counsel', message: 'MSA analysis initiated — SaaS contract', detail: '42 pages · cross-border clauses · 3 liability sections' }), 'd2', 'processing', 11), agentsActive: 4 })));

@@ -119,7 +119,7 @@ export default function FoyerView({ onPartner, onQuickStart, onMyPage, onLogin, 
         letterSpacing: 8, color: TEXT, mixBlendMode: 'difference' as const,
         animation: 'foyerFade 0.8s ease 0.4s both',
       }}>
-        LAVERN
+        STARLING
       </div>
 
       {/* Log In — top right */}

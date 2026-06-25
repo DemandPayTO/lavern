@@ -37,20 +37,23 @@ interface Props {
 function MatterIcon({ type }: { type: string }) {
   const s = { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (type) {
+    case 'intake_analysis': return (
+      <svg {...s}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="12" y2="17" /></svg>
+    );
     case 'contract_review': return (
       <svg {...s}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><path d="M9 15l2 2 4-4" /></svg>
     );
-    case 'document_redesign': return (
-      <svg {...s}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="12" y2="17" /></svg>
-    );
-    case 'legal_research': return (
+    case 'demand_letter': return (
       <svg {...s}><path d="M4 4h16v16H4z" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="12" y2="16" /></svg>
     );
-    case 'legal_question': return (
-      <svg {...s}><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><circle cx="12" cy="17" r="0.5" fill="currentColor" stroke="none" /></svg>
-    );
-    case 'risk_assessment': return (
+    case 'statement_of_claim': return (
       <svg {...s}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+    );
+    case 'settlement_analysis': return (
+      <svg {...s}><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path d="M12 8v8" /></svg>
+    );
+    case 'case_assessment': return (
+      <svg {...s}><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><circle cx="12" cy="17" r="0.5" fill="currentColor" stroke="none" /></svg>
     );
     default: return (
       <svg {...s}><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a4 4 0 0 1 8 0v2" /></svg>
@@ -59,20 +62,20 @@ function MatterIcon({ type }: { type: string }) {
 }
 
 const MATTER_TYPES = [
-  { value: 'contract_review', label: 'Contract Review', desc: 'Review, draft, or negotiate agreements' },
-  { value: 'document_redesign', label: 'Document Review', desc: 'Review and improve legal documents' },
-  { value: 'legal_research', label: 'Legal Research', desc: 'Research memo or legal brief' },
-  { value: 'legal_question', label: 'Advisory', desc: 'Quick legal question or opinion' },
-  { value: 'risk_assessment', label: 'Risk Assessment', desc: 'Compliance or risk analysis' },
-  { value: 'general', label: 'General', desc: 'Other legal work' },
+  { value: 'intake_analysis', label: 'Intake Analysis', desc: 'Upload intake transcript or notes for analysis' },
+  { value: 'contract_review', label: 'Employment Agreement Review', desc: 'Review an employment contract' },
+  { value: 'demand_letter', label: 'Demand Letter', desc: 'Generate a demand letter' },
+  { value: 'statement_of_claim', label: 'Statement of Claim', desc: 'Draft a Statement of Claim' },
+  { value: 'settlement_analysis', label: 'Settlement Analysis', desc: 'Analyze settlement options' },
+  { value: 'case_assessment', label: 'Case Assessment', desc: 'Get a quick case assessment' },
 ];
 
 const JURISDICTIONS = [
-  { value: 'US', label: 'US' },
-  { value: 'EU', label: 'EU' },
-  { value: 'UK', label: 'UK' },
-  { value: 'CA', label: 'CA' },
-  { value: 'AU', label: 'AU' },
+  { value: 'ON', label: 'Ontario' },
+  { value: 'BC', label: 'British Columbia' },
+  { value: 'AB', label: 'Alberta' },
+  { value: 'QC', label: 'Quebec' },
+  { value: 'CA-FED', label: 'Federal (Canada)' },
 ];
 
 const BUDGET_TIERS = [
@@ -101,8 +104,8 @@ export function ClientInfoForm({ onSubmit, loading, guidedStep, onStepChange }: 
     clientName: '',
     matterTitle: '',
     matterDescription: '',
-    matterType: 'contract_review',
-    jurisdiction: 'US',
+    matterType: 'intake_analysis',
+    jurisdiction: 'ON',
     estimatedBudgetUsd: 10,
     feeStructure: 'hourly',
   });

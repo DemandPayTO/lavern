@@ -47,7 +47,7 @@ export function LavernLogo({
       xmlns="http://www.w3.org/2000/svg"
       style={{ display: 'block' }}
       role="img"
-      aria-label="Lavern"
+      aria-label="Starling"
     >
       <path d="M0 72V8h3.2l28 48.5h0.6L60.2 8H64v64h-5V22.5h-0.4L33.2 64h-3l-25-41.5H4.8V72H0Z" fill={color} />
       <line x1="12" y1="16" x2="52" y2="68" stroke={veinColor} strokeWidth="0.8" strokeLinecap="round" />
@@ -227,7 +227,7 @@ export default function LandingView({ onEnter, onMyPage, onAgentDocs, authEnable
             background: 'rgba(250, 249, 246, 0.25)',
           }}
         >
-          Welcome to Lavern
+          DemandPay Starling
         </p>
 
         <h1
@@ -239,7 +239,7 @@ export default function LandingView({ onEnter, onMyPage, onAgentDocs, authEnable
             animation: 'doorReveal 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.9s both',
           }}
         >
-          Are you a human
+          Upload your employment documents.
         </h1>
         <h1
           className={cn(
@@ -250,7 +250,7 @@ export default function LandingView({ onEnter, onMyPage, onAgentDocs, authEnable
             animation: 'doorReveal 1.4s cubic-bezier(0.22, 1, 0.36, 1) 1.3s both',
           }}
         >
-          or an agent?
+          Our agents will analyze them.
         </h1>
 
         {/* ── Two paths ────────────────────────────────────────────── */}

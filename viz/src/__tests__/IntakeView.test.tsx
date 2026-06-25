@@ -24,7 +24,7 @@ describe('IntakeView', () => {
       <IntakeView onComplete={noop} onSkip={noop} onBack={noop} />
     );
 
-    expect(screen.getByText('LAVERN')).toBeInTheDocument();
+    expect(screen.getByText('STARLING')).toBeInTheDocument();
   });
 
   it('shows description for both modes', () => {

@@ -90,7 +90,7 @@ export default function StrategyView({ onComplete, onBack, onSkip }: Props) {
       </div>
 
       {/* Title + intro \u2014 share the same left edge as everything below */}
-      <h1 style={styles.title}>Lavern <span style={{ fontWeight: 500 }}>Strategy</span></h1>
+      <h1 style={styles.title}>Starling <span style={{ fontWeight: 500 }}>Strategy</span></h1>
       <p style={styles.intro}>
         Defaults work well for most engagements. Adjust only if you need to.
       </p>

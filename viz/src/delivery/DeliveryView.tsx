@@ -167,7 +167,7 @@ export default function DeliveryView({ onContinue, onBack, onSkip }: Props) {
 
       {/* AI disclaimer */}
       <p style={styles.aiDisclaimer}>
-        Lavern assists with document design and analysis. It does not provide legal advice.
+        Starling assists with document design and analysis. It does not provide legal advice.
         Always verify results with qualified legal professionals.
       </p>
 

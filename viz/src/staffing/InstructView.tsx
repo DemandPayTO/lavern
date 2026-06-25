@@ -137,7 +137,7 @@ export default function InstructView({ onComplete, onBack, onSkip }: Props) {
           >
             {'\u2190'} Strategy
           </button>
-          <h1 style={styles.title}>Lavern <span style={{ fontWeight: 500 }}>Instruct</span></h1>
+          <h1 style={styles.title}>Starling <span style={{ fontWeight: 500 }}>Instruct</span></h1>
           {onSkip && (
             <button
               onClick={handleSkip}

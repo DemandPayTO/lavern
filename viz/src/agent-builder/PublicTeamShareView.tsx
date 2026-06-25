@@ -55,7 +55,7 @@ export default function PublicTeamShareView({ token }: Props) {
         <div style={styles.errorBox}>
           <div style={styles.errorTitle}>Not found</div>
           <div style={styles.errorMsg}>{error}</div>
-          <a href="/" style={styles.errorLink}>Lavern.ai →</a>
+          <a href="/" style={styles.errorLink}>DemandPay Starling →</a>
         </div>
       </div>
     );
@@ -68,16 +68,16 @@ export default function PublicTeamShareView({ token }: Props) {
   const ogImageSrc = `/api/teams/share/${encodeURIComponent(token)}/og.png`;
   const ownerLine = data.ownerName
     ? `${data.ownerName}'s team`
-    : 'A Lavern team';
+    : 'A Starling team';
   const title = data.title || 'My Team';
   const description = data.agents.length === 1
-    ? `${data.agents[0].displayName} on Lavern.`
+    ? `${data.agents[0].displayName} on Starling.`
     : `${data.agents.length} agents · ${data.agents.slice(0, 3).map(a => a.displayName).join(', ')}${data.agents.length > 3 ? '…' : ''}`;
 
   return (
     <div style={styles.page}>
       <Head
-        title={`${title} — Lavern`}
+        title={`${title} — DemandPay Starling`}
         description={description}
         ogImage={ogImageSrc}
       />
@@ -86,7 +86,7 @@ export default function PublicTeamShareView({ token }: Props) {
         <div style={styles.overline}>{ownerLine}</div>
         <h1 style={styles.title}>{title}</h1>
         <div style={styles.subtitle}>
-          {data.agents.length} member{data.agents.length === 1 ? '' : 's'} · assembled on Lavern
+          {data.agents.length} member{data.agents.length === 1 ? '' : 's'} · assembled on Starling
         </div>
 
         {/* The hero — exactly the image LinkedIn would unfurl. */}
@@ -107,13 +107,13 @@ export default function PublicTeamShareView({ token }: Props) {
 
         <div style={styles.cta}>
           <a href="/" style={styles.ctaBtn}>
-            Build your own team on Lavern →
+            Build your own team on Starling →
           </a>
         </div>
       </div>
 
       <footer style={styles.footer}>
-        <div style={styles.wordmark}>LAVERN</div>
+        <div style={styles.wordmark}>STARLING</div>
         <div style={styles.footerMeta}>
           {data.viewCount.toLocaleString()} view{data.viewCount === 1 ? '' : 's'} ·
           shared {new Date(data.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}

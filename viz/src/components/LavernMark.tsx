@@ -60,7 +60,7 @@ export function LavernMark({ size = 28, onClick, hideCursor }: LavernMarkProps) 
         transition: 'opacity 0.3s ease',
         userSelect: 'none' as const,
       }}
-      aria-label="Lavern — Home"
+      aria-label="Starling — Home"
     >
       L
     </button>

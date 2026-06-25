@@ -156,7 +156,7 @@ export default function LoginView({ onAuth, onBack }: Props) {
             ? "Enter your email and we'll send a reset link."
             : isSignup
             ? 'Join the agentic law firm.'
-            : 'Sign in to your Lavern account.'}
+            : 'Sign in to your Starling account.'}
         </p>
 
         {/* Error */}
