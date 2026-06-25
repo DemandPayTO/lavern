@@ -2,8 +2,8 @@
 
 **Author:** Jordan Haworth (CLO) + Claude Code
 **Date:** June 25, 2026
-**Status:** Draft — use Claude Cowork to design mockups before implementation
-**Goal:** Transform Lavern's generic legal platform UI into a purpose-built Ontario employment law tool for law firms
+**Status:** APPROVED — ready for Cowork mockup design
+**Goal:** Transform Lavern's generic legal platform UI into a matter-centric Ontario employment law tool for law firms
 
 ---
 
@@ -11,292 +11,468 @@
 
 Lavern's UI was designed as a generic multi-agent legal platform. The current interface:
 - Uses jargon ("Counsel", "Review", "Full Bench") that means nothing to an employment lawyer
-- Doesn't guide the user toward specific employment law tasks
+- Is task-oriented when it should be matter-oriented (lawyers work on cases, not tasks)
+- Doesn't track matter status or flag dormant files
 - Doesn't reflect DemandPay's brand identity
-- Presents cost estimates that feel high and are confusing
-- Requires the user to understand the underlying agent architecture to use it
+- Presents cost estimates as the headline instead of the value
+- Requires understanding agent architecture to use it
+- Has no deadline monitoring or weekly digest
 
-The overhaul should make Starling feel like a **purpose-built employment law tool**, not a configurable AI platform.
+The overhaul makes Starling a **matter-centric employment law workbench** — the lawyer manages their caseload, and AI capabilities are actions within each matter.
 
 ---
 
 ## 2. Design Principles
 
-1. **Task-first, not agent-first.** The lawyer thinks "I need to draft a demand letter", not "I need to configure an adversarial workflow with 5 agents."
-2. **DemandPay branding.** Navy (#0f1a2e), orange (#ea580c), cream (#faf8f5). Georgia headings. Sharp corners. The DemandPay logo with colored dots.
-3. **Progressive disclosure.** Show the simple action first. The agent pipeline, debate board, and verification passes are visible during processing, not before.
-4. **Employment law vocabulary.** Every label, button, and description uses terms an Ontario employment lawyer would use.
-5. **Cost transparency without anxiety.** Show estimated cost AFTER the user selects a task, not as the primary UI element.
+1. **Matter-centric, not task-centric.** The lawyer thinks about cases (Smith v Acme), not workflows. Every action happens within a matter context.
+2. **Zero manual status updates.** Starling infers matter status from activity. The lawyer never fills in a status dropdown.
+3. **Surface urgency automatically.** Stale files and approaching deadlines appear prominently without the lawyer asking.
+4. **Progressive disclosure.** Show the simple action first. Agents, debate boards, and verification passes are visible during processing, not before.
+5. **DemandPay branding.** Navy, orange, cream. Georgia headings. Sharp corners. Coloured-dot logo.
+6. **Employment law vocabulary.** Every label uses terms an Ontario employment lawyer would use.
 
 ---
 
-## 3. Proposed Screen Flow
+## 3. Screen Flow
 
 ```
-Dashboard → Task Selection → Upload/Input → Processing → Results → Export
+Dashboard (matters + quick actions)
+  ├── New Matter → Intake flow → Matter created
+  ├── Open Matter → Matter detail view
+  │     ├── Draft Document → Processing → Results
+  │     ├── Review Document → Processing → Results
+  │     ├── View Timeline / Documents / Generated work
+  │     └── Matter settings (client info, deadlines)
+  └── Weekly Digest (email, automatic)
 ```
+
+---
+
+## 4. Screen Designs
 
 ### Screen 1: Dashboard (replaces Landing/QuickStart)
 
-**Current:** "Your firm is ready. 30+ agent experts." + Counsel/Review/Full Bench cards.
-
-**Proposed:** A clean dashboard showing:
+Two zones: Quick Actions (top) and My Matters (bottom).
 
 ```
-┌─────────────────────────────────────────────────┐
-│  [DemandPay Logo]              [My Cases] [Settings]  │
-│                                                       │
-│  Welcome back, [Lawyer Name]                          │
-│                                                       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐              │
-│  │ 📋       │ │ 📄       │ │ ⚖️       │              │
-│  │ Complete  │ │ Review a │ │ Draft a  │              │
-│  │ Intake   │ │ Document │ │ Document │              │
-│  │          │ │          │ │          │              │
-│  │ Upload   │ │ Upload   │ │ Select   │              │
-│  │ transcript│ │ agreement│ │ document │              │
-│  │ or notes │ │ or letter│ │ type     │              │
-│  └──────────┘ └──────────┘ └──────────┘              │
-│                                                       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐              │
-│  │ 🔍       │ │ 🤝       │ │ 📊       │              │
-│  │ Assess   │ │ Analyze  │ │ Extract  │              │
-│  │ a Case   │ │ Settlement│ │ Data    │              │
-│  │          │ │ Options  │ │          │              │
-│  │ Quick    │ │ Review   │ │ Pull key │              │
-│  │ assessment│ │ offer or │ │ facts from│              │
-│  │ of merits│ │ negotiate│ │ documents│              │
-│  └──────────┘ └──────────┘ └──────────┘              │
-│                                                       │
-│  Recent Matters                                       │
-│  ┌─────────────────────────────────────────────┐      │
-│  │ Smith v Acme Corp — Demand letter drafted   │      │
-│  │ Jones v BigCo — Intake completed            │      │
-│  │ Lee v TechFirm — SOC in progress            │      │
-│  └─────────────────────────────────────────────┘      │
-└───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  [DemandPay Logo ●●●]                    [My Cases] [⚙]    │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │ + New Matter │  │ Draft       │  │ Review      │         │
+│  │              │  │ Document    │  │ Document    │         │
+│  │ Start a new  │  │             │  │             │         │
+│  │ client file  │  │ Generate a  │  │ Analyze an  │         │
+│  │              │  │ demand      │  │ employment  │         │
+│  │ Upload intake│  │ letter,     │  │ agreement,  │         │
+│  │ or describe  │  │ SOC, brief, │  │ termination │         │
+│  │ the case     │  │ or motion   │  │ letter, or  │         │
+│  │              │  │             │  │ other doc   │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘         │
+│                                                             │
+│  My Matters                                    [+ New]      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ 🔴 Patel v MegaCorp         Limitation in 14 days  │    │
+│  │    Action: File SOC before July 9, 2026             │    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │ ⚠️ Jones v BigCo             No activity — 12 days  │    │
+│  │    Missing: employment agreement, termination letter│    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │ ● Smith v Acme Corp         Demand letter drafted   │    │
+│  │    Next: Send to employer or request review         │    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │ ● Lee v TechFirm            SOC in progress         │    │
+│  │    Next: Review draft, check limitation Feb 2027    │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**6 task cards:**
+**3 quick action cards:**
 
-| Card | Label | Description | Maps to workflow |
-|------|-------|-------------|-----------------|
-| 📋 | Complete Intake | Upload intake transcript or notes. AI identifies issues, missing docs, and follow-up questions. | counsel (intake_analysis) |
-| 📄 | Review a Document | Upload an employment agreement, termination letter, or other document for analysis. | review (employment_agreement) |
-| ⚖️ | Draft a Document | Generate a demand letter, statement of claim, mediation brief, or motion materials. | adversarial (demand_letter / statement_of_claim) |
-| 🔍 | Assess a Case | Get a quick assessment of the merits, risks, and recommended approach. | counsel (case_assessment) |
-| 🤝 | Analyze Settlement | Review a settlement offer, calculate net recovery, assess whether to accept or counter. | counsel (settlement) |
-| 📊 | Extract Data | Pull key facts, dates, and amounts from uploaded documents into structured format. | tabulate |
+| Card | Label | Description | Maps to |
+|------|-------|-------------|---------|
+| **+ New Matter** | Start a new client file | Upload intake transcript, employment docs, or describe the situation. Creates a new matter. | counsel (intake_analysis) |
+| **Draft Document** | Generate a document | Select a matter → pick document type → Starling generates it | adversarial or counsel (depends on doc type) |
+| **Review Document** | Analyze a document | Upload or select a document from a matter → clause analysis, risk scoring, issue identification | review workflow |
 
-### Screen 2: Task Configuration (replaces Intake + Briefing)
-
-After clicking a task card, the user sees a focused screen for that specific task.
-
-**Example: "Draft a Document"**
-```
-┌─────────────────────────────────────────────────┐
-│  ← Back                    Draft a Document     │
-│                                                 │
-│  What type of document?                         │
-│                                                 │
-│  ○ Demand Letter                                │
-│  ○ Statement of Claim                           │
-│  ○ Mediation Brief                              │
-│  ○ Motion Materials                             │
-│  ○ Counter-Offer Letter                         │
-│  ○ Settlement Conference Brief                  │
-│                                                 │
-│  Upload supporting documents (optional):        │
-│  ┌─────────────────────────────────────────┐    │
-│  │  Drop files here or click to browse     │    │
-│  │  Employment agreement, termination      │    │
-│  │  letter, pay stubs, ROE, etc.           │    │
-│  └─────────────────────────────────────────┘    │
-│                                                 │
-│  Describe the situation briefly:                │
-│  ┌─────────────────────────────────────────┐    │
-│  │  e.g., "Client was terminated after     │    │
-│  │  8 years as a marketing manager.        │    │
-│  │  Employer offered 4 weeks."             │    │
-│  └─────────────────────────────────────────┘    │
-│                                                 │
-│  Estimated cost: ~$3-5                          │
-│  Estimated time: ~3-5 minutes                   │
-│                                                 │
-│  [Start Drafting →]                             │
-└─────────────────────────────────────────────────┘
-```
-
-**Key differences from current UI:**
-- No mention of "workflows", "agents", or "debate boards"
-- Document type is a simple radio list, not a dropdown with codes
-- Cost estimate is secondary, not the headline
-- File upload is integrated into the task flow
-- Description is a free-text field, not a structured form
-
-### Screen 3: Processing (replaces Working view)
-
-Show the agents working in real-time, but framed as **steps in the process**, not as agents having a debate.
-
-```
-┌─────────────────────────────────────────────────┐
-│  Drafting Demand Letter — Smith v Acme Corp     │
-│                                                 │
-│  ✅ Analyzing intake data                       │
-│  ✅ Identifying legal issues                    │
-│  ✅ Calculating entitlements (ESA + Bardal)     │
-│  🔄 Drafting demand letter...                   │
-│  ⬜ Stress-testing from employer's perspective  │
-│  ⬜ Strengthening weak points                   │
-│  ⬜ Verifying accuracy (8 checks)               │
-│  ⬜ Final quality review                        │
-│                                                 │
-│  ┌─────────────────────────────────────────┐    │
-│  │  Live Activity                          │    │
-│  │                                         │    │
-│  │  Employment Counsel is drafting the     │    │
-│  │  demand letter based on 33 potential    │    │
-│  │  damages heads...                       │    │
-│  │                                         │    │
-│  │  Issue found: Termination clause may    │    │
-│  │  be void under Waksdale v Swegon       │    │
-│  │  (2020 ONCA 391) [source: case_db ✓]   │    │
-│  └─────────────────────────────────────────┘    │
-│                                                 │
-│  Cost so far: $1.23 / $3.00 budget              │
-│  ████████░░░░░ 41%                              │
-└─────────────────────────────────────────────────┘
-```
-
-**Key differences:**
-- Steps are described in lawyer terms ("Stress-testing from employer's perspective") not agent terms ("Red Team adversarial analysis")
-- Source attribution visible in real-time (green checkmarks for verified sources)
-- Cost tracking is a progress bar, not the headline
-- The "debate board" activity is shown as "Live Activity" without requiring the user to understand multi-agent architecture
-
-### Screen 4: Results (replaces Delivery view)
-
-```
-┌─────────────────────────────────────────────────┐
-│  Demand Letter — Smith v Acme Corp    [Export ▼] │
-│                                                 │
-│  Quality Score: 92/100  ✅ PASS                 │
-│                                                 │
-│  Tabs: [Document] [Issues Found] [Source Map]   │
-│         [Verification] [Cost Summary]           │
-│                                                 │
-│  ┌─────────────────────────────────────────┐    │
-│  │  WITHOUT PREJUDICE                      │    │
-│  │                                         │    │
-│  │  June 25, 2026                          │    │
-│  │                                         │    │
-│  │  Dear [Employer],                       │    │
-│  │                                         │    │
-│  │  Re: Termination of [Client Name]       │    │
-│  │                                         │    │
-│  │  We are counsel for [Client Name]...    │    │
-│  │  ...                                    │    │
-│  │                                         │    │
-│  │  [Source indicators visible inline]     │    │
-│  │  ✓ = verified statute                   │    │
-│  │  ✓ = verified case (from database)      │    │
-│  │  ⚠ = web source (verify before use)     │    │
-│  └─────────────────────────────────────────┘    │
-│                                                 │
-│  [Download DOCX] [Download PDF] [Copy to Matter]│
-└─────────────────────────────────────────────────┘
-```
-
-### Screen 5: My Cases (replaces My Cases + Archive)
-
-List of all matters/engagements with status, last activity, and quick actions.
+**My Matters list — auto-sorted by urgency:**
+1. 🔴 **Urgent** — limitation period approaching (red, top of list)
+2. ⚠️ **Stale** — no activity in 7+ days (amber, second)
+3. ● **Active** — recent activity, on track (navy, normal)
+4. ✅ **Completed** — all deliverables produced (green, collapsed by default)
 
 ---
 
-## 4. Components to Keep vs Replace
+### Screen 2: New Matter (replaces Intake + Briefing)
 
-| Current Component | Keep/Replace | Notes |
-|-------------------|-------------|-------|
-| Landing page (QuickStart) | **Replace** | New task-card dashboard |
-| Intake flow (matter type, client info) | **Simplify** | Reduce to task-specific forms |
-| Briefing (AI interview) | **Keep** | But frame as "Tell us about the case" not "Brief the matter" |
-| Strategy/Team selection | **Remove from default flow** | Auto-select based on task. Available in "Advanced" if lawyer wants to customize. |
-| Working view (real-time agents) | **Redesign** | Show as process steps, not agent chat room |
-| Delivery view | **Redesign** | Tabbed results with source attribution |
-| My Cases | **Keep** | Update labels |
-| Agent Builder | **Keep but hide** | Available in Settings for power users |
-| Clawern dashboard | **Remove** | Not relevant for B2B employment law |
-| Challenge view | **Remove** | Marketing feature, not needed |
-| Demo tour | **Remove** | Replace with onboarding flow |
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ← Back                         New Matter                  │
+│                                                             │
+│  Client Name                                                │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  e.g., Jane Smith                                   │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  Employer Name                                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  e.g., Acme Corporation                             │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  Describe the situation                                     │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  e.g., "Client terminated after 8 years as          │    │
+│  │  marketing manager. Employer offered 4 weeks.       │    │
+│  │  Client believes they were let go because of        │    │
+│  │  a disability accommodation request."               │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  Upload documents (optional)                                │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Drop files here or click to browse                 │    │
+│  │  Employment agreement, termination letter,          │    │
+│  │  pay stubs, ROE, intake notes, etc.                 │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  Key dates (optional — Starling will extract from docs)     │
+│  Start date: [__________]  Termination date: [__________]   │
+│                                                             │
+│  [Create Matter & Analyze →]                                │
+│                                                             │
+│  Estimated cost: ~$0.50-1.00 for intake analysis            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+After clicking "Create Matter & Analyze":
+- Matter is created with a matter number
+- Uploaded documents are processed (tabulate agent extracts facts)
+- Employment Counsel identifies legal issues
+- Lawyer sees the matter detail view with results
 
 ---
 
-## 5. Branding Requirements
+### Screen 3: Matter Detail View (new — the core work screen)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ← My Matters    Smith v Acme Corp    Matter #STR-2026-003  │
+│                                                             │
+│  Status: ● Active — Demand letter drafted                   │
+│  Client: Jane Smith  |  Employer: Acme Corporation          │
+│  Terminated: June 1, 2026  |  Tenure: 8.3 years             │
+│  Limitation: June 1, 2028 (730 days remaining)              │
+│                                                             │
+│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐              │
+│  │Issues│ │Docs  │ │Draft │ │Time- │ │Notes │              │
+│  │Found │ │      │ │      │ │line  │ │      │              │
+│  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘              │
+│                                                             │
+│  [Issues Found tab shown]                                   │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ ✅ Wrongful dismissal (without cause)    [Strong]   │    │
+│  │    ESA notice: 8 weeks. CL range: 10-14 months.    │    │
+│  │    Source: statute ✓                                │    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │ ✅ Termination clause likely void       [Strong]    │    │
+│  │    For-cause provision uses "just cause" not ESA    │    │
+│  │    "wilful misconduct". Waksdale applies.           │    │
+│  │    Source: case_db ✓                                │    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │ ⚠️ Possible disability discrimination   [Moderate]  │    │
+│  │    Termination followed accommodation request.      │    │
+│  │    Source: ai_knowledge ⚠                           │    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │ ⚠️ Bad faith — manner of dismissal      [Moderate]  │    │
+│  │    Terminated same day as accommodation request.    │    │
+│  │    Honda v Keays (2008 SCC 39) applies.             │    │
+│  │    Source: case_db ✓                                │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  Actions                                                    │
+│  [Draft Demand Letter]  [Draft SOC]  [Upload More Docs]     │
+│  [Run Case Assessment]  [Export Summary]                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Tabs:**
+- **Issues Found** — Legal issues identified from intake + documents, with strength rating and source tags
+- **Documents** — Uploaded documents + generated documents (demand letters, SOCs)
+- **Draft** — Generate a new document (picks doc type, runs the pipeline)
+- **Timeline** — Chronological history of everything done on this matter
+- **Notes** — Lawyer's private notes (not processed by AI)
+
+**Actions bar** — context-sensitive buttons based on matter status:
+- If no demand letter exists: "Draft Demand Letter" is primary
+- If demand letter exists but no SOC: "Draft SOC" is primary
+- If limitation is approaching: "File SOC" is highlighted in red
+
+---
+
+### Screen 4: Processing View (redesigned from Working view)
+
+When the lawyer clicks "Draft Demand Letter", they see the pipeline as human-readable steps:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Drafting Demand Letter — Smith v Acme Corp                 │
+│                                                             │
+│  ✅ Step 1: Reading your documents                          │
+│  ✅ Step 2: Identifying legal issues (found 4)              │
+│  ✅ Step 3: Calculating entitlements                        │
+│       ESA notice: 8 weeks ($14,615)                         │
+│       Common law: 10-14 months ($79,167-$110,833)           │
+│  🔄 Step 4: Drafting the demand letter...                   │
+│  ⬜ Step 5: Stress-testing from employer's perspective      │
+│  ⬜ Step 6: Strengthening weak points                       │
+│  ⬜ Step 7: Verifying accuracy (8 checks)                   │
+│  ⬜ Step 8: Final quality review                            │
+│                                                             │
+│  Live Activity                                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ Employment Counsel is calculating damages across    │    │
+│  │ 33 potential heads...                               │    │
+│  │                                                     │    │
+│  │ Finding: Termination clause is void under           │    │
+│  │ Waksdale v Swegon (2020 ONCA 391)                   │    │
+│  │ [source: case_db ✓]                                 │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  Cost: $1.23 / $5.00 budget   ████████░░░░ 41%             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Screen 5: Results View (redesigned from Delivery view)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Demand Letter — Smith v Acme Corp            [Export ▼]    │
+│                                                             │
+│  Quality: 92/100 ✅ PASS    Cost: $3.47                     │
+│                                                             │
+│  [Document] [Issues] [Source Map] [Verification] [Cost]     │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                                                     │    │
+│  │  WITHOUT PREJUDICE                                  │    │
+│  │                                                     │    │
+│  │  June 25, 2026                                      │    │
+│  │                                                     │    │
+│  │  Dear Human Resources Department,                   │    │
+│  │  Acme Corporation                                   │    │
+│  │                                                     │    │
+│  │  Re: Termination of Jane Smith                      │    │
+│  │                                                     │    │
+│  │  We are counsel for Jane Smith in connection with    │    │
+│  │  her termination from employment with Acme          │    │
+│  │  Corporation on June 1, 2026... ✓                   │    │
+│  │                                                     │    │
+│  │  Under the Employment Standards Act, 2000,          │    │
+│  │  s. 57-58, Ms. Smith is entitled to a minimum       │    │
+│  │  of 8 weeks' notice... ✓                            │    │
+│  │                                                     │    │
+│  │  [Source indicators inline]                         │    │
+│  │  ✓ = verified (statute or case database)            │    │
+│  │  ⚠ = web source (verify before use)                 │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  [Download DOCX] [Download PDF] [Save to Matter]            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Automatic Status Monitoring
+
+### How it works (zero manual input from lawyer)
+
+Starling infers matter status from activity. The lawyer never updates a status field.
+
+| Activity detected | Status set automatically | Icon |
+|-------------------|------------------------|------|
+| Matter created, documents uploading | "Intake received" | ● |
+| Intake analysis complete | "Issues identified — ready to draft" | ● |
+| Demand letter generated | "Demand letter drafted — pending review" | ● |
+| SOC generated | "SOC drafted — pending review" | ● |
+| No activity for 7+ days | "⚠ Stale — no activity in X days" | ⚠️ |
+| No activity for 14+ days | "⚠ Dormant — no activity in X days" | ⚠️ |
+| Limitation period within 30 days | "🔴 Urgent — limitation expires [date]" | 🔴 |
+| Limitation period within 7 days | "🔴 CRITICAL — limitation expires [date]" | 🔴 |
+| All documents generated + reviewed | "Complete" | ✅ |
+| Lawyer marks as closed | "Closed" | ✅ |
+
+### Additional status signals (from uploaded documents)
+
+When the lawyer uploads documents during intake, Starling extracts dates:
+- **Termination date** → calculates 2-year limitation automatically
+- **Severance offer deadline** → flags if approaching
+- **HRTO limitation** → 1 year from termination, flagged separately
+
+These deadlines are tracked automatically — the lawyer doesn't enter them manually if they're in the uploaded documents.
+
+### What triggers a stale/dormant flag
+
+| Condition | Flag | How it's resolved |
+|-----------|------|-------------------|
+| 7 days since last session on this matter | ⚠ Stale | Any new activity clears it |
+| 14+ days since last session | ⚠ Dormant | Any new activity clears it |
+| Intake complete but no documents drafted | "Ready to draft — waiting on lawyer" | Lawyer drafts a document |
+| Documents drafted but not exported/downloaded | "Draft ready — not yet sent" | Lawyer downloads or exports |
+
+---
+
+## 6. Weekly Digest Email
+
+Every Monday at 9:00 AM, Starling sends the lawyer an email summary.
+
+```
+Subject: Starling Weekly — 3 matters need attention
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DemandPay Starling — Weekly Case Status
+Week of June 23, 2026
+
+Active Matters: 8  |  Needing Attention: 3
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔴 URGENT
+  Patel v MegaCorp
+  Limitation expires July 9, 2026 (14 days)
+  Status: SOC not filed
+  Action: File Statement of Claim immediately
+
+⚠️ STALE (no activity 7+ days)
+  Jones v BigCo — 12 days dormant
+  Last activity: Intake analysis
+  Missing: employment agreement, termination letter
+
+  Williams v StartupCo — 8 days dormant
+  Last activity: Demand letter drafted
+  Next: Send to employer or request lawyer review
+
+✅ ON TRACK
+  Smith v Acme Corp — Demand letter drafted (3 days ago)
+  Lee v TechFirm — SOC in progress (today)
+  Chen v RetailCo — Intake received (2 days ago)
+  [3 more matters on track...]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Open Starling: http://localhost:5173
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Technical implementation:**
+- Uses Lavern's existing notification system (`src/claw/notify.ts`)
+- Email via webhook (Slack/email) or Telegram integration (already built)
+- Runs as a scheduled task (cron or Clawern daemon heartbeat)
+- Pulls from SQLite matters table + session archive timestamps
+- No new infrastructure needed — just a new notification type
+
+---
+
+## 7. Components to Keep vs Replace vs Add
+
+| Current Component | Action | Notes |
+|-------------------|--------|-------|
+| Landing page (QuickStart) | **Replace** | New matter-centric dashboard |
+| Intake flow (client info form) | **Simplify** | New Matter screen — just name, employer, description, upload |
+| Briefing (AI interview) | **Keep but rename** | Becomes part of "New Matter" flow |
+| Strategy/Team selection | **Remove from default** | Auto-select based on task. Available in Settings. |
+| Working view | **Redesign** | Process steps view (human-readable, not agent chat) |
+| Delivery view | **Redesign** | Results view with source attribution tabs |
+| My Cases | **Redesign** | Matter list with auto-status and urgency sorting |
+| Agent Builder | **Keep, hide** | Settings → Advanced → Custom Agents |
+| Clawern dashboard | **Repurpose** | Powers the status monitoring backend (not UI) |
+| Challenge view | **Remove** | Marketing feature |
+| Demo tour | **Remove** | Replace with onboarding |
+| **NEW: Matter Detail View** | **Build** | Core work screen per matter |
+| **NEW: Weekly Digest** | **Build** | Automatic email summary |
+| **NEW: Status Monitor** | **Build** | Auto-infer status from activity |
+
+---
+
+## 8. Branding
 
 | Element | Specification |
 |---------|--------------|
-| Logo | DemandPay logo (three colored dots + DEMAND PAY text) |
-| Primary colour | Navy #0f1a2e (headings, nav, primary buttons) |
-| Accent colour | Orange #ea580c (CTAs, active states, highlights) |
-| Background | Cream #faf8f5 (content area) |
-| Frame | Warm gray #e8e5e0 (page background behind cards) |
-| Card borders | Sharp corners (border-radius: 0) |
-| Button radius | 2px only |
-| Heading font | Georgia, 'Palatino Linotype', serif |
-| Body font | system-ui, -apple-system, sans-serif |
+| Logo | DemandPay logo (three coloured dots + DEMAND PAY) |
+| Primary | Navy #0f1a2e |
+| Accent | Orange #ea580c |
+| Background | Cream #faf8f5 |
+| Frame | Warm gray #e8e5e0 |
+| Borders | Sharp corners (radius 0), rgba(15,26,46,0.12) |
+| Buttons | 2px radius only, orange primary CTA |
+| Headings | Georgia, Palatino Linotype, serif |
+| Body | system-ui, -apple-system, sans-serif |
 | Success | Green #16a34a |
 | Warning | Amber #d97706 |
 | Danger | Red #dc2626 |
+| Status: urgent | 🔴 Red accent, top of list |
+| Status: stale | ⚠️ Amber accent |
+| Status: active | ● Navy dot |
+| Status: complete | ✅ Green |
 
 ---
 
-## 6. Implementation Approach
+## 9. Implementation Phases
 
 ### Phase 1: Mockups (Claude Cowork)
-- Design mockups for: Dashboard, Task Configuration, Processing, Results
-- Use DemandPay brand colours and typography
-- Test with a lawyer for clarity and usability
+- Design mockups for: Dashboard, New Matter, Matter Detail, Processing, Results
+- Use DemandPay brand colours and the wireframes above
+- Get lawyer feedback on clarity and workflow
 
-### Phase 2: Dashboard replacement
-- Replace LandingView/QuickStartView with new task-card dashboard
-- Wire task cards to existing workflow routing (already configured)
-- Auto-select team based on task type (already done in router)
+### Phase 2: Dashboard + Matter List
+- Replace LandingView with new dashboard
+- Build matter list with auto-status inference
+- Wire 3 quick action cards to existing routing
+- Urgency sorting (red → amber → navy → green)
 
-### Phase 3: Task configuration screens
-- Create task-specific input screens (one per task type)
-- Simplify intake flow — remove strategy/team selection from default path
-- Keep advanced configuration accessible but hidden
+### Phase 3: New Matter + Matter Detail
+- Build New Matter screen (simplified intake)
+- Build Matter Detail view with tabs (Issues, Docs, Draft, Timeline, Notes)
+- Context-sensitive action buttons
 
-### Phase 4: Processing view redesign
-- Redesign WorkingView to show process steps instead of agent chat
-- Map agent activities to human-readable step descriptions
-- Show source attribution in real-time
-
-### Phase 5: Results view redesign
-- Redesign DeliveryView with tabs and inline source indicators
+### Phase 4: Processing + Results redesign
+- Redesign WorkingView as process steps
+- Redesign DeliveryView with source attribution tabs
 - Add DOCX/PDF export
-- Add "Copy to Matter" for DemandPay integration
+
+### Phase 5: Status Monitor + Weekly Digest
+- Build status inference engine (activity timestamps → status)
+- Build limitation period tracking (extract from documents)
+- Build weekly digest email using existing notification system
+- Configure scheduled send (Monday 9 AM)
+
+### Phase 6: Document Management Integration (future)
+- SharePoint connector for pilot firm
+- Two-way sync: documents in → generated docs out
+- Other DMS connectors (iManage, Clio, Google Drive) as needed
 
 ---
 
-## 7. What NOT to change
+## 10. What NOT to Change
 
-- The agent prompts (already rewritten for Ontario employment law)
-- The router logic (already configured for employment law workflows)
-- The verification pipeline (8 passes, already configured)
-- The debate board and MCP tools (backend infrastructure)
-- The API server and WebSocket event streaming
-- The session management and state persistence
+The UI is a presentation layer. These backend systems are already configured and must not be modified during the UI overhaul:
 
-The UI is a presentation layer over working infrastructure. Changing the UI should not affect any backend functionality.
+- Agent prompts (17 B2B agents, all rewritten for Ontario employment law)
+- Router logic (7 employment law routing rules)
+- Verification pipeline (8 passes with weighted scoring)
+- Debate board and MCP tools
+- Model tier assignments (5 Opus, 20 Sonnet)
+- Web search allowlist
+- Institutional memory and precedent board
+- API server and WebSocket event streaming
+- Session management and state persistence
 
 ---
 
-## 8. Risk Mitigation
+## 11. Risk Mitigation
 
 | Risk | Mitigation |
 |------|-----------|
-| Breaking existing functionality | All UI changes are component-level. Backend (API, agents, workflows) is untouched. |
-| Losing features during redesign | Keep removed components (Clawern, Challenge, Agent Builder) in the codebase, just remove from navigation. Can be re-enabled. |
-| Scope creep | Phase 1 (mockups) gates everything. No implementation without approved mockups. |
-| Cost of redesign | The existing React components can be adapted, not rebuilt from scratch. Most changes are text, layout, and routing — not new functionality. |
+| Breaking agent pipeline during UI changes | Backend untouched. UI is presentation only. |
+| Losing features during redesign | Removed components stay in codebase, just hidden from nav. |
+| Scope creep | Phase 1 (mockups) gates everything. No code without approved mockups. |
+| Status monitor false positives | Start with simple rules (days since activity). Refine based on lawyer feedback. |
+| Weekly digest email deliverability | Use existing webhook notification (Slack/email). Add Resend integration later if needed. |
