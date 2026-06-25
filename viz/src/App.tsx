@@ -70,8 +70,12 @@ const LegalView = lazy(() => import('./legal/LegalView.js'));
 const PartnerView = lazy(() => import('./partner/PartnerView.js'));
 const ShowcaseView = lazy(() => import('./showcase/ShowcaseView.js'));
 const StarlingDashboard = lazy(() => import('./starling/StarlingDashboard.js'));
+const NewMatterView = lazy(() => import('./starling/NewMatterView.js'));
+const MatterDetailView = lazy(() => import('./starling/MatterDetailView.js'));
+const ProcessingView = lazy(() => import('./starling/ProcessingView.js'));
+const ResultsView = lazy(() => import('./starling/ResultsView.js'));
 
-type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard';
+type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results';
 
 function getViewFromHash(): AppView {
   const hash = window.location.hash;
@@ -117,6 +121,10 @@ function getViewFromHash(): AppView {
   if (hash.startsWith('#/showcase')) return 'showcase';
   if (hash.startsWith('#/demo')) return 'demo';
   if (hash.startsWith('#/foyer')) return 'foyer';
+  if (hash.startsWith('#/new-matter')) return 'new-matter';
+  if (hash.startsWith('#/matter-detail')) return 'matter-detail';
+  if (hash.startsWith('#/processing')) return 'starling-processing';
+  if (hash.startsWith('#/results')) return 'starling-results';
   return 'starling-dashboard';
 }
 
@@ -210,7 +218,7 @@ export function App() {
   }, []);
 
   // Demo containment — if a demo session is active, only allow demo-safe routes
-  const DEMO_SAFE: AppView[] = ['foyer', 'starling-dashboard', 'working', 'delivery', 'claw', 'claw-live', 'demo', 'login'];
+  const DEMO_SAFE: AppView[] = ['foyer', 'starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'working', 'delivery', 'claw', 'claw-live', 'demo', 'login'];
   useEffect(() => {
     const sid = sessionStorage.getItem('shem-session-id') ?? '';
     if (sid.startsWith('demo-session') && !DEMO_SAFE.includes(view)) {
@@ -598,7 +606,7 @@ export function App() {
   // ── View rendering ────────────────────────────────────────────────────
 
   // ── Global M mark — hide on landing (custom cursor) & working (tight header) ──
-  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard';
+  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard' && view !== 'new-matter' && view !== 'matter-detail' && view !== 'starling-processing' && view !== 'starling-results';
 
   // ── Global API error handler (listens for shem:api-error events) ────
   useEffect(() => {
@@ -1214,6 +1222,66 @@ export function App() {
       <Suspense fallback={<div style={{ width: '100%', height: '100vh', backgroundColor: '#FAF9F6' }} />}>
         <ShowcaseView onTap={() => { window.location.hash = '#/partner?demo=true'; }} />
       </Suspense>
+    );
+  }
+
+  // ── New Matter — Starling new matter intake form ─────────────────────
+  if (view === 'new-matter') {
+    return (
+      <ErrorBoundary>
+        {skipLink}
+        {toast}
+        {offlineBanner}
+        {verifyBanner}
+        <Suspense fallback={<ViewFallback text="Loading..." />}>
+          <NewMatterView />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // ── Matter Detail — Starling matter detail view ────────────────────
+  if (view === 'matter-detail') {
+    return (
+      <ErrorBoundary>
+        {skipLink}
+        {toast}
+        {offlineBanner}
+        {verifyBanner}
+        <Suspense fallback={<ViewFallback text="Loading matter..." />}>
+          <MatterDetailView />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // ── Starling Processing — pipeline progress screen ──────────────────
+  if (view === 'starling-processing') {
+    return (
+      <ErrorBoundary>
+        {skipLink}
+        {toast}
+        {offlineBanner}
+        {verifyBanner}
+        <Suspense fallback={<ViewFallback text="Drafting..." />}>
+          <ProcessingView />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // ── Starling Results — document delivery with quality score ────────
+  if (view === 'starling-results') {
+    return (
+      <ErrorBoundary>
+        {skipLink}
+        {toast}
+        {offlineBanner}
+        {verifyBanner}
+        <Suspense fallback={<ViewFallback text="Loading results..." />}>
+          <ResultsView />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 

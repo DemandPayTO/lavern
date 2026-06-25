@@ -32,7 +32,7 @@ type FilterKey = 'all' | 'urgent' | 'stale' | 'active';
 interface MatterItem {
   id: string;
   status: MatterStatus;
-  statusIcon: string;
+  statusColour: string;
   name: string;
   number: string;
   flagText: string;
@@ -49,7 +49,7 @@ const DEMO_MATTERS: MatterItem[] = [
   {
     id: 'patel',
     status: 'urgent',
-    statusIcon: '\uD83D\uDD34',
+    statusColour: '#dc2626',
     name: 'Patel v MegaCorp',
     number: '#STR-2026-007',
     flagText: 'Limitation in 14 days',
@@ -62,7 +62,7 @@ const DEMO_MATTERS: MatterItem[] = [
   {
     id: 'jones',
     status: 'stale',
-    statusIcon: '\u26A0\uFE0F',
+    statusColour: '#d97706',
     name: 'Jones v BigCo',
     number: '#STR-2026-005',
     flagText: 'No activity \u00B7 12 days',
@@ -74,7 +74,7 @@ const DEMO_MATTERS: MatterItem[] = [
   {
     id: 'williams',
     status: 'stale',
-    statusIcon: '\u26A0\uFE0F',
+    statusColour: '#d97706',
     name: 'Williams v StartupCo',
     number: '#STR-2026-004',
     flagText: 'No activity \u00B7 8 days',
@@ -86,7 +86,7 @@ const DEMO_MATTERS: MatterItem[] = [
   {
     id: 'smith',
     status: 'active',
-    statusIcon: '\u25CF',
+    statusColour: '#0f1a2e',
     name: 'Smith v Acme Corp',
     number: '#STR-2026-003',
     flagText: 'Demand letter drafted',
@@ -98,7 +98,7 @@ const DEMO_MATTERS: MatterItem[] = [
   {
     id: 'lee',
     status: 'active',
-    statusIcon: '\u25CF',
+    statusColour: '#0f1a2e',
     name: 'Lee v TechFirm',
     number: '#STR-2026-006',
     flagText: 'SOC in progress',
@@ -110,7 +110,7 @@ const DEMO_MATTERS: MatterItem[] = [
   {
     id: 'chen',
     status: 'active',
-    statusIcon: '\u25CF',
+    statusColour: '#0f1a2e',
     name: 'Chen v RetailCo',
     number: '#STR-2026-008',
     flagText: 'Intake received',
@@ -333,7 +333,7 @@ export default function StarlingDashboard() {
         >
           {/* New Matter */}
           <ActionCard
-            icon="\uFF0B"
+            icon="+"
             title="New Matter"
             description="Start a new client file. Upload an intake transcript or employment documents, or just describe the situation."
             cta="Start a matter"
@@ -344,7 +344,7 @@ export default function StarlingDashboard() {
           />
           {/* Draft Document */}
           <ActionCard
-            icon="\u270D"
+            icon="D"
             title="Draft Document"
             description="Generate a demand letter, Statement of Claim, mediation brief, or motion materials for an existing matter."
             cta="Draft a document"
@@ -354,7 +354,7 @@ export default function StarlingDashboard() {
           />
           {/* Review Document */}
           <ActionCard
-            icon="\uD83D\uDD0D"
+            icon="R"
             title="Review Document"
             description="Analyse an employment agreement, termination letter, or severance package for risks and enforceability."
             cta="Review a document"
@@ -448,7 +448,7 @@ export default function StarlingDashboard() {
               >
                 {/* Line 1 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                  <span style={{ fontSize: 14 }} aria-hidden="true">{matter.statusIcon}</span>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: matter.statusColour, display: 'inline-block', flexShrink: 0 }} aria-hidden="true" />
                   <span style={{ fontFamily: serif, fontSize: 16.5, color: navy, fontWeight: 600 }}>{matter.name}</span>
                   <span style={{ fontSize: 11.5, color: muted, marginLeft: 2 }}>{matter.number}</span>
                   <span
