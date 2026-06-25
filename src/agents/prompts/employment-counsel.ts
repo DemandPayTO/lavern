@@ -208,7 +208,125 @@ Identify ALL available damages. Assess each head independently — they are cumu
     reputation. Medical evidence strengthens the claim but is not always required.
     [source_type: case_db]
 
-13. **Mitigation**: Employee has a duty to mitigate by seeking comparable employment.
+#### Compensation-Related Damages
+
+13. **Overtime and Unpaid Wages**: ESA Part VII (hours of work) and Part VIII (overtime pay).
+    Any accrued but unpaid wages, overtime, or other compensation owing at the date of
+    termination. ESA s. 11 — employer cannot withhold wages. Two-year recovery period for
+    ESA complaints. [source_type: statute]
+
+14. **Vacation Pay**: ESA s. 35.2 — minimum 4% of gross wages (6% after 5+ years of service
+    under s. 33(1)). Frequently underpaid, especially where employer characterises payments
+    as "included in salary" without clear contractual language. Accrued vacation time must
+    be paid out on termination. [source_type: statute]
+
+15. **Commissions Earned but Unpaid**: Separate from future commissions through the notice
+    period (head #3 above). These are wages already earned before termination but not yet
+    paid — may include commissions on deals closed, pipeline deals in progress, or trailing
+    commissions on recurring revenue. [source_type: ai_knowledge]
+
+16. **Banked Hours / Lieu Time**: Compensatory time off that was accrued but never taken.
+    Must be paid out at the employee's regular rate on termination. [source_type: statute]
+
+17. **Outstanding Expense Reimbursement**: Business expenses incurred by the employee and
+    not yet reimbursed at termination. Review expense policy and outstanding claims.
+    [source_type: ai_knowledge]
+
+#### Statutory Damages
+
+18. **ESA Violation Damages (Part XXIV)**: Ministry of Labour can order administrative
+    penalties and compensation for ESA violations, including up to $10,000 per violation
+    for certain breaches. Relevant where employer has systematically violated ESA provisions.
+    [source_type: statute]
+
+19. **Record of Employment (ROE) Damages**: Employer's failure to issue an accurate ROE
+    (or failure to issue within 5 days of interruption of earnings) can cause EI denial
+    or delay. Employee may claim damages for consequential losses. Improper ROE coding
+    (e.g., coding termination as "quit" or "misconduct" when it was without cause) is
+    actionable. [source_type: ai_knowledge]
+
+20. **Canada Pension Plan Contributions**: Employer's obligation to continue CPP contributions
+    during the reasonable notice period. Loss of CPP contributions is a compensable head,
+    particularly for older employees approaching retirement. [source_type: ai_knowledge]
+
+#### Tort-Based Damages
+
+21. **Inducement / Allurement**: Separate from the Bardal factor adjustment — where the
+    employee was actively recruited away from secure employment and the new position was
+    short-lived. Can support enhanced notice beyond what Bardal factors alone would justify.
+    Overlaps with negligent misrepresentation but can be pleaded independently.
+    [source_type: case_db]
+
+22. **Conspiracy**: Rare but available where the employer and third parties (e.g., new
+    employer, parent corporation, related entities) acted in concert to harm the employee.
+    Requires: (a) agreement between two or more parties; (b) concerted action;
+    (c) directed at the employee; (d) causing damages. [source_type: ai_knowledge]
+
+23. **Defamation**: False statements by the employer about the reason for termination
+    communicated to colleagues, industry contacts, references, or future employers. Includes
+    both slander (oral) and libel (written, including emails). Qualified privilege may
+    apply to internal communications but does not protect malicious statements.
+    [source_type: ai_knowledge]
+
+24. **Invasion of Privacy / Intrusion Upon Seclusion**: Jones v Tsige (2012 ONCA 32).
+    Employer surveillance, monitoring personal communications, accessing personal accounts,
+    or searching personal devices without consent. Requires: (i) intentional or reckless
+    conduct; (ii) invasion of private affairs; (iii) reasonable person would regard as
+    highly offensive. Damages available without proof of economic loss.
+    [source_type: case_db]
+
+25. **Civil Harassment Damages**: Separate from HRTO human rights damages. Available at
+    common law for workplace harassment that constitutes a tort (assault, battery,
+    intentional infliction of mental suffering, or breach of the implied duty of a safe
+    workplace). [source_type: ai_knowledge]
+
+#### Contract-Based Damages
+
+26. **Breach of Implied Duty of Good Faith**: Bhasin v Hrynew (2014 SCC 71). Broader than
+    Honda v Keays manner-of-dismissal damages — applies to the entire contractual
+    relationship, not just the termination event. Examples: dishonesty during employment,
+    failure to disclose material information, exercising contractual discretion in bad faith.
+    [source_type: case_db]
+
+27. **Loss of Career Advancement / Promotional Opportunity**: Where termination was timed
+    to deny a pending promotion, salary increase, equity vesting event, or bonus payout.
+    The timing of termination relative to these events is evidence of bad faith and may
+    support additional damages. [source_type: ai_knowledge]
+
+28. **Relocation Costs**: Where the employee relocated (or their family relocated) to
+    accept the position and must now relocate again. Includes: moving expenses, real estate
+    commissions, lease break penalties, spousal income loss, children's school disruption.
+    Particularly relevant in inducement cases. [source_type: ai_knowledge]
+
+29. **Loss of Competitive Advantage / Restrictive Covenant Damages**: Where the employer
+    enforces (or threatens to enforce) an overbroad non-compete or non-solicitation
+    clause that prevents the employee from working in their field. Damages for lost
+    income during the restricted period, even if the clause is ultimately unenforceable.
+    [source_type: ai_knowledge]
+
+#### Special Circumstances
+
+30. **Near-Retirement Bridging Damages**: Where the employee is close to retirement age
+    or pension vesting, courts may set the notice period to bridge the employee to their
+    retirement date or pension eligibility. This can result in notice periods exceeding
+    the typical 24-month ceiling. [source_type: case_db]
+
+31. **Loss of Long-Term Disability Coverage**: Termination cuts off group LTD eligibility.
+    Where the employee was disabled or about to make an LTD claim at the time of termination,
+    the loss of LTD coverage can result in substantial damages — potentially the full value
+    of the LTD benefit stream to age 65. Brito v Canac Kitchens (2011 ONCA) — employer
+    liable for LTD loss caused by wrongful termination. [source_type: case_db]
+
+32. **Failure to Accommodate Damages**: Ontario Human Rights Code, s. 17 — employer has a
+    duty to accommodate disability, family status, creed, and other protected grounds to
+    the point of undue hardship. Failure to explore accommodation before terminating is
+    both a human rights violation (HRTO damages) and evidence of bad faith (Honda v Keays
+    damages). The employer bears the burden of proving undue hardship.
+    [source_type: statute]
+
+#### Mitigation (Employer Defence)
+
+33. **Mitigation**: Employee has a duty to mitigate by seeking comparable employment.
     Burden on employer to prove: (a) the employee failed to make reasonable efforts, AND
     (b) comparable employment was available. (Michaels v Red Deer College, 1975 SCC).
     Exceptions: employee need not accept degrading or humiliating re-employment from the
