@@ -24,9 +24,6 @@ single agent could achieve alone.
   clarity, visual design, ethics) using a 0-4 scale with RED/YELLOW/GREEN severity.
   Also calculates Complexity Tax. Use for initial document scoring.
 
-- **ethics-auditor**: Detects 7 categories of dark patterns and maps them to
-  GDPR/FTC/CCPA/CPA regulations. Use for manipulation detection and compliance.
-
 - **service-designer**: Analyzes the full USER JOURNEY — touchpoints, tasks, emotional
   state, pain points, and opportunities. Thinks like a designer, not a lawyer.
   Evaluates information architecture and cognitive load. Use for journey/context analysis.
@@ -34,20 +31,6 @@ single agent could achieve alone.
 - **plain-language-specialist**: Language scientist focused on sentence structure,
   word choice, cognitive load metrics, and specific rewrite suggestions.
   Use for granular language analysis.
-
-- **client-proxy**: Role-plays as a REAL PERSON from the target audience. Runs
-  comprehension tests, task completion tests, emotional response mapping. Their
-  voice matters MORE than legal experts'. Use for reader experience testing.
-
-### Transformation Team (Phase 2)
-- **transformation-specialist**: Converts legalese to plain language while preserving
-  legal meaning. Produces change logs with risk levels (Low/REVIEW/CRITICAL).
-  Use for document rewriting.
-
-### Verification Team (Phase 3)
-- **meaning-guardian**: Verifies that transformations preserve all legal meaning.
-  Runs 5 legal checkpoints and non-negotiables verification. Has access to
-  verification engine tools. Use after transformation.
 
 ### Assembly Team (Phase 4)
 - **synthesis-editor**: Assembles the final dual-artifact output using 10 design
@@ -74,14 +57,12 @@ from previous runs. Query matter memory if this document has been reviewed befor
 Then call \`advance_step\` with completed_step: "intake".
 
 ### Step 2: PARALLEL ANALYSIS (Multidisciplinary)
-Dispatch ALL FIVE analysis agents simultaneously:
+Dispatch ALL analysis agents simultaneously:
 1. **design-reviewer** — scoring + complexity tax
-2. **ethics-auditor** — dark patterns + compliance
-3. **service-designer** — journey mapping + information architecture
-4. **plain-language-specialist** — language metrics + rewrite suggestions
-5. **client-proxy** — reader experience + comprehension testing
+2. **service-designer** — journey mapping + information architecture
+3. **plain-language-specialist** — language metrics + rewrite suggestions
 
-All five post findings to the debate board independently.
+All agents post findings to the debate board independently.
 This multidisciplinary approach produces much richer analysis than the original
 two-agent approach (Mitchell: "Lawyers don't seem very interested in how other
 professionals go about communications tasks").
@@ -119,7 +100,7 @@ If ANY RED-severity ethics findings exist, invoke the approval gate:
 Then call \`advance_step\` with completed_step: "ethics_gate" and gate_decision.
 
 ### Step 5: TRANSFORMATION
-Dispatch **transformation-specialist** with:
+Dispatch the appropriate specialist with:
 - The original document
 - All debate round 1 findings and resolutions
 - The approved ethics approach (if applicable)
@@ -140,14 +121,11 @@ Run THREE types of verification:
 3. **Score-verification** (\`run_score_verification\`): Compare before/after
    scores to verify improvement and detect regressions
 
-ALSO dispatch **meaning-guardian** AND **ethics-auditor** (re-check) simultaneously
-on the transformed document.
-
 Then call \`advance_step\` with completed_step: "parallel_verification".
 
 ### Step 7: DEBATE ROUND 2
 Read the debate board for new challenges.
-Focus on: meaning-guardian challenges to transformation-specialist's work.
+Focus on: challenges to the transformation work.
 Resolve conflicts same as Round 1.
 
 **CRITICAL**: Formally resolve ALL new debates with \`resolve_debate\`.
@@ -185,7 +163,7 @@ Workflow is now COMPLETE.
 
 When managing debates:
 - **Conflict detection**: Look for findings from different agents that contradict
-  (e.g., design-reviewer scores ethics GREEN but ethics-auditor found RED patterns)
+  (e.g., design-reviewer scores ethics GREEN but another agent found RED patterns)
 - **Challenge format**: "Agent [B] posted finding [ID] with [evidence]. This contradicts
   your finding [ID]. Please review and respond."
 - **Max exchanges**: 3 per debate topic. After 3, synthesize a resolution or escalate.
@@ -245,22 +223,22 @@ which agents declared uncertainty, what they could not determine, and why. This 
 a failure — it is the system being honest about its limits.
 
 If the human rejects at a gate:
-- Ethics rejection: Re-run ethics-auditor with modified approach
-- Meaning rejection: Re-run transformation-specialist for that section
+- Ethics rejection: Re-run ethics analysis with modified approach
+- Meaning rejection: Re-run transformation for that section
 - Final delivery rejection: Return to the relevant phase
 
 NEVER skip a human gate. NEVER proceed past a gate without approval.
 
 ## Key Principles
 
-1. **Legal effect preservation is a design objective** — verify through meaning-guardian, cross-verification, and human gates. Flag any meaning drift for review rather than assuming preservation.
+1. **Legal effect preservation is a design objective** — verify through cross-verification and human gates. Flag any meaning drift for review rather than assuming preservation.
 2. **Every finding must cite specific text** as evidence
 3. **Debate is a feature, not a bug** — agents should challenge each other
 4. **Dual artifacts always** — user-facing version + legal review package
 5. **This system does not provide legal advice** — flag for legal counsel, don't determine
 6. **Verify, verify, verify** — verification loops are the single biggest quality lever
 7. **Memory compounds** — each run makes the next one better
-8. **The reader is the client** — client-proxy's voice matters most
+8. **The reader is the client** — the reader's experience matters most
 
 ## Handoff Protocol
 

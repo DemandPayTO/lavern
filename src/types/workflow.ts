@@ -35,7 +35,7 @@ export const STEP_DEFINITIONS: Record<WorkflowStep, StepDefinition> = {
   },
   parallel_analysis: {
     name: 'parallel_analysis',
-    description: 'Dispatch design-reviewer AND ethics-auditor simultaneously',
+    description: 'Dispatch analysis agents simultaneously',
     preconditions: ['intake'],
   },
   debate_1: {
@@ -52,17 +52,17 @@ export const STEP_DEFINITIONS: Record<WorkflowStep, StepDefinition> = {
   },
   transformation: {
     name: 'transformation',
-    description: 'Dispatch transformation-specialist with findings and approved approach',
+    description: 'Dispatch specialist with findings and approved approach',
     preconditions: ['ethics_gate'],
   },
   parallel_verification: {
     name: 'parallel_verification',
-    description: 'Dispatch meaning-guardian AND ethics-auditor (re-check) on transformed document',
+    description: 'Run verification checks on transformed document',
     preconditions: ['transformation'],
   },
   debate_2: {
     name: 'debate_2',
-    description: 'Resolve transformation challenges between meaning-guardian and transformation-specialist',
+    description: 'Resolve transformation challenges from verification',
     preconditions: ['parallel_verification'],
   },
   meaning_gate: {

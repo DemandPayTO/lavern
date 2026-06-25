@@ -149,7 +149,7 @@ export async function assembleLocalDocument(
 ): Promise<string> {
   const requestType = request?.type === 'legal_question' ? 'counsel_extraction'
     : request?.type
-    ?? (session.workflowTemplateId === 'roundtable' ? 'document_redesign'
+    ?? (session.workflowTemplateId === 'legal-design' ? 'document_redesign'
       : session.workflowTemplateId === 'review' ? 'contract_review'
       : session.workflowTemplateId === 'adversarial' ? 'legal_research'
       : session.workflowTemplateId === 'counsel' ? 'counsel_extraction'

@@ -1,13 +1,13 @@
 /**
  * Risk Pricing MCP Tools — Error probability and insurability assessment.
  *
- * v6: Two tools that bracket the risk-pricer agent invocation:
+ * v6: Two tools that bracket the risk assessment invocation:
  *
  * 1. `request_risk_assessment` — Called by the orchestrator to REQUEST
  *    a risk assessment on a deliverable. Records the request and emits
- *    an event. The orchestrator then dispatches the risk-pricer subagent.
+ *    an event. The orchestrator then dispatches the appropriate subagent.
  *
- * 2. `record_risk_assessment` — Called after the risk-pricer subagent
+ * 2. `record_risk_assessment` — Called after the risk assessment subagent
  *    completes. Stores the risk assessment on the session and emits event.
  */
 
@@ -33,7 +33,7 @@ export function createRiskPricingTools(session: SessionState) {
 
   const requestRiskAssessment = tool(
     'request_risk_assessment',
-    'Request a risk assessment on a specialist deliverable. Call this BEFORE dispatching the risk-pricer subagent. Records the request and emits an event.',
+    'Request a risk assessment on a specialist deliverable. Call this BEFORE dispatching the risk assessment subagent. Records the request and emits an event.',
     {
       specialist_role: z.string()
         .describe('The role of the specialist whose work is being assessed (e.g., "contract-reviewer")'),
@@ -58,8 +58,8 @@ export function createRiskPricingTools(session: SessionState) {
 **Step**: ${args.step}
 ${args.matter_value ? `**Matter Value**: ${args.matter_value}` : ''}
 
-Now dispatch the risk-pricer subagent to assess the deliverable.
-After the risk-pricer completes, call \`record_risk_assessment\` with the results.`,
+Now dispatch the appropriate subagent to assess the deliverable.
+After the assessment completes, call \`record_risk_assessment\` with the results.`,
         }],
       };
     },
@@ -67,7 +67,7 @@ After the risk-pricer completes, call \`record_risk_assessment\` with the result
 
   const recordRiskAssessment = tool(
     'record_risk_assessment',
-    'Record the result of a risk assessment. Call this AFTER the risk-pricer subagent has completed its assessment. Stores the assessment on the session.',
+    'Record the result of a risk assessment. Call this AFTER the risk assessment subagent has completed its assessment. Stores the assessment on the session.',
     {
       step: z.string()
         .describe('The workflow step this assessment is for'),

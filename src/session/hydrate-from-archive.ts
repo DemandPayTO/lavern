@@ -118,7 +118,7 @@ export function hydrateSessionFromArchive(archived: ArchivedSession): HydratedSe
   // exhaustive list). Fill in minimal required fields.
   const findings: Finding[] = (summary.topFindings ?? []).map((f, i) => ({
     id: `archived-finding-${i}`,
-    agentRole: (f.agent ?? 'corporate-generalist') as AgentRole,
+    agentRole: (f.agent ?? 'contract-reviewer') as AgentRole,
     findingType: 'contract-risk',
     content: f.content ?? '',
     severity: normalizeSeverity(f.severity),
@@ -137,7 +137,7 @@ export function hydrateSessionFromArchive(archived: ArchivedSession): HydratedSe
     evidenceWeight: r.evidenceWeight ?? '',
     confidence: typeof r.confidence === 'number' ? r.confidence : 0.7,
     escalationNeeded: Boolean(r.escalationNeeded),
-    resolvedBy: 'managing-partner' as AgentRole,
+    resolvedBy: 'evaluator' as AgentRole,
     timestamp: archived.completed_at ?? archived.created_at,
   }));
 

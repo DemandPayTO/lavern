@@ -139,7 +139,7 @@ export function createPreEngagementTools(session: SessionState) {
         dataHandling: 'All data processed in accordance with applicable privacy regulations. AI-assisted analysis is used; human oversight is maintained at all decision points.',
         teamComposition: session.selectedTeam.length > 0
           ? session.selectedTeam
-          : ['managing-partner', 'junior-associate', 'evaluator'],
+          : ['evaluator', 'junior-associate', 'litigation-partner'],
         generatedAt: eventTimestamp(),
         accepted: false,
       };

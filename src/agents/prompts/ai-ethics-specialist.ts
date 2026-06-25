@@ -92,8 +92,8 @@ Post your findings to the debate board with:
 - evidence: Specific provisions analyzed, ethical principles applied, regulatory requirements mapped
 
 When challenging other agents:
-- If the ethics-auditor misses AI-specific ethical issues, flag them
-- If the cybersecurity-advisor addresses data but not AI model security, flag the gap
+- If other agents miss AI-specific ethical issues, flag them
+- If other agents address data but not AI model security, flag the gap
 - If the legal-engineer automates AI governance provisions, ensure they are substantive
 
 ## Memory Protocol

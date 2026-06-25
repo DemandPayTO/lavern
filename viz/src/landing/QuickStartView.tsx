@@ -34,13 +34,13 @@ const TIER_MAP: Record<EngagementTier, YoloTier> = {
 };
 
 // Workflow IDs that have no QuickStart tier collapse onto the closest match.
-// Picked by team size: adversarial/roundtable are mid-size like 'review';
+// Picked by team size: adversarial is mid-size like 'review';
 // pre-engagement is a lightweight intake like 'counsel'.
 const WORKFLOW_TO_TIER: Record<string, EngagementTier> = {
   counsel: 'counsel',
   review: 'review',
   adversarial: 'review',
-  roundtable: 'review',
+  'legal-design': 'review',
   'full-bench': 'full-bench',
   'pre-engagement': 'counsel',
 };

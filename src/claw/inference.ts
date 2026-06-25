@@ -108,7 +108,7 @@ const INFERENCE_PROMPT = `You are a law firm intake classifier. Given a document
 
 Respond in JSON with these fields:
 - type: one of "contract_review", "document_redesign", "risk_assessment", "legal_research", "general"
-- workflow: one of "review", "roundtable", "adversarial", "counsel", "full-bench" (or null to let the router decide)
+- workflow: one of "review", "adversarial", "counsel", "full-bench", "legal-design" (or null to let the router decide)
 - reasoning: 1-2 sentence explanation
 - documentType: what kind of document this is (e.g., "NDA", "Terms of Service", "Employment Agreement")
 - riskLevel: "low", "medium", or "high"
@@ -205,7 +205,7 @@ function heuristicInfer(
   // Terms, policies → redesign (make them human-friendly)
   if (lower.includes('terms') || lower.includes('tos') || lower.includes('privacy') ||
       lower.includes('policy') || lower.includes('eula')) {
-    return { type: 'document_redesign', workflow: 'roundtable', reasoning: `Filename suggests a user-facing policy document: ${filename}` };
+    return { type: 'document_redesign', workflow: 'legal-design', reasoning: `Filename suggests a user-facing policy document: ${filename}` };
   }
 
   // Briefs, memos → research
@@ -249,7 +249,7 @@ function legalRequestTypeFromWatchman(docType: WatchmanResult['documentType']): 
  */
 function workflowFromWatchman(w: WatchmanResult): string | undefined {
   if (w.route === 'quick-scan') return 'counsel';
-  if (w.documentType === 'policy') return 'roundtable';
+  if (w.documentType === 'policy') return 'legal-design';
   return 'review';
 }
 

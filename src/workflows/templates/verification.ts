@@ -99,10 +99,7 @@ export const verificationTemplate: WorkflowTemplate = {
   ],
   requiredAgents: [
     'design-reviewer',
-    'ethics-auditor',
     'evaluator',
-    'meaning-guardian',
-    'risk-pricer',
   ],
   maxTeamSize: 10,
   orchestratorArchetype: 'orchestrator-professor',

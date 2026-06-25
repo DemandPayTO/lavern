@@ -457,8 +457,7 @@ function runMigrations(db: Database.Database): void {
       const labels: Record<string, string> = {
         counsel: 'Counsel',
         review: 'Review',
-        roundtable: 'Full Bench',
-        'legal-design': 'Full Bench',
+        'legal-design': 'Legal Design',
         adversarial: 'Research',
         'full-bench': 'Full Bench',
         verification: 'Verification',

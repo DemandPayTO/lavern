@@ -42,7 +42,7 @@ import '../workflows/index.js';
  * matches the registry directly.
  */
 const CANONICAL_WORKFLOWS = new Set([
-  'counsel', 'review', 'adversarial', 'roundtable', 'full-bench',
+  'counsel', 'review', 'adversarial', 'full-bench',
   'legal-design', 'pre-engagement', 'verification',
 ]);
 
@@ -261,9 +261,8 @@ export function classifyRequest(request: LegalRequest): RouterClassification {
       riskLevel: 'medium',
       selectedWorkflow: 'legal-design',
       selectedSpecialists: [
-        'design-reviewer', 'ethics-auditor', 'service-designer',
-        'plain-language-specialist', 'client-proxy', 'synthesis-editor',
-        'transformation-specialist', 'meaning-guardian',
+        'design-reviewer', 'service-designer',
+        'plain-language-specialist', 'synthesis-editor',
       ],
       requiresDebate: true,
       requiresEthicsFirst: true,
@@ -311,11 +310,11 @@ export function classifyRequest(request: LegalRequest): RouterClassification {
       complexity: 'low',
       riskLevel: 'low',
       selectedWorkflow: 'counsel',
-      selectedSpecialists: ['risk-pricer', 'evaluator'],
+      selectedSpecialists: ['evaluator', 'red-team'],
       requiresDebate: false,
       requiresEthicsFirst: false,
       requiresConsistencyCheck: !!request.matterId,
-      reasoning: 'Risk assessment uses the counsel pipeline with risk-pricer specialist.',
+      reasoning: 'Risk assessment uses the counsel pipeline with evaluator and red-team.',
     };
   }
 

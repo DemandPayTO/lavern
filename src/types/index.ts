@@ -18,70 +18,37 @@ export type Moment = 'signup' | 'checkout' | 'exit' | 'dispute' | 'renewal' | 'o
 export type AgentRole =
   | 'orchestrator'
   | 'design-reviewer'
-  | 'ethics-auditor'
-  | 'transformation-specialist'
-  | 'meaning-guardian'
   | 'synthesis-editor'
   // Multidisciplinary agents (v2)
   | 'service-designer'
   | 'plain-language-specialist'
-  | 'client-proxy'
   // v5: Adaptive pipeline roles
   | 'router'
   | 'evaluator'
   | 'contract-reviewer'
   // v6: Legal core, risk, and adversarial roles
   | 'legal-researcher'
-  | 'risk-pricer'
   | 'red-team'
-  // v8: Law Firm — Leadership (3)
-  | 'managing-partner'
-  | 'supervising-partner'
-  | 'of-counsel'
-  // v8: Law Firm — Corporate & Transactional (5)
-  | 'corporate-generalist'
-  | 'ma-specialist'
+  // v8: Law Firm — Corporate & Transactional
   | 'contract-specialist'
-  | 'banking-finance'
-  | 'capital-markets'
   // v8: Law Firm — Disputes & Litigation (4)
   | 'litigation-partner'
   | 'litigation-associate'
   | 'arbitration-specialist'
   | 'dispute-resolution'
-  // v8: Law Firm — Regulatory & Compliance (4)
-  | 'regulatory-counsel'
-  | 'compliance-officer'
-  | 'antitrust-specialist'
-  | 'sanctions-specialist'
-  // v8: Law Firm — Specialist Practice (6)
-  | 'tax-counsel'
-  | 'ip-specialist'
+  // v8: Law Firm — Specialist Practice
   | 'privacy-counsel'
   | 'employment-counsel'
-  | 'real-estate-counsel'
-  | 'environmental-counsel'
-  // v8: Law Firm — Junior Talent (3)
+  // v8: Law Firm — Junior Talent
   | 'junior-associate'
   | 'paralegal'
-  | 'legal-intern'
-  // v8: Experts — Design & Communication
-  // v8: Experts — User Research & Testing (3 new)
+  // v8: Experts — User Research & Testing
   | 'accessibility-specialist'
   | 'user-researcher'
   | 'behavioral-scientist'
-  // v8: Experts — Ethics & Governance
-  // v8: Experts — Technology & Data (3 remaining)
+  // v8: Experts — Technology & Data
   | 'legal-engineer'
-  | 'cybersecurity-advisor'
-  | 'ai-ethics-specialist'
-  // v8: Experts — Industry Specialists (4 new)
-  | 'fintech-specialist'
-  | 'healthcare-specialist'
-  | 'media-specialist'
-  | 'energy-specialist'
-  // v8: Experts — Quality & Infrastructure
-  | 'project-manager';
+  | 'ai-ethics-specialist';
 
 // ── v5: Request & Routing Types ──────────────────────────────────────────
 

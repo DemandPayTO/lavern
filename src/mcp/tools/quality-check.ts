@@ -36,7 +36,7 @@ export function createQualityCheckTools(session: SessionState) {
       check_type: z.enum(['self', 'peer', 'evaluator'])
         .describe('Who performs the check: "self" (you re-evaluate), "peer" (another agent), "evaluator" (formal evaluator)'),
       checker_role: z.string().optional()
-        .describe('Which agent performs the check (required for peer/evaluator, e.g., "client-proxy", "supervising-partner")'),
+        .describe('Which agent performs the check (required for peer/evaluator, e.g., "evaluator", "litigation-partner")'),
       deliverable_summary: z.string()
         .describe('Brief summary of what is being checked'),
       quality_criteria: z.array(z.string())

@@ -67,7 +67,7 @@ const DEFAULT_PERSONA = {
 // Derived from WORKFLOW_QUESTIONS — themes the interviewer should cover.
 
 const WORKFLOW_TOPICS: Record<string, string> = {
-  'roundtable': `
+  'legal-design': `
 - What the document is and what the client needs (review, redraft, simplification)
 - Who the primary audience is (consumers, businesses, employees)
 - Known issues with the current version

@@ -402,7 +402,7 @@ CLI Options:
   --model <model>            Model (default: claude-opus-4-8)
   --debug                    Enable debug logging
   --request <text>           Free-text legal request (routes through dispatch)
-  --workflow <id>            Force a specific workflow (counsel, review, adversarial, roundtable, full-bench, legal-design)
+  --workflow <id>            Force a specific workflow (counsel, review, adversarial, full-bench, legal-design)
   --help                     Show this help
 
 Doctor:

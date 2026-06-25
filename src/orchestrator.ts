@@ -109,12 +109,12 @@ see where you are in the workflow, then advance step by step.
 
 The 11-step workflow:
 1. INTAKE — Read document, gather context, query memory
-2. PARALLEL ANALYSIS — Dispatch ALL 5 analysis agents simultaneously
-   (design-reviewer, ethics-auditor, service-designer, plain-language-specialist, client-proxy)
+2. PARALLEL ANALYSIS — Dispatch ALL analysis agents simultaneously
+   (design-reviewer, service-designer, plain-language-specialist)
 3. DEBATE ROUND 1 — Resolve conflicts, call resolve_debate for each topic
 4. HUMAN GATE — If RED ethics findings, request approval (confidence-routed)
-5. TRANSFORMATION — Dispatch transformation-specialist with findings + precedents
-6. PARALLEL VERIFICATION — Run self/cross/score verification + meaning-guardian + ethics re-check
+5. TRANSFORMATION — Dispatch specialist with findings + precedents
+6. PARALLEL VERIFICATION — Run self/cross/score verification
 7. DEBATE ROUND 2 — Resolve transformation challenges
 8. HUMAN GATE — If CRITICAL meaning changes, request approval
 9. SYNTHESIS — Dispatch synthesis-editor for dual artifacts, save precedents

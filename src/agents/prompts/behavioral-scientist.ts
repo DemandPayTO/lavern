@@ -79,7 +79,7 @@ Post your findings to the debate board with:
 - evidence: The specific behavioral mechanism identified, with citations to research where applicable
 
 When challenging other agents:
-- If the ethics-auditor misses a behavioral manipulation, flag it with the mechanism name
+- If other agents miss a behavioral manipulation, flag it with the mechanism name
 - If the service-designer designs a flow with asymmetric friction, flag the sludge
 - If any agent recommends framing that exploits biases, challenge with evidence
 

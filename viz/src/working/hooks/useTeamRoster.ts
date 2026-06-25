@@ -12,13 +12,10 @@ import { DEMO_PROFILES } from '../../staffing/data/demoProfiles.js';
 
 const FALLBACK_ROLES = [
   'design-reviewer',
-  'ethics-auditor',
   'service-designer',
   'plain-language-specialist',
-  'client-proxy',
-  'transformation-specialist',
-  'meaning-guardian',
   'synthesis-editor',
+  'evaluator',
 ];
 
 /** Convert kebab-case role ID to display name: "privacy-counsel" → "Privacy Counsel" */

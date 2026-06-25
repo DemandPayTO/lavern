@@ -36,8 +36,8 @@ function buildDemoScript(teamRoles: string[]): Array<{ delayMs: number; event: S
   let verificationCounter = 0;
 
   const agents = teamRoles.length > 0 ? teamRoles : [
-    'design-reviewer', 'ethics-auditor', 'plain-language-specialist',
-    'transformation-specialist', 'meaning-guardian', 'synthesis-editor',
+    'design-reviewer', 'plain-language-specialist',
+    'service-designer', 'synthesis-editor', 'evaluator',
   ];
 
   const script: Array<{ delayMs: number; event: ShemEvent }> = [];

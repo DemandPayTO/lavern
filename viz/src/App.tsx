@@ -519,12 +519,10 @@ export function App() {
     sessionStorage.setItem('shem-briefing-team', JSON.stringify(roles));
 
     const WORKFLOW_TYPE_MAP: Record<string, string> = {
-      'roundtable': 'document_redesign',
       'review': 'contract_review',
       'adversarial': 'legal_research',
       'counsel': 'legal_question',
       'pre-engagement': 'general',
-      // Backward-compatible alias for old workflow ID
       'legal-design': 'document_redesign',
     };
 

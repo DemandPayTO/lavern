@@ -1,10 +1,9 @@
 /**
  * Agent Definitions — All specialist agents for The Shem.
  *
- * v2: Added 3 multidisciplinary agents (Mitchell-inspired):
+ * v2: Added multidisciplinary agents (Mitchell-inspired):
  * - service-designer: Full user journey analysis
  * - plain-language-specialist: Cognitive load & readability
- * - client-proxy: Role-plays as the actual reader
  *
  * v5: Added evaluator and contract-reviewer agents:
  * - evaluator: Automated quality gate (different model from specialist)
@@ -15,80 +14,40 @@
  */
 
 import { designReviewerPrompt } from './prompts/design-reviewer.js';
-import { ethicsAuditorPrompt } from './prompts/ethics-auditor.js';
-import { transformationPrompt } from './prompts/transformation.js';
-import { meaningGuardianPrompt } from './prompts/meaning-guardian.js';
+
 import { synthesisEditorPrompt } from './prompts/synthesis-editor.js';
 import { serviceDesignerPrompt } from './prompts/service-designer.js';
 import { plainLanguageSpecialistPrompt } from './prompts/plain-language-specialist.js';
-import { clientProxyPrompt } from './prompts/client-proxy.js';
 // v5: New agent prompts
 import { evaluatorPrompt } from './prompts/evaluator.js';
 import { contractReviewerPrompt } from './prompts/contract-reviewer.js';
-// v6: Legal core, risk, and adversarial agent prompts
+// v6: Legal core and adversarial agent prompts
 import { legalResearcherPrompt } from './prompts/legal-researcher.js';
-import { riskPricerPrompt } from './prompts/risk-pricer.js';
 import { redTeamPrompt } from './prompts/red-team.js';
-// v8: Law Firm Leadership
-import { managingPartnerPrompt } from './prompts/managing-partner.js';
-import { supervisingPartnerPrompt } from './prompts/supervising-partner.js';
-import { ofCounselPrompt } from './prompts/of-counsel.js';
 // v8: Law Firm Corporate & Transactional
-import { corporateGeneralistPrompt } from './prompts/corporate-generalist.js';
-import { maSpecialistPrompt } from './prompts/ma-specialist.js';
 import { contractSpecialistPrompt } from './prompts/contract-specialist.js';
-import { bankingFinancePrompt } from './prompts/banking-finance.js';
-import { capitalMarketsPrompt } from './prompts/capital-markets.js';
 // v8: Law Firm Disputes & Litigation
 import { litigationPartnerPrompt } from './prompts/litigation-partner.js';
 import { litigationAssociatePrompt } from './prompts/litigation-associate.js';
 import { arbitrationSpecialistPrompt } from './prompts/arbitration-specialist.js';
 import { disputeResolutionPrompt } from './prompts/dispute-resolution.js';
-// v8: Law Firm Regulatory & Compliance
-import { regulatoryCounselPrompt } from './prompts/regulatory-counsel.js';
-import { complianceOfficerPrompt } from './prompts/compliance-officer.js';
-import { antitrustSpecialistPrompt } from './prompts/antitrust-specialist.js';
-import { sanctionsSpecialistPrompt } from './prompts/sanctions-specialist.js';
 // v8: Law Firm Specialist Practice
-import { taxCounselPrompt } from './prompts/tax-counsel.js';
-import { ipSpecialistPrompt } from './prompts/ip-specialist.js';
 import { privacyCounselPrompt } from './prompts/privacy-counsel.js';
 import { employmentCounselPrompt } from './prompts/employment-counsel.js';
-import { realEstateCounselPrompt } from './prompts/real-estate-counsel.js';
-import { environmentalCounselPrompt } from './prompts/environmental-counsel.js';
 // v8: Law Firm Junior Lawyers
 import { juniorAssociatePrompt } from './prompts/junior-associate.js';
 import { paralegalPrompt } from './prompts/paralegal.js';
-import { legalInternPrompt } from './prompts/legal-intern.js';
-// v8: Experts — Design & Communication (new ones only, service-designer/plain-language/client-proxy already imported)
-// v8: Experts — User Research & Testing (client-proxy already imported)
+// v8: Experts — User Research & Testing
 import { accessibilitySpecialistPrompt } from './prompts/accessibility-specialist.js';
 import { userResearcherPrompt } from './prompts/user-researcher.js';
 import { behavioralScientistPrompt } from './prompts/behavioral-scientist.js';
-// v8: Experts — Ethics & Governance (ethics-auditor already imported)
 // v8: Experts — Technology & Data
 import { legalEngineerPrompt } from './prompts/legal-engineer.js';
-import { cybersecurityAdvisorPrompt } from './prompts/cybersecurity-advisor.js';
 import { aiEthicsSpecialistPrompt } from './prompts/ai-ethics-specialist.js';
-// v8: Experts — Industry Specialists
-import { fintechSpecialistPrompt } from './prompts/fintech-specialist.js';
-import { healthcareSpecialistPrompt } from './prompts/healthcare-specialist.js';
-import { mediaSpecialistPrompt } from './prompts/media-specialist.js';
-import { energySpecialistPrompt } from './prompts/energy-specialist.js';
-// v8: Experts — Quality & Infrastructure (evaluator/risk-pricer already imported)
-import { projectManagerPrompt } from './prompts/project-manager.js';
-// v19: Missing agents for Full Bench workflow
-import { innovationPartnerPrompt } from './prompts/innovation-partner.js';
-import { internationalCounselPrompt } from './prompts/international-counsel.js';
-// v20: Previously profile-only agents (7 agents with profiles but no definitions)
+// v20: Previously profile-only agents
 import { clientRelationsPartnerPrompt } from './prompts/client-relations-partner.js';
-import { riskPartnerPrompt } from './prompts/risk-partner.js';
-import { transactionPartnerPrompt } from './prompts/transaction-partner.js';
-import { publicLawCounselPrompt } from './prompts/public-law-counsel.js';
-import { restructuringSpecialistPrompt } from './prompts/restructuring-specialist.js';
 import { startupCounselPrompt } from './prompts/startup-counsel.js';
-import { techTransactionsPrompt } from './prompts/tech-transactions.js';
-// Ethics reviewer — engagement-level ethical review (distinct from ethics-auditor's document-level dark pattern scan)
+// Ethics reviewer — engagement-level ethical review
 import { ethicsReviewerPrompt } from './prompts/ethics-reviewer.js';
 import { outputFormats } from '../types/output-schemas.js';
 import { agentProfiles } from './profiles.js';
@@ -190,33 +149,6 @@ export const agentDefinitions = {
     outputFormat: outputFormats['design-reviewer'],
   },
 
-  'ethics-auditor': {
-    description: 'Dark pattern and manipulation detection specialist. Use when you need to scan a document for seven categories of dark patterns and map compliance touchpoints to GDPR, FTC, CCPA, CPA regulations.',
-    prompt: enrichPrompt('ethics-auditor', ethicsAuditorPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['ethics-auditor'],
-  },
-
-  'transformation-specialist': {
-    description: 'Plain language transformation expert. Use when you need to convert legalese to plain language while preserving legal meaning. Produces user-facing version and change log with risk levels (Low/REVIEW/CRITICAL). Can query precedents for successful transformations.',
-    prompt: enrichPrompt('transformation-specialist', transformationPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
-    maxTurns: 15,  // More turns — transformation is the most complex task
-    outputFormat: outputFormats['transformation-specialist'],
-  },
-
-  'meaning-guardian': {
-    description: 'Legal meaning preservation verifier. Use when you need to verify that a transformation has preserved all legal meaning, check non-negotiables, run five legal checkpoints, and flag ambiguity.',
-    prompt: enrichPrompt('meaning-guardian', meaningGuardianPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...verificationTools, ...memoryReadTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['meaning-guardian'],
-  },
-
   'synthesis-editor': {
     description: 'Final document assembly and quality editor. Use when you need to assemble the final dual-artifact output (user-facing version + legal review package) by applying design patterns and maintaining voice/tone consistency. Can save successful precedents. Has access to report cards and institutional knowledge.',
     prompt: enrichPrompt('synthesis-editor', synthesisEditorPrompt),
@@ -226,7 +158,7 @@ export const agentDefinitions = {
     outputFormat: outputFormats['synthesis-editor'],
   },
 
-  // ── New Multidisciplinary Agents (v2) ─────────────────────────────────
+  // ── Multidisciplinary Agents ──────────────────────────────────────────
 
   'service-designer': {
     description: 'Service design specialist who analyzes the full user journey — touchpoints, tasks, emotional state, pain points, and opportunities. Use for journey mapping, information architecture assessment, and cognitive load analysis. Thinks like a designer, not a lawyer.',
@@ -244,15 +176,6 @@ export const agentDefinitions = {
     model: 'sonnet' as const,
     maxTurns: 8,
     outputFormat: outputFormats['plain-language-specialist'],
-  },
-
-  'client-proxy': {
-    description: 'Role-plays as a REAL PERSON from the target audience reading the document. Runs comprehension tests, task completion tests, emotional response mapping. Reports what confused, scared, or frustrated the reader. Their voice matters MORE than legal experts.',
-    prompt: enrichPrompt('client-proxy', clientProxyPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['client-proxy'],
   },
 
   // ── v5: New Adaptive Pipeline Agents ─────────────────────────────────
@@ -275,7 +198,7 @@ export const agentDefinitions = {
     outputFormat: outputFormats['contract-reviewer'],
   },
 
-  // ── v6: Legal Core, Risk, and Adversarial Agents ─────────────────────
+  // ── v6: Legal Core and Adversarial Agents ─────────────────────────────
 
   'legal-researcher': {
     description: 'Legal research specialist. Produces structured research memos with citations, confidence levels, and conflicting authorities. Saves findings as precedents. Escalates when precedent is unclear or conflicting.',
@@ -284,18 +207,6 @@ export const agentDefinitions = {
     model: 'opus' as const,
     maxTurns: 10,
     outputFormat: outputFormats['legal-researcher'],
-  },
-
-  'risk-pricer': {
-    description: 'Risk pricing specialist. Calculates error probability, potential loss magnitude, and insurability for any specialist deliverable. Continuous — runs on every piece of work. Uses workflow history and anti-patterns as signals.',
-    prompt: enrichPrompt('risk-pricer', riskPricerPrompt),
-    tools: [...readOnlyTools, ...memoryReadTools,
-      'mcp__shem__get_workflow_history',
-      'mcp__shem__query_anti_patterns',
-    ],
-    model: 'sonnet' as const,  // Fast model — runs on every deliverable
-    maxTurns: 6,
-    outputFormat: outputFormats['risk-pricer'],
   },
 
   'red-team': {
@@ -307,54 +218,7 @@ export const agentDefinitions = {
     outputFormat: outputFormats['red-team'],
   },
 
-  // ── v8: Law Firm — Leadership (3) ─────────────────────────────────────
-
-  'managing-partner': {
-    description: 'Strategic oversight and final sign-off. Reviews all deliverables before client delivery. Conservative, meticulous, nothing ships without approval.',
-    prompt: enrichPrompt('managing-partner', managingPartnerPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools, ...verificationTools, ...learningReadTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['managing-partner'],
-  },
-
-  'supervising-partner': {
-    description: 'Mentors junior team members and ensures consistent work quality. Guides through structured feedback and coaching.',
-    prompt: enrichPrompt('supervising-partner', supervisingPartnerPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...verificationTools],
-    model: 'opus' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['managing-partner'],
-  },
-
-  'of-counsel': {
-    description: 'Deep expertise and creative problem-solving for novel legal questions. Called in for the hardest, most unusual matters.',
-    prompt: enrichPrompt('of-counsel', ofCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools],
-    model: 'opus' as const,
-    maxTurns: 12,
-    outputFormat: outputFormats['managing-partner'],
-  },
-
-  // ── v8: Law Firm — Corporate & Transactional (5) ──────────────────────
-
-  'corporate-generalist': {
-    description: 'Handles corporate matters — governance, structuring, general commercial. Reliable workhorse for anything corporate.',
-    prompt: enrichPrompt('corporate-generalist', corporateGeneralistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['corporate-lawyer'],
-  },
-
-  'ma-specialist': {
-    description: 'Mergers & acquisitions specialist. Due diligence, deal structuring, transaction documentation. Fast, risk-tolerant, thrives under deadline pressure.',
-    prompt: enrichPrompt('ma-specialist', maSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...scoringTools],
-    model: 'opus' as const,
-    maxTurns: 12,
-    outputFormat: outputFormats['corporate-lawyer'],
-  },
+  // ── v8: Law Firm — Corporate & Transactional ───────────────────────────
 
   'contract-specialist': {
     description: 'Contract drafting, redlining, and clause-by-clause analysis. Every word deliberate, zero tolerance for ambiguity.',
@@ -365,25 +229,7 @@ export const agentDefinitions = {
     outputFormat: outputFormats['corporate-lawyer'],
   },
 
-  'banking-finance': {
-    description: 'Banking and finance specialist. Loan agreements, security documents, financial regulation. Thinks in term sheets and credit facilities.',
-    prompt: enrichPrompt('banking-finance', bankingFinancePrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['corporate-lawyer'],
-  },
-
-  'capital-markets': {
-    description: 'Capital markets and securities specialist. IPOs, bond issuances, regulatory filings. Deadline-driven, comfortable with complexity.',
-    prompt: enrichPrompt('capital-markets', capitalMarketsPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['corporate-lawyer'],
-  },
-
-  // ── v8: Law Firm — Disputes & Litigation (4) ─────────────────────────
+  // ── v8: Law Firm — Disputes & Litigation ──────────────────────────────
 
   'litigation-partner': {
     description: 'Senior litigation strategist. Adversarial, relentless, finds every weakness. Thinks like opposing counsel to stress-test positions.',
@@ -421,63 +267,7 @@ export const agentDefinitions = {
     outputFormat: outputFormats['litigation-lawyer'],
   },
 
-  // ── v8: Law Firm — Regulatory & Compliance (4) ────────────────────────
-
-  'regulatory-counsel': {
-    description: 'Regulatory specialist covering financial services, healthcare, tech regulation. Knows every rule, maps compliance obligations.',
-    prompt: enrichPrompt('regulatory-counsel', regulatoryCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['regulatory-lawyer'],
-  },
-
-  'compliance-officer': {
-    description: 'Compliance program design and audit. Checklist-driven, flags everything. Internal controls, training programs, monitoring.',
-    prompt: enrichPrompt('compliance-officer', complianceOfficerPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...verificationTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['regulatory-lawyer'],
-  },
-
-  'antitrust-specialist': {
-    description: 'Competition law and antitrust specialist. Market analysis, merger control, cartel investigations. Strategic competitive dynamics.',
-    prompt: enrichPrompt('antitrust-specialist', antitrustSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['regulatory-lawyer'],
-  },
-
-  'sanctions-specialist': {
-    description: 'Sanctions, export controls, and trade compliance. Zero tolerance for risk. OFAC, EU sanctions, UN sanctions screening.',
-    prompt: enrichPrompt('sanctions-specialist', sanctionsSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['regulatory-lawyer'],
-  },
-
-  // ── v8: Law Firm — Specialist Practice (6) ────────────────────────────
-
-  'tax-counsel': {
-    description: 'Tax structuring and planning specialist. Structures transactions for efficiency, navigates multi-jurisdiction tax regimes.',
-    prompt: enrichPrompt('tax-counsel', taxCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['specialist-lawyer'],
-  },
-
-  'ip-specialist': {
-    description: 'Intellectual property specialist — patents, trademarks, copyrights, trade secrets. Creative, tech-savvy, portfolio strategy.',
-    prompt: enrichPrompt('ip-specialist', ipSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['specialist-lawyer'],
-  },
+  // ── v8: Law Firm — Specialist Practice ─────────────────────────────────
 
   'privacy-counsel': {
     description: 'Data protection and privacy specialist. GDPR, CCPA, PIPL, cross-border data transfers. Chapter-and-verse regulatory knowledge.',
@@ -497,25 +287,7 @@ export const agentDefinitions = {
     outputFormat: outputFormats['specialist-lawyer'],
   },
 
-  'real-estate-counsel': {
-    description: 'Real property and real estate transactions. Acquisitions, leasing, development, zoning. Rights and boundaries.',
-    prompt: enrichPrompt('real-estate-counsel', realEstateCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['specialist-lawyer'],
-  },
-
-  'environmental-counsel': {
-    description: 'Environmental law and ESG specialist. Permitting, contamination, compliance, sustainability reporting. Precautionary approach.',
-    prompt: enrichPrompt('environmental-counsel', environmentalCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['specialist-lawyer'],
-  },
-
-  // ── v8: Law Firm — Junior Lawyers (3) ─────────────────────────────────
+  // ── v8: Law Firm — Junior Lawyers ──────────────────────────────────────
 
   'junior-associate': {
     description: 'Junior lawyer for research, first drafts, and support work. Fast, enthusiastic, thorough researcher with fresh perspective.',
@@ -535,17 +307,8 @@ export const agentDefinitions = {
     outputFormat: outputFormats['junior-lawyer'],
   },
 
-  'legal-intern': {
-    description: 'Legal intern for research tasks and fresh perspective. Asks good questions, identifies assumptions others miss.',
-    prompt: enrichPrompt('legal-intern', legalInternPrompt),
-    tools: [...readOnlyTools, ...memoryReadTools],
-    model: 'haiku' as const,
-    maxTurns: 6,
-    outputFormat: outputFormats['junior-lawyer'],
-  },
 
-
-  // ── v8: Experts — User Research & Testing (3 new) ─────────────────────
+  // ── v8: Experts — User Research & Testing ─────────────────────────────
 
   'accessibility-specialist': {
     description: 'Accessibility specialist. WCAG compliance, screen reader testing, cognitive load, inclusive design.',
@@ -575,7 +338,7 @@ export const agentDefinitions = {
   },
 
 
-  // ── v8: Experts — Technology & Data (4 new) ───────────────────────────
+  // ── v8: Experts — Technology & Data ────────────────────────────────────
 
   'legal-engineer': {
     description: 'Legal technology specialist. Automation, document assembly, legal tech integration, computational law.',
@@ -583,15 +346,6 @@ export const agentDefinitions = {
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools],
     model: 'opus' as const,
     maxTurns: 10,
-    outputFormat: outputFormats['tech-expert'],
-  },
-
-  'cybersecurity-advisor': {
-    description: 'Cybersecurity specialist. Threat modeling, breach scenarios, security assessment, data protection technical controls.',
-    prompt: enrichPrompt('cybersecurity-advisor', cybersecurityAdvisorPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
     outputFormat: outputFormats['tech-expert'],
   },
 
@@ -604,76 +358,7 @@ export const agentDefinitions = {
     outputFormat: outputFormats['tech-expert'],
   },
 
-  // ── v8: Experts — Industry Specialists (4 new) ────────────────────────
-
-  'fintech-specialist': {
-    description: 'Fintech and financial innovation specialist. Payments, crypto, DeFi, regulatory sandbox, PSD2/MiCA.',
-    prompt: enrichPrompt('fintech-specialist', fintechSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['industry-expert'],
-  },
-
-  'healthcare-specialist': {
-    description: 'Healthcare and life sciences specialist. HIPAA, clinical trials, health data, pharmaceutical regulation.',
-    prompt: enrichPrompt('healthcare-specialist', healthcareSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['industry-expert'],
-  },
-
-  'media-specialist': {
-    description: 'Media and entertainment specialist. Content rights, platform rules, defamation, licensing, publishing.',
-    prompt: enrichPrompt('media-specialist', mediaSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['industry-expert'],
-  },
-
-  'energy-specialist': {
-    description: 'Energy and natural resources specialist. Energy regulation, carbon markets, renewable energy, grid infrastructure.',
-    prompt: enrichPrompt('energy-specialist', energySpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['industry-expert'],
-  },
-
-  // ── v8: Experts — Quality & Infrastructure (3 new) ────────────────────
-
-  'project-manager': {
-    description: 'Project management specialist. Timelines, dependencies, status tracking, resource allocation, workflow coordination.',
-    prompt: enrichPrompt('project-manager', projectManagerPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools, ...learningReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['quality-expert'],
-  },
-
-  // ── v19: Missing agents for Full Bench workflow ────────────────────────
-
-  'innovation-partner': {
-    description: 'Legal innovation and emerging technology specialist. AI contracts, smart contracts, RegTech, novel business models, emerging regulatory frameworks.',
-    prompt: enrichPrompt('innovation-partner', innovationPartnerPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['specialist-lawyer'],
-  },
-
-  'international-counsel': {
-    description: 'Cross-border regulation and multi-jurisdictional compliance. Conflict of laws, treaty frameworks, international regulatory coordination.',
-    prompt: enrichPrompt('international-counsel', internationalCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['specialist-lawyer'],
-  },
-
-  // ── v20: Previously Profile-Only Agents (7) ──────────────────────────────
+  // ── v20: Previously Profile-Only Agents ───────────────────────────────
 
   'client-relations-partner': {
     description: 'Client relationship management and business translation. Reviews deliverables for client-appropriateness, ensures communication is accessible, coordinates cross-practice teams.',
@@ -681,57 +366,12 @@ export const agentDefinitions = {
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools],
     model: 'opus' as const,
     maxTurns: 10,
-    outputFormat: outputFormats['managing-partner'],
-  },
-
-  'risk-partner': {
-    description: 'Enterprise risk assessment across all findings. Identifies hidden risks, systemic patterns, quantifies financial exposure, and creates risk matrices.',
-    prompt: enrichPrompt('risk-partner', riskPartnerPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools, ...verificationTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['managing-partner'],
-  },
-
-  'transaction-partner': {
-    description: 'Multi-party transaction orchestrator. Analyzes deal mechanics, closing conditions, consent requirements, and regulatory approvals across complex cross-border transactions.',
-    prompt: enrichPrompt('transaction-partner', transactionPartnerPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...memoryWriteTools, ...scoringTools],
-    model: 'opus' as const,
-    maxTurns: 12,
-    outputFormat: outputFormats['corporate-lawyer'],
-  },
-
-  'public-law-counsel': {
-    description: 'Government advisory and public law specialist. Legislative tracing, procurement compliance, administrative law review, and regulatory submission analysis.',
-    prompt: enrichPrompt('public-law-counsel', publicLawCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
-    model: 'sonnet' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['regulatory-lawyer'],
-  },
-
-  'restructuring-specialist': {
-    description: 'Corporate restructuring and insolvency specialist. Creditor waterfall analysis, restructuring plan review, workout agreement negotiation, distressed M&A.',
-    prompt: enrichPrompt('restructuring-specialist', restructuringSpecialistPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...scoringTools],
-    model: 'opus' as const,
-    maxTurns: 10,
-    outputFormat: outputFormats['corporate-lawyer'],
+    outputFormat: outputFormats['evaluator'],
   },
 
   'startup-counsel': {
     description: 'Startup and venture capital specialist. SAFE/convertible note analysis, cap table verification, founder agreement review, formation documents.',
     prompt: enrichPrompt('startup-counsel', startupCounselPrompt),
-    tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...scoringTools],
-    model: 'sonnet' as const,
-    maxTurns: 8,
-    outputFormat: outputFormats['corporate-lawyer'],
-  },
-
-  'tech-transactions': {
-    description: 'Technology agreement specialist. SaaS/API/DPA review, open source compliance, vendor lock-in assessment, technology licensing analysis.',
-    prompt: enrichPrompt('tech-transactions', techTransactionsPrompt),
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools, ...scoringTools],
     model: 'sonnet' as const,
     maxTurns: 8,
@@ -746,7 +386,7 @@ export const agentDefinitions = {
     tools: [...readOnlyTools, ...debateTools, ...memoryReadTools],
     model: 'sonnet' as const,
     maxTurns: 6,
-    outputFormat: outputFormats['ethics-auditor'],
+    outputFormat: outputFormats['governance-expert'],
   },
 
 };

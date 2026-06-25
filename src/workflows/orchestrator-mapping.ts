@@ -4,7 +4,7 @@
  * Each workflow template is matched to the orchestrator best suited to its
  * coordination pattern:
  *
- *   The Conductor  → roundtable, full-bench, legal-design (multidisciplinary
+ *   The Conductor  → full-bench, legal-design (multidisciplinary
  *                    synthesis, parallel fan-out, debate rounds)
  *   The Closer     → review, pre-engagement (sequential pipelines with
  *                    quality gates, linear handoff chains)
@@ -52,7 +52,6 @@ const WORKFLOW_ORCHESTRATOR_MAP: Record<string, string> = {
   'adversarial': 'orchestrator-professor',
 
   // The Conductor: multidisciplinary synthesis, parallel fan-out, debate
-  'roundtable': 'orchestrator-conductor',
   'full-bench': 'orchestrator-conductor',
 
   // Original flagship pipeline

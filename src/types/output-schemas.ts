@@ -96,74 +96,6 @@ export const DesignReviewOutputSchema = z.object({
   summary: z.string(),
 });
 
-/**
- * Ethics Auditor: Dark pattern detection + compliance mapping
- */
-export const EthicsAuditOutputSchema = z.object({
-  agentRole: z.literal('ethics-auditor'),
-  findings: z.array(FindingSchema),
-  darkPatterns: z.array(z.object({
-    category: z.string(),
-    severity: SeveritySchema,
-    evidence: z.string(),
-    regulatoryRisk: z.string(),
-    proposedFix: z.string(),
-  })),
-  complianceTouchpoints: z.array(z.object({
-    regulation: z.string(),
-    requirement: z.string(),
-    status: z.enum(['compliant', 'non-compliant', 'needs-review']),
-    evidence: z.string(),
-  })),
-  overallRating: SeveritySchema,
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
-
-/**
- * Transformation Specialist: Plain language rewrite with change log
- */
-export const TransformationOutputSchema = z.object({
-  agentRole: z.literal('transformation-specialist'),
-  userFacingDocument: z.string(),
-  changeLog: z.array(ChangeLogEntrySchema),
-  nonNegotiables: z.array(NonNegotiableCheckSchema),
-  ambiguityFlags: z.array(AmbiguityFlagSchema),
-  metrics: z.object({
-    originalWordCount: z.number(),
-    transformedWordCount: z.number(),
-    originalFkGrade: z.number(),
-    transformedFkGrade: z.number(),
-    sectionsModified: z.number(),
-    criticalChanges: z.number(),
-  }),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
-
-/**
- * Meaning Guardian: Legal meaning preservation verification
- */
-export const MeaningVerificationOutputSchema = z.object({
-  agentRole: z.literal('meaning-guardian'),
-  checkpoints: z.array(z.object({
-    checkpoint: z.string(),
-    passed: z.boolean(),
-    evidence: z.string(),
-    severity: SeveritySchema,
-  })),
-  nonNegotiables: z.array(NonNegotiableCheckSchema),
-  comprehensionTests: z.array(z.object({
-    question: z.string(),
-    originalAnswer: z.string(),
-    transformedAnswer: z.string(),
-    meaningPreserved: z.boolean(),
-  })),
-  findings: z.array(FindingSchema),
-  overallVerdict: z.enum(['preserved', 'minor-concerns', 'critical-issues']),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
 
 /**
  * Synthesis Editor: Final dual-artifact assembly
@@ -255,46 +187,6 @@ export const PlainLanguageOutputSchema = z.object({
   summary: z.string(),
 });
 
-/**
- * Client Proxy: Reader experience simulation
- */
-export const ClientProxyOutputSchema = z.object({
-  agentRole: z.literal('client-proxy'),
-  persona: z.object({
-    type: z.enum(['consumer', 'smb-owner', 'enterprise-counsel', 'employee']),
-    description: z.string(),
-    patienceLevel: z.string(),
-  }),
-  firstImpression: z.object({
-    reaction: z.string(),
-    wouldContinueReading: z.boolean(),
-    estimatedTimeToAbandon: z.string().optional(),
-  }),
-  taskCompletion: z.array(z.object({
-    task: z.string(),
-    completed: z.boolean(),
-    timeEstimate: z.string(),
-    frustrationPoints: z.array(z.string()),
-  })),
-  comprehension: z.object({
-    mainRightsUnderstood: z.boolean(),
-    mainObligationsUnderstood: z.boolean(),
-    confusingParts: z.array(z.string()),
-  }),
-  emotionalResponse: z.array(z.object({
-    section: z.string(),
-    emotion: z.string(),
-    trigger: z.string(),
-  })),
-  wouldRecommendTests: z.array(z.object({
-    question: z.string(),
-    answer: z.boolean(),
-    reasoning: z.string(),
-  })),
-  findings: z.array(FindingSchema),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
 
 // ── v5: Evaluator Gate Output Schema ─────────────────────────────────
 
@@ -392,46 +284,6 @@ export const LegalResearchOutputSchema = z.object({
   summary: z.string(),
 });
 
-// ── v6: Risk Pricing Output Schema ───────────────────────────────────
-
-const RiskFactorSchema = z.object({
-  factor: z.string(),
-  weight: z.number().min(0).max(1),
-  score: z.number().min(0).max(1),
-  evidence: z.string(),
-});
-
-const MitigatingFactorSchema = z.object({
-  factor: z.string(),
-  impact: z.string(),
-  evidence: z.string(),
-});
-
-/**
- * Risk Pricer: Error probability, loss magnitude, insurability
- */
-export const RiskPricingOutputSchema = z.object({
-  agentRole: z.literal('risk-pricer'),
-  overallRiskScore: z.number().min(0).max(1),
-  riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-  errorProbability: z.number().min(0).max(1),
-  potentialLossMagnitude: z.object({
-    currency: z.string(),
-    low: z.number(),
-    mid: z.number(),
-    high: z.number(),
-  }),
-  riskFactors: z.array(RiskFactorSchema),
-  mitigatingFactors: z.array(MitigatingFactorSchema),
-  insurabilityAssessment: z.object({
-    insurable: z.boolean(),
-    premiumEstimate: z.string(),
-    conditions: z.array(z.string()),
-  }),
-  recommendations: z.array(z.string()),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
 
 // ── v6: Red Team Output Schema ───────────────────────────────────────
 
@@ -472,36 +324,11 @@ export const RedTeamOutputSchema = z.object({
   summary: z.string(),
 });
 
-// ── v8: Leadership Output Schema ────────────────────────────────────
-
-/**
- * Leadership agents: Managing Partner, Supervising Partner, Of Counsel
- * Strategic oversight, quality review, mentoring output
- */
-export const LeadershipOutputSchema = z.object({
-  agentRole: z.string(),
-  executiveSummary: z.string(),
-  strategicAssessment: z.object({
-    overallQuality: z.enum(['exceptional', 'acceptable', 'needs-revision', 'reject']),
-    riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-    keyStrengths: z.array(z.string()),
-    criticalIssues: z.array(z.string()),
-    strategicRecommendations: z.array(z.string()),
-  }),
-  qualityGate: z.object({
-    passed: z.boolean(),
-    conditions: z.array(z.string()),
-    requiredRevisions: z.array(z.string()),
-  }),
-  findings: z.array(FindingSchema),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
 
 // ── v8: Corporate Lawyer Output Schema ──────────────────────────────
 
 /**
- * Corporate & Transactional agents: Corporate Generalist, M&A, Contract, Banking, Capital Markets
+ * Corporate & Transactional agents: Contract Specialist
  */
 export const CorporateLawyerOutputSchema = z.object({
   agentRole: z.string(),
@@ -563,47 +390,13 @@ export const LitigationLawyerOutputSchema = z.object({
   summary: z.string(),
 });
 
-// ── v8: Regulatory Lawyer Output Schema ─────────────────────────────
-
-/**
- * Regulatory & Compliance agents: Regulatory Counsel, Compliance Officer, Antitrust, Sanctions
- */
-export const RegulatoryLawyerOutputSchema = z.object({
-  agentRole: z.string(),
-  executiveSummary: z.string(),
-  regulatoryMapping: z.array(z.object({
-    regulation: z.string(),
-    jurisdiction: z.string(),
-    requirement: z.string(),
-    status: z.enum(['compliant', 'non-compliant', 'partially-compliant', 'not-applicable']),
-    evidence: z.string(),
-    remediation: z.string(),
-  })),
-  complianceScore: z.number().min(0).max(1),
-  criticalGaps: z.array(z.object({
-    gap: z.string(),
-    regulation: z.string(),
-    severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-    deadline: z.string().optional(),
-    remediation: z.string(),
-  })),
-  actionItems: z.array(z.object({
-    priority: z.number().min(1).max(5),
-    action: z.string(),
-    responsible: z.string(),
-    deadline: z.string(),
-  })),
-  findings: z.array(FindingSchema),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
 
 // ── v8: Specialist Lawyer Output Schema ─────────────────────────────
 
 /**
- * Specialist Practice agents: Tax, IP, Privacy, Employment, Real Estate, Environmental
+ * Specialist Practice agents: Privacy, Employment
  *
- * Base schema shared by all 6 specialists. Optional domain-specific sections
+ * Base schema shared by specialists. Optional domain-specific sections
  * allow each agent to provide structured data for their specialty without
  * breaking the shared contract. Agents populate the section matching their role.
  */
@@ -657,7 +450,7 @@ export const SpecialistLawyerOutputSchema = z.object({
 // ── v8: Junior Lawyer Output Schema ─────────────────────────────────
 
 /**
- * Junior agents: Junior Associate, Paralegal, Legal Intern
+ * Junior agents: Junior Associate, Paralegal
  */
 export const JuniorLawyerOutputSchema = z.object({
   agentRole: z.string(),
@@ -775,7 +568,7 @@ export const GovernanceExpertOutputSchema = z.object({
 // ── v8: Technology Expert Output Schema ─────────────────────────────
 
 /**
- * Technology & Data experts: Legal Engineer, Data Analyst, Cybersecurity Advisor, AI Ethics
+ * Technology & Data experts: Legal Engineer, AI Ethics
  */
 export const TechExpertOutputSchema = z.object({
   agentRole: z.string(),
@@ -814,108 +607,28 @@ export const TechExpertOutputSchema = z.object({
   summary: z.string(),
 });
 
-// ── v8: Industry Expert Output Schema ───────────────────────────────
 
-/**
- * Industry Specialists: Fintech, Healthcare, Media, Energy
- */
-export const IndustryExpertOutputSchema = z.object({
-  agentRole: z.string(),
-  executiveSummary: z.string(),
-  industryContext: z.object({
-    sector: z.string(),
-    keyRegulations: z.array(z.string()),
-    marketTrends: z.array(z.string()),
-    relevantPrecedents: z.array(z.string()),
-  }),
-  sectorAnalysis: z.array(z.object({
-    topic: z.string(),
-    analysis: z.string(),
-    riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-    industryBenchmark: z.string(),
-    recommendations: z.array(z.string()),
-  })),
-  regulatoryConsiderations: z.array(z.object({
-    regulation: z.string(),
-    applicability: z.string(),
-    complianceStatus: z.enum(['compliant', 'non-compliant', 'needs-review']),
-    action: z.string(),
-  })),
-  // Domain-specific optional section (populated by matching specialist)
-  sectorSpecifics: z.object({
-    licensingRequirements: z.array(z.object({ license: z.string(), jurisdiction: z.string(), status: z.string(), deadline: z.string().optional() })),
-    sectorBenchmarks: z.array(z.object({ metric: z.string(), industryAverage: z.string(), currentValue: z.string(), assessment: z.string() })),
-    emergingRisks: z.array(z.object({ risk: z.string(), timeframe: z.string(), impact: z.string(), preparedness: z.string() })),
-  }).optional(),
-  findings: z.array(FindingSchema),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
-
-// ── v8: Quality Expert Output Schema ────────────────────────────────
-
-/**
- * Quality & Infrastructure experts: Project Manager, Knowledge Manager, QA Tester
- */
-export const QualityExpertOutputSchema = z.object({
-  agentRole: z.string(),
-  executiveSummary: z.string(),
-  qualityAssessment: z.object({
-    overallScore: z.number().min(0).max(1),
-    passed: z.boolean(),
-    areas: z.array(z.object({
-      area: z.string(),
-      score: z.number().min(0).max(1),
-      issues: z.array(z.string()),
-      suggestions: z.array(z.string()),
-    })),
-  }),
-  issuesFound: z.array(z.object({
-    severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-    description: z.string(),
-    location: z.string(),
-    suggestedFix: z.string(),
-  })),
-  trackingItems: z.array(z.object({
-    item: z.string(),
-    status: z.enum(['pending', 'in-progress', 'completed', 'blocked']),
-    assignee: z.string().optional(),
-    notes: z.string(),
-  })),
-  findings: z.array(FindingSchema),
-  confidence: z.number().min(0).max(1),
-  summary: z.string(),
-});
 
 // ── Export all output formats for agent definitions ─────────────────────
 
 export const outputFormats = {
   'design-reviewer': zodToOutputFormat(DesignReviewOutputSchema),
-  'ethics-auditor': zodToOutputFormat(EthicsAuditOutputSchema),
-  'transformation-specialist': zodToOutputFormat(TransformationOutputSchema),
-  'meaning-guardian': zodToOutputFormat(MeaningVerificationOutputSchema),
   'synthesis-editor': zodToOutputFormat(SynthesisOutputSchema),
   'service-designer': zodToOutputFormat(ServiceDesignerOutputSchema),
   'plain-language-specialist': zodToOutputFormat(PlainLanguageOutputSchema),
-  'client-proxy': zodToOutputFormat(ClientProxyOutputSchema),
   // v5: New agent output formats
   'evaluator': zodToOutputFormat(EvaluatorOutputSchema),
   'contract-reviewer': zodToOutputFormat(ContractReviewOutputSchema),
-  // v6: Legal core, risk, and adversarial agent output formats
+  // v6: Legal core and adversarial agent output formats
   'legal-researcher': zodToOutputFormat(LegalResearchOutputSchema),
-  'risk-pricer': zodToOutputFormat(RiskPricingOutputSchema),
   'red-team': zodToOutputFormat(RedTeamOutputSchema),
   // v8: Practice area group schemas
-  'managing-partner': zodToOutputFormat(LeadershipOutputSchema),
   'corporate-lawyer': zodToOutputFormat(CorporateLawyerOutputSchema),
   'litigation-lawyer': zodToOutputFormat(LitigationLawyerOutputSchema),
-  'regulatory-lawyer': zodToOutputFormat(RegulatoryLawyerOutputSchema),
   'specialist-lawyer': zodToOutputFormat(SpecialistLawyerOutputSchema),
   'junior-lawyer': zodToOutputFormat(JuniorLawyerOutputSchema),
   'design-expert': zodToOutputFormat(DesignExpertOutputSchema),
   'research-expert': zodToOutputFormat(ResearchExpertOutputSchema),
   'governance-expert': zodToOutputFormat(GovernanceExpertOutputSchema),
   'tech-expert': zodToOutputFormat(TechExpertOutputSchema),
-  'industry-expert': zodToOutputFormat(IndustryExpertOutputSchema),
-  'quality-expert': zodToOutputFormat(QualityExpertOutputSchema),
 } as const;

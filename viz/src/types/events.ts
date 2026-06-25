@@ -16,77 +16,40 @@ export type AgentRole =
   | 'orchestrator-fixer'
   // Original specialists
   | 'design-reviewer'
-  | 'ethics-auditor'
-  | 'transformation-specialist'
-  | 'meaning-guardian'
   | 'synthesis-editor'
   | 'service-designer'
   | 'plain-language-specialist'
-  | 'client-proxy'
   // v5: Pipeline agents
   | 'evaluator'
   | 'contract-reviewer'
-  // v6: Legal core, risk, adversarial
+  // v6: Legal core, adversarial
   | 'legal-researcher'
-  | 'risk-pricer'
   | 'red-team'
   // v8: Leadership
-  | 'managing-partner'
-  | 'supervising-partner'
-  | 'of-counsel'
-  | 'innovation-partner'
   | 'client-relations-partner'
-  | 'risk-partner'
-  | 'transaction-partner'
   // v8: Corporate & Transactional
-  | 'corporate-generalist'
-  | 'ma-specialist'
   | 'contract-specialist'
-  | 'banking-finance'
-  | 'capital-markets'
   // v8: Disputes & Litigation
   | 'litigation-partner'
   | 'litigation-associate'
   | 'arbitration-specialist'
   | 'dispute-resolution'
-  // v8: Regulatory & Compliance
-  | 'regulatory-counsel'
-  | 'compliance-officer'
-  | 'antitrust-specialist'
-  | 'sanctions-specialist'
   // v8: Specialist Practice
-  | 'tax-counsel'
-  | 'ip-specialist'
   | 'privacy-counsel'
   | 'employment-counsel'
-  | 'real-estate-counsel'
-  | 'environmental-counsel'
-  | 'international-counsel'
-  | 'restructuring-specialist'
   | 'startup-counsel'
-  | 'public-law-counsel'
-  | 'tech-transactions'
   // v8: Junior Lawyers
   | 'junior-associate'
   | 'paralegal'
-  | 'legal-intern'
-  // v8: Design & Communication
   // v8: User Research & Testing
   | 'accessibility-specialist'
   | 'user-researcher'
   | 'behavioral-scientist'
-  // v8: Ethics & Governance
   // v8: Technology & Data
   | 'legal-engineer'
-  | 'cybersecurity-advisor'
   | 'ai-ethics-specialist'
-  // v8: Industry Specialists
-  | 'fintech-specialist'
-  | 'healthcare-specialist'
-  | 'media-specialist'
-  | 'energy-specialist'
-  // v8: Quality & Infrastructure
-  | 'project-manager';
+  // Ethics reviewer
+  | 'ethics-reviewer';
 
 export type Severity = 'RED' | 'YELLOW' | 'GREEN';
 
@@ -164,8 +127,6 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
  * HeartbeatBand uses these to show the correct progress dots.
  */
 export const WORKFLOW_STEP_MAP: Record<string, WorkflowStep[]> = {
-  // Legal design / roundtable (legacy 11-step)
-  'roundtable': WORKFLOW_STEPS,
   'legal-design': WORKFLOW_STEPS,
   // Review (6-step)
   'review': ['intake', 'specialist_analysis', 'evaluator_gate', 'plain_language_review', 'final_gate', 'delivered'],
@@ -187,7 +148,7 @@ export const STEP_LABELS: Record<string, string> = {
   intake: 'Intake',
   final_gate: 'Final Approval',
   delivered: 'Delivered',
-  // Legal design / roundtable
+  // Legal design
   parallel_analysis: 'Analysis',
   debate_1: 'First Review',
   ethics_gate: 'Ethics Check',
@@ -209,8 +170,8 @@ export const STEP_LABELS: Record<string, string> = {
   red_team_review: 'Red Team',
   // Counsel
   specialist_execution: 'Specialist Work',
-  // Roundtable generic
-  debate: 'Roundtable',
+  // Generic
+  debate: 'Debate',
   gate: 'Gate Review',
   // Full bench
   decomposition: 'Decompose',
@@ -236,13 +197,9 @@ export const STEP_LABELS: Record<string, string> = {
 export const AGENT_COLORS: Record<string, number> = {
   'orchestrator': 0xFFD700,
   'design-reviewer': 0x4FC3F7,
-  'ethics-auditor': 0xEF5350,
-  'transformation-specialist': 0x66BB6A,
-  'meaning-guardian': 0xAB47BC,
   'synthesis-editor': 0xFF7043,
   'service-designer': 0x26C6DA,
   'plain-language-specialist': 0xFFA726,
-  'client-proxy': 0xEC407A,
 };
 
 /**
@@ -252,11 +209,7 @@ export const AGENT_COLORS: Record<string, number> = {
 export const AGENT_LABELS: Record<string, string> = {
   'orchestrator': 'Orchestrator',
   'design-reviewer': 'Design Reviewer',
-  'ethics-auditor': 'Ethics Auditor',
-  'transformation-specialist': 'Transformer',
-  'meaning-guardian': 'Meaning Guardian',
   'synthesis-editor': 'Synthesis Editor',
   'service-designer': 'Service Designer',
   'plain-language-specialist': 'Plain Language',
-  'client-proxy': 'Client Proxy',
 };

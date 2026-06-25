@@ -40,12 +40,6 @@ The red-team actively tries to destroy the builder's work. Output has survived h
 **Error mode**: Blind spots, confirmation bias, untested assumptions.
 **Use when**: Research memos, opinion letters, high-stakes analysis, contested positions.
 
-### roundtable (7 steps) — Parallel Expert Panel + Debate + Synthesis
-intake → parallel analysis → debate → gate → synthesis → final gate → delivered.
-Multiple experts analyze simultaneously. Their disagreements become debate topics.
-**Error mode**: Tunnel vision, domain blindness, single-perspective thinking.
-**Use when**: Document redesign, multidisciplinary analysis, complex advisory, legal design.
-
 ### full-bench (7 steps) — Hierarchical Multi-Workstream
 intake → decomposition → workstream execution → senior review → synthesis → final gate → delivered.
 Senior partner decomposes, delegates workstreams, senior reviews, synthesizes.
@@ -57,7 +51,7 @@ Senior partner decomposes, delegates workstreams, senior reviews, synthesizes.
 The client's chosen intensity level should influence pattern selection:
 - **quick** → Strongly prefer counsel
 - **standard** → review or adversarial (based on task type)
-- **thorough** → roundtable
+- **thorough** → adversarial or legal-design
 - **maximal** → full-bench
 
 ## Decision Matrix
@@ -86,15 +80,7 @@ Use when:
 - Any analysis where untested assumptions are dangerous
 - Medium-high complexity
 
-### 4. Multidisciplinary Panel → roundtable
-Use when:
-- Document redesign / plain language transformation
-- Multi-dimensional analysis (design + ethics + language + user experience)
-- High complexity or high stakes
-- Multiple specialist perspectives needed
-- Dark pattern or compliance risks
-
-### 5. Full Engagement → full-bench
+### 4. Full Engagement → full-bench
 Use when:
 - M&A due diligence spanning multiple practice areas
 - Major litigation preparation with multiple workstreams
@@ -104,7 +90,7 @@ Use when:
 
 ## Classification Rules
 
-1. **Document redesign/transformation** → roundtable
+1. **Document redesign/transformation** → legal-design
 2. **Document review/analysis** → review
 3. **Legal research, memo, or opinion** → adversarial
 4. **Simple question, no document** → counsel
@@ -115,17 +101,13 @@ Use when:
 
 - **contract-reviewer**: Clause-by-clause risk-scored contract analysis
 - **legal-researcher**: Research memos with citations, confidence levels
-- **risk-pricer**: Error probability, potential loss magnitude, insurability
 - **red-team**: Adversarial testing — finds vulnerabilities, edge cases
 - **evaluator**: Automated quality gate (different model)
 - **design-reviewer**: Document design scoring across 5 dimensions
-- **ethics-auditor**: Dark pattern detection, regulatory compliance
 - **service-designer**: User journey analysis
 - **plain-language-specialist**: Readability analysis, rewrite suggestions
-- **client-proxy**: Role-plays as target audience reader
 - **synthesis-editor**: Final dual-artifact assembly
-- **managing-partner**: Senior oversight, matter decomposition
-- **supervising-partner**: Quality assurance, integration review
+- **litigation-partner**: Senior litigation strategy, adversarial testing
 
 ## Risk Assessment
 
@@ -133,7 +115,7 @@ Use when:
 - **Medium risk**: Contract review, compliance checks, legal research
 - **High risk**: Novel situations, cross-jurisdictional, ethical edge cases
 
-High-risk requests should use a pattern with human gates (review, roundtable, full-bench).
+High-risk requests should use a pattern with human gates (review, legal-design, full-bench).
 
 ## Ethics-First Flag
 
@@ -155,7 +137,7 @@ Return structured JSON with your classification:
 - requestType: direct_answer | single_specialist | multi_specialist | full_pipeline | debate_pattern | adversarial | hierarchical
 - complexity: low | medium | high
 - riskLevel: low | medium | high
-- selectedWorkflow: counsel | review | adversarial | roundtable | full-bench
+- selectedWorkflow: counsel | review | adversarial | legal-design | full-bench
 - selectedSpecialists: Array of specialist roles needed
 - requiresDebate: boolean
 - requiresEthicsFirst: boolean

@@ -40,11 +40,11 @@ export const fullBenchTemplate: WorkflowTemplate = {
     },
     decomposition: {
       name: 'decomposition',
-      description: 'Senior partner analyzes the matter and decomposes it into 2-5 workstreams. Each workstream specifies scope, appropriate pattern, team, dependencies, and priority.',
+      description: 'Senior agent analyzes the matter and decomposes it into 2-5 workstreams. Each workstream specifies scope, appropriate pattern, team, dependencies, and priority.',
       preconditions: ['intake'],
       maxIterations: 2,
       qualityCheckType: 'peer',
-      qualityCheckerRole: 'supervising-partner',
+      qualityCheckerRole: 'evaluator',
     },
     workstream_execution: {
       name: 'workstream_execution',
@@ -53,7 +53,7 @@ export const fullBenchTemplate: WorkflowTemplate = {
     },
     senior_review: {
       name: 'senior_review',
-      description: 'Senior partner reviews all workstream outputs holistically. Identifies integration gaps, contradictions, and synthesis opportunities. Evaluator quality-checks overall consistency.',
+      description: 'Senior agent reviews all workstream outputs holistically. Identifies integration gaps, contradictions, and synthesis opportunities. Evaluator quality-checks overall consistency.',
       preconditions: ['workstream_execution'],
       requiresEvaluatorGate: true,
       maxRevisionLoops: 1,
@@ -153,11 +153,9 @@ export const fullBenchTemplate: WorkflowTemplate = {
     'mcp__shem__record_quality_result',
   ],
   requiredAgents: [
-    'managing-partner',
-    'supervising-partner',
+    'litigation-partner',
     'synthesis-editor',
     'evaluator',
-    'risk-pricer',
     'ethics-reviewer',
   ],
   maxTeamSize: 25,

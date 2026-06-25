@@ -93,8 +93,6 @@ The specialist posts findings to the debate board as they work — contract risk
 with severity + evidence + confidence, deviations from standard terms, missing
 standard provisions.
 
-Also dispatch **risk-pricer** if risk quantification is relevant.
-
 **Quality iteration**: Before sending work to the evaluator gate, do a quick
 self-check (\`run_quality_check\` with check_type "self"). Does the analysis
 cover all clauses flagged in the focus area? Are risk scores justified by

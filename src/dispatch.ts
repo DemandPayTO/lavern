@@ -9,7 +9,7 @@
  *
  * v11: The legacy runTheShem() backward compat path is sunset.
  * All workflows go through runGenericWorkflow(). Eight workflow templates:
- * counsel, review, adversarial, roundtable, full-bench, legal-design,
+ * counsel, review, adversarial, full-bench, legal-design,
  * pre-engagement, verification.
  */
 
@@ -101,8 +101,7 @@ export async function dispatch(
     workflowId = classification.selectedWorkflow;
   }
 
-  // v11: All patterns (including roundtable, formerly legal-design) run through
-  // runGenericWorkflow(). No special-case paths.
+  // v11: All patterns run through runGenericWorkflow(). No special-case paths.
 
   // Look up template from registry
   const template = workflowRegistry.get(workflowId);

@@ -41,7 +41,6 @@ const WORKFLOW_DESCRIPTIONS = `
 - counsel: Quick legal question or opinion. Solo specialist, fast answer. Budget: $5-$10. Best for: simple questions, quick advice, preliminary opinions.
 - review: Contract or document review. Dedicated team with clause analysis and verification. Budget: $20-$40. Best for: reviewing contracts, NDAs, agreements, terms of service.
 - adversarial: Deep analysis with built-in challenge. Researcher + red team + synthesizer. Budget: $25-$40. Best for: complex legal questions, research, position evaluation.
-- roundtable: Parallel expert panel discussion. Multiple specialists debate and synthesize. Budget: $30-$50. Best for: multi-disciplinary issues, document redesign, policy review.
 - legal-design: Full legal design transformation. 10-step pipeline with ethics-first approach. Budget: $40-$80. Best for: document transformation, accessibility, plain language conversion.
 - full-bench: Maximum team engagement. Every available specialist. Budget: $80-$125. Best for: high-stakes matters, comprehensive review, bet-the-company situations.
 `;
@@ -49,16 +48,14 @@ const WORKFLOW_DESCRIPTIONS = `
 // ── Team role categories ─────────────────────────────────────────────────
 
 const TEAM_ROLES = `
-Leadership: managing-partner, supervising-partner, of-counsel
-Corporate: corporate-generalist, ma-specialist, contract-specialist, banking-finance, capital-markets
+Corporate: contract-specialist
 Litigation: litigation-partner, litigation-associate, arbitration-specialist, dispute-resolution
-Regulatory: regulatory-counsel, compliance-officer, antitrust-specialist, sanctions-specialist
-Specialists: tax-counsel, ip-specialist, privacy-counsel, employment-counsel, real-estate-counsel, environmental-counsel, international-counsel, energy-specialist, healthcare-specialist, media-specialist, startup-counsel, fintech-specialist
+Specialists: privacy-counsel, employment-counsel, startup-counsel
 Design & Communication: design-reviewer, service-designer, plain-language-specialist, user-researcher, behavioral-scientist
-Technology & Ethics: legal-engineer, cybersecurity-advisor, ai-ethics-specialist, accessibility-specialist
-Core Operations: evaluator, red-team, legal-researcher, risk-pricer, project-manager
-Quality: ethics-auditor, transformation-specialist, meaning-guardian, synthesis-editor, client-proxy
-Junior: junior-associate, paralegal, legal-intern
+Technology & Ethics: legal-engineer, ai-ethics-specialist, accessibility-specialist
+Core Operations: evaluator, red-team, legal-researcher
+Quality: synthesis-editor
+Junior: junior-associate, paralegal
 `;
 
 // ── Build conversational system prompt ───────────────────────────────────
@@ -172,7 +169,7 @@ export function buildPartnerFinalizationPrompt(params: FinalizationParams): stri
   parts.push('## Required JSON Schema');
   parts.push('');
   parts.push('{');
-  parts.push('  "workflowId": "<counsel|review|adversarial|roundtable|legal-design|full-bench>",');
+  parts.push('  "workflowId": "<counsel|review|adversarial|legal-design|full-bench>",');
   parts.push('  "requestType": "<legal_question|contract_review|document_redesign|legal_research|risk_assessment|general>",');
   parts.push('  "intensity": "<standard|maximal|maximum>",');
   parts.push('  "budgetUsd": <number>,');
@@ -184,8 +181,8 @@ export function buildPartnerFinalizationPrompt(params: FinalizationParams): stri
 
   parts.push('## Guidelines');
   parts.push('- Choose the MINIMUM viable workflow. Don\'t over-resource simple questions.');
-  parts.push('- For counsel: 3-5 agents. For review: 5-8. For roundtable: 6-10. For full-bench: 12-20.');
-  parts.push('- Always include managing-partner in teamRoles.');
+  parts.push('- For counsel: 3-5 agents. For review: 5-8. For full-bench: 12-20.');
+  parts.push('- Always include evaluator in teamRoles.');
   parts.push('- If documents are provided and the matter is contract-related, prefer "review" workflow.');
   parts.push('- If the client seems to want a quick answer, use "counsel".');
   parts.push('- Budget should align with workflow guidelines above.');

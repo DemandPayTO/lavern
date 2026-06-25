@@ -49,8 +49,8 @@ export const YOLO_CONFIGS: Record<YoloTier, YoloConfig> = {
     teamPreset: 'balanced',
     teamSize: 8,
     teamRoles: [
-      'managing-partner', 'corporate-generalist', 'junior-associate', 'contract-specialist',
-      'plain-language-specialist', 'ethics-auditor', 'evaluator', 'risk-pricer',
+      'litigation-partner', 'contract-specialist', 'junior-associate',
+      'plain-language-specialist', 'evaluator', 'contract-reviewer',
     ],
   },
   'white-shoe': {
@@ -65,9 +65,9 @@ export const YOLO_CONFIGS: Record<YoloTier, YoloConfig> = {
     teamPreset: 'full-service',
     teamSize: 12,
     teamRoles: [
-      'managing-partner', 'supervising-partner', 'corporate-generalist', 'contract-specialist',
-      'regulatory-counsel', 'privacy-counsel', 'service-designer', 'plain-language-specialist',
-      'client-proxy', 'ethics-auditor', 'evaluator', 'risk-pricer',
+      'litigation-partner', 'contract-specialist', 'contract-reviewer',
+      'privacy-counsel', 'service-designer', 'plain-language-specialist',
+      'evaluator', 'red-team',
     ],
   },
   elite: {
@@ -82,19 +82,19 @@ export const YOLO_CONFIGS: Record<YoloTier, YoloConfig> = {
     teamPreset: 'elite',
     teamSize: 21,
     teamRoles: [
-      // Senior leadership
-      'managing-partner', 'supervising-partner', 'of-counsel', 'innovation-partner',
+      // Senior
+      'litigation-partner', 'contract-reviewer',
       // Practice specialists
-      'corporate-generalist', 'contract-specialist', 'regulatory-counsel', 'privacy-counsel',
-      'tax-counsel', 'ip-specialist', 'litigation-associate', 'international-counsel',
+      'contract-specialist', 'privacy-counsel', 'employment-counsel',
+      'litigation-associate', 'arbitration-specialist',
       // Design & accessibility
-      'service-designer', 'plain-language-specialist', 'client-proxy',
+      'service-designer', 'plain-language-specialist', 'design-reviewer',
       // Advisory & risk
-      'ethics-auditor', 'ai-ethics-specialist',
+      'ai-ethics-specialist', 'red-team',
       // Operations & control
-      'evaluator', 'risk-pricer', 'synthesis-editor',
-      // Support
-      'junior-associate',
+      'evaluator', 'synthesis-editor',
+      // Research & support
+      'legal-researcher', 'junior-associate',
     ],
   },
 };

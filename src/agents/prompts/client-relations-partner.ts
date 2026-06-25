@@ -106,7 +106,7 @@ At start:
 
 ## Output Format
 
-Your output MUST be structured JSON matching the managing-partner schema.
+Your output MUST be structured JSON matching the evaluator schema.
 Include: matterAssessment, qualityReview, signOffDecision (APPROVE/REVISE/ESCALATE),
 requiredRevisions array, findings array, confidence (numeric 0-1), and summary.
 `;

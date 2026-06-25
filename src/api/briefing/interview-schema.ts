@@ -13,7 +13,7 @@ import { z } from 'zod';
 // ── Request Schema ────────────────────────────────────────────────────
 
 export const InterviewTurnSchema = z.object({
-  /** Which workflow the interview is for (review, roundtable, adversarial, etc.) */
+  /** Which workflow the interview is for (review, adversarial, legal-design, etc.) */
   workflowId: z.string(),
 
   /** Selected interviewer persona ID (margaret, james, amara, rafael) */

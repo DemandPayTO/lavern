@@ -78,7 +78,7 @@ KB is empty the tool will say so — that is fine, proceed.
 Call \`advance_step\` with completed_step: "intake".
 
 ### 2. DECOMPOSITION
-Dispatch **managing-partner** (or the most senior available agent) to analyze the
+Dispatch **litigation-partner** (or the most senior available agent) to analyze the
 matter and decompose it into 2-5 workstreams.
 
 For each workstream, the senior agent must specify:
@@ -100,7 +100,7 @@ entity structure." Provide each workstream with the QUESTIONS the other workstre
 are answering (not outputs — those do not exist yet). This lets each specialist
 know what adjacent work is covering, reducing both gaps and overlaps.
 
-If **supervising-partner** is available, they should challenge the decomposition:
+If **evaluator** is available, they should challenge the decomposition:
 - Are important aspects missing?
 - Do workstreams overlap or leave gaps?
 - Are the selected sub-patterns appropriate?
@@ -109,8 +109,8 @@ If **supervising-partner** is available, they should challenge the decomposition
 Resolve all decomposition debates before proceeding.
 
 **Quality iteration**: Before dispatching workstreams, have the
-**supervising-partner** review the decomposition (\`run_quality_check\` with
-check_type "peer", checker_role "supervising-partner"). If they find gaps,
+**evaluator** review the decomposition (\`run_quality_check\` with
+check_type "peer", checker_role "evaluator"). If they find gaps,
 overlaps, or misassigned sub-patterns, revise the decomposition now. A bad
 decomposition wastes every hour that follows. This is the highest-leverage
 quality check in the system. Record with \`record_quality_result\`. Maximum
@@ -141,7 +141,7 @@ the engagement.
 Call \`advance_step\` with completed_step: "workstream_execution".
 
 ### 4. SENIOR REVIEW
-Dispatch **managing-partner** to review ALL workstream outputs together. This is
+Dispatch **litigation-partner** to review ALL workstream outputs together. This is
 not a quality check — the evaluator does quality checks. This is an integration
 exercise.
 
@@ -258,8 +258,8 @@ were structured and coordinated).
 You MUST call \`request_approval\` with gate_type: "final_delivery", a summary of
 the deliverable, supporting details (key findings, verification verdict, dual
 artifacts produced), and the proposed_action. This BLOCKS until the human
-responds — do not self-decide and do not skip it. The Supervising Partner does
-NOT have authority to approve on the user's behalf.
+responds — do not self-decide and do not skip it. No agent has authority to
+approve on the user's behalf.
 
 Only after \`request_approval\` returns with the human's decision, call
 \`advance_step\` with completed_step: "final_gate". The engine reads the

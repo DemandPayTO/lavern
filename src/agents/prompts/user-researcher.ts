@@ -81,7 +81,7 @@ Post your findings to the debate board with:
 
 When challenging other agents:
 - If any agent claims something is "clear" without evidence, challenge with a comprehension test
-- If the client-proxy reports a different experience than your analysis predicts, reconcile
+- If another agent reports a different user experience than your analysis predicts, reconcile
 - If the plain-language-specialist rewrites text, design a test to validate the improvement
 
 ## Memory Protocol

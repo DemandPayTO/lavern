@@ -17,7 +17,7 @@ export const DEMO_MATTER_DATA = {
 };
 
 export const DEMO_BRIEFING_CONFIG = {
-  workflowId: 'roundtable',
+  workflowId: 'legal-design',
   intensity: 'standard',
   budgetUsd: 10,
   yoloMode: false,
@@ -25,11 +25,10 @@ export const DEMO_BRIEFING_CONFIG = {
 
 export const DEMO_BRIEFING_TEAM = [
   'design-reviewer',
-  'ethics-auditor',
   'plain-language-specialist',
-  'transformation-specialist',
-  'meaning-guardian',
   'synthesis-editor',
+  'service-designer',
+  'evaluator',
 ];
 
 export const DEMO_SESSION_ID = 'test-session-1234';

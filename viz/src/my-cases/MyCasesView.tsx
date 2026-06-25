@@ -41,8 +41,7 @@ interface Props {
 const WORKFLOW_LABELS: Record<string, string> = {
   counsel: 'Counsel',
   review: 'Review',
-  roundtable: 'Full Bench',
-  'legal-design': 'Full Bench',
+  'legal-design': 'Legal Design',
   adversarial: 'Research',
   'full-bench': 'Full Bench',
 };

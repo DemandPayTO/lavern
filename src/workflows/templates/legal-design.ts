@@ -101,12 +101,8 @@ export const legalDesignTemplate: WorkflowTemplate = {
   ],
   requiredAgents: [
     'design-reviewer',
-    'ethics-auditor',
     'service-designer',
     'plain-language-specialist',
-    'client-proxy',
-    'transformation-specialist',
-    'meaning-guardian',
     'synthesis-editor',
     'ethics-reviewer',
   ],

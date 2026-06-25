@@ -119,7 +119,6 @@ export const reviewTemplate: WorkflowTemplate = {
     'contract-reviewer',
     'plain-language-specialist',
     'evaluator',
-    'risk-pricer',
     'ethics-reviewer',
   ],
   maxTeamSize: 14,
