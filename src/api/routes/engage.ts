@@ -71,6 +71,8 @@ export const EngageRequestSchema = z.object({
   type: z.enum([
     'document_redesign', 'contract_review', 'legal_question',
     'legal_research', 'risk_assessment', 'general',
+    'intake_analysis', 'employment_agreement', 'demand_letter',
+    'statement_of_claim', 'settlement', 'mediation', 'case_assessment',
   ]).optional(),
   documents: z.array(EngageDocumentSchema).max(20).optional(),
   context: EngageContextSchema,

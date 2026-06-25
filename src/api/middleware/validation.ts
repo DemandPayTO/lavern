@@ -25,6 +25,8 @@ const JurisdictionEnum = z.enum(['US', 'EU', 'UK', 'CA', 'AU']);
 const RequestTypeEnum = z.enum([
   'document_redesign', 'contract_review', 'legal_question',
   'legal_research', 'risk_assessment', 'general',
+  'intake_analysis', 'employment_agreement', 'demand_letter',
+  'statement_of_claim', 'settlement', 'mediation', 'case_assessment',
 ]);
 
 // ── Path Safety ───────────────────────────────────────────────────────────

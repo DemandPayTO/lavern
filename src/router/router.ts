@@ -253,113 +253,133 @@ function buildRouterUserPrompt(request: LegalRequest): string {
  * during testing.
  */
 export function classifyRequest(request: LegalRequest): RouterClassification {
-  // Rule 1: Document redesign → legal-design (multidisciplinary panel, 10-step pipeline)
-  if (request.type === 'document_redesign') {
+  const text = (request.requestText ?? '').toLowerCase();
+
+  // Rule 1: Intake analysis — client uploads transcript or intake notes
+  if (request.type === 'intake_analysis' || text.includes('intake') || text.includes('transcript')) {
     return {
-      requestType: 'full_pipeline',
-      complexity: 'high',
-      riskLevel: 'medium',
-      selectedWorkflow: 'legal-design',
-      selectedSpecialists: [
-        'design-reviewer', 'service-designer',
-        'plain-language-specialist', 'synthesis-editor',
-      ],
-      requiresDebate: true,
-      requiresEthicsFirst: true,
+      requestType: 'single_specialist',
+      complexity: 'low',
+      riskLevel: 'low',
+      selectedWorkflow: 'counsel',
+      selectedSpecialists: ['employment-counsel', 'tabulate', 'junior-associate'],
+      requiresDebate: false,
+      requiresEthicsFirst: false,
       requiresConsistencyCheck: !!request.matterId,
-      reasoning: 'Document redesign requires the legal-design pipeline with parallel expert panel, debate, and synthesis.',
+      reasoning: 'Intake analysis uses counsel pipeline with employment counsel lead, tabulate for data extraction, junior associate for fact organization.',
     };
   }
 
-  // Rule 2: Contract review → review (specialist + evaluator + plain language + verification)
-  if (request.type === 'contract_review') {
+  // Rule 2: Employment agreement review — client uploads employment contract
+  if (request.type === 'contract_review' || request.type === 'employment_agreement') {
     return {
       requestType: 'single_specialist',
       complexity: 'medium',
       riskLevel: 'medium',
       selectedWorkflow: 'review',
-      selectedSpecialists: [
-        'contract-reviewer', 'plain-language-specialist', 'evaluator',
-      ],
+      selectedSpecialists: ['contract-reviewer', 'contract-specialist', 'employment-counsel'],
       requiresDebate: false,
       requiresEthicsFirst: false,
       requiresConsistencyCheck: !!request.matterId,
-      reasoning: 'Contract review uses the review pipeline with clause analysis, evaluator gate, verification, and plain language summary.',
+      reasoning: 'Employment agreement review: broad scan by reviewer, deep clause analysis by specialist, employment law assessment by counsel.',
     };
   }
 
-  // Rule 3: Legal research → adversarial (researcher + red-team + synthesizer)
-  if (request.type === 'legal_research') {
+  // Rule 3: Demand letter generation
+  if (request.type === 'demand_letter' || text.includes('demand letter')) {
     return {
-      requestType: 'single_specialist',
+      requestType: 'adversarial',
+      complexity: 'high',
+      riskLevel: 'high',
+      selectedWorkflow: 'adversarial',
+      selectedSpecialists: ['employment-counsel', 'litigation-associate', 'red-team', 'synthesis-editor'],
+      requiresDebate: true,
+      requiresEthicsFirst: false,
+      requiresConsistencyCheck: !!request.matterId,
+      reasoning: 'Demand letter uses adversarial pipeline: employment counsel drafts, red team attacks from employer perspective, synthesis editor resolves.',
+    };
+  }
+
+  // Rule 4: Statement of claim generation
+  if (
+    request.type === 'statement_of_claim'
+    || text.includes('statement of claim')
+    || text.includes('soc')
+  ) {
+    return {
+      requestType: 'adversarial',
+      complexity: 'high',
+      riskLevel: 'high',
+      selectedWorkflow: 'adversarial',
+      selectedSpecialists: ['employment-counsel', 'litigation-partner', 'litigation-associate', 'paralegal', 'red-team'],
+      requiresDebate: true,
+      requiresEthicsFirst: false,
+      requiresConsistencyCheck: !!request.matterId,
+      reasoning: 'SOC uses adversarial pipeline with full litigation team. Paralegal checks procedural compliance.',
+    };
+  }
+
+  // Rule 5: Settlement / mediation analysis
+  if (
+    request.type === 'settlement'
+    || request.type === 'mediation'
+    || text.includes('settlement')
+    || text.includes('mediation')
+  ) {
+    return {
+      requestType: 'multi_specialist',
       complexity: 'medium',
       riskLevel: 'medium',
-      selectedWorkflow: 'adversarial',
-      selectedSpecialists: ['legal-researcher', 'evaluator', 'red-team'],
-      requiresDebate: false,
-      requiresEthicsFirst: false,
-      requiresConsistencyCheck: !!request.matterId,
-      reasoning: 'Legal research uses the adversarial pipeline: researcher produces memo, red-team stress-tests, synthesizer reconciles.',
-    };
-  }
-
-  // Rule 4: Risk assessment → counsel (specialist + evaluator gate)
-  if (request.type === 'risk_assessment') {
-    return {
-      requestType: 'single_specialist',
-      complexity: 'low',
-      riskLevel: 'low',
       selectedWorkflow: 'counsel',
-      selectedSpecialists: ['evaluator', 'red-team'],
+      selectedSpecialists: ['dispute-resolution', 'employment-counsel', 'litigation-partner'],
       requiresDebate: false,
       requiresEthicsFirst: false,
       requiresConsistencyCheck: !!request.matterId,
-      reasoning: 'Risk assessment uses the counsel pipeline with evaluator and red-team.',
+      reasoning: 'Settlement analysis uses counsel pipeline with dispute resolution lead.',
     };
   }
 
-  // Rule 5: Legal question → counsel (specialist dispatch)
-  if (request.type === 'legal_question') {
+  // Rule 6: Case assessment — general "what are my options" type questions
+  if (request.type === 'case_assessment' || request.type === 'risk_assessment' || request.type === 'legal_question') {
     return {
       requestType: 'direct_answer',
       complexity: 'low',
       riskLevel: 'low',
       selectedWorkflow: 'counsel',
-      selectedSpecialists: ['evaluator'],
+      selectedSpecialists: ['employment-counsel', 'evaluator'],
       requiresDebate: false,
       requiresEthicsFirst: false,
       requiresConsistencyCheck: !!request.matterId,
-      reasoning: 'Simple legal question uses the counsel pipeline for fast specialist dispatch.',
+      reasoning: 'Quick case assessment uses counsel pipeline with employment counsel.',
     };
   }
 
-  // Rule 6: General / fallback
-  // If document path is present, treat as document work → review
+  // Rule 7: Document with upload (fallback for any document upload)
   if (request.documentPath) {
     return {
       requestType: 'single_specialist',
       complexity: 'medium',
       riskLevel: 'medium',
       selectedWorkflow: 'review',
-      selectedSpecialists: ['contract-reviewer', 'plain-language-specialist', 'evaluator'],
+      selectedSpecialists: ['employment-counsel', 'contract-reviewer', 'evaluator'],
       requiresDebate: false,
       requiresEthicsFirst: false,
       requiresConsistencyCheck: !!request.matterId,
-      reasoning: 'General request with document path — defaulting to review pipeline.',
+      reasoning: 'Document uploaded — defaulting to employment law review.',
     };
   }
 
-  // Default: counsel for everything else
+  // Default fallback
   return {
     requestType: 'direct_answer',
     complexity: 'low',
     riskLevel: 'low',
     selectedWorkflow: 'counsel',
-    selectedSpecialists: ['evaluator'],
+    selectedSpecialists: ['employment-counsel'],
     requiresDebate: false,
     requiresEthicsFirst: false,
     requiresConsistencyCheck: false,
-    reasoning: 'General request without document — defaulting to counsel pipeline.',
+    reasoning: 'General employment law question — counsel pipeline with employment counsel.',
   };
 }
 

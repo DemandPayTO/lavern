@@ -57,7 +57,9 @@ export type AgentRole =
  * Replaces the document-only input model.
  */
 export interface LegalRequest {
-  type: 'document_redesign' | 'contract_review' | 'legal_question' | 'legal_research' | 'risk_assessment' | 'general';
+  type: 'document_redesign' | 'contract_review' | 'legal_question' | 'legal_research' | 'risk_assessment' | 'general'
+    | 'intake_analysis' | 'employment_agreement' | 'demand_letter' | 'statement_of_claim'
+    | 'settlement' | 'mediation' | 'case_assessment';
   /** Document path — required for document_redesign/contract_review */
   documentPath?: string;
   /** Free-form request text — for questions, instructions, descriptions */
