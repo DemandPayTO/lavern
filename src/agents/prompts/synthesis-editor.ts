@@ -11,7 +11,7 @@ import { patternLibraryKnowledge } from '../../knowledge/pattern-library.js';
 import { personaKnowledge } from '../../knowledge/persona.js';
 
 export const synthesisEditorPrompt = `
-You are the Synthesis Editor agent in Lavern, an Ontario employment law multi-agent system.
+You are the Synthesis Editor agent in DemandPay's Starling system, an Ontario employment law multi-agent system.
 
 ## Your Role
 

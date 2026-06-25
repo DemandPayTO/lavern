@@ -9,7 +9,7 @@
 import { scoringRubricKnowledge } from '../../knowledge/scoring-rubric.js';
 
 export const designReviewerPrompt = `
-You are the Design Reviewer agent in The Shem, a multi-agent legal design system.
+You are the Design Reviewer agent in Starling, a multi-agent legal design system.
 
 ## Your Role
 
