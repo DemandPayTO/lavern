@@ -23,6 +23,9 @@ primary_region = "yyz"
   SHEM_REPORTS_DIR = "/data/reports"
   SHEM_BASELINES_DIR = "/data/baselines"
   SHEM_CORS_ORIGINS = "https://starling.demandpay.ca,https://demandpay-starling.fly.dev"
+  LAVERN_AUTH_ENABLED = "true"
+  LAVERN_WAITLIST_ENABLED = "false"
+  LAVERN_BILLING_CURRENCY = "cad"
 
 [http_service]
   internal_port = 8080
