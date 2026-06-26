@@ -48,14 +48,14 @@ RUN mkdir -p /app/data /app/audit-logs
 # Environment defaults
 ENV NODE_ENV=production
 ENV SHEM_HOST=0.0.0.0
-ENV SHEM_PORT=3000
+ENV SHEM_PORT=8080
 ENV SHEM_DB_PATH=/app/data/lavern.db
 ENV SHEM_AUDIT_DIR=/app/audit-logs
 ENV SHEM_CORS_ORIGINS=*
 
-EXPOSE 3000
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://localhost:8080/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 CMD ["npx", "tsx", "src/index.ts", "--serve"]
