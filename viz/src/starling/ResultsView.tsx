@@ -145,14 +145,8 @@ export default function ResultsView() {
   const rawSessionId = window.location.hash.match(/#\/results\/(.+)/)?.[1] ?? null;
   const sessionId = rawSessionId?.replace(/\s+/g, '') ?? null;
 
-  // Debug: log what sessionId we extracted
-  console.log('[ResultsView] hash:', window.location.hash, '→ sessionId:', sessionId);
-
   // Wire hook data
   const { document: doc, quality, issues, sources, verification, cost, loading } = useResults(sessionId);
-
-  // Debug: log hook output
-  console.log('[ResultsView] hook data:', { loading, docLen: doc?.length, score: quality?.score, verdict: quality?.verdict });
 
   // Verdict display helpers
   const verdictLabel = quality.verdict === 'PASS' ? 'PASS' : quality.verdict === 'CONDITIONAL_PASS' ? 'CONDITIONAL PASS' : 'FAIL';
