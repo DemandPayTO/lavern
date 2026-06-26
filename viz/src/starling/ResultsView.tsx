@@ -318,6 +318,9 @@ export default function ResultsView() {
             Saved to matter &middot; Quality {quality.score}/100 {verdictLabel}
           </div>
           <button
+            onClick={() => {
+              if (sessionId) window.open(`/api/sessions/${sessionId}/download?format=docx`, '_blank');
+            }}
             style={{
               background: orange,
               color: '#fff',
@@ -332,6 +335,9 @@ export default function ResultsView() {
             Download DOCX
           </button>
           <button
+            onClick={() => {
+              if (sessionId) window.open(`/api/sessions/${sessionId}/download?format=pdf`, '_blank');
+            }}
             style={{
               background: '#fff',
               color: navy,
