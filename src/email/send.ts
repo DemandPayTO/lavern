@@ -391,7 +391,7 @@ export async function sendClawDigestEmail(
 
   return send({
     to: email,
-    subject: `Lavern Weekly Digest — ${period}`,
+    subject: `DemandPay Starling — Weekly Digest — ${period}`,
     text: `Weekly Digest: ${period}\n\n${documentsProcessed} documents processed\nFindings: ${findings}\nCost: $${costUsd.toFixed(2)}\nPrecedents learned: ${precedentsLearned}\nBudget remaining: $${budgetRemainingUsd.toFixed(2)}`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:28px;border:1px solid ${BRAND.border};">

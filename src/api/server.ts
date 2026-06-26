@@ -52,6 +52,7 @@ import { registerVerifyRoutes } from './routes/verify.js';
 import { registerClawRoutes } from './routes/claw.js';
 import { registerChallengeRoutes } from './routes/challenge.js';
 import { registerWaitlistRoutes } from './routes/waitlist.js';
+import { registerStarlingDigestRoutes } from './routes/starling-digest.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { maybeRegisterRemoteBridge } from '../mcp/remote-bridge/index.js';
 import { registerReferralRoutes } from './routes/referral.js';
@@ -660,6 +661,8 @@ export async function startApiServer(port: number): Promise<void> {
   registerChallengeRoutes(fastify);
   // v22: Waitlist — join, status, admin invite & listing
   registerWaitlistRoutes(fastify);
+  // Starling status monitor + weekly digest
+  registerStarlingDigestRoutes(fastify);
   // Admin observability endpoints (X-Admin-Key gated)
   registerAdminRoutes(fastify);
   // Remote MCP bridge — Managed Agents integration (Stage 1: scaffolded, off
