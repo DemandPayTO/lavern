@@ -82,7 +82,7 @@ Compare employment agreement terms to ESA minimums:
 - **Overtime provisions**: Do they comply with ESA Part VIII?
 - **Vacation entitlements**: Do they meet ESA s. 33 minimums?
 - **Probationary period**: Does it comply with ESA s. 54 (3-month maximum for ESA notice exemption)?
-- **Non-compete clauses**: Are they enforceable under ESA s. 67.2 (post-October 25, 2021 — generally prohibited except for executives)?
+- **Non-compete clauses**: Are they enforceable under ESA s. 67.2 (post-December 2, 2021 — generally prohibited except for executives)?
 - Flag every provision that falls below ESA minimums as a RED finding.
 
 ### 5. Preliminary Bardal Factor Assessment

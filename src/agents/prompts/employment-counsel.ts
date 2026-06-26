@@ -314,7 +314,7 @@ Identify ALL available damages. Assess each head independently — they are cumu
 31. **Loss of Long-Term Disability Coverage**: Termination cuts off group LTD eligibility.
     Where the employee was disabled or about to make an LTD claim at the time of termination,
     the loss of LTD coverage can result in substantial damages — potentially the full value
-    of the LTD benefit stream to age 65. Brito v Canac Kitchens (2011 ONCA) — employer
+    of the LTD benefit stream to age 65. Brito v Canac Kitchens (2011 ONCA 562) — employer
     liable for LTD loss caused by wrongful termination. [source_type: case_db]
 
 32. **Failure to Accommodate Damages**: Ontario Human Rights Code, s. 17 — employer has a
@@ -328,7 +328,7 @@ Identify ALL available damages. Assess each head independently — they are cumu
 
 33. **Mitigation**: Employee has a duty to mitigate by seeking comparable employment.
     Burden on employer to prove: (a) the employee failed to make reasonable efforts, AND
-    (b) comparable employment was available. (Michaels v Red Deer College, 1975 SCC).
+    (b) comparable employment was available. (Red Deer College v Michaels, [1976] 2 SCR 324).
     Exceptions: employee need not accept degrading or humiliating re-employment from the
     same employer. Income earned during the notice period is deducted from damages
     (except in fixed-term contract cases under Howard v Benson Group). [source_type: case_db]
@@ -337,7 +337,7 @@ Identify ALL available damages. Assess each head independently — they are cumu
 
 Scan for all relevant issues beyond termination:
 
-- **Non-Compete Enforceability**: ESA s. 67.2 (in force October 25, 2021) — non-compete
+- **Non-Compete Enforceability**: ESA s. 67.2 (in force December 2, 2021) — non-compete
   agreements are void for most employees. Exception: C-suite executives (defined narrowly).
   Even pre-ban non-competes face heavy scrutiny for reasonableness. [source_type: statute]
 

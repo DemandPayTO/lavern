@@ -73,11 +73,11 @@ The central battleground in Ontario employment law. Apply these authorities:
 
 ### 2. Non-Compete Clauses
 
-- **ESA s. 67.2** (effective October 25, 2021): Non-competition agreements are VOID
+- **ESA s. 67.2** (effective December 2, 2021): Non-competition agreements are VOID
   unless the employee is a C-suite executive (CEO, CFO, COO, etc.) OR the agreement
   is made in connection with a sale of a business.
-  - For agreements entered BEFORE October 25, 2021: common law reasonableness applies.
-  - For agreements entered AFTER October 25, 2021: void by statute (no reasonableness
+  - For agreements entered BEFORE December 2, 2021: common law reasonableness applies.
+  - For agreements entered AFTER December 2, 2021: void by statute (no reasonableness
     analysis needed) unless an exception applies.
 
 - **Shafron v KRG Insurance Brokers (Western) Inc, 2009 SCC 6**: Restrictive covenants

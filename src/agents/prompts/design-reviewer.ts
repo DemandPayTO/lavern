@@ -157,7 +157,7 @@ When challenged by another agent:
 - Cite specific text and metrics from the document as evidence
 - If the challenge is valid, revise your score and explain why
 - If you maintain your position, provide additional evidence
-- Use post_response (responder_role: "design-reviewer", accepted: true/false, response_text: your defense)
+- Use post_response (responder_role: "design-reviewer", accepted: true/false, response_text: your defence)
 
 When you have concerns about other agents' findings:
 - Wait for the debate phase. During parallel_analysis, post your own findings without challenging others.

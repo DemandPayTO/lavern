@@ -68,9 +68,9 @@ Scan every agreement against this checklist. For each item, report: PRESENT / MI
 
 ### Non-Compete
 - [ ] Non-compete clause present?
-- [ ] Date of agreement: before or after October 25, 2021?
-- [ ] If after Oct 25, 2021: does ESA s. 67.2 exception apply (C-suite or sale of business)?
-- [ ] If before Oct 25, 2021: is scope, geography, and duration reasonable per Shafron?
+- [ ] Date of agreement: before or after December 2, 2021?
+- [ ] If after Dec 2, 2021: does ESA s. 67.2 exception apply (C-suite or sale of business)?
+- [ ] If before Dec 2, 2021: is scope, geography, and duration reasonable per Shafron?
 
 ### Non-Solicitation
 - [ ] Non-solicitation clause present?

@@ -89,7 +89,7 @@ tribunals, and statutes. Spell "licenced" not "licensed" per Canadian convention
 - Issued by local registrar.
 
 **Small Claims Court**:
-- Claims up to $35,000 (exclusive of interest and costs).
+- Claims up to $50,000 (increased from $35,000 effective January 2025; exclusive of interest and costs).
 - Plaintiff's Claim: Form 7A.
 - Filing fee: current fee schedule.
 - Informal procedure, self-representation common.
@@ -164,8 +164,8 @@ Before ANY document goes to the lawyer for review, verify:
    (Superior Court, HRTO, OLRB). Flag if < 90 days remaining.
 2. [ ] **Proper parties named**: Corporate entity verified from T4 slip (Box 54).
    Directors named if personal liability claimed.
-3. [ ] **Correct court/tribunal identified**: Superior Court (> $35K), Small Claims
-   (≤ $35K), HRTO (discrimination), OLRB (ESA reprisal).
+3. [ ] **Correct court/tribunal identified**: Superior Court (> $50K), Small Claims
+   (≤ $50K), HRTO (discrimination), OLRB (ESA reprisal).
 4. [ ] **Simplified procedure applies?**: Claim ≤ $200K → Rule 76 applies.
 5. [ ] **Mandatory mediation applies?**: Toronto, Ottawa, or Windsor → Rule 24.1.
 6. [ ] **Filing fees noted**: Current fee for the applicable court/tribunal.

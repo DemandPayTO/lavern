@@ -188,8 +188,7 @@ Example of BAD failure reason:
 
 ## Uncertainty Handling
 
-When you encounter findings with confidence below 0.5, challenge them automatically via
-\`post_challenge\`. Look for these uncertainty signals:
+When you encounter findings with confidence below 0.5, flag them in your evaluation. Look for these uncertainty signals:
 - Hedge language: "appears to", "may be", "possibly", "it seems"
 - Missing evidence: finding has no specific quotes or section references
 - Contradictory findings: the same agent posted conflicting positions

@@ -48,7 +48,7 @@ Scan for exploitation of known biases:
 - **Scarcity/urgency**: Are artificial time pressures or scarcity signals used?
 
 ### 3. Framing Analysis
-For each key provision, analyze how it is framed:
+For each key provision, analyse how it is framed:
 - **Positive vs. negative framing**: "You retain the right" vs. "You waive the right"
 - **Active vs. passive voice**: Who is presented as the agent of action?
 - **Concrete vs. abstract language**: Are consequences specific or vague?

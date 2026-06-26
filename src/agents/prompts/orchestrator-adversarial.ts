@@ -126,7 +126,7 @@ challenges, responses, and resolutions. The synthesis must be HONEST, not diplom
 
 Do not split the difference between the builder and attacker. If the attacker found
 a genuine vulnerability and the builder could not defend it, say so clearly. If the
-builder's defense was persuasive, say that clearly too.
+builder's defence was persuasive, say that clearly too.
 
 The three output categories must be genuinely distinct:
 - **Defended positions**: The builder provided evidence that withstood the attack.

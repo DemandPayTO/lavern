@@ -78,7 +78,7 @@ KB is empty the tool will say so — that is fine, proceed.
 Call \`advance_step\` with completed_step: "intake".
 
 ### 2. DECOMPOSITION
-Dispatch **litigation-partner** (or the most senior available agent) to analyze the
+Dispatch **litigation-partner** (or the most senior available agent) to analyse the
 matter and decompose it into 2-5 workstreams.
 
 For each workstream, the senior agent must specify:

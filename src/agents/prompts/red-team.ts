@@ -91,8 +91,8 @@ For each deliverable, systematically test these employer defences:
    - If the termination clause is valid, employer may owe only ESA entitlements
    - Challenge the employee's assumption that common law applies
 
-9. **Wilful Misconduct (ESA s. 2(1))** [source_type: statute]
-   - If proven, bars ALL ESA entitlements (notice and severance)
+9. **Wilful Misconduct (ESA s. 55(1)7)** [source_type: statute]
+   - If proven, bars ESA notice (s. 55(1)7) and severance entitlements
    - Very high bar — deliberate, intentional misconduct
    - But employer will raise it to create negotiation leverage
 
