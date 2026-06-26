@@ -54,6 +54,7 @@ import { registerChallengeRoutes } from './routes/challenge.js';
 import { registerWaitlistRoutes } from './routes/waitlist.js';
 import { registerStarlingDigestRoutes } from './routes/starling-digest.js';
 import { registerAdminRoutes } from './routes/admin.js';
+import { registerBillingRoutes } from './routes/billing.js';
 import { maybeRegisterRemoteBridge } from '../mcp/remote-bridge/index.js';
 import { registerReferralRoutes } from './routes/referral.js';
 import { registerTemplateRoutes } from './routes/templates.js';
@@ -69,21 +70,9 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('SERVER');
 
 export async function startApiServer(port: number): Promise<void> {
-  // SECURITY (fail-safe): multi-user auth ENFORCEMENT is not implemented in
-  // this build — createAuthMiddleware/createRequireVerifiedHook inject a shared
-  // synthetic `local-user` for every request. Setting LAVERN_AUTH_ENABLED=true
-  // would still register the login/OAuth routes and advertise auth as "on" to
-  // the dashboard, while every request silently runs as that shared user — a
-  // total authN/authZ bypass. Refuse to boot rather than give a false sense of
-  // security. (Run in LOCAL MODE, or reimplement enforcement before enabling.)
-  if (config.authEnabled) {
-    throw new Error(
-      'LAVERN_AUTH_ENABLED=true is not supported in this build: multi-user ' +
-      'authentication enforcement is not implemented, so the server would treat ' +
-      'every request as a single shared local-user (total auth bypass). Unset ' +
-      'LAVERN_AUTH_ENABLED to run in LOCAL MODE (single-user).',
-    );
-  }
+  // Multi-user auth: when LAVERN_AUTH_ENABLED=true, createAuthMiddleware
+  // enforces Bearer token and cookie auth on protected routes. When false
+  // (LOCAL MODE), every request runs as the synthetic `local-user`.
 
   const isProd = config.isProduction;
   const fastify = Fastify({
@@ -340,6 +329,10 @@ export async function startApiServer(port: number): Promise<void> {
     // Remote MCP bridge authenticates via its own shared-secret Bearer header
     // + X-Lavern-Session-Id; it must bypass the global cookie/Bearer middleware.
     'POST /api/mcp/bridge',
+    // Stripe webhook — authenticates via signature, not cookies
+    'POST /api/billing/webhook',
+    // Admin billing credit — authenticates via X-Admin-Key, not cookies
+    'POST /api/billing/admin-credit',
     // Frontend static files (prefix match — trailing /)
     '/dashboard/',
   ];
@@ -614,6 +607,24 @@ export async function startApiServer(port: number): Promise<void> {
   // it serves both the dashboard runtime flags and the agent-facing rich
   // manifest from a single endpoint. Do not duplicate it here.
 
+  // Capture raw body for Stripe webhook signature verification.
+  // Must run before Fastify's content-type parser consumes the stream.
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'buffer' },
+    (req, body, done) => {
+      // Attach raw buffer for webhook routes that need it
+      if (req.url === '/api/billing/webhook') {
+        (req as typeof req & { rawBody?: Buffer }).rawBody = body as Buffer;
+      }
+      try {
+        done(null, JSON.parse((body as Buffer).toString()));
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   // Register route groups
   registerSessionRoutes(fastify, sessionManager);
   registerReplayRoutes(fastify);
@@ -630,6 +641,7 @@ export async function startApiServer(port: number): Promise<void> {
     // auth. Keep them gated (404 in LOCAL MODE) alongside the other auth-shaped
     // routes — previously this was registered unconditionally further down.
     registerReferralRoutes(fastify);
+    registerBillingRoutes(fastify);
   }
   // v8: Pre-engagement & team staffing routes
   registerMatterRoutes(fastify);

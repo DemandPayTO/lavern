@@ -201,12 +201,26 @@ export const config = {
     waitlistEnabled: process.env.LAVERN_WAITLIST_ENABLED !== 'false',
     /** Admin key for waitlist management endpoints (X-Admin-Key header) */
     adminKey: process.env.LAVERN_ADMIN_KEY ?? '',
-    /** Hour packs — one-time purchases, never expire */
+    /** Hour packs — one-time purchases, never expire. All configurable via env. */
     packs: {
-      quick: { hours: 25,  priceEurCents: 500,  label: 'Quick Top-Off' },
-      standard: { hours: 100, priceEurCents: 1900, label: 'Hour Pack' },
-      bulk: { hours: 500, priceEurCents: 8900, label: 'Bulk' },
-    } as Record<string, { hours: number; priceEurCents: number; label: string }>,
+      quick: {
+        hours: safeInt(process.env.LAVERN_PACK_QUICK_HOURS, 25),
+        priceCents: safeInt(process.env.LAVERN_PACK_QUICK_CENTS, 2500),
+        label: process.env.LAVERN_PACK_QUICK_LABEL ?? 'Quick Top-Off',
+      },
+      standard: {
+        hours: safeInt(process.env.LAVERN_PACK_STANDARD_HOURS, 100),
+        priceCents: safeInt(process.env.LAVERN_PACK_STANDARD_CENTS, 9900),
+        label: process.env.LAVERN_PACK_STANDARD_LABEL ?? 'Hour Pack',
+      },
+      bulk: {
+        hours: safeInt(process.env.LAVERN_PACK_BULK_HOURS, 500),
+        priceCents: safeInt(process.env.LAVERN_PACK_BULK_CENTS, 44900),
+        label: process.env.LAVERN_PACK_BULK_LABEL ?? 'Bulk',
+      },
+    } as Record<string, { hours: number; priceCents: number; label: string }>,
+    /** Currency for Stripe Checkout (ISO 4217). Default: CAD for Canadian deployment. */
+    billingCurrency: process.env.LAVERN_BILLING_CURRENCY ?? 'cad',
   },
 
   // ── Budgets ────────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ import { CreateClientSchema, validateBody, type CreateClientBody } from './valid
 import { isUrlSafe } from '../../utils/url-safety.js';
 import { getUserByToken as dbGetUserByToken, saveApiClient, getApiClientByKeyHash, getAllApiClients, removeApiClient as dbRemoveApiClient, updateApiClientLastActive } from '../../db/database.js';
 import { createLogger } from '../../utils/logger.js';
+import { config } from '../../config.js';
 
 const logger = createLogger('AUTH');
 
@@ -221,15 +222,86 @@ export function createAuthMiddleware(
   registry: ClientRegistry,
   publicPaths: string[] = ['/health', '/'],
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void | FastifyReply> {
+  // Pre-compute public path matchers for fast lookup
+  const exactPaths = new Set<string>();
+  const prefixPaths: Array<{ method?: string; prefix: string }> = [];
+  const methodExactPaths = new Map<string, Set<string>>();
+
+  for (const p of publicPaths) {
+    const spaceIdx = p.indexOf(' ');
+    if (spaceIdx > 0) {
+      // Method-scoped: 'GET /api/sessions' or 'GET /api/sessions/*'
+      const method = p.slice(0, spaceIdx).toUpperCase();
+      const path = p.slice(spaceIdx + 1);
+      if (path.endsWith('*')) {
+        prefixPaths.push({ method, prefix: path.slice(0, -1) });
+      } else {
+        if (!methodExactPaths.has(method)) methodExactPaths.set(method, new Set());
+        methodExactPaths.get(method)!.add(path);
+      }
+    } else if (p.endsWith('/') && p.length > 1) {
+      // Prefix match: '/dashboard/'
+      prefixPaths.push({ prefix: p });
+    } else {
+      // Exact match: '/health'
+      exactPaths.add(p);
+    }
+  }
+
+  function isPublic(method: string, url: string): boolean {
+    if (exactPaths.has(url)) return true;
+    const methodUpper = method.toUpperCase();
+    if (methodExactPaths.get(methodUpper)?.has(url)) return true;
+    for (const pp of prefixPaths) {
+      if (pp.method && pp.method !== methodUpper) continue;
+      if (url.startsWith(pp.prefix)) return true;
+    }
+    return false;
+  }
+
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    // LOCAL MODE: bypass all auth, inject synthetic local user
-    (request as FastifyRequest & { userId?: string }).userId = 'local-user';
-    (request as FastifyRequest & { user?: { id: string; email: string; displayName: string } }).user = {
-      id: 'local-user',
-      email: 'local@localhost',
-      displayName: 'Local User',
+    const req = request as FastifyRequest & {
+      userId?: string;
+      user?: { id: string; email: string; displayName: string };
     };
-    // Original auth logic (Bearer token + cookie) removed — see git history
+
+    // LOCAL MODE: bypass all auth, inject synthetic local user
+    if (!config.authEnabled) {
+      req.userId = 'local-user';
+      req.user = { id: 'local-user', email: 'local@localhost', displayName: 'Local User' };
+      return;
+    }
+
+    // Public paths: inject anonymous identity, skip auth
+    if (isPublic(request.method, request.url.split('?')[0])) {
+      return;
+    }
+
+    // Path 1: Bearer token (API clients / agents)
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      const client = registry.authenticate(token);
+      if (client) {
+        req.userId = client.id;
+        req.user = { id: client.id, email: '', displayName: client.name ?? '' };
+        return;
+      }
+    }
+
+    // Path 2: Cookie (browser users)
+    const cookieToken = parseCookieToken(request.headers.cookie);
+    if (cookieToken) {
+      const user = dbGetUserByToken(cookieToken);
+      if (user) {
+        req.userId = user.id;
+        req.user = { id: user.id, email: user.email, displayName: user.display_name ?? '' };
+        return;
+      }
+    }
+
+    // No valid auth — 401
+    return reply.status(401).send({ error: 'Unauthorized' });
   };
 }
 

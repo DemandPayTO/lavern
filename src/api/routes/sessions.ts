@@ -37,7 +37,7 @@ import { crossProviderChat } from '../../providers/cross-provider-chat.js';
 import { DERIVATIVE_TYPES, DERIVATIVE_TYPE_LIST, buildFullContext } from '../derivatives/derivative-types.js';
 import { agentProfiles } from '../../agents/profiles.js';
 import { getOrchestratorForWorkflow } from '../../workflows/orchestrator-mapping.js';
-import { getSessionArchive, getAllSessionArchive, getArchivedSession, getArchivedSessionById, getUserById, logAuditEvent, holdBillableHours, debitBillableHours, updateArchiveUserId, updateArchiveTitle } from '../../db/database.js';
+import { getSessionArchive, getAllSessionArchive, getArchivedSession, getArchivedSessionById, getUserById, logAuditEvent, holdBillableHours, debitBillableHours, getUserBillableHours, updateArchiveUserId, updateArchiveTitle } from '../../db/database.js';
 import type { Moment, Audience, Jurisdiction } from '../../types/index.js';
 import type { ClientIdentity } from '../../types/client.js';
 import { config } from '../../config.js';
@@ -250,7 +250,16 @@ export function registerSessionRoutes(
     // v21: Per-user monthly budget cap enforcement
     let sessionBudget = body.options?.budget ?? config.defaultBudgetUsd;
 
-    // LOCAL MODE: billing + mass-action checks removed
+    // Billing gate: check balance before session creation
+    if (config.authEnabled && userId && userId !== 'local-user') {
+      const balance = getUserBillableHours(userId);
+      if (balance <= 0) {
+        return reply.status(402).send({
+          error: 'Insufficient billable hours. Please purchase more.',
+          balance,
+        });
+      }
+    }
 
     const gateResolver = yoloMode
       ? new AutoApproveGateResolver()
@@ -273,7 +282,16 @@ export function registerSessionRoutes(
       // Update the early-archive row with the user ID
       try { updateArchiveUserId(session.id, userId); } catch { /* non-fatal */ }
 
-      // LOCAL MODE: billable hours hold removed
+      // Place a hold on billable hours for this session
+      if (config.authEnabled && userId !== 'local-user') {
+        const estimatedHours = sessionBudget / config.billableHours.rate;
+        const held = holdBillableHours(userId, estimatedHours, session.id);
+        if (!held) {
+          return reply.status(402).send({
+            error: 'Insufficient billable hours for this session.',
+          });
+        }
+      }
 
       // v17: Load soul from user profile
       try {
