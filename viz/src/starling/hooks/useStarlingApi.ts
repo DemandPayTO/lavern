@@ -1121,7 +1121,8 @@ function mapSessionToResults(raw: Record<string, unknown>): Omit<ResultsData, 'l
   const uniqueSources = sources.filter((s, i, arr) => arr.findIndex(x => x.citation === s.citation) === i);
 
   // Verification passes
-  const rawVerification = (raw.verificationPassResults ?? raw.verification ?? []) as Array<Record<string, unknown>>;
+  const rawVerificationField = raw.verificationPassResults ?? raw.verification;
+  const rawVerification = Array.isArray(rawVerificationField) ? rawVerificationField as Array<Record<string, unknown>> : [];
   const passes: VerificationPassResult[] = rawVerification.map(v => ({
     name: (v.pass as string) ?? (v.type as string) ?? '',
     score: typeof v.score === 'number' ? v.score : 0,
