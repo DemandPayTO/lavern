@@ -1019,10 +1019,20 @@ export function useResults(sessionId: string | null): ResultsData {
           res = await fetch(`/api/sessions/archive/${sessionId}`, { credentials: 'include' });
         }
 
-        if (!res.ok) throw new Error('Session not found');
+        if (!res.ok) throw new Error(`Session not found (HTTP ${res.status})`);
         if (cancelled) return;
 
-        const raw = await res.json();
+        // Parse JSON — handle potential control characters in assembled document
+        const text = await res.text();
+        let raw: Record<string, unknown>;
+        try {
+          raw = JSON.parse(text);
+        } catch {
+          // Some responses contain control chars in markdown — sanitise and retry
+          const sanitised = text.replace(/[\x00-\x1F\x7F]/g, (ch) => ch === '\n' || ch === '\r' || ch === '\t' ? ch : '');
+          raw = JSON.parse(sanitised);
+        }
+
         const mapped = mapSessionToResults(raw);
 
         setData(mapped);
