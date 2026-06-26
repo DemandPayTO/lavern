@@ -10,6 +10,7 @@
  */
 
 import { useState, useCallback, useMemo, useRef } from 'react';
+import { useMatterCreate } from './hooks/useStarlingApi.js';
 
 // ── Design Tokens ───────────────────────────────────────────────────────
 const navy = '#0f1a2e';
@@ -79,10 +80,12 @@ export default function NewMatterView() {
   const [employerName, setEmployerName] = useState('');
   const [situation, setSituation] = useState('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [rawFiles, setRawFiles] = useState<File[]>([]);
   const [startDate, setStartDate] = useState('');
   const [terminationDate, setTerminationDate] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { createMatter, uploading, error } = useMatterCreate();
 
   // Parse termination date for deadline calculations
   const termDate = useMemo(() => parseDateDMY(terminationDate), [terminationDate]);
@@ -95,16 +98,24 @@ export default function NewMatterView() {
 
   const addFiles = useCallback((fileList: FileList | null) => {
     if (!fileList) return;
-    const newFiles: UploadedFile[] = Array.from(fileList).map(f => ({
+    const incoming = Array.from(fileList);
+    const newFiles: UploadedFile[] = incoming.map(f => ({
       id: `${f.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: f.name,
       type: getFileTypeLabel(f.name),
     }));
     setFiles(prev => [...prev, ...newFiles]);
+    setRawFiles(prev => [...prev, ...incoming]);
   }, []);
 
   const removeFile = useCallback((id: string) => {
-    setFiles(prev => prev.filter(f => f.id !== id));
+    setFiles(prev => {
+      const idx = prev.findIndex(f => f.id === id);
+      if (idx !== -1) {
+        setRawFiles(rf => rf.filter((_, i) => i !== idx));
+      }
+      return prev.filter(f => f.id !== id);
+    });
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -113,9 +124,21 @@ export default function NewMatterView() {
     addFiles(e.dataTransfer.files);
   }, [addFiles]);
 
-  const handleSubmit = useCallback(() => {
-    handleNav('#/processing');
-  }, [handleNav]);
+  const handleSubmit = useCallback(async () => {
+    try {
+      const result = await createMatter({
+        clientName,
+        employerName,
+        situation,
+        files: rawFiles.length > 0 ? rawFiles : undefined,
+        startDate: startDate || undefined,
+        termDate: terminationDate || undefined,
+      });
+      handleNav(`#/processing/${result.sessionId}`);
+    } catch {
+      // error is already set by the hook
+    }
+  }, [createMatter, clientName, employerName, situation, rawFiles, startDate, terminationDate, handleNav]);
 
   return (
     <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
@@ -595,22 +618,40 @@ export default function NewMatterView() {
               </button>
               <button
                 onClick={handleSubmit}
+                disabled={uploading}
                 style={{
-                  background: orange,
+                  background: uploading ? '#b0b0b0' : orange,
                   color: '#fff',
                   fontSize: 14.5,
                   fontWeight: 600,
                   padding: '13px 24px',
                   borderRadius: 2,
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: uploading ? 'not-allowed' : 'pointer',
                   fontFamily: sans,
                 }}
               >
-                Create Matter &amp; Analyse &rarr;
+                {uploading ? 'Creating matter...' : <>Create Matter &amp; Analyse &rarr;</>}
               </button>
             </div>
           </div>
+
+          {/* Error display */}
+          {error && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: '12px 16px',
+                border: `1px solid #dc2626`,
+                borderRadius: 2,
+                background: '#fce8e6',
+                color: '#dc2626',
+                fontSize: 13.5,
+              }}
+            >
+              {error}
+            </div>
+          )}
         </div>
       </main>
     </div>

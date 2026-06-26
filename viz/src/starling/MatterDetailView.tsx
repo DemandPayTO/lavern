@@ -12,6 +12,8 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useMatterDetail } from './hooks/useStarlingApi.js';
+// stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
 // ── Design Tokens ───────────────────────────────────────────────────────
 const navy = '#0f1a2e';
@@ -318,6 +320,64 @@ export default function MatterDetailView() {
     window.location.hash = hash;
   }, []);
 
+  // Extract sessionId from hash
+  const sessionId = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1] ?? null;
+
+  // Wire hook data
+  const { matter, loading, error } = useMatterDetail(sessionId);
+
+  // Compute tab badge counts from hook data
+  const issueCount = matter?.issues.length ?? 0;
+  const docCount = matter?.documents.length ?? 0;
+  const dynamicTabs: { key: TabKey; label: string; badge?: number }[] = [
+    { key: 'issues', label: 'Issues Found', badge: issueCount || undefined },
+    { key: 'docs', label: 'Documents', badge: docCount || undefined },
+    { key: 'draft', label: 'Draft' },
+    { key: 'timeline', label: 'Timeline' },
+    { key: 'notes', label: 'Notes' },
+  ];
+
+  // Loading state
+  if (loading) {
+    return (
+      <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
+        <MatterDetailTopBar />
+        <main id="main-content" style={{ maxWidth: 1080, margin: '0 auto', padding: '20px 28px 60px' }}>
+          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: muted, fontSize: 13.5, marginBottom: 16, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); handleNav('#/'); }}>
+            &larr; My Cases
+          </a>
+          <div style={{ padding: '60px 0', textAlign: 'center', color: muted, fontSize: 15 }}>Loading matter...</div>
+        </main>
+      </div>
+    );
+  }
+
+  // Not found state
+  if (!matter && !loading) {
+    return (
+      <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
+        <MatterDetailTopBar />
+        <main id="main-content" style={{ maxWidth: 1080, margin: '0 auto', padding: '20px 28px 60px' }}>
+          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: muted, fontSize: 13.5, marginBottom: 16, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); handleNav('#/'); }}>
+            &larr; My Cases
+          </a>
+          <div style={{ padding: '60px 0', textAlign: 'center' }}>
+            <div style={{ fontSize: 16, color: ink, fontWeight: 600, marginBottom: 8 }}>Matter not found</div>
+            <div style={{ fontSize: 13.5, color: muted, marginBottom: 14 }}>{error || 'The requested matter could not be loaded.'}</div>
+            <a href="#/" style={{ fontSize: 13.5, fontWeight: 600, color: orange, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); handleNav('#/'); }}>
+              &larr; Back to dashboard
+            </a>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Status display helpers
+  const statusLabel = matter!.status === 'urgent' ? 'Urgent' : matter!.status === 'stale' ? 'Needs attention' : matter!.status === 'complete' ? 'Complete' : 'Active';
+  const statusColour = matter!.status === 'urgent' ? red : matter!.status === 'stale' ? amber : matter!.status === 'complete' ? green : navy;
+  const statusBg = matter!.status === 'urgent' ? '#fce8e6' : matter!.status === 'stale' ? '#fdf0dd' : matter!.status === 'complete' ? '#e7f6ec' : '#eef1f6';
+
   return (
     <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
       {/* ── Top Bar ──────────────────────────────────────────────── */}
@@ -445,9 +505,9 @@ export default function MatterDetailView() {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
             <div>
               <h1 style={{ fontFamily: serif, fontSize: 24, fontWeight: 600, color: navy, margin: 0 }}>
-                Smith v Acme Corp{' '}
+                {matter!.name}{' '}
                 <span style={{ fontSize: 12.5, color: muted, marginLeft: 4, fontFamily: sans, fontWeight: 400 }}>
-                  Matter #STR-2026-003
+                  Matter {matter!.number}
                 </span>
               </h1>
             </div>
@@ -458,8 +518,8 @@ export default function MatterDetailView() {
                 gap: 7,
                 fontSize: 13,
                 fontWeight: 600,
-                color: navy,
-                background: '#eef1f6',
+                color: statusColour,
+                background: statusBg,
                 border: `1px solid ${border}`,
                 padding: '6px 12px',
                 borderRadius: 2,
@@ -467,8 +527,8 @@ export default function MatterDetailView() {
                 flexShrink: 0,
               }}
             >
-              <StatusDot colour={navy} />
-              Active — Demand letter drafted
+              <StatusDot colour={statusColour} />
+              {statusLabel}
             </span>
           </div>
 
@@ -483,12 +543,12 @@ export default function MatterDetailView() {
               paddingTop: 16,
             }}
           >
-            <FactItem label="Client" value="Jane Smith" />
-            <FactItem label="Employer" value="Acme Corporation" />
-            <FactItem label="Terminated" value="June 1, 2026" />
-            <FactItem label="Tenure" value="8.3 years" />
-            <FactItem label="Limitation (Limitations Act)" value="June 1, 2028 -- 730 days" />
-            <FactItem label="HRTO Limitation" value="June 1, 2027" isLast />
+            <FactItem label="Client" value={matter!.client} />
+            <FactItem label="Employer" value={matter!.employer} />
+            {matter!.dates.termination && <FactItem label="Terminated" value={matter!.dates.termination} />}
+            {matter!.dates.start && <FactItem label="Start date" value={matter!.dates.start} />}
+            {matter!.dates.limitation && <FactItem label="Limitation" value={matter!.dates.limitation} isLast />}
+            {!matter!.dates.limitation && !matter!.dates.start && <FactItem label="" value="" isLast />}
           </div>
 
           {/* ── Tabs ─────────────────────────────────────────────── */}
@@ -501,7 +561,7 @@ export default function MatterDetailView() {
             }}
             role="tablist"
           >
-            {TABS.map(tab => (
+            {dynamicTabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
@@ -546,7 +606,10 @@ export default function MatterDetailView() {
           {/* Issues Found */}
           {activeTab === 'issues' && (
             <div id="panel-issues" role="tabpanel" style={{ paddingTop: 22 }}>
-              {DEMO_ISSUES.map(issue => (
+              {matter!.issues.length === 0 && (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No issues found yet.</div>
+              )}
+              {matter!.issues.map(issue => (
                 <div
                   key={issue.id}
                   style={{
@@ -596,38 +659,50 @@ export default function MatterDetailView() {
           {activeTab === 'docs' && (
             <div id="panel-docs" role="tabpanel" style={{ paddingTop: 22 }}>
               {/* Uploaded */}
-              <h3
-                style={{
-                  fontSize: 14,
-                  margin: '4px 0 12px',
-                  color: muted,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  fontFamily: serif,
-                }}
-              >
-                Uploaded documents
-              </h3>
-              {DEMO_DOCS.filter(d => d.group === 'uploaded').map(doc => (
-                <DocRow key={doc.id} doc={doc} />
-              ))}
+              {matter!.documents.filter(d => d.group === 'uploaded').length > 0 && (
+                <>
+                  <h3
+                    style={{
+                      fontSize: 14,
+                      margin: '4px 0 12px',
+                      color: muted,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      fontFamily: serif,
+                    }}
+                  >
+                    Uploaded documents
+                  </h3>
+                  {matter!.documents.filter(d => d.group === 'uploaded').map(doc => (
+                    <DocRow key={doc.id} doc={{ ...doc, actions: [{ label: 'View', variant: 'default' }] }} />
+                  ))}
+                </>
+              )}
 
               {/* Generated */}
-              <h3
-                style={{
-                  fontSize: 14,
-                  margin: '22px 0 12px',
-                  color: muted,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  fontFamily: serif,
-                }}
-              >
-                Generated by Starling
-              </h3>
-              {DEMO_DOCS.filter(d => d.group === 'generated').map(doc => (
-                <DocRow key={doc.id} doc={doc} />
-              ))}
+              {matter!.documents.filter(d => d.group === 'generated').length > 0 && (
+                <>
+                  <h3
+                    style={{
+                      fontSize: 14,
+                      margin: '22px 0 12px',
+                      color: muted,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      fontFamily: serif,
+                    }}
+                  >
+                    Generated by Starling
+                  </h3>
+                  {matter!.documents.filter(d => d.group === 'generated').map(doc => (
+                    <DocRow key={doc.id} doc={{ ...doc, actions: [{ label: 'Open', variant: 'gen' }] }} />
+                  ))}
+                </>
+              )}
+
+              {matter!.documents.length === 0 && (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No documents yet.</div>
+              )}
 
               {/* Upload more */}
               <button
@@ -728,6 +803,10 @@ export default function MatterDetailView() {
           {/* Timeline */}
           {activeTab === 'timeline' && (
             <div id="panel-timeline" role="tabpanel" style={{ paddingTop: 22 }}>
+              {matter!.timeline.length === 0 && (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No timeline events yet.</div>
+              )}
+              {matter!.timeline.length > 0 && (
               <div style={{ position: 'relative', paddingLeft: 24 }}>
                 {/* Vertical line */}
                 <div
@@ -741,7 +820,7 @@ export default function MatterDetailView() {
                   }}
                   aria-hidden="true"
                 />
-                {DEMO_TIMELINE.map(ev => (
+                {matter!.timeline.map(ev => (
                   <div key={ev.id} style={{ position: 'relative', marginBottom: 18 }}>
                     {/* Dot */}
                     <div
@@ -764,6 +843,7 @@ export default function MatterDetailView() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 
@@ -865,7 +945,7 @@ export default function MatterDetailView() {
           >
             Draft Statement of Claim
           </button>
-          <ActionButton label="Open Demand Letter" onClick={() => handleNav('#/results')} />
+          <ActionButton label="Open Demand Letter" onClick={() => handleNav(`#/results/${sessionId ?? ''}`)} />
           <ActionButton label="Upload More Docs" />
           <ActionButton label="Run Case Assessment" />
           <ActionButton label="Analyse Settlement Offer" />
@@ -877,6 +957,54 @@ export default function MatterDetailView() {
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────
+
+/** Top bar extracted for reuse in loading/error states. */
+function MatterDetailTopBar() {
+  return (
+    <header
+      style={{
+        background: navy,
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 28px',
+        height: 64,
+      }}
+      role="banner"
+    >
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <a
+          href="#/"
+          style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }}
+          aria-label="DemandPay Starling home"
+        >
+          <span style={{ display: 'flex', gap: 4 }} aria-hidden="true">
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: orange, display: 'block' }} />
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f26a3d', display: 'block' }} />
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff8a5c', display: 'block' }} />
+          </span>
+          <span style={{ fontFamily: serif, lineHeight: 1, letterSpacing: 1 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', display: 'block' }}>DEMAND</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', display: 'block' }}>PAY</span>
+          </span>
+        </a>
+        <span
+          style={{
+            marginLeft: 14,
+            paddingLeft: 16,
+            borderLeft: '1px solid rgba(255,255,255,0.18)',
+            fontFamily: serif,
+            fontSize: 15,
+            color: '#cfd6e0',
+          }}
+        >
+          <b style={{ color: '#fff' }}>Starling</b> &middot; Employment Law
+        </span>
+      </div>
+    </header>
+  );
+}
 
 function FactItem({ label, value, isLast, valueColour }: { label: string; value: string; isLast?: boolean; valueColour?: string }) {
   return (

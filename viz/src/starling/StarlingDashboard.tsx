@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useMatterList } from './hooks/useStarlingApi.js';
 
 // ── Design Tokens (CSS variable references) ─────────────────────────────
 const navy = '#0f1a2e';
@@ -174,15 +175,22 @@ export default function StarlingDashboard() {
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [hoveredMatter, setHoveredMatter] = useState<string | null>(null);
 
-  // Filter matters
+  // Wire hook data
+  const { matters, loading, refresh } = useMatterList();
+
+  // Separate active and completed matters
+  const activeMatters = matters.filter(m => m.status !== 'complete');
+  const completedMatters = matters.filter(m => m.status === 'complete');
+
+  // Filter active matters
   const filteredMatters = activeFilter === 'all'
-    ? DEMO_MATTERS
-    : DEMO_MATTERS.filter(m => m.status === activeFilter);
+    ? activeMatters
+    : activeMatters.filter(m => m.status === activeFilter);
 
   // Stats
-  const urgentCount = DEMO_MATTERS.filter(m => m.status === 'urgent').length;
-  const staleCount = DEMO_MATTERS.filter(m => m.status === 'stale').length;
-  const activeCount = DEMO_MATTERS.length;
+  const urgentCount = activeMatters.filter(m => m.status === 'urgent').length;
+  const staleCount = activeMatters.filter(m => m.status === 'stale').length;
+  const activeCount = activeMatters.length;
 
   const handleNav = useCallback((hash: string) => {
     window.location.hash = hash;
@@ -410,6 +418,21 @@ export default function StarlingDashboard() {
         </div>
 
         {/* Matter list */}
+        {loading && (
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: muted, fontSize: 14, background: '#fff', border: `1px solid ${border}` }}>
+            Loading matters...
+          </div>
+        )}
+        {!loading && matters.length === 0 && (
+          <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fff', border: `1px solid ${border}` }}>
+            <div style={{ fontSize: 15, color: ink, fontWeight: 600, marginBottom: 8 }}>No matters yet</div>
+            <div style={{ fontSize: 13.5, color: muted, marginBottom: 14 }}>Create your first matter to get started.</div>
+            <a href="#/new-matter" style={{ fontSize: 13.5, fontWeight: 600, color: orange, textDecoration: 'none' }}>
+              Create your first matter &rarr;
+            </a>
+          </div>
+        )}
+        {!loading && filteredMatters.length > 0 && (
         <div
           style={{ background: '#fff', border: `1px solid ${border}` }}
           role="list"
@@ -438,10 +461,10 @@ export default function StarlingDashboard() {
                   background: hoveredMatter === matter.id ? '#fcfbf9' : 'transparent',
                   transition: 'background 0.15s',
                 }}
-                onClick={() => handleNav('#/matter-detail')}
+                onClick={() => handleNav(`#/matter-detail/${matter.id}`)}
                 onMouseEnter={() => setHoveredMatter(matter.id)}
                 onMouseLeave={() => setHoveredMatter(null)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav('#/matter-detail'); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav(`#/matter-detail/${matter.id}`); } }}
                 tabIndex={0}
                 role="button"
                 aria-label={`Open matter: ${matter.name}`}
@@ -494,12 +517,13 @@ export default function StarlingDashboard() {
             </div>
           ))}
 
-          {filteredMatters.length === 0 && (
-            <div style={{ padding: '24px 20px', textAlign: 'center', color: muted, fontSize: 14 }}>
-              No matters match this filter.
-            </div>
-          )}
         </div>
+        )}
+        {!loading && matters.length > 0 && filteredMatters.length === 0 && (
+          <div style={{ padding: '24px 20px', textAlign: 'center', color: muted, fontSize: 14, background: '#fff', border: `1px solid ${border}` }}>
+            No matters match this filter.
+          </div>
+        )}
 
         {/* ── Completed (collapsed) ──────────────────────────── */}
         <div
@@ -518,7 +542,7 @@ export default function StarlingDashboard() {
           <span style={{ flex: 1, height: 1, background: border }} aria-hidden="true" />
         </div>
 
-        {!showCompleted ? (
+        {completedMatters.length > 0 && !showCompleted ? (
           <div
             style={{
               fontSize: 13,
@@ -532,11 +556,11 @@ export default function StarlingDashboard() {
             }}
           >
             <span>
-              {'\u2705'} {COMPLETED_MATTERS.length} completed matters &mdash;{' '}
-              {COMPLETED_MATTERS.map((name, i) => (
-                <span key={name}>
-                  <b style={{ color: ink }}>{name}</b>
-                  {i < COMPLETED_MATTERS.length - 1 ? ', ' : ''}
+              {completedMatters.length} completed matter{completedMatters.length !== 1 ? 's' : ''} &mdash;{' '}
+              {completedMatters.map((m, i) => (
+                <span key={m.id}>
+                  <b style={{ color: ink }}>{m.name}</b>
+                  {i < completedMatters.length - 1 ? ', ' : ''}
                 </span>
               ))}
             </span>
@@ -556,24 +580,26 @@ export default function StarlingDashboard() {
               Show completed &rarr;
             </button>
           </div>
-        ) : (
+        ) : completedMatters.length > 0 ? (
           <div style={{ background: '#fff', border: `1px solid ${border}` }}>
-            {COMPLETED_MATTERS.map((name, idx) => (
+            {completedMatters.map((m, idx) => (
               <div
-                key={name}
+                key={m.id}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '6px 1fr',
                   gap: 0,
-                  borderBottom: idx < COMPLETED_MATTERS.length - 1 ? `1px solid ${border}` : 'none',
+                  borderBottom: idx < completedMatters.length - 1 ? `1px solid ${border}` : 'none',
                   alignItems: 'stretch',
+                  cursor: 'pointer',
                 }}
+                onClick={() => handleNav(`#/matter-detail/${m.id}`)}
               >
                 <div style={{ width: 6, background: green }} aria-hidden="true" />
                 <div style={{ padding: '16px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14 }} aria-hidden="true">{'\u2705'}</span>
-                    <span style={{ fontFamily: serif, fontSize: 16.5, color: navy, fontWeight: 600 }}>{name}</span>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: green, display: 'inline-block' }} aria-hidden="true" />
+                    <span style={{ fontFamily: serif, fontSize: 16.5, color: navy, fontWeight: 600 }}>{m.name}</span>
                     <span
                       style={{
                         marginLeft: 'auto',
@@ -608,7 +634,7 @@ export default function StarlingDashboard() {
               </button>
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* ── Footer ──────────────────────────────────────────── */}
         <footer style={{ marginTop: 40, color: muted, fontSize: 12, textAlign: 'center' }} role="contentinfo">

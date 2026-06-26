@@ -8,7 +8,9 @@
  * Ontario employment law vocabulary. Canadian spelling throughout.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
+import { useProcessing } from './hooks/useStarlingApi.js';
+import { SOURCE_TAGS } from './hooks/stepMapping.js';
 
 // -- Design Tokens --------------------------------------------------------
 const navy = '#0f1a2e';
@@ -41,60 +43,6 @@ interface ActivityItem {
   tagLabel: string;
 }
 
-// -- Demo Data ------------------------------------------------------------
-
-const INITIAL_STEPS: PipelineStep[] = [
-  { label: 'Reading your documents', subtitle: 'Termination letter, employment agreement, ROE -- facts extracted', state: 'run' },
-  { label: 'Identifying legal issues', subtitle: undefined, state: 'todo' },
-  { label: 'Calculating entitlements', subtitle: undefined, state: 'todo' },
-  { label: 'Drafting the demand letter', subtitle: undefined, state: 'todo' },
-  { label: "Stress-testing from the employer's perspective", subtitle: undefined, state: 'todo' },
-  { label: 'Strengthening weak points', subtitle: undefined, state: 'todo' },
-  { label: 'Verifying accuracy (8 checks)', subtitle: undefined, state: 'todo' },
-  { label: 'Final quality review', subtitle: undefined, state: 'todo' },
-];
-
-const STEP_SUBTITLES: Record<number, string> = {
-  0: 'Termination letter, employment agreement, ROE -- facts extracted',
-  1: 'Found 4 issues -- 2 strong, 2 moderate',
-  2: 'ESA notice: 8 weeks ($14,615) / Common law: 10\u201314 months ($79,167\u2013$110,833)',
-  3: 'Positioning the demand, assembling authorities and source attribution',
-  4: 'Running adversarial analysis from the employer\u2019s perspective',
-  5: 'Addressing vulnerabilities found during stress test',
-  6: '8-pass evaluation with independent recalculation',
-  7: 'Checking tone, formatting, and deliverable completeness',
-};
-
-const ACTIVITY_FEED: ActivityItem[] = [
-  {
-    who: 'Calculating damages',
-    finding: 'Assessing entitlements across 33 potential heads of damage...',
-    findingBold: '33 potential heads',
-    tag: 'verified',
-    tagLabel: 'verified \u00B7 case_db',
-  },
-  {
-    who: 'Finding',
-    finding: 'Termination clause is void under Waksdale v Swegon (2020 ONCA 391) -- defaults client to common law notice.',
-    findingBold: 'void',
-    tag: 'verified',
-    tagLabel: 'verified \u00B7 case_db',
-  },
-  {
-    who: 'Finding',
-    finding: 'ESA statutory notice confirmed at 8 weeks under s. 57(h).',
-    findingBold: '8 weeks',
-    tag: 'verified',
-    tagLabel: 'verified \u00B7 statute',
-  },
-  {
-    who: 'Finding',
-    finding: 'Comparable-role availability for senior marketing managers appears limited in current market -- supports upper Bardal range.',
-    tag: 'web',
-    tagLabel: 'web source \u00B7 verify',
-  },
-];
-
 // -- Keyframes injection (once) -------------------------------------------
 
 const PULSE_KEYFRAMES = `
@@ -116,47 +64,38 @@ function injectKeyframes() {
 // -- Component ------------------------------------------------------------
 
 export default function ProcessingView() {
-  const [steps, setSteps] = useState<PipelineStep[]>(INITIAL_STEPS);
-  const [costSoFar, setCostSoFar] = useState(0.32);
+  // Extract sessionId from URL hash: #/processing/SESSION_ID
+  const sessionId = window.location.hash.match(/#\/processing\/(.+)/)?.[1] ?? null;
+
+  const { steps: hookSteps, findings, cost, status, gateRequest, approveGate } = useProcessing(sessionId);
 
   // Inject CSS keyframes on mount
   useEffect(() => { injectKeyframes(); }, []);
-
-  // Simulate step progression for demo
-  useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const advanceStep = (completedIndex: number, delay: number) => {
-      timers.push(setTimeout(() => {
-        setSteps(prev => prev.map((s, i) => {
-          if (i === completedIndex) return { ...s, state: 'done' as const, subtitle: STEP_SUBTITLES[i] };
-          if (i === completedIndex + 1) return { ...s, state: 'run' as const, subtitle: STEP_SUBTITLES[i] };
-          return s;
-        }));
-        // Increment cost with each step
-        setCostSoFar(prev => Math.min(prev + 0.15 + Math.random() * 0.2, 3.47));
-      }, delay));
-    };
-
-    // Steps complete one by one over ~10 seconds
-    advanceStep(0, 1200);
-    advanceStep(1, 2800);
-    advanceStep(2, 4500);
-    // Step 3 stays as "run" longer (drafting takes time)
-    // Steps 4-7 advance faster at the end
-    advanceStep(3, 7000);
-    advanceStep(4, 8200);
-    advanceStep(5, 9000);
-    advanceStep(6, 9800);
-
-    return () => timers.forEach(clearTimeout);
-  }, []);
 
   const handleNav = useCallback((hash: string) => {
     window.location.hash = hash;
   }, []);
 
-  const budget = 5.0;
-  const costPct = Math.round((costSoFar / budget) * 100);
+  // Map hook steps to local PipelineStep shape
+  const mappedSteps: PipelineStep[] = hookSteps.map(s => ({
+    label: s.label,
+    subtitle: s.detail,
+    state: s.status === 'done' ? 'done' : s.status === 'active' ? 'run' : 'todo',
+  }));
+
+  // Map hook findings to local ActivityItem shape
+  const activityItems: ActivityItem[] = findings.map(f => {
+    const tag = SOURCE_TAGS[f.sourceType];
+    const isVerified = tag?.trustLevel === 'high';
+    return {
+      who: 'Finding',
+      finding: f.text,
+      tag: isVerified ? 'verified' : 'web',
+      tagLabel: tag?.label ?? f.sourceType,
+    };
+  });
+
+  const costPct = cost.percentage;
 
   return (
     <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' as const }}>
@@ -169,26 +108,76 @@ export default function ProcessingView() {
         <nav style={{ color: muted, fontSize: 13, marginBottom: 14 }} aria-label="Breadcrumb">
           <a href="#/" style={{ color: 'inherit', textDecoration: 'none' }} onClick={() => handleNav('#/')}>My Matters</a>
           {' > '}
-          <a href="#/matter-detail" style={{ color: 'inherit', textDecoration: 'none' }}>Smith v Acme Corp</a>
-          {' > '}
-          <span>Drafting</span>
+          <span>{sessionId ? `Session ${sessionId.slice(0, 8)}` : 'Drafting'}</span>
         </nav>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
           <h1 style={{ fontFamily: serif, fontWeight: 600, fontSize: 23, color: navy, margin: 0 }}>Drafting Demand Letter</h1>
-          <div style={{ fontSize: 13, color: muted }}>Smith v Acme Corp &middot; #STR-2026-003</div>
+          {sessionId && <div style={{ fontSize: 13, color: muted }}>{sessionId.slice(0, 12)}</div>}
         </div>
         <p style={{ color: muted, fontSize: 14, marginBottom: 24 }}>
           Starling is working through the matter. You can leave this screen -- you will be notified when the draft is ready for your review.
         </p>
 
+        {/* Gate approval dialog */}
+        {gateRequest && (
+          <div style={{
+            background: '#fff',
+            border: `2px solid ${orange}`,
+            borderRadius: 2,
+            padding: '18px 22px',
+            marginBottom: 20,
+          }}>
+            <div style={{ fontWeight: 600, color: navy, fontSize: 14, marginBottom: 8 }}>
+              Approval required
+            </div>
+            <div style={{ fontSize: 13.5, color: muted, marginBottom: 14 }}>
+              {gateRequest.summary}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => approveGate('approve')}
+                style={{
+                  background: green,
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: '9px 18px',
+                  borderRadius: 2,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: sans,
+                }}
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => approveGate('reject')}
+                style={{
+                  background: '#fff',
+                  color: '#dc2626',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: '9px 18px',
+                  borderRadius: 2,
+                  border: '1px solid #dc2626',
+                  cursor: 'pointer',
+                  fontFamily: sans,
+                }}
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Grid: steps + sidebar */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 20, alignItems: 'start' }}>
           {/* Steps checklist */}
           <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '8px 0' }}>
-            {steps.map((step, i) => (
-              <StepRow key={i} step={step} isLast={i === steps.length - 1} />
+            {mappedSteps.map((step, i) => (
+              <StepRow key={i} step={step} isLast={i === mappedSteps.length - 1} />
             ))}
           </div>
 
@@ -204,14 +193,20 @@ export default function ProcessingView() {
                   fontWeight: 700,
                   letterSpacing: '0.08em',
                   color: '#fff',
-                  background: orange,
+                  background: status === 'complete' ? green : orange,
                   padding: '2px 7px',
                   borderRadius: 2,
-                }}>LIVE</span>
+                }}>{status === 'complete' ? 'DONE' : 'LIVE'}</span>
               </h3>
-              {ACTIVITY_FEED.map((act, i) => (
-                <ActivityRow key={i} item={act} isLast={i === ACTIVITY_FEED.length - 1} />
-              ))}
+              {activityItems.length > 0 ? (
+                activityItems.map((act, i) => (
+                  <ActivityRow key={i} item={act} isLast={i === activityItems.length - 1} />
+                ))
+              ) : (
+                <div style={{ fontSize: 13, color: '#9fb0c4', padding: '8px 0' }}>
+                  Waiting for findings...
+                </div>
+              )}
             </div>
 
             {/* Cost Tracker */}
@@ -219,7 +214,7 @@ export default function ProcessingView() {
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
                 <span style={{ fontSize: 13, color: muted }}>Cost so far</span>
                 <span style={{ fontFamily: serif, fontSize: 20, color: navy, fontWeight: 600 }}>
-                  ${costSoFar.toFixed(2)} <small style={{ fontSize: 12, color: muted, fontWeight: 400 }}>/ $5.00 budget</small>
+                  ${cost.spent.toFixed(2)} <small style={{ fontSize: 12, color: muted, fontWeight: 400 }}>/ ${cost.budget.toFixed(2)} budget</small>
                 </span>
               </div>
               {/* Progress bar */}
@@ -231,22 +226,41 @@ export default function ProcessingView() {
               </div>
             </div>
 
-            {/* Cancel button */}
+            {/* View Results / Cancel button */}
             <div style={{ textAlign: 'center' }}>
-              <button
-                onClick={() => handleNav('#/')}
-                style={{
-                  background: '#fff',
-                  border: `1px solid ${border}`,
-                  color: muted,
-                  fontSize: 13,
-                  padding: '9px 18px',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel and return to matter
-              </button>
+              {status === 'complete' && sessionId ? (
+                <button
+                  onClick={() => handleNav(`#/results/${sessionId}`)}
+                  style={{
+                    background: orange,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    padding: '13px 24px',
+                    borderRadius: 2,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: sans,
+                  }}
+                >
+                  View Results
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleNav('#/')}
+                  style={{
+                    background: '#fff',
+                    border: `1px solid ${border}`,
+                    color: muted,
+                    fontSize: 13,
+                    padding: '9px 18px',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel and return to matter
+                </button>
+              )}
             </div>
           </div>
         </div>
