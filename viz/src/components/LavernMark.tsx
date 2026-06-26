@@ -62,7 +62,11 @@ export function LavernMark({ size = 28, onClick, hideCursor }: LavernMarkProps) 
       }}
       aria-label="Starling — Home"
     >
-      L
+      <span style={{ display: 'flex', gap: 3 }} aria-hidden="true">
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ea580c', display: 'block' }} />
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f26a3d', display: 'block' }} />
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff8a5c', display: 'block' }} />
+      </span>
     </button>
   );
 }

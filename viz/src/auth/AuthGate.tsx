@@ -11,23 +11,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { UserContext, type AuthUser } from './UserContext.js';
 import { IS_STANDALONE } from '../standalone.js';
 import { colors, fonts } from '../staffing/styles/tokens.js';
-import { LavernIlluminated } from '../components/LavernIlluminated.js';
+import { StarlingWordmark } from '../components/StarlingWordmark.js';
 
 interface Props {
   children: React.ReactNode;
 }
 
 export function AuthGate({ children }: Props) {
-  // LOCAL MODE: synthetic user, no auth check
-  const [user, setUser] = useState<AuthUser | null>({
-    id: 'local-user',
-    email: 'local@localhost',
-    displayName: 'Local User',
-    firmName: '',
-    profile: {},
-    emailVerified: true,
-  });
-  const [checking, setChecking] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [checking, setChecking] = useState(true);
 
   // Check for existing session on mount (API mode only)
   useEffect(() => {
@@ -38,13 +30,20 @@ export function AuthGate({ children }: Props) {
     const timeout = setTimeout(() => controller.abort(), 5000);
 
     fetch('/api/auth/me', { credentials: 'include', signal: controller.signal })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        if (r.status === 404) {
+          // Auth routes not registered (LOCAL MODE) — inject synthetic user
+          return { user: { id: 'local-user', email: 'local@localhost', displayName: 'Local User', firmName: '', profile: {}, emailVerified: true } };
+        }
+        return r.ok ? r.json() : null;
+      })
       .then(data => {
         setUser(data?.user ?? null);
         setChecking(false);
       })
       .catch(() => {
-        // Network error or timeout — proceed as unauthenticated
+        // Network error or timeout — fall back to local-user so app is usable
+        setUser({ id: 'local-user', email: 'local@localhost', displayName: 'Local User', firmName: '', profile: {}, emailVerified: true });
         setChecking(false);
       })
       .finally(() => clearTimeout(timeout));
@@ -72,7 +71,7 @@ export function AuthGate({ children }: Props) {
   if (checking) {
     return (
       <div style={loadingStyles.wrap}>
-        <div style={loadingStyles.text}><LavernIlluminated color={colors.textDim} /></div>
+        <div style={loadingStyles.text}><StarlingWordmark color={colors.textDim} /></div>
       </div>
     );
   }

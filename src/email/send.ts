@@ -62,9 +62,9 @@ function esc(str: string): string {
 // ── Shared styling ───────────────────────────────────────────────────────
 
 const BRAND = {
-  bg: '#0A0A0F',
-  surface: '#141419',
-  gold: '#C9A227',
+  bg: '#0f1a2e',
+  surface: '#162240',
+  accent: '#ea580c',
   text: '#FAF9F6',
   textDim: 'rgba(250, 249, 246, 0.55)',
   border: 'rgba(250, 249, 246, 0.08)',
@@ -77,12 +77,13 @@ function emailWrapper(content: string): string {
 <body style="margin:0;padding:0;background:${BRAND.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:48px 28px;">
     <div style="text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:300;letter-spacing:8px;color:${BRAND.text};font-family:Georgia,'Times New Roman',serif;">LAVERN</span>
+      <span style="font-size:22px;font-weight:700;letter-spacing:4px;color:${BRAND.text};font-family:Georgia,'Times New Roman',serif;">DEMANDPAY</span>
+      <span style="font-size:12px;letter-spacing:3px;color:${BRAND.textDim};display:block;margin-top:4px;">STARLING</span>
     </div>
     ${content}
     <div style="text-align:center;margin-top:40px;padding-top:24px;border-top:1px solid ${BRAND.border};">
       <span style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${BRAND.textDim};">
-        The World's First Driverless Law Firm
+        Ontario Employment Law Intelligence
       </span>
     </div>
   </div>
@@ -168,7 +169,7 @@ async function send(payload: EmailPayload): Promise<boolean> {
 export async function sendWaitlistConfirmation(email: string): Promise<boolean> {
   return send({
     to: email,
-    subject: "You're on the Lavern waitlist",
+    subject: "You're on the DemandPay Starling waitlist",
     text: "You're on the list. We'll send your invite code when it's your turn.",
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
@@ -177,7 +178,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<boolean> 
         </h2>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:${BRAND.textDim};">
           We're letting people in gradually. When it's your turn, we'll send you
-          an invite code with <strong style="color:${BRAND.gold};">50 free billable hours</strong>
+          an invite code with <strong style="color:${BRAND.accent};">50 free billable hours</strong>
           to get started.
         </p>
         <p style="margin:0;font-size:13px;color:${BRAND.textDim};">
@@ -192,7 +193,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<boolean> 
 export async function sendInviteEmail(email: string, inviteCode: string): Promise<boolean> {
   return send({
     to: email,
-    subject: "Your Lavern invite is ready",
+    subject: "Your DemandPay Starling invite is ready",
     text: `Your invite code: ${inviteCode} — Sign up at ${config.email.appUrl} with this code and your email. You'll get 50 free billable hours.`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
@@ -200,20 +201,20 @@ export async function sendInviteEmail(email: string, inviteCode: string): Promis
           You're in.
         </h2>
         <p style="margin:0 0 24px;font-size:14px;line-height:1.7;color:${BRAND.textDim};">
-          Your invite to Lavern is ready. Use the code below to create your account.
+          Your invite to DemandPay Starling is ready. Use the code below to create your account.
         </p>
         <div style="text-align:center;margin:24px 0;padding:20px;background:rgba(201,162,39,0.06);border:1px solid rgba(201,162,39,0.2);border-radius:8px;">
           <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${BRAND.textDim};margin-bottom:8px;">Your Invite Code</div>
-          <div style="font-size:24px;font-family:'Courier New',monospace;font-weight:600;color:${BRAND.gold};letter-spacing:2px;">
+          <div style="font-size:24px;font-family:'Courier New',monospace;font-weight:600;color:${BRAND.accent};letter-spacing:2px;">
             ${esc(inviteCode)}
           </div>
         </div>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:${BRAND.textDim};">
-          Sign up at <a href="${esc(config.email.appUrl)}" style="color:${BRAND.gold};text-decoration:none;">${esc(config.email.appUrl)}</a>
+          Sign up at <a href="${esc(config.email.appUrl)}" style="color:${BRAND.accent};text-decoration:none;">${esc(config.email.appUrl)}</a>
           using <strong style="color:${BRAND.text};">${esc(email)}</strong> and this code.
         </p>
         <p style="margin:0;font-size:14px;color:${BRAND.text};">
-          You'll get <strong style="color:${BRAND.gold};">50 free billable hours</strong> — enough for
+          You'll get <strong style="color:${BRAND.accent};">50 free billable hours</strong> — enough for
           several document reviews.
         </p>
       </div>
@@ -225,7 +226,7 @@ export async function sendInviteEmail(email: string, inviteCode: string): Promis
 export async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<boolean> {
   return send({
     to: email,
-    subject: 'Reset your Lavern password',
+    subject: 'Reset your DemandPay Starling password',
     text: `Reset your password: ${resetUrl} — This link expires in 1 hour.`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
@@ -237,7 +238,7 @@ export async function sendPasswordResetEmail(email: string, resetUrl: string): P
           This link expires in <strong style="color:${BRAND.text};">1 hour</strong>.
         </p>
         <div style="text-align:center;margin:24px 0;">
-          <a href="${esc(resetUrl)}" style="display:inline-block;padding:14px 32px;background:${BRAND.gold};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
+          <a href="${esc(resetUrl)}" style="display:inline-block;padding:14px 32px;background:${BRAND.accent};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
             Reset Password
           </a>
         </div>
@@ -253,7 +254,7 @@ export async function sendPasswordResetEmail(email: string, resetUrl: string): P
 export async function sendVerificationEmail(email: string, verifyUrl: string): Promise<boolean> {
   return send({
     to: email,
-    subject: 'Verify your Lavern email',
+    subject: 'Verify your DemandPay Starling email',
     text: `Verify your email: ${verifyUrl} — This link expires in 24 hours.`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
@@ -265,12 +266,12 @@ export async function sendVerificationEmail(email: string, verifyUrl: string): P
           <strong style="color:${BRAND.text};">24 hours</strong>.
         </p>
         <div style="text-align:center;margin:24px 0;">
-          <a href="${esc(verifyUrl)}" style="display:inline-block;padding:14px 32px;background:${BRAND.gold};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
+          <a href="${esc(verifyUrl)}" style="display:inline-block;padding:14px 32px;background:${BRAND.accent};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
             Verify Email
           </a>
         </div>
         <p style="margin:0;font-size:12px;color:${BRAND.textDim};">
-          If you didn't create a Lavern account, you can safely ignore this email.
+          If you didn't create a DemandPay Starling account, you can safely ignore this email.
         </p>
       </div>
     `),
@@ -282,7 +283,7 @@ export async function sendReferralEmail(email: string, displayName: string | und
   const greeting = esc(displayName || 'there');
   return send({
     to: email,
-    subject: `You earned ${hoursEarned} hours — someone joined Lavern with your link`,
+    subject: `You earned ${hoursEarned} hours — someone joined DemandPay Starling with your link`,
     text: `Someone signed up with your referral link. You earned ${hoursEarned} billable hours. Keep sharing: ${config.email.appUrl}`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
@@ -291,13 +292,13 @@ export async function sendReferralEmail(email: string, displayName: string | und
         </h2>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:${BRAND.textDim};">
           Someone signed up with your referral link. We've credited
-          <strong style="color:${BRAND.gold};">${hoursEarned} billable hours</strong> to your account.
+          <strong style="color:${BRAND.accent};">${hoursEarned} billable hours</strong> to your account.
         </p>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:${BRAND.textDim};">
           Keep sharing — every signup earns you both ${hoursEarned} hours.
         </p>
         <div style="text-align:center;margin-top:28px;">
-          <a href="${config.email.appUrl}/#/my-page" style="display:inline-block;padding:14px 32px;background:${BRAND.gold};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
+          <a href="${config.email.appUrl}/#/my-page" style="display:inline-block;padding:14px 32px;background:${BRAND.accent};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
             View Your Balance
           </a>
         </div>
@@ -311,8 +312,8 @@ export async function sendWelcomeEmail(email: string, displayName?: string): Pro
   const greeting = esc(displayName ? displayName : 'there');
   return send({
     to: email,
-    subject: "Welcome to Lavern — 50 hours on us",
-    text: `Welcome to Lavern! You have 50 billable hours to start. One hour = $0.10 of compute. Start at ${config.email.appUrl}`,
+    subject: "Welcome to DemandPay Starling — 50 hours on us",
+    text: `Welcome to DemandPay Starling! You have 50 billable hours to start. One hour = $0.10 of compute. Start at ${config.email.appUrl}`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
         <h2 style="margin:0 0 16px;font-size:22px;font-weight:300;color:${BRAND.text};font-family:Georgia,'Times New Roman',serif;">
@@ -320,8 +321,8 @@ export async function sendWelcomeEmail(email: string, displayName?: string): Pro
         </h2>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:${BRAND.textDim};">
           Your account is live. We've credited you
-          <strong style="color:${BRAND.gold};">50 billable hours</strong> to explore
-          everything Lavern can do.
+          <strong style="color:${BRAND.accent};">50 billable hours</strong> to explore
+          everything DemandPay Starling can do.
         </p>
         <div style="margin:20px 0;padding:16px 20px;background:rgba(201,162,39,0.06);border-radius:8px;border:1px solid rgba(201,162,39,0.12);">
           <div style="font-size:13px;color:${BRAND.textDim};line-height:1.6;">
@@ -332,7 +333,7 @@ export async function sendWelcomeEmail(email: string, displayName?: string): Pro
           </div>
         </div>
         <div style="text-align:center;margin-top:28px;">
-          <a href="${config.email.appUrl}" style="display:inline-block;padding:14px 32px;background:${BRAND.gold};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
+          <a href="${config.email.appUrl}" style="display:inline-block;padding:14px 32px;background:${BRAND.accent};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
             Start Your First Engagement
           </a>
         </div>
@@ -352,11 +353,11 @@ export async function sendClawAlertEmail(
 ): Promise<boolean> {
   return send({
     to: email,
-    subject: `Lavern: ${title}`,
+    subject: `DemandPay Starling: ${title}`,
     text: `${title}\n\n${message}\n\n${dashboardUrl ? `Dashboard: ${dashboardUrl}` : ''}`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:28px;border:1px solid ${BRAND.border};">
-        <div style="font-size:18px;font-weight:600;color:${BRAND.gold};margin-bottom:12px;font-family:Georgia,'Times New Roman',serif;">
+        <div style="font-size:18px;font-weight:600;color:${BRAND.accent};margin-bottom:12px;font-family:Georgia,'Times New Roman',serif;">
           ${esc(title)}
         </div>
         <div style="font-size:14px;color:${BRAND.text};line-height:1.6;margin-bottom:20px;">
@@ -364,7 +365,7 @@ export async function sendClawAlertEmail(
         </div>
         ${dashboardUrl ? `
         <div style="text-align:center;margin-top:20px;">
-          <a href="${dashboardUrl}" style="display:inline-block;padding:12px 28px;background:${BRAND.gold};color:${BRAND.bg};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
+          <a href="${dashboardUrl}" style="display:inline-block;padding:12px 28px;background:${BRAND.accent};color:${BRAND.bg};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
             View in Dashboard
           </a>
         </div>
@@ -395,7 +396,7 @@ export async function sendClawDigestEmail(
     text: `Weekly Digest: ${period}\n\n${documentsProcessed} documents processed\nFindings: ${findings}\nCost: $${costUsd.toFixed(2)}\nPrecedents learned: ${precedentsLearned}\nBudget remaining: $${budgetRemainingUsd.toFixed(2)}`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:28px;border:1px solid ${BRAND.border};">
-        <div style="font-size:18px;font-weight:600;color:${BRAND.gold};margin-bottom:20px;font-family:Georgia,'Times New Roman',serif;">
+        <div style="font-size:18px;font-weight:600;color:${BRAND.accent};margin-bottom:20px;font-family:Georgia,'Times New Roman',serif;">
           Weekly Digest
         </div>
         <div style="font-size:11px;color:${BRAND.textDim};letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;">

@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { colors, fonts, radii, spacing } from '../staffing/styles/tokens.js';
-import { LavernIlluminated } from '../components/LavernIlluminated.js';
+import { StarlingWordmark } from '../components/StarlingWordmark.js';
 import type { AuthUser } from './UserContext.js';
 
 interface Props {
@@ -142,7 +142,7 @@ export default function LoginView({ onAuth, onBack }: Props) {
       {/* Card */}
       <div style={styles.card}>
         {/* Wordmark */}
-        <h1 style={styles.wordmark}><LavernIlluminated color="rgba(26,26,26,0.8)" /></h1>
+        <h1 style={styles.wordmark}><StarlingWordmark /></h1>
 
         {/* Thin rule */}
         <div style={styles.rule} />
@@ -155,7 +155,7 @@ export default function LoginView({ onAuth, onBack }: Props) {
           {mode === 'forgot'
             ? "Enter your email and we'll send a reset link."
             : isSignup
-            ? 'Join the agentic law firm.'
+            ? 'Ontario employment law intelligence.'
             : 'Sign in to your Starling account.'}
         </p>
 
