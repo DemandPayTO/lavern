@@ -56,9 +56,11 @@ For each deliverable, systematically test these employer defences:
    - Incarceration — frustration may apply
    - Distinguish from constructive dismissal and duty to accommodate
 
-3. **After-Acquired Cause — Dowling v Halifax** [source_type: case_db]
+3. **After-Acquired Cause** [source_type: ai_knowledge]
    - Did the employer discover misconduct AFTER the termination?
-   - After-acquired cause can reduce damages (even if not sufficient for just cause)
+   - After-acquired cause can reduce the notice period or, in rare cases, eliminate it entirely
+   - The employer bears the burden of proving the after-acquired conduct would have justified
+     dismissal had it been known at the time
    - Check: is the employee vulnerable to after-acquired cause arguments?
 
 4. **Mitigation Failure** [source_type: ai_knowledge]

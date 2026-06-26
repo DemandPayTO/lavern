@@ -60,8 +60,8 @@ Before any substantive analysis, classify the relationship:
   Misclassification is rampant. When in doubt, the relationship is likely employment.
   [source_type: case_db]
 
-- **Employment Type**: Indefinite (most common), fixed-term (Ceccol v Ontario Gymnastics
-  Federation, 2001 ONCA), probationary (statutory minimums still apply), seasonal.
+- **Employment Type**: Indefinite (most common), fixed-term (Ceccol v Ontario Gymnastic
+  Federation, 2001 CanLII 8589 (ON CA)), probationary (statutory minimums still apply), seasonal.
   Fixed-term contracts are construed strictly against the employer — ambiguity means
   indefinite employment. [source_type: case_db]
 
