@@ -321,7 +321,8 @@ export default function MatterDetailView() {
   }, []);
 
   // Extract sessionId from hash
-  const sessionId = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1] ?? null;
+  const rawSid = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1] ?? null;
+  const sessionId = rawSid?.replace(/\s+/g, '') ?? null;
 
   // Wire hook data
   const { matter, loading, error } = useMatterDetail(sessionId);

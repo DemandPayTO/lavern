@@ -65,7 +65,8 @@ function injectKeyframes() {
 
 export default function ProcessingView() {
   // Extract sessionId from URL hash: #/processing/SESSION_ID
-  const sessionId = window.location.hash.match(/#\/processing\/(.+)/)?.[1] ?? null;
+  const rawSid = window.location.hash.match(/#\/processing\/(.+)/)?.[1] ?? null;
+  const sessionId = rawSid?.replace(/\s+/g, '') ?? null;
 
   const { steps: hookSteps, findings, cost, status, gateRequest, approveGate } = useProcessing(sessionId);
 

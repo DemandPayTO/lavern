@@ -141,8 +141,9 @@ export default function ResultsView() {
     window.location.hash = hash;
   }, []);
 
-  // Extract sessionId from hash
-  const sessionId = window.location.hash.match(/#\/results\/(.+)/)?.[1] ?? null;
+  // Extract sessionId from hash (strip any whitespace that may sneak in from copy-paste)
+  const rawSessionId = window.location.hash.match(/#\/results\/(.+)/)?.[1] ?? null;
+  const sessionId = rawSessionId?.replace(/\s+/g, '') ?? null;
 
   // Wire hook data
   const { document: doc, quality, issues, sources, verification, cost, loading } = useResults(sessionId);
