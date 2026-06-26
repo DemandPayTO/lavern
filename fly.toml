@@ -1,0 +1,46 @@
+# DemandPay Starling — Fly.io deployment config
+# Deploy: fly deploy --region yyz
+# Region: Toronto (yyz) — data stays in Canada
+
+app = "demandpay-starling"
+primary_region = "yyz"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  SHEM_PORT = "8080"
+  SHEM_HOST = "0.0.0.0"
+  SHEM_MODEL = "claude-sonnet-4-5"
+  SHEM_ROUTER_MODEL = "claude-sonnet-4-5"
+  SHEM_DEFAULT_BUDGET = "3.00"
+  SHEM_MAX_TURNS = "15"
+  SHEM_GENERIC_MAX_TURNS = "12"
+  SHEM_DB_PATH = "/data/starling.db"
+  SHEM_AUDIT_DIR = "/data/audit-logs"
+  SHEM_MEMORY_DIR = "/data/memory"
+  SHEM_REPORTS_DIR = "/data/reports"
+  SHEM_BASELINES_DIR = "/data/baselines"
+  SHEM_CORS_ORIGINS = "https://starling.demandpay.ca,https://demandpay-starling.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 50
+    soft_limit = 30
+
+# Persistent volume for SQLite + institutional memory
+[mounts]
+  source = "starling_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
