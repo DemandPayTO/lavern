@@ -407,11 +407,52 @@ export function useMatterCreate(): MatterCreateResult {
       }
 
       const sessionData = await sessionRes.json();
+      const sessionId = sessionData.sessionId ?? sessionData.id;
+
+      // Sync to DemandPay Supabase (fire-and-forget — Starling session is
+      // the source of truth; DemandPay record is for firm billing/tracking).
+      // Only runs if DEMANDPAY_API_URL is configured.
+      try {
+        const dpApiUrl = (window as Record<string, unknown>).__DEMANDPAY_API_URL as string | undefined;
+        const dpAuthToken = (window as Record<string, unknown>).__DEMANDPAY_AUTH_TOKEN as string | undefined;
+        if (dpApiUrl && dpAuthToken) {
+          // Convert dd/mm/yyyy to yyyy-mm-dd for the Edge Function
+          const toIso = (dmy: string | undefined): string | undefined => {
+            if (!dmy) return undefined;
+            const parts = dmy.trim().split('/');
+            if (parts.length !== 3) return undefined;
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          };
+
+          fetch(`${dpApiUrl}/functions/v1/createMatter`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${dpAuthToken}`,
+            },
+            body: JSON.stringify({
+              title: `${data.clientName} v. ${data.employerName}`,
+              termination_date: toIso(data.termDate) ?? undefined,
+              limitation_deadline: data.termDate ? toIso(data.termDate)?.replace(
+                /^(\d{4})/,
+                (_, y) => String(Number(y) + 2),
+              ) : undefined,
+              clients: [{ full_name: data.clientName, is_primary: true }],
+              respondents: [{ legal_name: data.employerName }],
+            }),
+          }).catch(() => {
+            // Silent fail — DemandPay sync is non-critical
+          });
+        }
+      } catch {
+        // Silent fail — DemandPay sync is non-critical
+      }
+
       setUploading(false);
 
       return {
-        sessionId: sessionData.sessionId ?? sessionData.id,
-        matterId: sessionData.matterId ?? sessionData.sessionId ?? sessionData.id,
+        sessionId,
+        matterId: sessionData.matterId ?? sessionId,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create matter';
