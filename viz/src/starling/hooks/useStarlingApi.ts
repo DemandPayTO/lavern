@@ -27,7 +27,7 @@ import {
 // ── Feature flag ────────────────────────────────────────────────────────
 
 /** Set false when the API is ready. When true, all hooks return static demo data. */
-const USE_DEMO_DATA = true;
+const USE_DEMO_DATA = false;
 
 // ── Shared types ────────────────────────────────────────────────────────
 

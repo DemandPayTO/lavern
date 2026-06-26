@@ -78,18 +78,14 @@ export async function dispatch(
   let workflowId: string;
 
   if (opts.forceWorkflow) {
-    // Forced workflow — skip routing
+    // Forced workflow — still run deterministic classification to get specialists
     workflowId = opts.forceWorkflow;
+    const { classifyRequest } = await import('./router/router.js');
+    const detClassification = classifyRequest(request);
     request.routerClassification = {
-      requestType: 'full_pipeline',
-      complexity: 'medium',
-      riskLevel: 'medium',
+      ...detClassification,
       selectedWorkflow: workflowId,
-      selectedSpecialists: [],
-      requiresDebate: false,
-      requiresEthicsFirst: false,
-      requiresConsistencyCheck: false,
-      reasoning: `Workflow forced by user: ${workflowId}`,
+      reasoning: `Workflow forced by user: ${workflowId}. Specialists from deterministic router.`,
     };
   } else {
     // Normal routing (LLM or deterministic)

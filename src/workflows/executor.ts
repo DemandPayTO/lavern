@@ -201,7 +201,9 @@ export async function runGenericWorkflow(
   const maxTeamSize = template.maxTeamSize ?? DEFAULT_MAX_TEAM_SIZE;
   const rawTeamRoles = session.selectedTeam.length > 0
     ? session.selectedTeam
-    : template.requiredAgents;
+    : classification.selectedSpecialists.length > 0
+      ? classification.selectedSpecialists
+      : template.requiredAgents;
   const teamRoles = rawTeamRoles.slice(0, maxTeamSize);
   if (rawTeamRoles.length > maxTeamSize) {
     logger.error('Capped team size', { from: rawTeamRoles.length, to: maxTeamSize });
