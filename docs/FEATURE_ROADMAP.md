@@ -84,7 +84,56 @@ B2C (individuals):
 - Future: lower base ($99) + per-document usage charges
 - Usage tracking runs behind the scenes now to collect data before switching
 
-### P3 — Document Management Integration
+### P3 — Pricing & Billing
+
+**Pilot phase (first 3 months): free.** Firm is beta testing. Track all usage data.
+
+**Post-pilot pricing tiers:**
+
+| Component | Monthly | What's included |
+|-----------|---------|-----------------|
+| **Firm Base** | $249 | Platform access, 1 lawyer seat, 5 documents/month, unlimited assessments, institutional memory, matter management, weekly digest |
+| **Additional seat** | $199/lawyer | Unlimited case assessments, intake analysis, document review, shared document pool |
+| **Extra documents** | $29/document | Demand letters, SOCs, mediation briefs, motion materials beyond monthly allocation |
+
+**Revenue examples:**
+
+| Firm size | Subscription | Seats | Documents (~8/mo) | Total |
+|-----------|-------------|-------|-------------------|-------|
+| Solo | $249 | Included | 3 extra × $29 | ~$336/mo |
+| 2-person | $249 | + $199 | 3 extra × $29 | ~$535/mo |
+| 2-person (heavy) | $249 | + $199 | 10 extra × $29 | ~$738/mo |
+| 5-person | $249 | + 4 × $199 | 15 extra × $29 | ~$1,480/mo |
+
+**Margins:**
+
+| Action | API cost | Charged | Margin |
+|--------|----------|---------|--------|
+| Case assessment | $0.30-$0.40 | Included in seat | Bundled |
+| Intake analysis | $0.50-$1.00 | Included in seat | Bundled |
+| Document review | $1-$2 | Included in seat | Bundled |
+| Demand letter generation | $3-$5 | $29/document | 6-10x |
+| SOC generation | $5-$8 | $29/document | 4-6x |
+
+**Target:** ~$300 average revenue per lawyer per month.
+
+**Implementation:**
+
+| Feature | Description | Effort | Dependencies |
+|---------|-------------|--------|-------------|
+| **Usage metering** | Track actions per user per billing period from existing spend tracker | 2-3 days | Spend tracker (built-in) |
+| **Stripe metered billing** | Connect usage data to Stripe metered subscriptions | 3-5 days | Stripe account |
+| **Firm billing dashboard** | Firm admin sees: matters this month, documents generated, cost, invoice | 2-3 days | Usage metering |
+| **Document quota enforcement** | Track included vs overage documents per billing period | 1-2 days | Usage metering |
+
+**Pricing data to collect during pilot:**
+- Average matters per lawyer per month
+- Average documents generated per matter
+- Average assessments/reviews per lawyer per month
+- Which features drive the most usage
+- Total API cost per firm per month
+
+### P4 — Document Management Integration
 
 | Feature | Description | Effort | Dependencies |
 |---------|-------------|--------|-------------|
@@ -94,7 +143,7 @@ B2C (individuals):
 | **Clio connector** | Integration with Clio practice management (common for Ontario firms) | 5-7 days | Clio API |
 | **iManage connector** | Integration for large firms using iManage DMS | 7-10 days | iManage API license |
 
-### P4 — Advanced Features
+### P5 — Advanced Features
 
 | Feature | Description | Effort | Dependencies |
 |---------|-------------|--------|-------------|
