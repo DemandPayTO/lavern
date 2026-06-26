@@ -460,13 +460,40 @@ export function useMatterList(): MatterListResult {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/sessions?limit=50', { credentials: 'include' });
+      // Fetch both live sessions and archived sessions, merge and deduplicate
+      const [liveRes, archiveRes] = await Promise.all([
+        fetch('/api/sessions?limit=50', { credentials: 'include' }).catch(() => null),
+        fetch('/api/sessions/archive', { credentials: 'include' }).catch(() => null),
+      ]);
 
-      if (!res.ok) throw new Error('Failed to fetch sessions');
       if (fetchId !== fetchCountRef.current) return; // stale response
 
-      const sessions: Array<Record<string, unknown>> = await res.json();
-      const mapped = sessions.map(mapSessionToMatterListItem);
+      let allSessions: Array<Record<string, unknown>> = [];
+
+      // Live sessions (returns { sessions: [...] } or [...])
+      if (liveRes?.ok) {
+        const liveData = await liveRes.json();
+        const liveSessions = Array.isArray(liveData) ? liveData : (liveData.sessions ?? []);
+        allSessions.push(...liveSessions);
+      }
+
+      // Archived sessions (returns { sessions: [...] } or { archives: [...] })
+      if (archiveRes?.ok) {
+        const archiveData = await archiveRes.json();
+        const archived = Array.isArray(archiveData) ? archiveData : (archiveData.sessions ?? archiveData.archives ?? []);
+        allSessions.push(...archived);
+      }
+
+      // Deduplicate by ID (live takes precedence over archive)
+      const seen = new Set<string>();
+      allSessions = allSessions.filter(s => {
+        const id = (s.id ?? s.sessionId) as string;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+
+      const mapped = allSessions.map(mapSessionToMatterListItem);
 
       // Sort: urgent → stale → active → complete
       const ORDER: Record<string, number> = { urgent: 0, stale: 1, active: 2, complete: 3 };
@@ -492,20 +519,25 @@ export function useMatterList(): MatterListResult {
  */
 function mapSessionToMatterListItem(session: Record<string, unknown>): MatterListItem {
   const id = (session.sessionId ?? session.id ?? '') as string;
-  const requestText = ((session.request as Record<string, unknown>)?.requestText ?? '') as string;
+
+  // Handle both live session (request.requestText) and archive (title) formats
+  const requestText = (
+    (session.request as Record<string, unknown>)?.requestText ??
+    session.title ??
+    ''
+  ) as string;
 
   // Try to extract client/employer name from the request text
-  const clientMatch = requestText.match(/Client:\s*(.+)/i);
-  const employerMatch = requestText.match(/Employer:\s*(.+)/i);
-  const clientName = clientMatch?.[1]?.trim() ?? 'Unknown client';
-  const employerName = employerMatch?.[1]?.trim() ?? 'Unknown employer';
+  const namePatterns = requestText.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:,|was|terminated|from)\s+(?:from\s+)?([A-Z][A-Za-z\s]+(?:Inc|Corp|Ltd|Co|LLC)?)/);
+  const clientName = namePatterns?.[1]?.trim() ?? requestText.slice(0, 30) || 'Untitled matter';
+  const employerName = namePatterns?.[2]?.trim() ?? '';
+  const name = employerName ? `${clientName} v ${employerName}` : clientName;
+  const number = `#STR-${id.slice(5, 13).toUpperCase()}`;
 
-  const name = `${clientName} v ${employerName}`;
-  const number = `#STR-${id.slice(0, 8).toUpperCase()}`;
-
-  // Infer status from workflow state
-  const step = (session.currentStep ?? session.step ?? '') as string;
-  const lastEvent = (session.lastEventTimestamp ?? session.updatedAt ?? '') as string;
+  // Infer status from workflow state (live: workflow.currentStep, archive: status)
+  const workflow = session.workflow as Record<string, unknown> | undefined;
+  const step = (workflow?.currentStep ?? session.status ?? '') as string;
+  const lastEvent = (session.lastEventTimestamp ?? session.completed_at ?? session.created_at ?? '') as string;
   const daysSinceActivity = lastEvent
     ? Math.floor((Date.now() - new Date(lastEvent).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
