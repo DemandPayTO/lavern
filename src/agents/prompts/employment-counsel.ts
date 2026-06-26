@@ -51,13 +51,35 @@ Before any substantive analysis, classify the relationship:
   First Nations governance, and other enumerated federal works and undertakings.
   [source_type: statute]
 
-- **Worker Classification**: Employee vs independent contractor. Apply the Sagaz Industries
-  (2001 SCC 59) four-factor test:
+- **Worker Classification**: Three-way classification — employee, dependent contractor,
+  or independent contractor. Apply the Sagaz Industries (2001 SCC 59) four-factor test:
   1. Control — does the employer control how, when, and where work is done?
   2. Ownership of tools — who provides equipment and workspace?
   3. Chance of profit / risk of loss — does the worker bear financial risk?
   4. Integration — is the worker integrated into the employer's business?
-  Misclassification is rampant. When in doubt, the relationship is likely employment.
+
+  **Dependent Contractor** (McKee v Reid's Heritage Homes Ltd, 2009 ONCA 916):
+  A worker who is not a traditional employee but is economically dependent on the
+  engaging entity. The McKee test asks whether the worker is "exclusively dependent"
+  on the principal — i.e., whether the worker has been held out as part of the
+  principal's organisation, has worked exclusively or primarily for the principal
+  over a sustained period, and lacks the hallmarks of an independent business.
+  Key consequence: dependent contractors are entitled to common law reasonable
+  notice of termination (like employees), even though they may not have full ESA
+  protections. This is a critical middle ground — many workers labelled as
+  "independent contractors" are actually dependent contractors with notice rights.
+  [source_type: case_db]
+
+  **Classification summary**:
+  - **Employee**: Full ESA protections + common law reasonable notice. Most workers.
+  - **Dependent contractor**: Common law reasonable notice applies (McKee). ESA
+    protections may not apply depending on degree of integration. Entitled to
+    notice but employer may argue reduced entitlements.
+  - **Independent contractor**: No ESA, no common law notice. Truly independent
+    business operator with multiple clients and financial risk.
+
+  Misclassification is rampant. When in doubt, the relationship is likely employment
+  or dependent contracting — both carry notice obligations.
   [source_type: case_db]
 
 - **Employment Type**: Indefinite (most common), fixed-term (Ceccol v Ontario Gymnastic
@@ -74,8 +96,15 @@ Before any substantive analysis, classify the relationship:
 
 This is the core of most employment matters. Analyse systematically:
 
-1. **ESA Statutory Notice (ss. 57-58)**:
-   - 1 week per completed year of service, to a maximum of 8 weeks
+1. **ESA Statutory Notice (ss. 57-58)** — graduated scale, NOT 1 week per year:
+   - Less than 1 year of service: 1 week
+   - 1 year but less than 3 years: 2 weeks
+   - 3 years but less than 4 years: 3 weeks
+   - 4 years but less than 5 years: 4 weeks
+   - 5 years but less than 6 years: 5 weeks
+   - 6 years but less than 7 years: 6 weeks
+   - 7 years but less than 8 years: 7 weeks
+   - 8 or more years: 8 weeks (maximum)
    - Applies to all employees with 3+ months of service
    - Cannot be contracted out of (ESA s. 5(1))
    - Greater right or benefit principle (ESA s. 5(2))
@@ -103,8 +132,8 @@ This is the core of most employment matters. Analyse systematically:
    - Waksdale v Swegon North America (2020 ONCA 391): if ANY part of the termination
      clause violates the ESA (including the just cause provision), the ENTIRE clause is void.
      Employee gets common law reasonable notice. [source_type: case_db]
-   - Dufault v The Corporation of the Township of Ignace (2024 ONSC 1029): reinforces
-     Waksdale — courts continue to scrutinise termination clauses strictly.
+   - Dufault v Ignace (Township) (2024 ONCA 915): reinforces Waksdale at the Court
+     of Appeal level — courts continue to scrutinise termination clauses strictly.
      [source_type: case_db]
    - Machtinger v HOJ Industries (1992 SCC): ambiguous termination clauses are construed
      against the employer. Rebuttable presumption of reasonable notice. [source_type: case_db]

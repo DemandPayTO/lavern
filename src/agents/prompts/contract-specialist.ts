@@ -46,7 +46,7 @@ The central battleground in Ontario employment law. Apply these authorities:
   the ENTIRE termination clause is void and the employee is entitled to common law
   reasonable notice. The provisions are not severable.
 
-- **Dufault v The Corporation of the Township of Ignace, 2024 ONSC**: "At any time"
+- **Dufault v Ignace (Township), 2024 ONCA 915**: "At any time"
   or "at any time and for any reason" language in termination clauses is problematic
   because it purports to allow termination in circumstances prohibited by the ESA
   (e.g., during statutory leaves).
