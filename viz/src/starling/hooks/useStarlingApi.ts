@@ -413,8 +413,8 @@ export function useMatterCreate(): MatterCreateResult {
       // the source of truth; DemandPay record is for firm billing/tracking).
       // Only runs if DEMANDPAY_API_URL is configured.
       try {
-        const dpApiUrl = (window as Record<string, unknown>).__DEMANDPAY_API_URL as string | undefined;
-        const dpAuthToken = (window as Record<string, unknown>).__DEMANDPAY_AUTH_TOKEN as string | undefined;
+        const dpApiUrl = (window as unknown as Record<string, unknown>).__DEMANDPAY_API_URL as string | undefined;
+        const dpAuthToken = (window as unknown as Record<string, unknown>).__DEMANDPAY_AUTH_TOKEN as string | undefined;
         if (dpApiUrl && dpAuthToken) {
           // Convert dd/mm/yyyy to yyyy-mm-dd for the Edge Function
           const toIso = (dmy: string | undefined): string | undefined => {
@@ -570,7 +570,7 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
 
   // Try to extract client/employer name from the request text
   const namePatterns = requestText.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:,|was|terminated|from)\s+(?:from\s+)?([A-Z][A-Za-z\s]+(?:Inc|Corp|Ltd|Co|LLC)?)/);
-  const clientName = namePatterns?.[1]?.trim() ?? requestText.slice(0, 30) || 'Untitled matter';
+  const clientName = namePatterns?.[1]?.trim() ?? (requestText.slice(0, 30) || 'Untitled matter');
   const employerName = namePatterns?.[2]?.trim() ?? '';
   const name = employerName ? `${clientName} v ${employerName}` : clientName;
   const number = `#STR-${id.slice(5, 13).toUpperCase()}`;
