@@ -5,6 +5,7 @@ WORKDIR /app/viz
 COPY viz/package*.json ./
 RUN npm ci --ignore-scripts
 COPY viz/ ./
+ENV VITE_BASE_PATH=/dashboard/
 RUN npm run build
 
 # ── Stage 2: Build API ──────────────────────────────────────────────────
