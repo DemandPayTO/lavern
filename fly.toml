@@ -10,7 +10,7 @@ primary_region = "yyz"
 
 [env]
   NODE_ENV = "production"
-  SHEM_PORT = "8080"
+  SHEM_PORT = "3000"
   SHEM_HOST = "0.0.0.0"
   SHEM_MODEL = "claude-sonnet-4-5"
   SHEM_ROUTER_MODEL = "claude-sonnet-4-5"
@@ -28,7 +28,7 @@ primary_region = "yyz"
   LAVERN_BILLING_CURRENCY = "cad"
 
 [http_service]
-  internal_port = 8080
+  internal_port = 3000
   force_https = true
   auto_stop_machines = false
   auto_start_machines = true
