@@ -154,7 +154,7 @@ export const config = {
   // ── Email (Resend) ─────────────────────────────────────────────────────
   email: {
     resendApiKey: process.env.RESEND_API_KEY ?? '',
-    from: process.env.LAVERN_EMAIL_FROM ?? 'Lavern <hello@lavern.ai>',
+    from: process.env.LAVERN_EMAIL_FROM ?? 'DemandPay Starling <noreply@demandpay.ca>',
     appUrl: process.env.LAVERN_APP_URL ?? 'http://localhost:5173',
   },
 
