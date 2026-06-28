@@ -218,8 +218,8 @@ describe('Evaluator Gate', () => {
       expect(agentDefinitions['contract-reviewer']).toBeDefined();
     });
 
-    it('contract-reviewer should use opus model', () => {
-      expect(agentDefinitions['contract-reviewer'].model).toBe('opus');
+    it('contract-reviewer should use sonnet model (breadth scan)', () => {
+      expect(agentDefinitions['contract-reviewer'].model).toBe('sonnet');
     });
 
     it('contract-reviewer should have debate tools', () => {

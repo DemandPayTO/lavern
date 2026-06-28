@@ -24,16 +24,17 @@ describe('Dispatch Integration', () => {
     session = new SessionState('test-dispatch');
   });
 
-  describe('Routing to Legal Design', () => {
-    it('should classify document_redesign as legal-design workflow', () => {
+  describe('Routing to Review (document upload)', () => {
+    it('should classify document_redesign with document as review (document fallback)', () => {
       const request: LegalRequest = {
         type: 'document_redesign',
         documentPath: '/path/to/terms-of-service.pdf',
       };
 
+      // DemandPay config: document_redesign is not a separate rule;
+      // falls through to document upload fallback -> review
       const classification = classifyRequest(request);
-      expect(classification.selectedWorkflow).toBe('legal-design');
-      expect(classification.requestType).toBe('full_pipeline');
+      expect(classification.selectedWorkflow).toBe('review');
     });
 
     it('should find legal-design template in registry', () => {
@@ -145,9 +146,9 @@ describe('Dispatch Integration', () => {
       expectedWorkflow: string;
     }> = [
       {
-        name: 'document_redesign → legal-design',
+        name: 'document_redesign with doc → review (document fallback)',
         request: { type: 'document_redesign', documentPath: '/doc.pdf' },
-        expectedWorkflow: 'legal-design',
+        expectedWorkflow: 'review',
       },
       {
         name: 'contract_review → review',
@@ -184,16 +185,15 @@ describe('Dispatch Integration', () => {
   });
 
   describe('Backward Compatibility', () => {
-    it('runTheShem() path: legal-design + documentPath triggers backward compat', () => {
+    it('document_redesign with documentPath routes to review (document fallback)', () => {
       const request: LegalRequest = {
         type: 'document_redesign',
         documentPath: '/path/to/terms.pdf',
       };
 
       const classification = classifyRequest(request);
-      // dispatch() checks: workflowId === 'legal-design' && request.documentPath
-      // If both true → calls runTheShem() instead of runGenericWorkflow()
-      expect(classification.selectedWorkflow).toBe('legal-design');
+      // DemandPay config: document_redesign falls to document upload fallback -> review
+      expect(classification.selectedWorkflow).toBe('review');
       expect(request.documentPath).toBeDefined();
     });
 

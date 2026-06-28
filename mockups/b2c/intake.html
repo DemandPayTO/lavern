@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay — Free Assessment</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --orange2:#f26a3d; --orange3:#ff8a5c;
+    --cream:#faf8f5; --frame:#e8e5e0; --border:rgba(15,26,46,0.12);
+    --muted:#5a6472; --green:#16a34a; --amber:#d97706; --red:#dc2626; --callout:#eef1f6;
+    --serif:Georgia,'Palatino Linotype',serif; --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--cream);color:var(--navy);line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:var(--serif);font-weight:700;color:var(--navy);line-height:1.25}
+  a{color:inherit;text-decoration:none}
+
+  .logo{display:flex;align-items:center;gap:11px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots i{width:10px;height:10px;border-radius:50%;display:block}
+  .logo .dots i:nth-child(1){background:var(--orange)}.logo .dots i:nth-child(2){background:var(--orange2)}.logo .dots i:nth-child(3){background:var(--orange3)}
+  .logo .word b{font-family:var(--serif);font-size:15px;font-weight:700;display:block;line-height:1.05;letter-spacing:.5px;color:#fff}
+
+  nav{background:var(--navy);height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+  nav .save{color:#cfd6e0;font-size:13.5px}
+  nav .save:hover{color:#fff}
+
+  .shell{max-width:720px;margin:0 auto;padding:34px 28px 60px}
+
+  /* Progress */
+  .progress{display:flex;align-items:center;margin-bottom:32px}
+  .pstep{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 auto;width:34px}
+  .pstep .dot{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;border:1.5px solid var(--border);background:#fff;color:var(--muted)}
+  .pstep .nm{font-size:10.5px;color:var(--muted);text-align:center;white-space:nowrap;position:absolute;margin-top:42px}
+  .pstep.done .dot{background:var(--green);border-color:var(--green);color:#fff}
+  .pstep.active .dot{background:var(--navy);border-color:var(--navy);color:#fff}
+  .pline{flex:1;height:2px;background:var(--border);margin:0 4px;margin-bottom:0}
+  .pline.done{background:var(--green)}
+
+  .stepmeta{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .stepmeta b{color:var(--orange)}
+
+  .card{background:#fff;border:1px solid var(--border);padding:30px 34px}
+  .card h2{font-size:23px;margin-bottom:6px}
+  .card .lede{color:var(--muted);font-size:14.5px;margin-bottom:24px}
+
+  .field{margin-bottom:20px}
+  .field label{display:block;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:7px}
+  .field .opt{font-weight:400;color:var(--muted);font-size:12px}
+  input,select{width:100%;font-family:var(--sans);font-size:14px;color:var(--navy);border:1px solid var(--border);border-radius:2px;padding:11px 13px;background:#fff}
+  input:focus,select:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 2px rgba(234,88,12,.12)}
+  input::placeholder{color:#9aa3af}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+  .callout{display:flex;gap:12px;background:var(--callout);border:1px solid var(--border);border-left:3px solid var(--navy);padding:13px 16px;font-size:13px;color:var(--muted);margin-top:8px}
+  .callout .i{font-style:italic;font-family:var(--serif);font-weight:700;color:var(--navy)}
+  .callout b{color:var(--navy)}
+
+  .radio-cards{display:flex;flex-direction:column;gap:10px}
+  .rc{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--border);border-left:3px solid transparent;padding:14px 16px;cursor:pointer}
+  .rc:hover{border-color:var(--border);background:#fcfbf9}
+  .rc.sel{border-left-color:var(--orange);background:#fdf6f1}
+  .rc .box{width:18px;height:18px;border:1.5px solid var(--border);border-radius:2px;flex-shrink:0;margin-top:2px;display:grid;place-items:center;color:#fff;font-size:12px}
+  .rc.sel .box{background:var(--orange);border-color:var(--orange)}
+  .rc .t{font-size:14px;font-weight:600}
+  .rc .d{font-size:12.5px;color:var(--muted)}
+
+  .drop{border:1.5px dashed var(--border);background:var(--cream);padding:30px;text-align:center;color:var(--muted);cursor:pointer}
+  .drop:hover{border-color:var(--orange);color:var(--navy)}
+  .drop .ic{font-size:28px;opacity:.7;margin-bottom:8px}
+  .drop .big{font-size:14.5px;color:var(--navy);font-weight:600;margin-bottom:3px}
+  .drop .small{font-size:12.5px}
+  .file{display:flex;align-items:center;gap:10px;font-size:13px;border:1px solid var(--border);padding:9px 12px;margin-top:9px}
+  .file .ok{color:var(--green);margin-left:auto;font-size:12px}
+
+  .review-list{border:1px solid var(--border)}
+  .review-list .ri{display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px}
+  .review-list .ri:last-child{border-bottom:none}
+  .review-list .ri .k{color:var(--muted)}
+  .review-list .ri .v{font-weight:600}
+
+  .navbtns{display:flex;justify-content:space-between;margin-top:26px}
+  .btn{font-family:var(--sans);font-size:14.5px;font-weight:600;padding:13px 24px;border-radius:2px;cursor:pointer;border:none;transition:background .15s,border-color .15s}
+  .btn-cta{background:var(--orange);color:#fff}.btn-cta:hover{background:#d24f0a}
+  .btn-back{background:#fff;color:var(--muted);border:1px solid var(--border)}.btn-back:hover{border-color:var(--navy);color:var(--navy)}
+
+  .panel{display:none}.panel.on{display:block}
+</style>
+</head>
+<body>
+  <nav>
+    <a class="logo" href="landing.html">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="word"><b>DEMAND</b><b>PAY</b></span>
+    </a>
+    <a class="save" href="dashboard.html">Save &amp; exit</a>
+  </nav>
+
+  <div class="shell">
+    <div class="progress" id="bar"></div>
+    <div class="stepmeta">Step <b id="cur">3</b> of 7 · <span id="stepname">Your termination</span></div>
+
+    <!-- STEP 1 -->
+    <div class="card panel" data-step="1">
+      <h2>First, a little about you</h2>
+      <p class="lede">This helps us estimate your common law notice — age and circumstances matter under the <em>Bardal</em> factors.</p>
+      <div class="row2">
+        <div class="field"><label>Full name</label><input type="text" value="Jane Smith"></div>
+        <div class="field"><label>Age</label><input type="text" value="47"></div>
+      </div>
+      <div class="field"><label>Email <span class="opt">— so you can save your progress</span></label><input type="text" value="jane.smith@email.ca"></div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="card panel" data-step="2">
+      <h2>Your employment</h2>
+      <p class="lede">Tell us about the job you were let go from.</p>
+      <div class="field"><label>Employer name</label><input type="text" value="Acme Corporation"></div>
+      <div class="row2">
+        <div class="field"><label>Your job title</label><input type="text" value="Marketing Manager"></div>
+        <div class="field"><label>Annual salary (CAD)</label><input type="text" value="$95,000"></div>
+      </div>
+      <div class="field"><label>Employment start date</label><input type="text" value="14/03/2018" placeholder="dd/mm/yyyy"></div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="card panel on" data-step="3">
+      <h2>Your termination</h2>
+      <p class="lede">When and how your employment ended. We'll use this to check your deadlines and entitlements.</p>
+      <div class="row2">
+        <div class="field"><label>Termination date</label><input type="text" value="01/06/2026" placeholder="dd/mm/yyyy"></div>
+        <div class="field"><label>Last day worked <span class="opt">optional</span></label><input type="text" value="01/06/2026" placeholder="dd/mm/yyyy"></div>
+      </div>
+      <div class="field">
+        <label>Were you given a reason?</label>
+        <select><option>"Restructuring" — no cause alleged</option><option>Performance / cause alleged</option><option>No reason given</option></select>
+      </div>
+      <div class="callout">
+        <span class="i">i</span>
+        <span>From a termination date of <b>June 1, 2026</b>, you have until <b>June 1, 2028</b> to file a wrongful dismissal claim (the 2-year limitation under the <em>Limitations Act, 2002</em>). A separate <b>1-year</b> deadline (to June 1, 2027) applies for a Human Rights Tribunal of Ontario application. <b>Don't wait too long to act.</b></span>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="card panel" data-step="4">
+      <h2>What did your employer offer?</h2>
+      <p class="lede">If you received a severance offer or termination letter, tell us the details.</p>
+      <div class="row2">
+        <div class="field"><label>Severance offered</label><input type="text" value="4 weeks' pay" placeholder="e.g., 8 weeks, or $ amount"></div>
+        <div class="field"><label>Deadline to accept <span class="opt">optional</span></label><input type="text" placeholder="dd/mm/yyyy"></div>
+      </div>
+      <div class="callout"><span class="i">i</span><span>An offer of <b>4 weeks</b> after 8 years of service is well below the typical Ontario common law range. You are usually free to negotiate — accepting quickly is rarely required.</span></div>
+    </div>
+
+    <!-- STEP 5 -->
+    <div class="card panel" data-step="5">
+      <h2>Why do you think you were let go?</h2>
+      <p class="lede">Select anything that applies. These can add to what you're owed. <span class="opt">It's okay if you're unsure.</span></p>
+      <div class="radio-cards">
+        <div class="rc sel"><div class="box">✓</div><div><div class="t">Shortly after a medical or accommodation request</div><div class="d">May support a Human Rights Code claim</div></div></div>
+        <div class="rc sel"><div class="box">✓</div><div><div class="t">No real warning or explanation</div><div class="d">May support aggravated damages (Honda v Keays)</div></div></div>
+        <div class="rc"><div class="box"></div><div><div class="t">After raising a complaint or safety concern</div><div class="d">May support a reprisal claim</div></div></div>
+        <div class="rc"><div class="box"></div><div><div class="t">Around a pregnancy or parental leave</div><div class="d">May support a Human Rights Code claim</div></div></div>
+        <div class="rc"><div class="box"></div><div><div class="t">None of these / not sure</div><div class="d">That's fine — your notice entitlement still applies</div></div></div>
+      </div>
+    </div>
+
+    <!-- STEP 6 -->
+    <div class="card panel" data-step="6">
+      <h2>Upload your documents</h2>
+      <p class="lede">These help us give you a more accurate estimate. You can skip this and add them later.</p>
+      <div class="drop">
+        <div class="ic">⬆</div>
+        <div class="big">Drop files here or click to browse</div>
+        <div class="small">Termination letter, employment agreement, recent pay stub, Record of Employment (ROE)</div>
+      </div>
+      <div class="file"><span>📄</span> Termination_Letter.pdf <span class="ok">✓ added</span></div>
+      <div class="file"><span>📄</span> Employment_Agreement_2018.pdf <span class="ok">✓ added</span></div>
+    </div>
+
+    <!-- STEP 7 -->
+    <div class="card panel" data-step="7">
+      <h2>Review &amp; get your estimate</h2>
+      <p class="lede">Here's what you told us. Looks right? We'll calculate your entitlement.</p>
+      <div class="review-list">
+        <div class="ri"><span class="k">Name · Age</span><span class="v">Jane Smith · 47</span></div>
+        <div class="ri"><span class="k">Employer</span><span class="v">Acme Corporation</span></div>
+        <div class="ri"><span class="k">Role · Salary</span><span class="v">Marketing Manager · $95,000</span></div>
+        <div class="ri"><span class="k">Service</span><span class="v">Mar 2018 – Jun 2026 (8.3 yrs)</span></div>
+        <div class="ri"><span class="k">Offer</span><span class="v">4 weeks' pay</span></div>
+        <div class="ri"><span class="k">Possible added claims</span><span class="v">Accommodation, bad faith</span></div>
+        <div class="ri"><span class="k">Documents</span><span class="v">2 uploaded</span></div>
+      </div>
+      <div class="callout"><span class="i">i</span><span>By continuing you'll get a free entitlement estimate. DemandPay provides legal information, not legal advice — you can book a licenced Ontario lawyer for a review at any time.</span></div>
+    </div>
+
+    <div class="navbtns">
+      <button class="btn btn-back" id="back">← Back</button>
+      <button class="btn btn-cta" id="next">Continue →</button>
+    </div>
+  </div>
+
+  <script>
+    var steps=["About you","Your employment","Your termination","The offer","Why let go","Documents","Review"];
+    var total=7, cur=3;
+    var bar=document.getElementById('bar');
+    function render(){
+      // progress bar
+      bar.innerHTML='';
+      for(var i=1;i<=total;i++){
+        var s=document.createElement('div'); s.className='pstep'+(i<cur?' done':i===cur?' active':'');
+        s.innerHTML='<div class="dot">'+(i<cur?'✓':i)+'</div>';
+        bar.appendChild(s);
+        if(i<total){var l=document.createElement('div');l.className='pline'+(i<cur?' done':'');bar.appendChild(l);}
+      }
+      document.getElementById('cur').textContent=cur;
+      document.getElementById('stepname').textContent=steps[cur-1];
+      document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('on', +p.dataset.step===cur);});
+      document.getElementById('back').style.visibility = cur===1?'hidden':'visible';
+      document.getElementById('next').textContent = cur===total?'Get my estimate →':'Continue →';
+      window.scrollTo(0,0);
+    }
+    document.getElementById('next').onclick=function(){ if(cur<total){cur++;render();} else {location.href='results.html';} };
+    document.getElementById('back').onclick=function(){ if(cur>1){cur--;render();} };
+    render();
+  </script>
+</body>
+</html>

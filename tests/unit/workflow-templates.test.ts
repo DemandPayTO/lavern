@@ -80,11 +80,12 @@ describe('Workflow Template Registry', () => {
       expect(gates).toHaveLength(3);
     });
 
-    it('should have 9 required agents (including ethics-reviewer)', () => {
+    it('should have 5 required agents (including ethics-reviewer)', () => {
       const template = workflowRegistry.get('legal-design')!;
-      expect(template.requiredAgents).toHaveLength(9);
+      expect(template.requiredAgents).toHaveLength(5);
       expect(template.requiredAgents).toContain('design-reviewer');
-      expect(template.requiredAgents).toContain('ethics-auditor');
+      expect(template.requiredAgents).toContain('service-designer');
+      expect(template.requiredAgents).toContain('plain-language-specialist');
       expect(template.requiredAgents).toContain('synthesis-editor');
       expect(template.requiredAgents).toContain('ethics-reviewer');
     });

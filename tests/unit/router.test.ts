@@ -26,22 +26,12 @@ describe('Router', () => {
   // ── classifyRequest: Deterministic Classification ─────────────────
 
   describe('classifyRequest', () => {
-    it('should classify document_redesign as full_pipeline/legal-design', () => {
+    it('should classify document_redesign with document as review (document fallback)', () => {
       const result = classifyRequest({ type: 'document_redesign', documentPath: '/path/to/tos.pdf' });
-      expect(result.requestType).toBe('full_pipeline');
-      expect(result.selectedWorkflow).toBe('legal-design');
-      expect(result.complexity).toBe('high');
-      expect(result.requiresDebate).toBe(true);
-      expect(result.requiresEthicsFirst).toBe(true);
-    });
-
-    it('should include all 8 legal-design specialists for document_redesign', () => {
-      const result = classifyRequest({ type: 'document_redesign', documentPath: '/doc.pdf' });
-      expect(result.selectedSpecialists).toHaveLength(8);
-      expect(result.selectedSpecialists).toContain('design-reviewer');
-      expect(result.selectedSpecialists).toContain('ethics-auditor');
-      expect(result.selectedSpecialists).toContain('transformation-specialist');
-      expect(result.selectedSpecialists).toContain('synthesis-editor');
+      // DemandPay config: document_redesign is not a separate rule; falls through
+      // to the document upload fallback -> review workflow
+      expect(result.selectedWorkflow).toBe('review');
+      expect(result.complexity).toBe('medium');
     });
 
     it('should classify contract_review as single_specialist/review', () => {
@@ -50,7 +40,7 @@ describe('Router', () => {
       expect(result.selectedWorkflow).toBe('review');
       expect(result.complexity).toBe('medium');
       expect(result.selectedSpecialists).toContain('contract-reviewer');
-      expect(result.selectedSpecialists).toContain('evaluator');
+      expect(result.selectedSpecialists).toContain('employment-counsel');
     });
 
     it('should classify legal_question as direct_answer/counsel', () => {
@@ -61,31 +51,26 @@ describe('Router', () => {
       expect(result.selectedSpecialists).toContain('evaluator');
     });
 
-    it('should classify legal_research as single_specialist/adversarial', () => {
+    it('should classify legal_research as direct_answer/counsel (DemandPay: no separate research rule)', () => {
       const result = classifyRequest({
         type: 'legal_research',
         requestText: 'Research the enforceability of non-compete clauses in California',
       });
-      expect(result.requestType).toBe('single_specialist');
-      expect(result.selectedWorkflow).toBe('adversarial');
-      expect(result.complexity).toBe('medium');
-      expect(result.riskLevel).toBe('medium');
-      expect(result.selectedSpecialists).toContain('legal-researcher');
-      expect(result.selectedSpecialists).toContain('evaluator');
-      expect(result.selectedSpecialists).toContain('red-team');
-      expect(result.requiresDebate).toBe(false);
-      expect(result.requiresEthicsFirst).toBe(false);
+      // DemandPay config: legal_research is not a distinct rule;
+      // falls through to default counsel pipeline
+      expect(result.selectedWorkflow).toBe('counsel');
+      expect(result.requestType).toBe('direct_answer');
     });
 
-    it('should classify risk_assessment as single_specialist/counsel with risk-pricer', () => {
+    it('should classify risk_assessment as direct_answer/counsel', () => {
       const result = classifyRequest({
         type: 'risk_assessment',
         requestText: 'Assess the risk of this contract review deliverable',
       });
-      expect(result.requestType).toBe('single_specialist');
+      // DemandPay config: risk_assessment falls to case_assessment rule -> counsel
+      expect(result.requestType).toBe('direct_answer');
       expect(result.selectedWorkflow).toBe('counsel');
-      expect(result.complexity).toBe('low');
-      expect(result.selectedSpecialists).toContain('risk-pricer');
+      expect(result.selectedSpecialists).toContain('employment-counsel');
       expect(result.selectedSpecialists).toContain('evaluator');
     });
 
@@ -117,10 +102,10 @@ describe('Router', () => {
       expect(result.requiresConsistencyCheck).toBe(false);
     });
 
-    it('should set requiresConsistencyCheck for legal_research with matterId', () => {
+    it('should set requiresConsistencyCheck for case_assessment with matterId', () => {
       const result = classifyRequest({
-        type: 'legal_research',
-        requestText: 'Research non-compete enforceability',
+        type: 'case_assessment',
+        requestText: 'Assess my case',
         matterId: 'matter-2024-100',
       });
       expect(result.requiresConsistencyCheck).toBe(true);
@@ -175,17 +160,16 @@ describe('Router', () => {
       }
     });
 
-    it('should route legal_research to adversarial', async () => {
+    it('should route legal_research to counsel (DemandPay: no separate research rule)', async () => {
       const request: LegalRequest = { type: 'legal_research', requestText: 'Research something' };
       await routeRequest(request, session, { useLlm: false });
-      expect(request.routerClassification!.selectedWorkflow).toBe('adversarial');
+      expect(request.routerClassification!.selectedWorkflow).toBe('counsel');
     });
 
-    it('should route risk_assessment to counsel with risk-pricer', async () => {
+    it('should route risk_assessment to counsel', async () => {
       const request: LegalRequest = { type: 'risk_assessment', requestText: 'Assess risk' };
       await routeRequest(request, session, { useLlm: false });
       expect(request.routerClassification!.selectedWorkflow).toBe('counsel');
-      expect(request.routerClassification!.selectedSpecialists).toContain('risk-pricer');
     });
   });
 
@@ -259,10 +243,9 @@ describe('Router', () => {
       expect(prompt).toContain('adversarial');
     });
 
-    it('should include v6 specialists', async () => {
+    it('should include key specialists', async () => {
       const { routerPrompt } = await import('../../src/router/router-prompt.js');
       expect(routerPrompt).toContain('legal-researcher');
-      expect(routerPrompt).toContain('risk-pricer');
       expect(routerPrompt).toContain('red-team');
     });
   });
@@ -271,17 +254,14 @@ describe('Router', () => {
 
   describe('Canonical Workflow IDs', () => {
     it('deterministic classifier should return v11 canonical names', () => {
-      const designResult = classifyRequest({ type: 'document_redesign', documentPath: '/doc.pdf' });
-      expect(designResult.selectedWorkflow).toBe('legal-design');
-
       const reviewResult = classifyRequest({ type: 'contract_review', documentPath: '/doc.pdf' });
       expect(reviewResult.selectedWorkflow).toBe('review');
 
-      const researchResult = classifyRequest({ type: 'legal_research', requestText: 'Research this' });
-      expect(researchResult.selectedWorkflow).toBe('adversarial');
-
       const questionResult = classifyRequest({ type: 'legal_question', requestText: 'What is X?' });
       expect(questionResult.selectedWorkflow).toBe('counsel');
+
+      const demandResult = classifyRequest({ type: 'demand_letter', requestText: 'Draft a demand letter' });
+      expect(demandResult.selectedWorkflow).toBe('adversarial');
     });
 
     it('all canonical workflow IDs should resolve to templates', async () => {
@@ -302,10 +282,10 @@ describe('Router', () => {
       expect(fullBenchTemplate).toBeDefined();
     });
 
-    it('should keep "roundtable" as-is', async () => {
+    it('should keep "pre-engagement" as-is', async () => {
       const { workflowRegistry } = await import('../../src/workflows/registry.js');
-      const roundtableTemplate = workflowRegistry.get('roundtable');
-      expect(roundtableTemplate).toBeDefined();
+      const preEngagementTemplate = workflowRegistry.get('pre-engagement');
+      expect(preEngagementTemplate).toBeDefined();
     });
   });
 });

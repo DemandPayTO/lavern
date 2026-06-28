@@ -14,8 +14,8 @@ describe('Legal Research Agent', () => {
       expect(agentDefinitions['legal-researcher']).toBeDefined();
     });
 
-    it('should use Opus model', () => {
-      expect(agentDefinitions['legal-researcher'].model).toBe('opus');
+    it('should use Sonnet model (statute lookup)', () => {
+      expect(agentDefinitions['legal-researcher'].model).toBe('sonnet');
     });
 
     it('should have maxTurns of 10', () => {

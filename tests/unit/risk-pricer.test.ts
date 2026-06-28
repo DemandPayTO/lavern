@@ -1,111 +1,22 @@
 /**
- * Unit tests for the Risk Pricing Agent (v6).
+ * Unit tests for the Risk Pricing MCP Tools (v6).
  *
- * Tests: Agent definition, output schema, MCP tools, session state, events.
+ * Tests: Tool creation, event emission, session state recording.
+ *
+ * Note: The risk-pricer agent definition was removed in the DemandPay-Starling
+ * configuration. These tests validate the MCP tools that remain available
+ * for orchestrator-driven risk assessment.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SessionState } from '../../src/session/session-state.js';
-import { agentDefinitions } from '../../src/agents/definitions.js';
-import { RiskPricingOutputSchema } from '../../src/types/output-schemas.js';
 import { createRiskPricingTools } from '../../src/mcp/tools/risk-pricing.js';
 
-describe('Risk Pricing Agent', () => {
+describe('Risk Pricing Tools', () => {
   let session: SessionState;
 
   beforeEach(() => {
     session = new SessionState('test-risk');
-  });
-
-  describe('Agent Definition', () => {
-    it('should exist in agent definitions', () => {
-      expect(agentDefinitions['risk-pricer']).toBeDefined();
-    });
-
-    it('should use Sonnet model (fast — runs on every deliverable)', () => {
-      expect(agentDefinitions['risk-pricer'].model).toBe('sonnet');
-    });
-
-    it('should have maxTurns of 6', () => {
-      expect(agentDefinitions['risk-pricer'].maxTurns).toBe(6);
-    });
-
-    it('should have read-only tools', () => {
-      const tools = agentDefinitions['risk-pricer'].tools;
-      expect(tools).toContain('Read');
-    });
-
-    it('should have workflow history tool', () => {
-      const tools = agentDefinitions['risk-pricer'].tools;
-      expect(tools).toContain('mcp__shem__get_workflow_history');
-    });
-
-    it('should have anti-patterns tool', () => {
-      const tools = agentDefinitions['risk-pricer'].tools;
-      expect(tools).toContain('mcp__shem__query_anti_patterns');
-    });
-
-    it('should have an output format defined', () => {
-      expect(agentDefinitions['risk-pricer'].outputFormat).toBeDefined();
-    });
-  });
-
-  describe('Output Schema', () => {
-    it('should validate a valid risk assessment', () => {
-      const validAssessment = {
-        agentRole: 'risk-pricer',
-        overallRiskScore: 0.35,
-        riskLevel: 'MEDIUM',
-        errorProbability: 0.12,
-        potentialLossMagnitude: {
-          currency: 'USD',
-          low: 5000,
-          mid: 25000,
-          high: 100000,
-        },
-        riskFactors: [{
-          factor: 'Jurisdictional complexity',
-          weight: 0.15,
-          score: 0.4,
-          evidence: 'Multi-state agreement with California provisions',
-        }],
-        mitigatingFactors: [{
-          factor: 'Evaluator gate passed on first attempt',
-          impact: 'Reduces error probability by ~20%',
-          evidence: 'Score: 0.89',
-        }],
-        insurabilityAssessment: {
-          insurable: true,
-          premiumEstimate: '$250',
-          conditions: ['Standard professional indemnity coverage'],
-        },
-        recommendations: ['Consider additional review for California-specific provisions'],
-        confidence: 0.78,
-        summary: 'Medium risk, insurable with standard coverage.',
-      };
-
-      const result = RiskPricingOutputSchema.safeParse(validAssessment);
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject risk score out of range', () => {
-      const invalidAssessment = {
-        agentRole: 'risk-pricer',
-        overallRiskScore: 1.5, // Invalid — max is 1.0
-        riskLevel: 'HIGH',
-        errorProbability: 0.5,
-        potentialLossMagnitude: { currency: 'USD', low: 0, mid: 0, high: 0 },
-        riskFactors: [],
-        mitigatingFactors: [],
-        insurabilityAssessment: { insurable: true, premiumEstimate: '$0', conditions: [] },
-        recommendations: [],
-        confidence: 0.5,
-        summary: 'Test',
-      };
-
-      const result = RiskPricingOutputSchema.safeParse(invalidAssessment);
-      expect(result.success).toBe(false);
-    });
   });
 
   describe('MCP Tools', () => {

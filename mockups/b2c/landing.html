@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay — Know what you're owed</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --orange2:#f26a3d; --orange3:#ff8a5c;
+    --cream:#faf8f5; --frame:#e8e5e0; --border:rgba(15,26,46,0.12);
+    --muted:#5a6472; --green:#16a34a; --red:#dc2626; --callout:#eef1f6;
+    --serif:Georgia,'Palatino Linotype',serif; --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--cream);color:var(--navy);line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:var(--serif);font-weight:700;color:var(--navy);line-height:1.2}
+  a{color:inherit;text-decoration:none}
+
+  /* Logo */
+  .logo{display:flex;align-items:center;gap:11px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots i{width:10px;height:10px;border-radius:50%;display:block}
+  .logo .dots i:nth-child(1){background:var(--orange)}
+  .logo .dots i:nth-child(2){background:var(--orange2)}
+  .logo .dots i:nth-child(3){background:var(--orange3)}
+  .logo .word b{font-family:var(--serif);font-size:15px;font-weight:700;display:block;line-height:1.05;letter-spacing:.5px}
+  .logo.light .word b{color:#fff}
+  .logo.dark .word b{color:var(--navy)}
+
+  /* Nav */
+  nav{background:var(--navy);height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+  .navlinks{display:flex;align-items:center;gap:8px}
+  .navlinks a{color:#cfd6e0;font-size:14px;padding:9px 14px;border-radius:2px}
+  .navlinks a:hover{color:#fff}
+  .navlinks .login{color:#fff}
+  .btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 20px;border-radius:2px;cursor:pointer;border:none;display:inline-block;transition:background .15s,border-color .15s}
+  .btn-cta{background:var(--orange);color:#fff}
+  .btn-cta:hover{background:#d24f0a}
+  .btn-ghost{background:#fff;color:var(--navy);border:1px solid var(--border)}
+  .btn-ghost:hover{border-color:var(--navy)}
+  .btn-ghost-dark{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.3)}
+  .btn-ghost-dark:hover{border-color:#fff}
+  .btn-lg{font-size:16px;padding:15px 30px}
+
+  /* Hero */
+  .hero{max-width:1080px;margin:0 auto;padding:84px 28px 70px;text-align:center}
+  .hero .eyebrow{display:inline-block;font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--orange);font-weight:600;margin-bottom:20px}
+  .hero h1{font-size:52px;max-width:760px;margin:0 auto 22px}
+  .hero p.sub{font-size:18px;color:var(--muted);max-width:580px;margin:0 auto 34px;line-height:1.55}
+  .hero .ctas{display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .hero .reassure{margin-top:18px;font-size:13px;color:var(--muted)}
+  .hero .reassure b{color:var(--green)}
+
+  /* Features */
+  .section{max-width:1080px;margin:0 auto;padding:18px 28px 70px}
+  .section-head{text-align:center;margin-bottom:38px}
+  .section-head h2{font-size:30px;margin-bottom:10px}
+  .section-head p{color:var(--muted);font-size:16px;max-width:560px;margin:0 auto}
+  .features{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .feature{background:#fff;border:1px solid var(--border);padding:30px 26px}
+  .feature .num{font-family:var(--serif);font-size:13px;color:var(--orange);font-weight:700;letter-spacing:.08em}
+  .feature .ic{width:46px;height:46px;border-radius:2px;background:var(--cream);border:1px solid var(--border);display:grid;place-items:center;font-size:22px;margin:14px 0 16px}
+  .feature h3{font-size:20px;margin-bottom:9px}
+  .feature p{color:var(--muted);font-size:14.5px}
+
+  /* Trust */
+  .trust{background:var(--frame);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .trust .inner{max-width:1080px;margin:0 auto;padding:54px 28px;display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center}
+  .trust h2{font-size:28px;margin-bottom:16px}
+  .trust p{color:var(--muted);font-size:15.5px;margin-bottom:14px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .stat{background:#fff;border:1px solid var(--border);padding:22px}
+  .stat .n{font-family:var(--serif);font-size:32px;font-weight:700;color:var(--navy)}
+  .stat .l{font-size:13px;color:var(--muted);margin-top:4px}
+  .quote{background:#fff;border:1px solid var(--border);border-left:3px solid var(--navy);padding:18px 20px;margin-top:18px}
+  .quote p{font-family:var(--serif);font-style:italic;font-size:16px;color:var(--navy);margin-bottom:8px}
+  .quote .by{font-size:13px;color:var(--muted);font-style:normal}
+
+  /* Band */
+  .band{max-width:1080px;margin:0 auto;padding:64px 28px;text-align:center}
+  .band h2{font-size:30px;margin-bottom:12px}
+  .band p{color:var(--muted);font-size:16px;margin-bottom:26px}
+
+  /* Footer */
+  footer{background:var(--navy);color:#9fb0c4;padding:48px 28px 30px}
+  .foot-inner{max-width:1080px;margin:0 auto;display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap}
+  .foot-col h4{font-family:var(--sans);font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#fff;margin-bottom:12px;font-weight:600}
+  .foot-col a{display:block;color:#9fb0c4;font-size:14px;padding:4px 0}
+  .foot-col a:hover{color:#fff}
+  .foot-bottom{max-width:1080px;margin:32px auto 0;padding-top:20px;border-top:1px solid rgba(255,255,255,.12);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:13px;color:#7e8da3}
+  .tagline{font-size:13px;color:#9fb0c4;max-width:280px;margin-top:14px}
+  .disclaimer{font-size:11.5px;color:#6b7a90;max-width:560px;margin-top:6px}
+</style>
+</head>
+<body>
+  <nav>
+    <a class="logo light" href="landing.html">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="word"><b>DEMAND</b><b>PAY</b></span>
+    </a>
+    <div class="navlinks">
+      <a href="#how">How It Works</a>
+      <a href="#">Pricing</a>
+      <a href="calculator.html">Calculator</a>
+      <a class="login" href="dashboard.html">Log In</a>
+      <a class="btn btn-cta" href="intake.html">Get Started</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <span class="eyebrow">Ontario Employment Law · Built for Employees</span>
+    <h1>Know what you're owed. Get what you deserve.</h1>
+    <p class="sub">If you've been let go in Ontario, you may be entitled to far more than your employer offered. Find out what your case is worth in minutes — no lawyer required to start.</p>
+    <div class="ctas">
+      <a class="btn btn-cta btn-lg" href="intake.html">Start Your Free Assessment</a>
+      <a class="btn btn-ghost btn-lg" href="calculator.html">Try the Calculator</a>
+    </div>
+    <p class="reassure"><b>✓ Free to start</b> · No obligation · Your information stays private</p>
+  </section>
+
+  <section class="section" id="how">
+    <div class="section-head">
+      <h2>Three steps to what you're owed</h2>
+      <p>DemandPay walks you through it — from understanding your entitlements to putting your demand in writing.</p>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <span class="num">01</span>
+        <div class="ic">📊</div>
+        <h3>Calculate</h3>
+        <p>Answer a few questions and we'll estimate your termination entitlements — both the ESA statutory minimum and your common law reasonable notice under the <em>Bardal</em> factors.</p>
+      </div>
+      <div class="feature">
+        <span class="num">02</span>
+        <div class="ic">✍️</div>
+        <h3>Letter</h3>
+        <p>Generate a professional demand letter built on Ontario employment law — citing the <em>Employment Standards Act</em>, <em>Waksdale</em>, and the authorities that strengthen your position.</p>
+      </div>
+      <div class="feature">
+        <span class="num">03</span>
+        <div class="ic">🤝</div>
+        <h3>Negotiate</h3>
+        <p>Send your demand, track the employer's response, and know when an offer is fair. Book a licenced Ontario lawyer for review whenever you want a second opinion.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="trust">
+    <div class="inner">
+      <div>
+        <h2>Most people accept far less than they're entitled to</h2>
+        <p>Employers often offer the bare statutory minimum — sometimes just a few weeks. But Ontario common law can entitle you to many months of pay, depending on your age, length of service, and role.</p>
+        <p>DemandPay was built so you don't have to face that alone, or pay thousands upfront to find out where you stand.</p>
+        <div class="quote">
+          <p>"I was offered 4 weeks. After my demand letter, I settled for 9 months' pay. I never would have known to ask."</p>
+          <span class="by">— Priya M., Marketing Manager · Toronto</span>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="n">$31,400</div><div class="l">Average gap between offer and entitlement</div></div>
+        <div class="stat"><div class="n">10 min</div><div class="l">To complete a free assessment</div></div>
+        <div class="stat"><div class="n">2 years</div><div class="l">Limitation period to act — don't wait</div></div>
+        <div class="stat"><div class="n">100%</div><div class="l">Ontario employment law, start to finish</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <h2>Find out what your termination is really worth</h2>
+    <p>It's free to start, and you'll have an estimate before you finish your coffee.</p>
+    <a class="btn btn-cta btn-lg" href="intake.html">Start Your Free Assessment</a>
+  </section>
+
+  <footer>
+    <div class="foot-inner">
+      <div>
+        <a class="logo light" href="landing.html">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <span class="word"><b>DEMAND</b><b>PAY</b></span>
+        </a>
+        <p class="tagline">Ontario's employment law platform for employees.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="calculator.html">Severance Calculator</a>
+        <a href="intake.html">Free Assessment</a>
+        <a href="demand-letter.html">Demand Letter</a>
+        <a href="#">Pricing</a>
+      </div>
+      <div class="foot-col">
+        <h4>Learn</h4>
+        <a href="#">How It Works</a>
+        <a href="#">Your ESA Rights</a>
+        <a href="#">Wrongful Dismissal</a>
+        <a href="#">Common Questions</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="#">About</a>
+        <a href="#">Contact</a>
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 DemandPay · Ontario, Canada</span>
+      <span>Not a law firm. DemandPay does not provide legal advice.</span>
+    </div>
+    <p class="disclaimer" style="max-width:1080px;margin:14px auto 0">DemandPay provides legal information and document tools to help Ontario employees understand their entitlements. It is not a substitute for advice from a licenced lawyer. For advice specific to your situation, book a lawyer review.</p>
+  </footer>
+</body>
+</html>

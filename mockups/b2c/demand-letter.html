@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay — Demand Letter Builder</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --orange2:#f26a3d; --orange3:#ff8a5c;
+    --cream:#faf8f5; --frame:#e8e5e0; --border:rgba(15,26,46,0.12);
+    --muted:#5a6472; --green:#16a34a; --amber:#d97706; --red:#dc2626; --callout:#eef1f6;
+    --serif:Georgia,'Palatino Linotype',serif; --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--cream);color:var(--navy);line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:var(--serif);font-weight:700;color:var(--navy);line-height:1.25}
+  a{color:inherit;text-decoration:none}
+
+  .logo{display:flex;align-items:center;gap:11px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots i{width:10px;height:10px;border-radius:50%;display:block}
+  .logo .dots i:nth-child(1){background:var(--orange)}.logo .dots i:nth-child(2){background:var(--orange2)}.logo .dots i:nth-child(3){background:var(--orange3)}
+  .logo .word b{font-family:var(--serif);font-size:15px;font-weight:700;display:block;line-height:1.05;letter-spacing:.5px;color:#fff}
+
+  nav{background:var(--navy);height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+  nav .save{color:#cfd6e0;font-size:13.5px}nav .save:hover{color:#fff}
+
+  .shell{max-width:760px;margin:0 auto;padding:34px 28px 60px}
+
+  .progress{display:flex;align-items:center;margin-bottom:14px}
+  .pstep{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+  .pstep .dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;border:1.5px solid var(--border);background:#fff;color:var(--muted)}
+  .pstep .nm{font-size:13px;color:var(--muted);font-weight:600}
+  .pstep.done .dot{background:var(--green);border-color:var(--green);color:#fff}
+  .pstep.done .nm{color:var(--navy)}
+  .pstep.active .dot{background:var(--navy);border-color:var(--navy);color:#fff}
+  .pstep.active .nm{color:var(--navy)}
+  .pline{flex:1;height:2px;background:var(--border);margin:0 12px}
+  .pline.done{background:var(--green)}
+  .stepmeta{font-size:13px;color:var(--muted);margin-bottom:18px}
+
+  .card{background:#fff;border:1px solid var(--border);padding:30px 34px}
+  .card h2{font-size:23px;margin-bottom:6px}
+  .card .lede{color:var(--muted);font-size:14.5px;margin-bottom:24px}
+
+  .field{margin-bottom:20px}
+  .field label{display:block;font-size:13.5px;font-weight:600;margin-bottom:7px}
+  input,select{width:100%;font-family:var(--sans);font-size:14px;color:var(--navy);border:1px solid var(--border);border-radius:2px;padding:11px 13px}
+  input:focus,select:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 2px rgba(234,88,12,.12)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+  .callout{display:flex;gap:11px;background:var(--callout);border:1px solid var(--border);border-left:3px solid var(--navy);padding:13px 16px;font-size:13px;color:var(--muted);margin-top:6px}
+  .callout .i{font-style:italic;font-family:var(--serif);font-weight:700;color:var(--navy)}
+
+  /* Issue toggle cards */
+  .issues{display:flex;flex-direction:column;gap:12px}
+  .issue{display:flex;align-items:flex-start;gap:14px;border:1px solid var(--border);border-left:3px solid transparent;padding:16px 18px;cursor:pointer;transition:border-color .12s,background .12s}
+  .issue:hover{background:#fcfbf9}
+  .issue.on{border-left-color:var(--green);background:#f4faf6}
+  .issue .toggle{width:42px;height:24px;border-radius:2px;background:var(--frame);border:1px solid var(--border);position:relative;flex-shrink:0;margin-top:2px;transition:background .15s}
+  .issue.on .toggle{background:var(--green);border-color:var(--green)}
+  .issue .toggle::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:1px;transition:left .15s}
+  .issue.on .toggle::after{left:20px}
+  .issue .t{font-size:15px;font-weight:600}
+  .issue .d{font-size:13px;color:var(--muted);margin-top:2px}
+  .issue .src{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:2px;margin-top:7px;background:#e7f6ec;color:var(--green)}
+  .issue .src.web{background:#fdf0dd;color:var(--amber)}
+
+  /* Document preview */
+  .docframe{border:1px solid var(--border);background:#fff;padding:0}
+  .docframe .toolbar{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--border);background:var(--frame);font-size:12.5px;color:var(--muted)}
+  .docframe .toolbar .ok{color:var(--green);font-weight:600}
+  .doc{padding:40px 52px;font-family:var(--serif);font-size:14px;line-height:1.8;color:#1a2433;max-height:440px;overflow:auto}
+  .doc .wp{font-weight:700;letter-spacing:.06em;color:var(--navy);margin-bottom:18px}
+  .doc p{margin-bottom:13px}
+  .doc .re{font-weight:700}
+  mark{background:rgba(234,88,12,.10);padding:0 2px}
+
+  .navbtns{display:flex;justify-content:space-between;margin-top:24px;gap:12px;flex-wrap:wrap}
+  .navbtns .exports{display:flex;gap:12px}
+  .btn{font-family:var(--sans);font-size:14.5px;font-weight:600;padding:13px 24px;border-radius:2px;cursor:pointer;border:none;transition:background .15s,border-color .15s}
+  .btn-cta{background:var(--orange);color:#fff}.btn-cta:hover{background:#d24f0a}
+  .btn-navy{background:#fff;color:var(--navy);border:1px solid var(--navy)}.btn-navy:hover{background:var(--navy);color:#fff}
+  .btn-back{background:#fff;color:var(--muted);border:1px solid var(--border)}.btn-back:hover{border-color:var(--navy);color:var(--navy)}
+
+  .panel{display:none}.panel.on{display:block}
+</style>
+</head>
+<body>
+  <nav>
+    <a class="logo" href="landing.html">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="word"><b>DEMAND</b><b>PAY</b></span>
+    </a>
+    <a class="save" href="dashboard.html">Save &amp; exit</a>
+  </nav>
+
+  <div class="shell">
+    <div class="progress" id="bar"></div>
+    <div class="stepmeta">Demand Letter Builder · Step <b id="cur">1</b> of 4</div>
+
+    <!-- STEP 1: recipient -->
+    <div class="card panel on" data-step="1">
+      <h2>Who is this letter going to?</h2>
+      <p class="lede">We'll address your demand to your former employer. Confirm the details below.</p>
+      <div class="field"><label>Employer / company name</label><input type="text" value="Acme Corporation"></div>
+      <div class="row2">
+        <div class="field"><label>Contact (if known)</label><input type="text" value="Human Resources Department"></div>
+        <div class="field"><label>Your name</label><input type="text" value="Jane Smith"></div>
+      </div>
+      <div class="callout"><span class="i">i</span><span>We'll mark the letter <b>"Without Prejudice"</b> — this protects your settlement discussions from being used against you in court.</span></div>
+    </div>
+
+    <!-- STEP 2: issues -->
+    <div class="card panel" data-step="2">
+      <h2>Which points should the letter make?</h2>
+      <p class="lede">We've pre-selected the strongest points from your assessment. Toggle any on or off.</p>
+      <div class="issues">
+        <div class="issue on"><div class="toggle"></div><div><div class="t">Wrongful dismissal — common law notice</div><div class="d">Claim 6–10 months' reasonable notice under the Bardal factors, not the 4 weeks offered.</div><span class="src">✓ ESA s. 57 · case_db</span></div></div>
+        <div class="issue on"><div class="toggle"></div><div><div class="t">Termination clause is void (Waksdale)</div><div class="d">Your contract's "just cause" wording fails the ESA standard, so the whole clause falls away.</div><span class="src">✓ Waksdale 2020 ONCA 391</span></div></div>
+        <div class="issue on"><div class="toggle"></div><div><div class="t">Aggravated damages — manner of dismissal</div><div class="d">Same-day termination with no explanation may support a Honda v Keays claim.</div><span class="src">✓ Honda 2008 SCC 39</span></div></div>
+        <div class="issue"><div class="toggle"></div><div><div class="t">Human Rights Code — accommodation</div><div class="d">Termination near your accommodation request. Stronger with the May 28 email as evidence.</div><span class="src web">⚠ verify before relying</span></div></div>
+      </div>
+    </div>
+
+    <!-- STEP 3: the demand -->
+    <div class="card panel" data-step="3">
+      <h2>Your demand</h2>
+      <p class="lede">Set the number you're asking for and how long the employer has to respond. We've suggested a figure from your estimate.</p>
+      <div class="row2">
+        <div class="field"><label>Amount demanded (CAD)</label><input type="text" value="$78,000"></div>
+        <div class="field"><label>Response deadline</label><select><option>14 days</option><option>21 days</option><option>30 days</option></select></div>
+      </div>
+      <div class="field"><label>Tone</label><select><option>Firm and professional (recommended)</option><option>Conciliatory — open to early settlement</option><option>Assertive — litigation-ready</option></select></div>
+      <div class="callout"><span class="i">i</span><span>Asking near the top of your range ($78,000) leaves room to negotiate toward a fair settlement. You can adjust this any time before sending.</span></div>
+    </div>
+
+    <!-- STEP 4: preview + export -->
+    <div class="card panel" data-step="4" style="padding:24px 24px 26px">
+      <h2 style="padding:0 6px">Your demand letter</h2>
+      <p class="lede" style="padding:0 6px">Review it below. When you're ready, download it to send — or book a lawyer to review it first.</p>
+      <div class="docframe">
+        <div class="toolbar"><span>Demand Letter — Smith v Acme Corporation</span><span class="ok">✓ Ready · Ontario employment law</span></div>
+        <div class="doc">
+          <div class="wp">WITHOUT PREJUDICE</div>
+          <p>June 25, 2026</p>
+          <p>Human Resources Department<br>Acme Corporation</p>
+          <p class="re">Re: Termination of Jane Smith</p>
+          <p>I am writing in connection with the termination of my employment with Acme Corporation on <mark>June 1, 2026</mark>, after <mark>8.3 years</mark> of service as a Marketing Manager.</p>
+          <p>Under the <em>Employment Standards Act, 2000</em>, I am entitled to a minimum of <mark>8 weeks'</mark> notice. However, the termination provision in my employment agreement is unenforceable: its "just cause" language does not meet the ESA "wilful misconduct" standard, and under <em>Waksdale v Swegon Power &amp; Cooling Systems Inc.</em>, 2020 ONCA 391, the entire termination clause is void.</p>
+          <p>I am therefore entitled to common law reasonable notice. Applying the <em>Bardal</em> factors — my age, length of service, and managerial role — reasonable notice falls in the range of <mark>6 to 10 months</mark>.</p>
+          <p>The manner of my dismissal — terminated the same day, without explanation — may also give rise to aggravated damages per <em>Honda Canada Inc. v Keays</em>, 2008 SCC 39.</p>
+          <p>Accordingly, I demand payment equivalent to <mark>$78,000</mark>. I ask that Acme Corporation respond within <mark>14 days</mark>, failing which I am prepared to pursue my claim in the Superior Court of Justice.</p>
+          <p>Yours truly,<br><br>Jane Smith</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="navbtns">
+      <button class="btn btn-back" id="back">← Back</button>
+      <div class="exports" id="rightbtns">
+        <button class="btn btn-cta" id="next">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var names=["Recipient","Points to make","Your demand","Preview"];
+    var total=4,cur=1;
+    var bar=document.getElementById('bar');
+    function render(){
+      bar.innerHTML='';
+      for(var i=1;i<=total;i++){
+        var s=document.createElement('div');s.className='pstep'+(i<cur?' done':i===cur?' active':'');
+        s.innerHTML='<div class="dot">'+(i<cur?'✓':i)+'</div><span class="nm">'+names[i-1]+'</span>';
+        bar.appendChild(s);
+        if(i<total){var l=document.createElement('div');l.className='pline'+(i<cur?' done':'');bar.appendChild(l);}
+      }
+      document.getElementById('cur').textContent=cur;
+      document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('on',+p.dataset.step===cur);});
+      document.getElementById('back').style.visibility=cur===1?'hidden':'visible';
+      var right=document.getElementById('rightbtns');
+      if(cur===total){
+        right.innerHTML='<button class="btn btn-navy" onclick="alert(\'Demo — PDF export\')">⬇ Download PDF</button><button class="btn btn-cta" onclick="location.href=\'dashboard.html\'">⬇ Download DOCX</button>';
+      } else {
+        right.innerHTML='<button class="btn btn-cta" id="next">'+(cur===total-1?'Generate letter →':'Continue →')+'</button>';
+        document.getElementById('next').onclick=adv;
+      }
+      window.scrollTo(0,0);
+    }
+    function adv(){ if(cur<total){cur++;render();} }
+    document.getElementById('back').onclick=function(){ if(cur>1){cur--;render();} };
+    document.getElementById('next').onclick=adv;
+    // issue toggles
+    document.addEventListener('click',function(e){var el=e.target.closest('.issue');if(el)el.classList.toggle('on');});
+    render();
+  </script>
+</body>
+</html>

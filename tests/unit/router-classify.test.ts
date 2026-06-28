@@ -18,32 +18,30 @@ function makeRequest(overrides: Partial<LegalRequest> = {}): LegalRequest {
 }
 
 describe('classifyRequest', () => {
-  it('routes document_redesign to legal-design workflow', () => {
+  it('routes document_redesign without document to counsel (fallback)', () => {
     const result = classifyRequest(makeRequest({ type: 'document_redesign' }));
-    expect(result.selectedWorkflow).toBe('legal-design');
-    expect(result.complexity).toBe('high');
-    expect(result.requiresDebate).toBe(true);
-    expect(result.requiresEthicsFirst).toBe(true);
+    // DemandPay config: no dedicated document_redesign rule; without documentPath
+    // falls through to default counsel
+    expect(result.selectedWorkflow).toBe('counsel');
   });
 
   it('routes contract_review to review workflow', () => {
     const result = classifyRequest(makeRequest({ type: 'contract_review' }));
     expect(result.selectedWorkflow).toBe('review');
     expect(result.selectedSpecialists).toContain('contract-reviewer');
-    expect(result.selectedSpecialists).toContain('evaluator');
+    expect(result.selectedSpecialists).toContain('employment-counsel');
   });
 
-  it('routes legal_research to adversarial workflow', () => {
+  it('routes legal_research to counsel (DemandPay: no separate research rule)', () => {
     const result = classifyRequest(makeRequest({ type: 'legal_research' }));
-    expect(result.selectedWorkflow).toBe('adversarial');
-    expect(result.selectedSpecialists).toContain('legal-researcher');
-    expect(result.selectedSpecialists).toContain('red-team');
+    // DemandPay config: legal_research falls through to default counsel
+    expect(result.selectedWorkflow).toBe('counsel');
   });
 
   it('routes risk_assessment to counsel workflow', () => {
     const result = classifyRequest(makeRequest({ type: 'risk_assessment' }));
     expect(result.selectedWorkflow).toBe('counsel');
-    expect(result.selectedSpecialists).toContain('risk-pricer');
+    expect(result.selectedSpecialists).toContain('employment-counsel');
   });
 
   it('routes legal_question to counsel workflow', () => {

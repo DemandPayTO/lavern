@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemandPay — Your Case</title>
+<style>
+  :root{
+    --navy:#0f1a2e; --orange:#ea580c; --orange2:#f26a3d; --orange3:#ff8a5c;
+    --cream:#faf8f5; --frame:#e8e5e0; --border:rgba(15,26,46,0.12);
+    --muted:#5a6472; --green:#16a34a; --amber:#d97706; --red:#dc2626; --callout:#eef1f6;
+    --serif:Georgia,'Palatino Linotype',serif; --sans:system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--cream);color:var(--navy);line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:var(--serif);font-weight:700;color:var(--navy);line-height:1.2}
+  a{color:inherit;text-decoration:none}
+
+  .logo{display:flex;align-items:center;gap:11px}
+  .logo .dots{display:flex;gap:4px}
+  .logo .dots i{width:10px;height:10px;border-radius:50%;display:block}
+  .logo .dots i:nth-child(1){background:var(--orange)}.logo .dots i:nth-child(2){background:var(--orange2)}.logo .dots i:nth-child(3){background:var(--orange3)}
+  .logo .word b{font-family:var(--serif);font-size:15px;font-weight:700;display:block;line-height:1.05;letter-spacing:.5px;color:#fff}
+
+  nav{background:var(--navy);height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+  .usermenu{display:flex;align-items:center;gap:14px}
+  .usermenu .help{color:#cfd6e0;font-size:14px}
+  .usermenu .help:hover{color:#fff}
+  .avatar{width:34px;height:34px;border-radius:2px;background:var(--orange);color:#fff;display:grid;place-items:center;font-weight:600;font-size:14px}
+  .usermenu .who{color:#fff;font-size:14px}
+  .usermenu .who small{display:block;color:#9fb0c4;font-size:12px}
+
+  .btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 18px;border-radius:2px;cursor:pointer;border:none;display:inline-block;transition:background .15s,border-color .15s}
+  .btn-cta{background:var(--orange);color:#fff}.btn-cta:hover{background:#d24f0a}
+  .btn-ghost{background:#fff;color:var(--navy);border:1px solid var(--border)}.btn-ghost:hover{border-color:var(--navy)}
+
+  .wrap{max-width:1040px;margin:0 auto;padding:30px 28px 64px}
+  .pagehead h1{font-size:27px;margin-bottom:4px}
+  .pagehead p{color:var(--muted);font-size:14.5px;margin-bottom:22px}
+
+  /* Tabs */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:26px}
+  .tab{font-family:var(--sans);font-size:14.5px;font-weight:600;color:var(--muted);background:none;border:none;padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.on{color:var(--navy);border-bottom-color:var(--orange)}
+  .tab:hover{color:var(--navy)}
+
+  /* Next-step banner */
+  .nextstep{background:var(--callout);border:1px solid var(--border);border-left:3px solid var(--navy);padding:16px 20px;display:flex;align-items:center;gap:16px;margin-bottom:24px}
+  .nextstep .i{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-style:italic;font-family:var(--serif);font-weight:700;flex-shrink:0}
+  .nextstep .txt{flex:1}
+  .nextstep .txt b{font-size:14.5px}
+  .nextstep .txt p{font-size:13.5px;color:var(--muted);margin-top:2px}
+
+  .grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
+
+  .card{background:#fff;border:1px solid var(--border);padding:24px 26px}
+  .card .label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin-bottom:8px}
+  .estimate .amount{font-family:var(--serif);font-size:42px;font-weight:700;color:var(--navy);line-height:1.05}
+  .estimate .amount span{font-size:22px;color:var(--muted)}
+  .estimate .sub{font-size:13.5px;color:var(--muted);margin-top:6px;margin-bottom:18px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  td,th{text-align:left;padding:11px 0;border-bottom:1px solid var(--border)}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+  td.amt{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:none}
+  .total-row td{font-weight:700;color:var(--navy);border-top:2px solid var(--navy);padding-top:13px}
+
+  .casecard .casehead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:2px}
+  .chip.green{background:#e7f6ec;color:var(--green)}
+  .chip.amber{background:#fdf0dd;color:var(--amber)}
+  .chip.red{background:#fce8e6;color:var(--red)}
+  .meta-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
+  .meta-row:last-child{border-bottom:none}
+  .meta-row .k{color:var(--muted)}
+  .meta-row .v{font-weight:600}
+  .meta-row .v.red{color:var(--red)}
+
+  .actions-head{font-size:18px;margin:34px 0 14px}
+  .actioncards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .action{background:#fff;border:1px solid var(--border);padding:22px;display:flex;flex-direction:column;min-height:184px}
+  .action:hover{border-color:var(--orange)}
+  .action .ic{width:42px;height:42px;border-radius:2px;background:var(--cream);border:1px solid var(--border);display:grid;place-items:center;font-size:20px;margin-bottom:14px}
+  .action.primary .ic{background:var(--orange);border-color:var(--orange)}
+  .action h3{font-size:17px;margin-bottom:7px}
+  .action p{font-size:13px;color:var(--muted);flex:1;margin-bottom:16px}
+  .action .btn{width:100%;text-align:center}
+  .action .status{font-size:12px;color:var(--muted);margin-top:10px;text-align:center}
+</style>
+</head>
+<body>
+  <nav>
+    <a class="logo" href="landing.html">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="word"><b>DEMAND</b><b>PAY</b></span>
+    </a>
+    <div class="usermenu">
+      <a class="help" href="#">Help</a>
+      <span class="who">Jane Smith<small>jane.smith@email.ca</small></span>
+      <span class="avatar">JS</span>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <div class="pagehead">
+      <h1>Your case</h1>
+      <p>Jane, here's where things stand with your termination from Acme Corporation.</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on">Estimate</button>
+      <button class="tab">Review</button>
+      <button class="tab">Negotiate</button>
+    </div>
+
+    <div class="nextstep">
+      <div class="i">i</div>
+      <div class="txt">
+        <b>Your next step: generate your demand letter</b>
+        <p>Your assessment is complete. The strongest move now is to put your demand in writing — it usually takes about 5 minutes.</p>
+      </div>
+      <a class="btn btn-cta" href="demand-letter.html">Generate Demand Letter</a>
+    </div>
+
+    <div class="grid">
+      <div class="card estimate">
+        <div class="label">Your estimated entitlement</div>
+        <div class="amount">$79,167 <span>– $110,833</span></div>
+        <div class="sub">Based on 8.3 years' service, age 47, and a managerial role. This is what Ontario common law may entitle you to — well above the employer's offer.</div>
+        <table>
+          <tr><th>Component</th><th style="text-align:right">Amount (CAD)</th></tr>
+          <tr><td>Employer's offer (4 weeks)</td><td class="amt" style="color:var(--red)">$7,308</td></tr>
+          <tr><td>ESA minimum notice (8 weeks, s. 57)</td><td class="amt">$14,615</td></tr>
+          <tr><td>Common law reasonable notice (10–14 months)</td><td class="amt">$79,167–$110,833</td></tr>
+          <tr class="total-row"><td>Potential gap vs. offer</td><td class="amt">+$71,859–$103,525</td></tr>
+        </table>
+      </div>
+
+      <div class="card casecard">
+        <div class="casehead">
+          <div class="label" style="margin:0">Case status</div>
+          <span class="chip green">● Strong case</span>
+        </div>
+        <div class="meta-row"><span class="k">Employer</span><span class="v">Acme Corporation</span></div>
+        <div class="meta-row"><span class="k">Terminated</span><span class="v">June 1, 2026</span></div>
+        <div class="meta-row"><span class="k">Length of service</span><span class="v">8.3 years</span></div>
+        <div class="meta-row"><span class="k">Annual salary</span><span class="v">$95,000</span></div>
+        <div class="meta-row"><span class="k">Limitation to act</span><span class="v red">June 1, 2028</span></div>
+        <div style="margin-top:16px">
+          <span class="chip amber" style="width:100%;justify-content:center">⏳ Don't wait — you have 2 years to file</span>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="actions-head">What you can do next</h2>
+    <div class="actioncards">
+      <div class="action primary">
+        <div class="ic">✍️</div>
+        <h3>Generate Demand Letter</h3>
+        <p>Create a professional demand letter citing the ESA, <em>Waksdale</em>, and the <em>Bardal</em> factors that support your claim.</p>
+        <a class="btn btn-cta" href="demand-letter.html">Start letter</a>
+        <div class="status">Recommended next step</div>
+      </div>
+      <div class="action">
+        <div class="ic">📨</div>
+        <h3>Review Employer Response</h3>
+        <p>Got a reply or a revised offer? Upload it and we'll tell you whether it's fair compared to your entitlement.</p>
+        <a class="btn btn-ghost" href="#">Upload response</a>
+        <div class="status">Waiting on employer</div>
+      </div>
+      <div class="action">
+        <div class="ic">⚖️</div>
+        <h3>Book Consultation</h3>
+        <p>Want a second opinion? Book a 30-minute review with a licenced Ontario employment lawyer.</p>
+        <a class="btn btn-ghost" href="#">Book review</a>
+        <div class="status">Optional · from $149</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.tab').forEach(function(t){
+      t.addEventListener('click',function(){
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+        t.classList.add('on');
+      });
+    });
+  </script>
+</body>
+</html>
