@@ -83,6 +83,11 @@ export default function NewMatterView() {
   const [rawFiles, setRawFiles] = useState<File[]>([]);
   const [startDate, setStartDate] = useState('');
   const [terminationDate, setTerminationDate] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [salary, setSalary] = useState('');
+  const [justCause, setJustCause] = useState(false);
+  const [constructiveDismissal, setConstructiveDismissal] = useState(false);
+  const [terminationReason, setTerminationReason] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { createMatter, uploading, error } = useMatterCreate();
@@ -133,12 +138,18 @@ export default function NewMatterView() {
         files: rawFiles.length > 0 ? rawFiles : undefined,
         startDate: startDate || undefined,
         termDate: terminationDate || undefined,
+        // Employment-specific fields
+        jobTitle: jobTitle || undefined,
+        salary: salary ? parseFloat(salary) : undefined,
+        justCause,
+        constructiveDismissal,
+        terminationReason: terminationReason || undefined,
       });
-      handleNav(`#/processing/${result.sessionId}`);
+      handleNav(`#/matter/${result.matterId ?? result.sessionId}`);
     } catch {
       // error is already set by the hook
     }
-  }, [createMatter, clientName, employerName, situation, rawFiles, startDate, terminationDate, handleNav]);
+  }, [createMatter, clientName, employerName, situation, rawFiles, startDate, terminationDate, jobTitle, salary, justCause, constructiveDismissal, terminationReason, handleNav]);
 
   return (
     <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
@@ -362,6 +373,87 @@ export default function NewMatterView() {
                 Plain language is fine. Starling will identify the legal issues
                 — <b style={{ color: navy }}>wrongful dismissal, ESA entitlements, Waksdale termination-clause analysis, Human Rights Code</b> claims, and limitation periods.
               </span>
+            </div>
+          </div>
+
+          {/* Employment Details (collapsible) */}
+          <div style={{ marginBottom: 22 }}>
+            <label style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: navy, marginBottom: 7 }}>
+              Employment Details
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <div style={{ fontWeight: 400, color: muted, fontSize: 12.5, marginBottom: 6 }}>
+                  Job Title
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g., Senior Marketing Manager"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  style={{
+                    width: '100%', fontFamily: sans, fontSize: 14, color: ink,
+                    border: `1px solid ${border}`, borderRadius: 2,
+                    padding: '11px 13px', background: '#fff', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div>
+                <div style={{ fontWeight: 400, color: muted, fontSize: 12.5, marginBottom: 6 }}>
+                  Annual Salary (CAD)
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g., 95000"
+                  value={salary}
+                  onChange={(e) => setSalary(e.target.value.replace(/[^\d.]/g, ''))}
+                  style={{
+                    width: '100%', fontFamily: sans, fontSize: 14, color: ink,
+                    border: `1px solid ${border}`, borderRadius: 2,
+                    padding: '11px 13px', background: '#fff', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Termination reason */}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontWeight: 400, color: muted, fontSize: 12.5, marginBottom: 6 }}>
+                Reason given for termination
+              </div>
+              <input
+                type="text"
+                placeholder="e.g., restructuring, performance, no reason given"
+                value={terminationReason}
+                onChange={(e) => setTerminationReason(e.target.value)}
+                style={{
+                  width: '100%', fontFamily: sans, fontSize: 14, color: ink,
+                  border: `1px solid ${border}`, borderRadius: 2,
+                  padding: '11px 13px', background: '#fff', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {/* Flags */}
+            <div style={{ display: 'flex', gap: 24, marginTop: 14 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: ink, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={justCause}
+                  onChange={(e) => setJustCause(e.target.checked)}
+                  style={{ accentColor: orange }}
+                />
+                Employer alleged just cause
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: ink, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={constructiveDismissal}
+                  onChange={(e) => setConstructiveDismissal(e.target.checked)}
+                  style={{ accentColor: orange }}
+                />
+                Constructive dismissal
+              </label>
             </div>
           </div>
 

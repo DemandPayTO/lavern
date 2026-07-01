@@ -41,6 +41,9 @@ export interface ClawProfile {
   };
   /** Processing mode for sensitive documents: 'local' (default), 'frontier', 'hybrid' */
   processing?: 'local' | 'frontier' | 'hybrid';
+  /** Client's age (years). Used in frontier prompts when DOB is anonymised.
+   *  Set by the lawyer during intake — not computed from documents. */
+  clientAge?: number;
   createdAt: string;
 }
 

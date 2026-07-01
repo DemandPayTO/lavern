@@ -186,9 +186,10 @@ Apply rigorous standards. Where Australian or NSW law canons of construction are
 
 If the clause is benign on a fair reading, mark it minor and say so concisely. Do not invent risks.`;
 
+    const ageLine = profile.clientAge ? `\nClient age: ${profile.clientAge}` : '';
     const userMessage = `Client: ${profile.company} (${profile.jurisdiction}, ${profile.industry})
 Client's role: 40% non-operator participant in this joint venture
-Client's risk appetite: ${profile.preferences.riskAppetite}
+Client's risk appetite: ${profile.preferences.riskAppetite}${ageLine}
 
 ANONYMISED CLAUSES FOR DEEP REVIEW (one per '---'):
 

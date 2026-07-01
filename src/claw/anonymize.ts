@@ -1,40 +1,64 @@
 /**
- * Claw Mode — Legal Document Anonymization.
+ * Claw Mode — Selective Legal Document Anonymisation.
  *
- * Replaces PII-like entities (party names, monetary amounts, dates,
- * addresses, emails, phone numbers) with stable placeholders such as
- * `[PARTY_1]` and `[AMOUNT_3]`. The mapping table is returned so the
- * process can be reversed after analysis.
+ * Redacts IDENTIFYING information that has zero value for legal analysis:
+ *   - Party/individual names
+ *   - Email addresses, phone numbers, street addresses
+ *   - Government IDs (SIN, driver's licence, passport)
+ *   - Financial IDs (bank accounts, credit cards)
+ *   - Health/insurance card numbers
+ *   - Dates of birth (but NOT other dates — those are analytically important)
+ *
+ * PRESERVES information that Claude needs for legal reasoning:
+ *   - Monetary amounts / salaries (essential for severance calculations, ESA thresholds)
+ *   - Dates (essential for tenure, limitation periods, notice periods)
+ *   - Job titles and roles (essential for Bardal factors)
+ *   - Duration / tenure (essential for common law range)
  *
  * All logic is local — regex only, no external dependencies, no LLM calls.
+ * The mapping table is returned so the process can be reversed after analysis.
  */
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type EntityType = 'party' | 'amount' | 'date' | 'address' | 'email' | 'phone';
+export type EntityType =
+  | 'party'
+  | 'address'
+  | 'email'
+  | 'phone'
+  | 'sin'
+  | 'financial'
+  | 'health_id'
+  | 'drivers_licence'
+  | 'passport'
+  | 'dob';
 
 export interface EntityMapping {
-  /** Stable placeholder, e.g. "[PARTY_1]", "[AMOUNT_3]" */
+  /** Stable placeholder, e.g. "[PARTY_1]", "[SIN_1]" */
   placeholder: string;
-  /** Original matched text, e.g. "Acme Corp", "$5,000,000" */
+  /** Original matched text */
   original: string;
   /** Entity category */
   type: EntityType;
 }
 
 export interface AnonymizationResult {
-  /** Text with all entities replaced by placeholders */
+  /** Text with identifying entities replaced by placeholders */
   anonymizedText: string;
   /** Complete mapping table for reversal */
   mappings: EntityMapping[];
   /** Per-category counts of unique entities found */
   stats: {
     parties: number;
-    amounts: number;
-    dates: number;
     addresses: number;
     emails: number;
     phones: number;
+    sins: number;
+    financial: number;
+    healthIds: number;
+    driversLicences: number;
+    passports: number;
+    dobs: number;
   };
 }
 
@@ -54,49 +78,104 @@ const SKIP_TERMS = new Set([
 /** Labels used in placeholder names, keyed by EntityType. */
 const TYPE_LABELS: Record<EntityType, string> = {
   party: 'PARTY',
-  amount: 'AMOUNT',
-  date: 'DATE',
   address: 'ADDRESS',
   email: 'EMAIL',
   phone: 'PHONE',
+  sin: 'SIN',
+  financial: 'FINANCIAL',
+  health_id: 'HEALTH_ID',
+  drivers_licence: 'DL',
+  passport: 'PASSPORT',
+  dob: 'DOB',
 };
 
 // ── Regex patterns ───────────────────────────────────────────────────────
+
+// -- Existing (kept) --
 
 /** Email addresses. */
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
 /**
- * Phone numbers — US and international formats.
+ * Phone numbers — US, Canadian, and international formats.
  * Matches: +1 (555) 123-4567, +44 20 7946 0958, 555-123-4567, (555) 123 4567
  */
 const PHONE_RE = /(?:\+\d{1,3}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,4}/g;
 
-/**
- * Monetary amounts — symbol-prefixed and code-prefixed.
- * Matches: $1,000,000  €5.000  £100,000  USD 50,000  EUR 5,000
- */
-const MONEY_SYMBOL_RE = /[$€£]\s?\d{1,3}(?:[,.\s]\d{3})*(?:\.\d{1,2})?/g;
-const MONEY_CODE_RE = /\b(?:USD|EUR|GBP|CHF|JPY|CAD|AUD)\s?\d{1,3}(?:[,.\s]\d{3})*(?:\.\d{1,2})?\b/g;
+// -- New: Government IDs --
 
 /**
- * Monetary amounts — written form.
- * Matches: "10 million dollars", "five hundred thousand USD"
+ * Canadian Social Insurance Number (SIN).
+ * Format: 123-456-789 or 123 456 789 or 123456789 (9 digits).
+ * Only matches when preceded by a SIN label to avoid false positives on
+ * other 9-digit sequences.
  */
-const MONEY_WRITTEN_RE =
-  /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion)(?:\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion))*\s+(?:dollars?|euros?|pounds?|USD|EUR|GBP)\b/gi;
+const SIN_LABELLED_RE = /(?:SIN|S\.I\.N\.?|Social\s+Insurance\s+(?:Number|No\.?|#))\s*:?\s*(\d{3}[\s\-]?\d{3}[\s\-]?\d{3})/gi;
+/** Bare 9-digit SIN pattern (xxx-xxx-xxx or xxx xxx xxx) — only dashed/spaced form to reduce false positives. */
+const SIN_BARE_RE = /\b\d{3}[\-\s]\d{3}[\-\s]\d{3}\b/g;
 
 /**
- * Dates — multiple formats.
+ * Canadian driver's licence numbers.
+ * Ontario: letter + 4 digits + hyphen + 5 digits + hyphen + 5 digits (e.g. A1234-56789-01234)
+ * Other provinces vary but are typically 5–15 alphanumeric characters.
+ * Only matches when preceded by a label.
  */
-const DATE_LONG_RE =
-  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b/gi;
-const DATE_ORDINAL_RE =
-  /\b\d{1,2}(?:st|nd|rd|th)\s+day\s+of\s+(?:January|February|March|April|May|June|July|August|September|October|November|December),?\s+\d{4}\b/gi;
-const DATE_MONTH_YEAR_RE =
-  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/gi;
-const DATE_SLASH_RE = /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g;
-const DATE_ISO_RE = /\b\d{4}-\d{2}-\d{2}\b/g;
+const DRIVERS_LICENCE_RE = /(?:driver'?s?\s+licen[cs]e|DL|D\.L\.)\s*(?:number|no\.?|#)?\s*:?\s*([A-Z0-9][\w\-]{4,14})/gi;
+
+/**
+ * Passport numbers — alphanumeric, 6–9 characters, preceded by a label.
+ */
+const PASSPORT_RE = /(?:passport)\s*(?:number|no\.?|#)?\s*:?\s*([A-Z]{1,2}\d{5,7})/gi;
+
+// -- New: Financial IDs --
+
+/**
+ * Credit card numbers — 13–19 digits, optionally grouped with spaces or dashes.
+ * Common formats: 4111-1111-1111-1111, 4111 1111 1111 1111, 5500000000000004
+ */
+const CREDIT_CARD_RE = /\b(?:\d{4}[\s\-]?){3,4}\d{1,4}\b/g;
+
+/**
+ * Bank account / routing numbers — preceded by a label.
+ * Matches "account number: 123456789" or "routing #: 0123456" etc.
+ */
+const BANK_ACCOUNT_RE = /(?:account|acct|routing|transit|institution)\s*(?:number|no\.?|#)?\s*:?\s*(\d{4,12})/gi;
+
+// -- New: Health / Insurance IDs --
+
+/**
+ * Canadian health card numbers (OHIP, RAMQ, etc.) — preceded by a label.
+ * OHIP: 10 digits, often with a version code letter (e.g. 1234-567-890-AB)
+ */
+const HEALTH_CARD_RE = /(?:health\s*card(?:\s+(?:number|no\.?|#))?|OHIP|RAMQ|health\s+(?:insurance|plan)\s*(?:number|no\.?|#)?|PHN)\s*:?\s*([\dA-Z][\dA-Z\s\-]{6,15})/gi;
+
+/**
+ * Generic insurance policy numbers — preceded by a label.
+ */
+const INSURANCE_NUM_RE = /(?:insurance|policy|group)\s*(?:number|no\.?|#)\s*:?\s*([\w\-]{5,15})/gi;
+
+// -- New: Addresses --
+
+/**
+ * Canadian postal codes (A1A 1A1 or A1A1A1).
+ */
+const POSTAL_CODE_RE = /\b[A-Z]\d[A-Z]\s?\d[A-Z]\d\b/gi;
+
+/**
+ * Street addresses — number + street name + type.
+ * Matches: "123 Maple Street", "4500 Yonge St.", "1 King St W, Suite 200"
+ */
+const STREET_ADDRESS_RE = /\b\d{1,5}\s+(?:[A-Z][a-zA-Z]*\s+){1,3}(?:Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Boulevard|Blvd\.?|Drive|Dr\.?|Court|Ct\.?|Place|Pl\.?|Way|Lane|Ln\.?|Crescent|Cres\.?|Circle|Cir\.?|Trail|Tr\.?)(?:\s*[,.]?\s*(?:Suite|Ste\.?|Unit|Apt\.?|#)\s*\d{1,5})?/gi;
+
+// -- New: Date of Birth --
+
+/**
+ * Date of birth — only when preceded by a DOB label.
+ * Preserves all other dates (hire dates, termination dates, etc.).
+ */
+const DOB_LONG_RE = /(?:date\s+of\s+birth|DOB|d\.o\.b\.?|born|birth\s*date)\s*:?\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}/gi;
+const DOB_NUMERIC_RE = /(?:date\s+of\s+birth|DOB|d\.o\.b\.?|born|birth\s*date)\s*:?\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/gi;
+const DOB_ISO_RE = /(?:date\s+of\s+birth|DOB|d\.o\.b\.?|born|birth\s*date)\s*:?\s*\d{4}-\d{2}-\d{2}/gi;
 
 // ── Internal helpers ─────────────────────────────────────────────────────
 
@@ -112,10 +191,24 @@ interface FoundEntity {
  */
 function collectMatches(text: string, re: RegExp, type: EntityType): FoundEntity[] {
   const results: FoundEntity[] = [];
-  // Reset lastIndex for global regexes
   re.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
+    results.push({ start: m.index, end: m.index + m[0].length, text: m[0], type });
+  }
+  return results;
+}
+
+/**
+ * Collect regex matches using a capture group (for labelled patterns).
+ * The full match is replaced, but only the captured group is stored as the original.
+ */
+function collectLabelledMatches(text: string, re: RegExp, type: EntityType): FoundEntity[] {
+  const results: FoundEntity[] = [];
+  re.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    // Replace the full match (label + value) to avoid leaving a dangling label
     results.push({ start: m.index, end: m.index + m[0].length, text: m[0], type });
   }
   return results;
@@ -136,38 +229,43 @@ function overlaps(span: { start: number; end: number }, claimed: { start: number
   return claimed.some((c) => span.start < c.end && span.end > c.start);
 }
 
+/**
+ * Filter out credit-card-like matches that are obviously not card numbers.
+ * Must be 13–19 digits (ignoring separators) to be a valid card number.
+ */
+function isPlausibleCardNumber(match: string): boolean {
+  const digitsOnly = match.replace(/[\s\-]/g, '');
+  return digitsOnly.length >= 13 && digitsOnly.length <= 19 && /^\d+$/.test(digitsOnly);
+}
+
 // ── Public API ───────────────────────────────────────────────────────────
 
 /**
- * Anonymize a legal document by replacing PII-like entities with stable
- * placeholders.
+ * Anonymise a legal document by replacing IDENTIFYING entities with stable
+ * placeholders. Preserves dates, monetary amounts, and other analytically
+ * important data.
  *
- * Extraction order: party names, monetary amounts, dates, emails, phones.
- * Within each category, longest matches are processed first so that
- * overlapping shorter matches are skipped.
- *
- * @param text          The document text to anonymize.
+ * @param text          The document text to anonymise.
  * @param definedTerms  Optional array of legal defined terms to treat as
  *                      party names (e.g. "Licensee", "Acme Corp").
- * @returns             The anonymized text, mapping table, and stats.
+ * @returns             The anonymised text, mapping table, and stats.
  */
 export function anonymize(text: string, definedTerms?: string[]): AnonymizationResult {
-  // Canonical key → placeholder tracking
   const knownEntities = new Map<string, string>();
   const counters: Record<EntityType, number> = {
     party: 0,
-    amount: 0,
-    date: 0,
     address: 0,
     email: 0,
     phone: 0,
+    sin: 0,
+    financial: 0,
+    health_id: 0,
+    drivers_licence: 0,
+    passport: 0,
+    dob: 0,
   };
   const mappings: EntityMapping[] = [];
 
-  /**
-   * Register an entity and return its placeholder. If the same canonical
-   * form was seen before, re-use the existing placeholder.
-   */
   function register(original: string, type: EntityType): string {
     const key = `${type}::${original.toLowerCase().trim()}`;
     const existing = knownEntities.get(key);
@@ -194,27 +292,41 @@ export function anonymize(text: string, definedTerms?: string[]): AnonymizationR
     }
   }
 
-  // 1b. Monetary amounts
-  allEntities.push(...collectMatches(text, MONEY_WRITTEN_RE, 'amount'));
-  allEntities.push(...collectMatches(text, MONEY_SYMBOL_RE, 'amount'));
-  allEntities.push(...collectMatches(text, MONEY_CODE_RE, 'amount'));
+  // 1b. Dates of birth (labelled — must come before general date patterns would)
+  allEntities.push(...collectLabelledMatches(text, DOB_LONG_RE, 'dob'));
+  allEntities.push(...collectLabelledMatches(text, DOB_NUMERIC_RE, 'dob'));
+  allEntities.push(...collectLabelledMatches(text, DOB_ISO_RE, 'dob'));
 
-  // 1c. Dates (longest patterns first)
-  allEntities.push(...collectMatches(text, DATE_ORDINAL_RE, 'date'));
-  allEntities.push(...collectMatches(text, DATE_LONG_RE, 'date'));
-  allEntities.push(...collectMatches(text, DATE_MONTH_YEAR_RE, 'date'));
-  allEntities.push(...collectMatches(text, DATE_SLASH_RE, 'date'));
-  allEntities.push(...collectMatches(text, DATE_ISO_RE, 'date'));
+  // 1c. Government IDs
+  allEntities.push(...collectLabelledMatches(text, SIN_LABELLED_RE, 'sin'));
+  allEntities.push(...collectMatches(text, SIN_BARE_RE, 'sin'));
+  allEntities.push(...collectLabelledMatches(text, DRIVERS_LICENCE_RE, 'drivers_licence'));
+  allEntities.push(...collectLabelledMatches(text, PASSPORT_RE, 'passport'));
 
-  // 1d. Emails
+  // 1d. Financial IDs
+  allEntities.push(...collectLabelledMatches(text, BANK_ACCOUNT_RE, 'financial'));
+  const cardMatches = collectMatches(text, CREDIT_CARD_RE, 'financial');
+  allEntities.push(...cardMatches.filter(m => isPlausibleCardNumber(m.text)));
+
+  // 1e. Health / insurance IDs
+  allEntities.push(...collectLabelledMatches(text, HEALTH_CARD_RE, 'health_id'));
+  allEntities.push(...collectLabelledMatches(text, INSURANCE_NUM_RE, 'health_id'));
+
+  // 1f. Addresses
+  allEntities.push(...collectMatches(text, STREET_ADDRESS_RE, 'address'));
+  allEntities.push(...collectMatches(text, POSTAL_CODE_RE, 'address'));
+
+  // 1g. Emails
   allEntities.push(...collectMatches(text, EMAIL_RE, 'email'));
 
-  // 1e. Phones
+  // 1h. Phones
   allEntities.push(...collectMatches(text, PHONE_RE, 'phone'));
+
+  // NOTE: Monetary amounts and general dates are NOT collected.
+  // They are preserved in the output because Claude needs them for legal analysis.
 
   // ── Step 2: Deduplicate overlapping spans (longest first) ──────────
 
-  // Sort by length descending, then by position ascending
   allEntities.sort((a, b) => (b.end - b.start) - (a.end - a.start) || a.start - b.start);
 
   const claimed: { start: number; end: number; placeholder: string }[] = [];
@@ -225,9 +337,8 @@ export function anonymize(text: string, definedTerms?: string[]): AnonymizationR
     claimed.push({ start: entity.start, end: entity.end, placeholder });
   }
 
-  // ── Step 3: Build anonymized text (process replacements back-to-front) ─
+  // ── Step 3: Build anonymised text (process replacements back-to-front) ─
 
-  // Sort claimed spans by start position descending so index shifting is safe
   claimed.sort((a, b) => b.start - a.start);
 
   let result = text;
@@ -240,32 +351,30 @@ export function anonymize(text: string, definedTerms?: string[]): AnonymizationR
     mappings,
     stats: {
       parties: counters.party,
-      amounts: counters.amount,
-      dates: counters.date,
       addresses: counters.address,
       emails: counters.email,
       phones: counters.phone,
+      sins: counters.sin,
+      financial: counters.financial,
+      healthIds: counters.health_id,
+      driversLicences: counters.drivers_licence,
+      passports: counters.passport,
+      dobs: counters.dob,
     },
   };
 }
 
 /**
- * Reverse anonymization by replacing placeholders with their original values.
+ * Reverse anonymisation by replacing placeholders with their original values.
  *
  * Processes placeholders in reverse order of length to avoid partial
  * replacements (e.g. `[PARTY_10]` before `[PARTY_1]`).
- *
- * @param text     The anonymized text.
- * @param mappings The mapping table from a previous `anonymize()` call.
- * @returns        The restored original text.
  */
 export function deanonymize(text: string, mappings: EntityMapping[]): string {
-  // Sort by placeholder length descending to avoid partial matches
   const sorted = [...mappings].sort((a, b) => b.placeholder.length - a.placeholder.length);
 
   let result = text;
   for (const { placeholder, original } of sorted) {
-    // Replace all occurrences of this placeholder
     while (result.includes(placeholder)) {
       result = result.replace(placeholder, original);
     }
@@ -274,12 +383,8 @@ export function deanonymize(text: string, mappings: EntityMapping[]): string {
 }
 
 /**
- * Apply deanonymization to an array of findings, restoring original
+ * Apply de-anonymisation to an array of findings, restoring original
  * entities in both `content` and `evidence` fields.
- *
- * @param findings Array of findings with content and optional evidence.
- * @param mappings The mapping table from a previous `anonymize()` call.
- * @returns        New array with placeholders replaced by original values.
  */
 export function deanonymizeFindings(
   findings: Array<{ content: string; evidence?: string }>,

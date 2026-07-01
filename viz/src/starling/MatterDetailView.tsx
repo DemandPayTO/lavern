@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useMatterDetail } from './hooks/useStarlingApi.js';
+import { useMatterDetail, useEmploymentData } from './hooks/useStarlingApi.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
 // ── Design Tokens ───────────────────────────────────────────────────────
@@ -315,6 +315,9 @@ export default function MatterDetailView() {
   const [activeTab, setActiveTab] = useState<TabKey>('issues');
   const [notes, setNotes] = useState(DEMO_NOTES);
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
+  const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
   const handleNav = useCallback((hash: string) => {
     window.location.hash = hash;
@@ -326,6 +329,7 @@ export default function MatterDetailView() {
 
   // Wire hook data
   const { matter, loading, error } = useMatterDetail(sessionId);
+  const employment = useEmploymentData(sessionId);
 
   // Compute tab badge counts from hook data
   const issueCount = matter?.issues.length ?? 0;
@@ -779,24 +783,97 @@ export default function MatterDetailView() {
                   </div>
                 ))}
               </div>
-              {selectedDraft && (
+              {selectedDraft && !generatedHtml && (
                 <button
-                  onClick={() => handleNav('#/processing')}
+                  onClick={async () => {
+                    setGenerating(true);
+                    setGenError(null);
+                    const result = await employment.generateDocument(
+                      selectedDraft === 'demand' ? 'demand_letter'
+                        : selectedDraft === 'soc' ? 'statement_of_claim'
+                        : selectedDraft === 'mediation' ? 'mediation_brief'
+                        : 'demand_letter',
+                      {
+                        tone: 'professional',
+                        demandAmount: 100000,
+                        claimAmount: 100000,
+                        procedureType: 'simplified',
+                        lawyerName: 'Lawyer Name',
+                        firmName: 'Firm Name',
+                        courtLocation: 'Toronto',
+                        responseDeadlineDays: 14,
+                      },
+                    );
+                    setGenerating(false);
+                    if (result.ok && result.html) {
+                      setGeneratedHtml(result.html);
+                    } else {
+                      setGenError(result.error ?? 'Generation failed');
+                    }
+                  }}
+                  disabled={generating}
                   style={{
-                    background: orange,
+                    background: generating ? '#b0b0b0' : orange,
                     color: '#fff',
                     fontSize: 13.5,
                     fontWeight: 600,
                     padding: '11px 18px',
                     borderRadius: 2,
                     border: 'none',
-                    cursor: 'pointer',
+                    cursor: generating ? 'not-allowed' : 'pointer',
                     marginTop: 8,
                     fontFamily: sans,
                   }}
                 >
-                  Start Drafting
+                  {generating ? 'Generating...' : 'Generate Draft'}
                 </button>
+              )}
+
+              {genError && (
+                <div style={{ marginTop: 12, padding: '12px 16px', border: '1px solid #dc2626', borderRadius: 2, background: '#fce8e6', color: '#dc2626', fontSize: 13.5 }}>
+                  {genError}
+                </div>
+              )}
+
+              {/* Document Preview */}
+              {generatedHtml && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <h3 style={{ fontFamily: serif, fontSize: 17, fontWeight: 600, color: navy, margin: 0 }}>
+                      Generated Draft
+                    </h3>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => setGeneratedHtml(null)}
+                        style={{
+                          background: '#fff', color: navy, border: `1px solid ${border}`,
+                          fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                        }}
+                      >
+                        Regenerate
+                      </button>
+                      <a
+                        href={`/api/employment/${sessionId}/download/${selectedDraft === 'demand' ? 'demand-letter' : selectedDraft === 'soc' ? 'statement-of-claim' : 'mediation-brief'}`}
+                        download
+                        style={{
+                          background: navy, color: '#fff',
+                          fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2,
+                          textDecoration: 'none', display: 'inline-block', fontFamily: sans,
+                        }}
+                      >
+                        Download DOCX
+                      </a>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      background: '#fff', border: `1px solid ${border}`, padding: '28px 32px',
+                      fontFamily: serif, fontSize: 14, lineHeight: 1.7, color: ink,
+                      maxHeight: 600, overflowY: 'auto',
+                    }}
+                    dangerouslySetInnerHTML={{ __html: generatedHtml }}
+                  />
+                </div>
               )}
             </div>
           )}

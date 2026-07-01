@@ -58,6 +58,7 @@ import { registerBillingRoutes } from './routes/billing.js';
 import { maybeRegisterRemoteBridge } from '../mcp/remote-bridge/index.js';
 import { registerReferralRoutes } from './routes/referral.js';
 import { registerTemplateRoutes } from './routes/templates.js';
+import { registerEmploymentIntakeRoutes } from './routes/employment-intake.js';
 import { ClientRegistry, createAuthMiddleware, registerAuthRoutes } from './middleware/auth.js';
 import { createPerUserRateLimitHook } from './middleware/rate-limit.js';
 import { registerUserAuthRoutes } from './routes/auth-routes.js';
@@ -681,6 +682,7 @@ export async function startApiServer(port: number): Promise<void> {
   // unless both LAVERN_MANAGED_AGENTS_BRIDGE=1 and the shared secret are set).
   maybeRegisterRemoteBridge(fastify, sessionManager);
   registerTemplateRoutes(fastify);
+  registerEmploymentIntakeRoutes(fastify);
 
   // ── Frontend Static Files ──────────────────────────────────────────
 

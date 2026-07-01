@@ -311,6 +311,12 @@ export interface MatterCreateResult {
     files?: File[];
     startDate?: string;
     termDate?: string;
+    // Employment-specific fields
+    jobTitle?: string;
+    salary?: number;
+    justCause?: boolean;
+    constructiveDismissal?: boolean;
+    terminationReason?: string;
   }) => Promise<{ sessionId: string; matterId: string }>;
   /** True while files are being uploaded or the session is being created. */
   uploading: boolean;
@@ -337,6 +343,11 @@ export function useMatterCreate(): MatterCreateResult {
     files?: File[];
     startDate?: string;
     termDate?: string;
+    jobTitle?: string;
+    salary?: number;
+    justCause?: boolean;
+    constructiveDismissal?: boolean;
+    terminationReason?: string;
   }): Promise<{ sessionId: string; matterId: string }> => {
     setError(null);
     setUploading(true);
@@ -448,11 +459,55 @@ export function useMatterCreate(): MatterCreateResult {
         // Silent fail — DemandPay sync is non-critical
       }
 
+      // Step 4: Save employment intake data and run analysis
+      const matterId = sessionData.matterId ?? sessionId;
+      const toIsoDate = (dmy: string | undefined): string | undefined => {
+        if (!dmy) return undefined;
+        const parts = dmy.trim().split('/');
+        if (parts.length !== 3) return undefined;
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      };
+
+      try {
+        // Save structured intake
+        await fetch('/api/employment/intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            matterId,
+            intake: {
+              client_first_name: data.clientName.split(' ')[0] || data.clientName,
+              client_last_name: data.clientName.split(' ').slice(1).join(' ') || undefined,
+              employer_legal_name: data.employerName,
+              hire_date: toIsoDate(data.startDate) || undefined,
+              termination_date: toIsoDate(data.termDate) || undefined,
+              job_title: data.jobTitle || undefined,
+              annual_salary: data.salary || undefined,
+              was_terminated: !data.constructiveDismissal,
+              is_constructive_dismissal: data.constructiveDismissal || false,
+              employer_alleged_just_cause: data.justCause || false,
+              termination_reasons: data.terminationReason || undefined,
+            },
+          }),
+        });
+
+        // Run analysis
+        await fetch('/api/employment/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ matterId }),
+        });
+      } catch {
+        // Non-fatal — intake saved, analysis can be re-run from matter detail
+      }
+
       setUploading(false);
 
       return {
         sessionId,
-        matterId: sessionData.matterId ?? sessionId,
+        matterId,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create matter';
@@ -1273,4 +1328,110 @@ function getTimelineSubtitle(event: Record<string, unknown>): string {
     case 'finding_posted': return (event.content as string)?.slice(0, 100) ?? '';
     default: return '';
   }
+}
+
+// ── Hook: useEmploymentData ─────────────────────────────────────────────
+
+export interface EmploymentData {
+  intake: Record<string, unknown>;
+  timeline: Array<{ date: string; label: string; description?: string; category: string; source: string }>;
+  gates: Array<{ gate: string; triggered: boolean; reason: string; issueCodes: string[]; requiresLawyerReview: boolean }>;
+  approvedIssues: string[];
+  dismissedIssues: string[];
+  analysis: Record<string, unknown> | null;
+  selectedTone: string;
+  selectedProcedure: string | null;
+  selectedDocumentType: string | null;
+  demandAmount: number | null;
+}
+
+export interface UseEmploymentDataResult {
+  data: EmploymentData | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+  approveIssues: (approved: string[], dismissed: string[]) => Promise<void>;
+  generateDocument: (docType: string, options: Record<string, unknown>) => Promise<{ ok: boolean; html?: string; error?: string }>;
+}
+
+/**
+ * Fetches employment data for a matter and provides actions.
+ */
+export function useEmploymentData(matterId: string | null): UseEmploymentDataResult {
+  const [data, setData] = useState<EmploymentData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!matterId) return;
+    setLoading(true);
+    setError(null);
+
+    if (USE_DEMO_DATA) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/employment/${matterId}`, { credentials: 'include' });
+      if (!res.ok) {
+        if (res.status === 404) { setData(null); setLoading(false); return; }
+        throw new Error(`Failed to fetch employment data: ${res.statusText}`);
+      }
+      const json = await res.json();
+      setData(json.data ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load employment data');
+    } finally {
+      setLoading(false);
+    }
+  }, [matterId]);
+
+  // Auto-fetch on mount and matterId change
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const approveIssues = useCallback(async (approved: string[], dismissed: string[]) => {
+    if (!matterId) return;
+    try {
+      await fetch(`/api/employment/${matterId}/issues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ approved, dismissed }),
+      });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update issues');
+    }
+  }, [matterId, refresh]);
+
+  const generateDocument = useCallback(async (docType: string, options: Record<string, unknown>) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const endpoint = docType === 'demand_letter'
+        ? `/api/employment/${matterId}/demand-letter`
+        : docType === 'statement_of_claim'
+          ? `/api/employment/${matterId}/statement-of-claim`
+          : docType.startsWith('discovery') || docType.startsWith('affidavit') || docType.startsWith('mediation')
+            ? `/api/employment/${matterId}/litigation-document`
+            : `/api/employment/${matterId}/application`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(options),
+      });
+
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error ?? 'Generation failed' };
+      refresh();
+      return { ok: true, html: json.html };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Generation failed' };
+    }
+  }, [matterId, refresh]);
+
+  return { data, loading, error, refresh, approveIssues, generateDocument };
 }

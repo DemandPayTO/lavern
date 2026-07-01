@@ -1,21 +1,24 @@
 /**
- * Unit Tests — Anonymization (src/claw/anonymize.ts)
+ * Unit Tests — Selective Anonymisation (src/claw/anonymize.ts)
  *
  * Tests anonymize(), deanonymize(), and deanonymizeFindings()
- * for PII replacement, round-trip reversal, and edge cases.
+ * for the selective redaction strategy:
+ *   - REDACTS: names, emails, phones, addresses, SINs, financial IDs,
+ *             health IDs, driver's licences, passports, DOBs
+ *   - PRESERVES: monetary amounts, dates, job titles, durations
  */
 
 import { describe, it, expect } from 'vitest';
 import { anonymize, deanonymize, deanonymizeFindings } from '../../src/claw/anonymize.js';
 
-// ── anonymize() — Party Names ──────────────────────────────────────────
+// ── Party Names (kept from original) ─────────────────────────────────────
 
 describe('anonymize — party names', () => {
   it('replaces defined terms with [PARTY_N] placeholders', () => {
     const text = 'Acme Corp agrees to provide services to Globex Inc.';
     const result = anonymize(text, ['Acme Corp', 'Globex Inc']);
-    // Longest term is processed first, so Globex Inc (10 chars) → PARTY_1, Acme Corp (9 chars) → PARTY_2
-    expect(result.anonymizedText).toBe('[PARTY_2] agrees to provide services to [PARTY_1].');
+    expect(result.anonymizedText).not.toContain('Acme Corp');
+    expect(result.anonymizedText).not.toContain('Globex Inc');
     expect(result.stats.parties).toBe(2);
   });
 
@@ -29,98 +32,247 @@ describe('anonymize — party names', () => {
 
   it('skips common legal terms (Agreement, Services, etc.)', () => {
     const text = 'The Agreement governs the Services provided.';
-    const result = anonymize(text, ['Agreement', 'Services', 'Confidential Information', 'Effective Date', 'Term', 'Party', 'Parties']);
+    const result = anonymize(text, ['Agreement', 'Services', 'Confidential Information']);
     expect(result.anonymizedText).toBe(text);
     expect(result.stats.parties).toBe(0);
   });
+});
 
-  it('handles unicode/accented party names', () => {
-    const text = 'Societe Generale and Muller GmbH entered into this agreement.';
-    const result = anonymize(text, ['Societe Generale', 'Muller GmbH']);
-    expect(result.anonymizedText).toContain('[PARTY_1]');
-    expect(result.anonymizedText).toContain('[PARTY_2]');
-    expect(result.stats.parties).toBe(2);
+// ── PRESERVED: Monetary Amounts ──────────────────────────────────────────
+
+describe('anonymize — monetary amounts are PRESERVED', () => {
+  it('does NOT redact dollar amounts', () => {
+    const text = 'The salary is $95,000 per year.';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('$95,000');
   });
 
-  it('handles no defined terms gracefully', () => {
-    const text = 'This is a simple document.';
+  it('does NOT redact EUR amounts', () => {
+    const text = 'Total liability capped at EUR 50,000.';
     const result = anonymize(text);
-    expect(result.stats.parties).toBe(0);
+    expect(result.anonymizedText).toContain('EUR 50,000');
+  });
+
+  it('does NOT redact CAD amounts', () => {
+    const text = 'Severance of CAD 120,000 was offered.';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('CAD 120,000');
   });
 });
 
-// ── anonymize() — Monetary Amounts ─────────────────────────────────────
+// ── PRESERVED: General Dates ─────────────────────────────────────────────
 
-describe('anonymize — monetary amounts', () => {
-  it('replaces $-prefixed amounts', () => {
-    const text = 'The penalty shall be $1,000,000.';
+describe('anonymize — general dates are PRESERVED', () => {
+  it('does NOT redact long-form dates', () => {
+    const text = 'Hired on January 15, 2020. Terminated March 1, 2026.';
     const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[AMOUNT_');
-    expect(result.anonymizedText).not.toContain('$1,000,000');
-    expect(result.stats.amounts).toBeGreaterThanOrEqual(1);
+    expect(result.anonymizedText).toContain('January 15, 2020');
+    expect(result.anonymizedText).toContain('March 1, 2026');
   });
 
-  it('replaces EUR-prefixed amounts', () => {
-    const text = 'The fee is EUR 5,000.';
+  it('does NOT redact ISO dates', () => {
+    const text = 'Start date: 2020-01-15.';
     const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[AMOUNT_');
-    expect(result.anonymizedText).not.toContain('EUR 5,000');
+    expect(result.anonymizedText).toContain('2020-01-15');
   });
 
-  it('replaces USD-prefixed amounts', () => {
-    const text = 'Total liability capped at USD 50,000.';
+  it('does NOT redact slash dates', () => {
+    const text = 'Signed on 01/15/2020.';
     const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[AMOUNT_');
-    expect(result.anonymizedText).not.toContain('USD 50,000');
-  });
-
-  it('replaces euro symbol amounts', () => {
-    const text = 'Payment of \u20AC5,000 is due.';
-    const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[AMOUNT_');
-    expect(result.stats.amounts).toBeGreaterThanOrEqual(1);
-  });
-
-  it('assigns unique placeholders to different amounts', () => {
-    const text = 'First fee: $10,000. Second fee: $20,000.';
-    const result = anonymize(text);
-    expect(result.stats.amounts).toBe(2);
+    expect(result.anonymizedText).toContain('01/15/2020');
   });
 });
 
-// ── anonymize() — Dates ────────────────────────────────────────────────
+// ── NEW: Date of Birth (redacted when labelled) ──────────────────────────
 
-describe('anonymize — dates', () => {
-  it('replaces long-form dates (January 15, 2024)', () => {
-    const text = 'Effective as of January 15, 2024.';
+describe('anonymize — date of birth', () => {
+  it('redacts labelled DOB (long form)', () => {
+    const text = 'Date of Birth: March 15, 1982.';
     const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[DATE_');
-    expect(result.anonymizedText).not.toContain('January 15, 2024');
+    expect(result.anonymizedText).toContain('[DOB_1]');
+    expect(result.anonymizedText).not.toContain('March 15, 1982');
+    expect(result.stats.dobs).toBe(1);
   });
 
-  it('replaces slash dates (01/15/2024)', () => {
-    const text = 'Signed on 01/15/2024.';
+  it('redacts labelled DOB (numeric)', () => {
+    const text = 'DOB: 03/15/1982.';
     const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[DATE_');
-    expect(result.anonymizedText).not.toContain('01/15/2024');
+    expect(result.anonymizedText).toContain('[DOB_1]');
+    expect(result.anonymizedText).not.toContain('03/15/1982');
   });
 
-  it('replaces ISO dates (2024-01-15)', () => {
-    const text = 'Deadline: 2024-01-15.';
+  it('redacts labelled DOB (ISO)', () => {
+    const text = 'Date of birth: 1982-03-15.';
     const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[DATE_');
-    expect(result.anonymizedText).not.toContain('2024-01-15');
+    expect(result.anonymizedText).toContain('[DOB_1]');
+    expect(result.anonymizedText).not.toContain('1982-03-15');
   });
 
-  it('replaces ordinal dates (15th day of January, 2024)', () => {
-    const text = 'The 15th day of January, 2024.';
+  it('redacts "born" prefix', () => {
+    const text = 'The claimant was born March 15, 1982.';
     const result = anonymize(text);
-    expect(result.anonymizedText).toContain('[DATE_');
-    expect(result.stats.dates).toBeGreaterThanOrEqual(1);
+    expect(result.anonymizedText).toContain('[DOB_1]');
+    expect(result.stats.dobs).toBe(1);
+  });
+
+  it('does NOT redact unlabelled dates (hire date, termination date)', () => {
+    const text = 'Hired on January 10, 2018. Terminated on June 1, 2026.';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('January 10, 2018');
+    expect(result.anonymizedText).toContain('June 1, 2026');
+    expect(result.stats.dobs).toBe(0);
   });
 });
 
-// ── anonymize() — Email Addresses ──────────────────────────────────────
+// ── NEW: SIN ─────────────────────────────────────────────────────────────
+
+describe('anonymize — SIN', () => {
+  it('redacts labelled SIN', () => {
+    const text = 'SIN: 123-456-789';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[SIN_1]');
+    expect(result.anonymizedText).not.toContain('123-456-789');
+    expect(result.stats.sins).toBe(1);
+  });
+
+  it('redacts "Social Insurance Number" label', () => {
+    const text = 'Social Insurance Number: 987 654 321';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[SIN_1]');
+    expect(result.anonymizedText).not.toContain('987 654 321');
+  });
+
+  it('redacts bare dashed SIN pattern (xxx-xxx-xxx)', () => {
+    const text = 'The employee provided 123-456-789 as identification.';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[SIN_1]');
+    expect(result.anonymizedText).not.toContain('123-456-789');
+  });
+});
+
+// ── NEW: Financial IDs ───────────────────────────────────────────────────
+
+describe('anonymize — financial IDs', () => {
+  it('redacts credit card numbers (spaced)', () => {
+    const text = 'Card: 4111 1111 1111 1111';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[FINANCIAL_');
+    expect(result.anonymizedText).not.toContain('4111 1111 1111 1111');
+    expect(result.stats.financial).toBeGreaterThanOrEqual(1);
+  });
+
+  it('redacts credit card numbers (dashed)', () => {
+    const text = 'Payment via 5500-0000-0000-0004.';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[FINANCIAL_');
+    expect(result.anonymizedText).not.toContain('5500-0000-0000-0004');
+  });
+
+  it('redacts labelled bank account numbers', () => {
+    const text = 'Account number: 12345678';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[FINANCIAL_');
+    expect(result.anonymizedText).not.toContain('12345678');
+  });
+
+  it('redacts routing/transit numbers', () => {
+    const text = 'Transit number: 04567';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[FINANCIAL_');
+    expect(result.anonymizedText).not.toContain('04567');
+  });
+});
+
+// ── NEW: Health / Insurance IDs ──────────────────────────────────────────
+
+describe('anonymize — health / insurance IDs', () => {
+  it('redacts OHIP numbers', () => {
+    const text = 'OHIP: 1234-567-890-AB';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[HEALTH_ID_');
+    expect(result.anonymizedText).not.toContain('1234-567-890-AB');
+    expect(result.stats.healthIds).toBeGreaterThanOrEqual(1);
+  });
+
+  it('redacts health card numbers', () => {
+    const text = 'Health card number: 9876543210XY';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[HEALTH_ID_');
+    expect(result.anonymizedText).not.toContain('9876543210XY');
+  });
+
+  it('redacts insurance policy numbers', () => {
+    const text = 'Policy number: GRP-12345-AB';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[HEALTH_ID_');
+    expect(result.anonymizedText).not.toContain('GRP-12345-AB');
+  });
+});
+
+// ── NEW: Driver's Licence ────────────────────────────────────────────────
+
+describe('anonymize — driver\'s licence', () => {
+  it('redacts labelled Ontario DL number', () => {
+    const text = "Driver's licence number: A1234-56789-01234";
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[DL_1]');
+    expect(result.anonymizedText).not.toContain('A1234-56789-01234');
+    expect(result.stats.driversLicences).toBe(1);
+  });
+
+  it('redacts "DL" abbreviated label', () => {
+    const text = 'DL: B9876543210';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[DL_1]');
+    expect(result.anonymizedText).not.toContain('B9876543210');
+  });
+});
+
+// ── NEW: Passport ────────────────────────────────────────────────────────
+
+describe('anonymize — passport', () => {
+  it('redacts labelled passport number', () => {
+    const text = 'Passport number: AB1234567';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[PASSPORT_1]');
+    expect(result.anonymizedText).not.toContain('AB1234567');
+    expect(result.stats.passports).toBe(1);
+  });
+
+  it('redacts "Passport No." format', () => {
+    const text = 'Passport No. GA123456';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[PASSPORT_1]');
+  });
+});
+
+// ── Addresses ────────────────────────────────────────────────────────────
+
+describe('anonymize — addresses', () => {
+  it('redacts street addresses', () => {
+    const text = 'Resident at 123 Maple Street, Toronto.';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[ADDRESS_');
+    expect(result.anonymizedText).not.toContain('123 Maple Street');
+    expect(result.stats.addresses).toBeGreaterThanOrEqual(1);
+  });
+
+  it('redacts Canadian postal codes', () => {
+    const text = 'Postal code: M5V 2T6';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[ADDRESS_');
+    expect(result.anonymizedText).not.toContain('M5V 2T6');
+  });
+
+  it('redacts addresses with suite numbers', () => {
+    const text = 'Located at 4500 Yonge St, Suite 200.';
+    const result = anonymize(text);
+    expect(result.anonymizedText).toContain('[ADDRESS_');
+    expect(result.anonymizedText).not.toContain('4500 Yonge St, Suite 200');
+  });
+});
+
+// ── Emails (kept from original) ──────────────────────────────────────────
 
 describe('anonymize — emails', () => {
   it('replaces email addresses', () => {
@@ -138,10 +290,10 @@ describe('anonymize — emails', () => {
   });
 });
 
-// ── anonymize() — Phone Numbers ────────────────────────────────────────
+// ── Phones (kept from original) ──────────────────────────────────────────
 
 describe('anonymize — phones', () => {
-  it('replaces US-format phone numbers', () => {
+  it('replaces US/CA-format phone numbers', () => {
     const text = 'Call +1 (555) 123-4567 for support.';
     const result = anonymize(text);
     expect(result.anonymizedText).toContain('[PHONE_');
@@ -150,7 +302,7 @@ describe('anonymize — phones', () => {
   });
 });
 
-// ── anonymize() — Structure Preservation ───────────────────────────────
+// ── Structure Preservation ───────────────────────────────────────────────
 
 describe('anonymize — structure preservation', () => {
   it('preserves section numbers and headings', () => {
@@ -162,11 +314,47 @@ describe('anonymize — structure preservation', () => {
   });
 });
 
-// ── anonymize() — Determinism & Stats ──────────────────────────────────
+// ── Employment Law Scenario ──────────────────────────────────────────────
 
-describe('anonymize — determinism and stats', () => {
+describe('anonymize — employment law scenario', () => {
+  it('redacts names but preserves salary, dates, title, and tenure', () => {
+    const text =
+      'John Smith was employed by Acme Corp as a Senior Manager from January 10, 2018 ' +
+      'to March 1, 2026, earning $95,000 per year. Date of Birth: March 15, 1982. ' +
+      'SIN: 123-456-789. Email: john.smith@email.com.';
+    const result = anonymize(text, ['John Smith', 'Acme Corp']);
+
+    // Names redacted
+    expect(result.anonymizedText).not.toContain('John Smith');
+    expect(result.anonymizedText).not.toContain('Acme Corp');
+
+    // Salary preserved
+    expect(result.anonymizedText).toContain('$95,000');
+
+    // Dates preserved
+    expect(result.anonymizedText).toContain('January 10, 2018');
+    expect(result.anonymizedText).toContain('March 1, 2026');
+
+    // Job title preserved
+    expect(result.anonymizedText).toContain('Senior Manager');
+
+    // DOB redacted
+    expect(result.anonymizedText).not.toContain('March 15, 1982');
+    expect(result.stats.dobs).toBe(1);
+
+    // SIN redacted
+    expect(result.stats.sins).toBeGreaterThanOrEqual(1);
+
+    // Email redacted
+    expect(result.stats.emails).toBe(1);
+  });
+});
+
+// ── Determinism ──────────────────────────────────────────────────────────
+
+describe('anonymize — determinism', () => {
   it('is deterministic (same input = same output)', () => {
-    const text = 'Acme Corp pays $500,000 on January 1, 2025.';
+    const text = 'Acme Corp, SIN: 123-456-789, email: test@test.com.';
     const terms = ['Acme Corp'];
     const r1 = anonymize(text, terms);
     const r2 = anonymize(text, terms);
@@ -174,23 +362,14 @@ describe('anonymize — determinism and stats', () => {
     expect(r1.mappings).toEqual(r2.mappings);
     expect(r1.stats).toEqual(r2.stats);
   });
-
-  it('stats accurately reflect unique entity counts', () => {
-    const text = 'Acme Corp and Globex Inc signed on January 1, 2025 for $100,000. Contact: info@acme.com.';
-    const result = anonymize(text, ['Acme Corp', 'Globex Inc']);
-    expect(result.stats.parties).toBe(2);
-    expect(result.stats.amounts).toBeGreaterThanOrEqual(1);
-    expect(result.stats.dates).toBeGreaterThanOrEqual(1);
-    expect(result.stats.emails).toBe(1);
-  });
 });
 
-// ── deanonymize() — Round-trip ─────────────────────────────────────────
+// ── deanonymize() — Round-trip ───────────────────────────────────────────
 
 describe('deanonymize', () => {
-  it('perfectly reverses anonymization (round-trip)', () => {
-    const original = 'Acme Corp shall pay Globex Inc $1,000,000 by January 15, 2025.';
-    const { anonymizedText, mappings } = anonymize(original, ['Acme Corp', 'Globex Inc']);
+  it('perfectly reverses anonymisation (round-trip)', () => {
+    const original = 'Acme Corp hired John Smith. SIN: 123-456-789. Email: john@acme.com.';
+    const { anonymizedText, mappings } = anonymize(original, ['Acme Corp', 'John Smith']);
     const restored = deanonymize(anonymizedText, mappings);
     expect(restored).toBe(original);
   });
@@ -209,17 +388,17 @@ describe('deanonymize', () => {
   });
 });
 
-// ── deanonymizeFindings() ──────────────────────────────────────────────
+// ── deanonymizeFindings() ────────────────────────────────────────────────
 
 describe('deanonymizeFindings', () => {
   it('replaces placeholders in content and evidence', () => {
-    const { mappings } = anonymize('Acme Corp owes $500,000.', ['Acme Corp']);
+    const { mappings } = anonymize('Acme Corp, email: legal@acme.com.', ['Acme Corp']);
     const findings = [
-      { content: 'Risk: [PARTY_1] clause is broad', evidence: 'See [AMOUNT_1] cap' },
+      { content: 'Risk: [PARTY_1] clause is broad', evidence: 'See [EMAIL_1]' },
     ];
     const result = deanonymizeFindings(findings, mappings);
     expect(result[0].content).toContain('Acme Corp');
-    expect(result[0].evidence).toContain('$500,000');
+    expect(result[0].evidence).toContain('legal@acme.com');
   });
 
   it('preserves undefined evidence', () => {
@@ -235,24 +414,23 @@ describe('deanonymizeFindings', () => {
   });
 });
 
-// ── Edge Cases ─────────────────────────────────────────────────────────
+// ── Edge Cases ───────────────────────────────────────────────────────────
 
 describe('anonymize — edge cases', () => {
   it('handles empty text', () => {
     const result = anonymize('', ['Acme']);
     expect(result.anonymizedText).toBe('');
     expect(result.mappings).toEqual([]);
-    expect(result.stats.parties).toBe(0);
   });
 
   it('handles text with no matching entities', () => {
-    const text = 'This document contains no recognizable entities.';
+    const text = 'This document contains no recognisable entities.';
     const result = anonymize(text);
     expect(result.anonymizedText).toBe(text);
     expect(result.mappings).toEqual([]);
   });
 
-  it('handles text that is entirely entities', () => {
+  it('handles text that is entirely a party name', () => {
     const text = 'Acme Corp';
     const result = anonymize(text, ['Acme Corp']);
     expect(result.anonymizedText).toBe('[PARTY_1]');

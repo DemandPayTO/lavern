@@ -262,13 +262,15 @@ export function createAuthMiddleware(
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const req = request as FastifyRequest & {
       userId?: string;
-      user?: { id: string; email: string; displayName: string };
+      firmId?: string;
+      user?: { id: string; email: string; displayName: string; firmId?: string };
     };
 
     // LOCAL MODE: bypass all auth, inject synthetic local user
     if (!config.authEnabled) {
       req.userId = 'local-user';
-      req.user = { id: 'local-user', email: 'local@localhost', displayName: 'Local User' };
+      req.firmId = 'local-firm';
+      req.user = { id: 'local-user', email: 'local@localhost', displayName: 'Local User', firmId: 'local-firm' };
       return;
     }
 
@@ -295,7 +297,8 @@ export function createAuthMiddleware(
       const user = dbGetUserByToken(cookieToken);
       if (user) {
         req.userId = user.id;
-        req.user = { id: user.id, email: user.email, displayName: user.display_name ?? '' };
+        req.firmId = user.firm_id ?? user.firm_name ?? undefined;
+        req.user = { id: user.id, email: user.email, displayName: user.display_name ?? '', firmId: user.firm_id ?? user.firm_name ?? undefined };
         return;
       }
     }

@@ -101,9 +101,22 @@ function runMigrations(db: Database.Database): void {
       updated_at  TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS firm_templates (
+      id             TEXT PRIMARY KEY,
+      firm_id        TEXT NOT NULL,
+      document_type  TEXT NOT NULL,
+      name           TEXT NOT NULL,
+      template_b64   TEXT NOT NULL,
+      placeholders   TEXT DEFAULT '[]',
+      created_at     TEXT NOT NULL,
+      updated_at     TEXT NOT NULL,
+      UNIQUE(firm_id, document_type)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_session_archive_user ON session_archive(user_id);
     CREATE INDEX IF NOT EXISTS idx_matters_user ON matters(user_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_firm_templates_firm ON firm_templates(firm_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
 
     -- API client registry (persists across server restarts)
@@ -428,6 +441,11 @@ function runMigrations(db: Database.Database): void {
   } catch { /* column already exists */ }
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL`);
 
+  // firm_id for multi-tenant isolation (templates, matter scoping)
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN firm_id TEXT`);
+  } catch { /* column already exists */ }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_tokens (
       token      TEXT PRIMARY KEY,
@@ -525,6 +543,8 @@ export interface DbUser {
   password_hash: string;
   display_name: string;
   firm_name: string;
+  /** Firm identifier for multi-tenant isolation (templates, matters). */
+  firm_id?: string;
   profile_json: string;
   created_at: string;
   updated_at: string;
@@ -1259,6 +1279,54 @@ export function getMatterById(matterId: string, userId: string): { id: string; d
   return getDb().prepare(`
     SELECT id, data_json, status FROM matters WHERE id = ? AND user_id = ?
   `).get(matterId, userId) as { id: string; data_json: string; status: string } | undefined;
+}
+
+// ── Firm Template Queries ────────────────────────────────────────────────
+
+export function saveFirmTemplate(
+  id: string, firmId: string, documentType: string, name: string,
+  templateB64: string, placeholders: string[],
+): void {
+  const now = new Date().toISOString();
+  getDb().prepare(`
+    INSERT INTO firm_templates (id, firm_id, document_type, name, template_b64, placeholders, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(firm_id, document_type) DO UPDATE SET
+      name = excluded.name,
+      template_b64 = excluded.template_b64,
+      placeholders = excluded.placeholders,
+      updated_at = excluded.updated_at
+  `).run(id, firmId, documentType, name, templateB64, JSON.stringify(placeholders), now, now);
+}
+
+export function getFirmTemplates(firmId: string): Array<{
+  id: string; firm_id: string; document_type: string; name: string;
+  template_b64: string; placeholders: string; created_at: string; updated_at: string;
+}> {
+  return getDb().prepare(`
+    SELECT id, firm_id, document_type, name, template_b64, placeholders, created_at, updated_at
+    FROM firm_templates WHERE firm_id = ? ORDER BY document_type
+  `).all(firmId) as Array<{
+    id: string; firm_id: string; document_type: string; name: string;
+    template_b64: string; placeholders: string; created_at: string; updated_at: string;
+  }>;
+}
+
+export function getFirmTemplate(firmId: string, documentType: string): {
+  id: string; firm_id: string; document_type: string; name: string;
+  template_b64: string; placeholders: string; created_at: string; updated_at: string;
+} | undefined {
+  return getDb().prepare(`
+    SELECT id, firm_id, document_type, name, template_b64, placeholders, created_at, updated_at
+    FROM firm_templates WHERE firm_id = ? AND document_type = ?
+  `).get(firmId, documentType) as {
+    id: string; firm_id: string; document_type: string; name: string;
+    template_b64: string; placeholders: string; created_at: string; updated_at: string;
+  } | undefined;
+}
+
+export function deleteFirmTemplate(firmId: string, documentType: string): void {
+  getDb().prepare(`DELETE FROM firm_templates WHERE firm_id = ? AND document_type = ?`).run(firmId, documentType);
 }
 
 // ── API Client Persistence ──────────────────────────────────────────────

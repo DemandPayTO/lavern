@@ -33,6 +33,7 @@ import { PRICING as ANTHROPIC_PRICING } from '../utils/stream-messages.js';
 import { LOCAL_PRICING } from './local.js';
 import { MISTRAL_MODELS } from './types.js';
 import { withRetry } from '../utils/with-retry.js';
+import { anonymize, deanonymize, type EntityMapping } from '../claw/anonymize.js';
 
 // ── Tier → model resolution ─────────────────────────────────────────────
 
@@ -102,6 +103,13 @@ export interface CrossProviderChatOptions {
    * Ignored for local/mistral providers (no retry wrapper there).
    */
   maxRetries?: number;
+  /**
+   * Optional party names / defined terms to anonymise before sending to
+   * a cloud provider. When provided, these terms are redacted alongside
+   * the automatic PII detection (SINs, emails, phones, addresses, etc.).
+   * Pass null to skip anonymisation entirely for this call.
+   */
+  definedTerms?: string[] | null;
 }
 
 export interface CrossProviderChatResult {
@@ -161,6 +169,54 @@ export async function crossProviderChat(
   const turnList: Array<{ role: 'user' | 'assistant'; content: string }> =
     opts.messages ?? [{ role: 'user', content: opts.user ?? '' }];
 
+  // ── ANONYMISATION ──
+  // Apply selective PII redaction before sending to cloud providers.
+  // Skipped for local provider (data never leaves the machine).
+  // Skipped when caller explicitly passes definedTerms: null.
+  // The anonymise function is regex-only (<1ms) and catches SINs, emails,
+  // phones, addresses, DOBs, financial IDs, health cards, DLs, passports,
+  // and any party names passed via definedTerms.
+  let anonMappings: EntityMapping[] | null = null;
+  const skipAnon = config.provider === 'local' || opts.definedTerms === null;
+
+  if (!skipAnon) {
+    // Build a SINGLE mapping table from ALL user messages so that the same
+    // entity (e.g. "Acme Corp") gets the same placeholder across every
+    // message in a multi-turn conversation. Without this, independent
+    // anonymise calls could assign [PARTY_1] to different names in
+    // different messages, causing incorrect de-anonymisation on the response.
+    const terms = Array.isArray(opts.definedTerms) ? opts.definedTerms : undefined;
+    const allUserText = turnList
+      .filter(t => t.role === 'user')
+      .map(t => t.content)
+      .join('\n\n');
+
+    if (allUserText.length > 0) {
+      const combined = anonymize(allUserText, terms);
+      if (combined.mappings.length > 0) {
+        anonMappings = combined.mappings;
+        // Apply the consistent mapping to each user message individually.
+        // Simple approach: for each mapping, replace the original text with
+        // its placeholder in every user message.
+        for (let i = 0; i < turnList.length; i++) {
+          if (turnList[i].role === 'user') {
+            let content = turnList[i].content;
+            // Sort mappings by original length descending to avoid partial replacements
+            const sorted = [...combined.mappings].sort(
+              (a, b) => b.original.length - a.original.length,
+            );
+            for (const { original, placeholder } of sorted) {
+              // Case-insensitive replacement for party names; exact for IDs
+              const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              content = content.replace(new RegExp(escaped, 'gi'), placeholder);
+            }
+            turnList[i] = { ...turnList[i], content };
+          }
+        }
+      }
+    }
+  }
+
   // ── LOCAL ──
   if (config.provider === 'local') {
     const res = await localChat({
@@ -189,10 +245,10 @@ export async function crossProviderChat(
       maxTokens: opts.maxTokens,
       timeoutMs: opts.timeoutMs,
     });
-    const text = (res.message.content ?? '').toString();
-    // mistralChat already computes per-model cost from its own pricing table.
-    // Re-deriving it here applied a flat $2/$6 rate to every model, mispricing
-    // medium/small. Trust the value the client already calculated.
+    let text = (res.message.content ?? '').toString();
+    if (anonMappings && anonMappings.length > 0) {
+      text = deanonymize(text, anonMappings);
+    }
     return { text, cost: res.cost, model, provider: 'mistral' };
   }
 
@@ -239,6 +295,13 @@ export async function crossProviderChat(
     if (block.type === 'text') text += block.text;
   }
   text = text.trim();
+
+  // De-anonymise: restore original PII in the response so the caller
+  // gets real names, not placeholders. The mapping table from the
+  // anonymisation step makes this a simple find-and-replace.
+  if (anonMappings && anonMappings.length > 0) {
+    text = deanonymize(text, anonMappings);
+  }
 
   const pricing = pricingFor(model);
   const inputTokens = res.usage?.input_tokens ?? 0;
