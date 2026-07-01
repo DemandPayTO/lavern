@@ -35,6 +35,15 @@ import type { FirmTemplate } from '../../employment/firm-templates.js';
 
 const logger = createLogger('EMPLOYMENT');
 
+/** Strip script tags and event handlers from generated HTML before storing. */
+function sanitiseHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<script[^>]*>/gi, '')
+    .replace(/\bon\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\bon\w+\s*=\s*'[^']*'/gi, '');
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /** Load a matter's employment data, or create a fresh one if none exists. */
@@ -424,7 +433,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     // Store the generated letter on the matter
     (matter as Record<string, unknown>).generatedDemandLetter = {
-      html: result.html,
+      html: sanitiseHtml(result.html),
       lawyerReviewFlags: result.lawyerReviewFlags,
       tone: parsed.data.tone,
       demandAmount: parsed.data.demandAmount,
@@ -449,7 +458,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     return reply.send({
       ok: true,
-      html: result.html,
+      html: sanitiseHtml(result.html),
       lawyerReviewFlags: result.lawyerReviewFlags,
       costUsd: result.costUsd,
     });
@@ -506,7 +515,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }, definedTerms);
 
     (matter as Record<string, unknown>).generatedSOC = {
-      html: result.html,
+      html: sanitiseHtml(result.html),
       procedureType: result.procedureType,
       lawyerReviewFlags: result.lawyerReviewFlags,
       claimAmount: parsed.data.claimAmount,
@@ -521,7 +530,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     return reply.send({
       ok: true,
-      html: result.html,
+      html: sanitiseHtml(result.html),
       procedureType: result.procedureType,
       lawyerReviewFlags: result.lawyerReviewFlags,
       costUsd: result.costUsd,
@@ -578,7 +587,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }, definedTerms);
 
     (matter as Record<string, unknown>).generatedApplication = {
-      html: result.html,
+      html: sanitiseHtml(result.html),
       applicationType: result.applicationType,
       formName: result.formName,
       lawyerReviewFlags: result.lawyerReviewFlags,
@@ -596,7 +605,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     return reply.send({
       ok: true,
-      html: result.html,
+      html: sanitiseHtml(result.html),
       applicationType: result.applicationType,
       formName: result.formName,
       lawyerReviewFlags: result.lawyerReviewFlags,
@@ -658,7 +667,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // Store on the matter
     const docKey = `generated_${parsed.data.documentType}`;
     (matter as Record<string, unknown>)[docKey] = {
-      html: result.html,
+      html: sanitiseHtml(result.html),
       documentType: result.documentType,
       documentTitle: result.documentTitle,
       lawyerReviewFlags: result.lawyerReviewFlags,
@@ -672,7 +681,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     return reply.send({
       ok: true,
-      html: result.html,
+      html: sanitiseHtml(result.html),
       documentType: result.documentType,
       documentTitle: result.documentTitle,
       lawyerReviewFlags: result.lawyerReviewFlags,
@@ -694,15 +703,19 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const matterData = JSON.parse(row.data_json) as Record<string, unknown>;
     const employment = (matterData.employmentData as EmploymentMatterData) ?? null;
 
+    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
     let html: string | null = null;
     let title = '';
-    let firmName = '';
-    let lawyerName = '';
+
+    // Extract firm/lawyer name from the most recent generated document
+    const genDL = matterData.generatedDemandLetter as Record<string, unknown> | undefined;
+    const genSOC = matterData.generatedSOC as Record<string, unknown> | undefined;
+    const firmName = (genDL?.firmName as string) ?? (genSOC?.firmName as string) ?? '';
+    const lawyerName = (genDL?.lawyerName as string) ?? (genSOC?.lawyerName as string) ?? '';
 
     if (docType === 'demand-letter') {
-      const dl = matterData.generatedDemandLetter as Record<string, unknown> | undefined;
-      if (!dl?.html) return reply.status(404).send({ ok: false, error: 'No demand letter generated yet.' });
-      html = dl.html as string;
+      if (!genDL?.html) return reply.status(404).send({ ok: false, error: 'No demand letter generated yet.' });
+      html = genDL.html as string;
       const clientName = employment ? `${employment.intake?.client_last_name ?? ''}` : '';
       const employerName = employment?.intake?.employer_legal_name ?? '';
       title = `Demand Letter${clientName ? ` — ${clientName}` : ''}${employerName ? ` v. ${employerName}` : ''}`;
@@ -726,10 +739,28 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(400).send({ ok: false, error: 'Invalid document type. Use: demand-letter, statement-of-claim, application, discovery-plan, affidavit-of-documents, or mediation-brief.' });
     }
 
+    const docTypeMap: Record<string, string> = {
+      'demand-letter': 'demand_letter',
+      'statement-of-claim': 'statement_of_claim',
+      'application': 'notice_of_application',
+      'discovery-plan': 'discovery_plan',
+      'affidavit-of-documents': 'affidavit_of_documents',
+      'mediation-brief': 'mediation_brief',
+    };
+
     const buffer = await htmlToDocx(html, {
       title,
       firmName,
       lawyerName,
+      firmId,
+      documentType: docTypeMap[docType],
+      intake: employment?.intake ? {
+        client_first_name: employment.intake.client_first_name,
+        client_last_name: employment.intake.client_last_name,
+        client_address: employment.intake.client_address,
+        employer_legal_name: employment.intake.employer_legal_name,
+        employer_address: employment.intake.employer_address,
+      } : undefined,
     });
 
     const filename = `${title.replace(/[^a-zA-Z0-9\-_ ]/g, '').trim()}.docx`;
@@ -800,6 +831,32 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const { firmId, documentType } = req.params as { firmId: string; documentType: string };
     deleteFirmTemplate(firmId, documentType);
     logger.info('Template deleted', { firmId, documentType });
+    return reply.send({ ok: true });
+  });
+
+  // ── POST /api/employment/:matterId/notes ───────────────────────────────
+  // Save lawyer notes on a matter.
+
+  const notesBodySchema = z.object({
+    notes: z.string().trim().max(50000),
+  });
+
+  fastify.post('/api/employment/:matterId/notes', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string; firmId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+
+    const parsed = notesBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ ok: false, error: 'Invalid notes' });
+    }
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    (matter as Record<string, unknown>).lawyerNotes = parsed.data.notes;
+    await saveEmploymentData(userId, matterId, matter, employment);
+
     return reply.send({ ok: true });
   });
 }

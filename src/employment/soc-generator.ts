@@ -263,14 +263,23 @@ export async function generateStatementOfClaim(
     claimAmount: req.claimAmount,
   });
 
-  const { text, cost } = await crossProviderChat({
-    system: systemPrompt,
-    user: userPrompt,
-    tier: 'opus',
-    maxTokens: 12288,
-    maxRetries: 2,
-    definedTerms: definedTerms ?? undefined,
-  });
+  let text: string;
+  let cost: number;
+  try {
+    const result = await crossProviderChat({
+      system: systemPrompt,
+      user: userPrompt,
+      tier: 'opus',
+      maxTokens: 12288,
+      maxRetries: 2,
+      definedTerms: definedTerms ?? undefined,
+    });
+    text = result.text;
+    cost = result.cost;
+  } catch (err) {
+    logger.error('SOC generation failed', { error: err instanceof Error ? err.message : String(err) });
+    throw new Error('Document generation failed. Please try again.');
+  }
 
   let html = text.trim();
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);

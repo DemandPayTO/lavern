@@ -318,6 +318,10 @@ export default function MatterDetailView() {
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [genTone, setGenTone] = useState('professional');
+  const [genDemandAmount, setGenDemandAmount] = useState('');
+  const [genCourtLocation, setGenCourtLocation] = useState('Toronto');
+  const [genProcedure, setGenProcedure] = useState('simplified');
 
   const handleNav = useCallback((hash: string) => {
     window.location.hash = hash;
@@ -750,24 +754,67 @@ export default function MatterDetailView() {
                   </div>
                 ))}
               </div>
+              {/* Generation options */}
+              {selectedDraft && !generatedHtml && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
+                  {(selectedDraft === 'demand') && (
+                    <>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Tone</div>
+                        <select value={genTone} onChange={e => setGenTone(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
+                          <option value="professional">Professional</option>
+                          <option value="firm">Firm</option>
+                          <option value="aggressive">Aggressive</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Demand Amount (CAD)</div>
+                        <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                      </div>
+                    </>
+                  )}
+                  {(selectedDraft === 'soc') && (
+                    <>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Procedure Type</div>
+                        <select value={genProcedure} onChange={e => setGenProcedure(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
+                          <option value="small_claims">Small Claims (≤$50K)</option>
+                          <option value="simplified">Simplified ($50K–$200K)</option>
+                          <option value="ordinary">Ordinary (&gt;$200K)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Court Location</div>
+                        <input type="text" placeholder="e.g., Toronto" value={genCourtLocation} onChange={e => setGenCourtLocation(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
+                    <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              )}
+
               {selectedDraft && !generatedHtml && (
                 <button
                   onClick={async () => {
                     setGenerating(true);
                     setGenError(null);
+                    const amount = parseInt(genDemandAmount) || 100000;
                     const result = await employment.generateDocument(
                       selectedDraft === 'demand' ? 'demand_letter'
                         : selectedDraft === 'soc' ? 'statement_of_claim'
                         : selectedDraft === 'mediation' ? 'mediation_brief'
                         : 'demand_letter',
                       {
-                        tone: 'professional',
-                        demandAmount: 100000,
-                        claimAmount: 100000,
-                        procedureType: 'simplified',
+                        tone: genTone,
+                        demandAmount: amount,
+                        claimAmount: amount,
+                        procedureType: genProcedure,
                         lawyerName: 'Lawyer Name',
                         firmName: 'Firm Name',
-                        courtLocation: 'Toronto',
+                        courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
                       },
                     );
@@ -775,10 +822,10 @@ export default function MatterDetailView() {
                     if (result.ok && result.html) {
                       setGeneratedHtml(result.html);
                     } else {
-                      setGenError(result.error ?? 'Generation failed');
+                      setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
                     }
                   }}
-                  disabled={generating}
+                  disabled={generating || !genDemandAmount}
                   style={{
                     background: generating ? '#b0b0b0' : orange,
                     color: '#fff',

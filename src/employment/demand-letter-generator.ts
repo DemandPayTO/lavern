@@ -304,7 +304,10 @@ export async function generateDemandLetter(
     demandAmount: req.demandAmount,
   });
 
-  const { text, cost } = await crossProviderChat({
+  let text: string;
+  let cost: number;
+  try {
+    const result = await crossProviderChat({
     system: systemPrompt,
     user: userPrompt,
     tier: 'opus',    // Use strongest model for legal drafting
@@ -312,6 +315,12 @@ export async function generateDemandLetter(
     maxRetries: 2,
     definedTerms: definedTerms ?? undefined,
   });
+    text = result.text;
+    cost = result.cost;
+  } catch (err) {
+    logger.error('Demand letter generation failed', { error: err instanceof Error ? err.message : String(err) });
+    throw new Error('Document generation failed. Please try again.');
+  }
 
   // Extract HTML — Claude may wrap in markdown fences
   let html = text.trim();
