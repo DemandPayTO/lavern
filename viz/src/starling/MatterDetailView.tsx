@@ -442,39 +442,6 @@ export default function MatterDetailView() {
           >
             My Cases
           </a>
-          <a
-            href="#/archive"
-            style={{
-              padding: '8px 14px',
-              borderRadius: 2,
-              fontSize: 14,
-              color: '#cfd6e0',
-              border: '1px solid transparent',
-              textDecoration: 'none',
-            }}
-          >
-            Library
-          </a>
-          <a
-            href="#/my-page"
-            style={{
-              width: 34,
-              height: 34,
-              display: 'grid',
-              placeItems: 'center',
-              border: '1px solid rgba(255,255,255,0.22)',
-              borderRadius: 2,
-              color: '#cfd6e0',
-              textDecoration: 'none',
-            }}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-            </svg>
-          </a>
         </nav>
       </header>
 
