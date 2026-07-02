@@ -517,8 +517,9 @@ export function useMatterList(): MatterListResult {
     setLoading(true);
 
     try {
-      // Fetch both live sessions and archived sessions, merge and deduplicate
-      const [liveRes, archiveRes] = await Promise.all([
+      // Fetch matters + sessions, merge and deduplicate
+      const [mattersRes, liveRes, archiveRes] = await Promise.all([
+        fetch('/api/matters', { credentials: 'include' }).catch(() => null),
         fetch('/api/sessions?limit=50', { credentials: 'include' }).catch(() => null),
         fetch('/api/sessions/archive', { credentials: 'include' }).catch(() => null),
       ]);
@@ -526,6 +527,23 @@ export function useMatterList(): MatterListResult {
       if (fetchId !== fetchCountRef.current) return; // stale response
 
       let allSessions: Array<Record<string, unknown>> = [];
+
+      // Matters (employment workflow) — map to session-like shape
+      if (mattersRes?.ok) {
+        const mattersData = await mattersRes.json();
+        const matters = Array.isArray(mattersData) ? mattersData : (mattersData.matters ?? []);
+        for (const m of matters) {
+          allSessions.push({
+            id: m.matterId ?? m.id,
+            sessionId: m.matterId ?? m.id,
+            title: m.title ?? 'Employment Matter',
+            status: m.status ?? 'active',
+            createdAt: m.openedAt ?? m.created_at,
+            request: { type: 'employment_agreement', requestText: m.description ?? '' },
+            _source: 'matter',
+          });
+        }
+      }
 
       // Live sessions (returns { sessions: [...] } or [...])
       if (liveRes?.ok) {
@@ -688,18 +706,64 @@ export function useMatterDetail(sessionId: string | null): MatterDetailResult {
 
     (async () => {
       try {
-        // Try active session first, fall back to archive
-        let res = await fetch(`/api/sessions/${sessionId}`, { credentials: 'include' });
+        // Try /api/matters first (employment workflow creates matters, not sessions)
+        let res = await fetch(`/api/matters/${sessionId}`, { credentials: 'include' });
+        let source: 'matter' | 'session' = 'matter';
 
         if (res.status === 404) {
-          res = await fetch(`/api/sessions/archive/${sessionId}`, { credentials: 'include' });
+          // Fall back to session (legacy Lavern flow)
+          res = await fetch(`/api/sessions/${sessionId}`, { credentials: 'include' });
+          source = 'session';
+          if (res.status === 404) {
+            res = await fetch(`/api/sessions/archive/${sessionId}`, { credentials: 'include' });
+          }
         }
 
-        if (!res.ok) throw new Error('Session not found');
+        if (!res.ok) throw new Error('Matter not found');
         if (cancelled) return;
 
         const raw = await res.json();
-        setMatter(mapSessionToMatterDetail(sessionId, raw));
+        if (source === 'matter') {
+          // Fetch employment data separately
+          const empRes = await fetch(`/api/employment/${sessionId}`, { credentials: 'include' });
+          const empData = empRes.ok ? await empRes.json() : { data: {} };
+          const employment = empData.data ?? {};
+          const intake = employment.intake ?? {};
+          setMatter({
+            id: sessionId,
+            number: raw.matterNumber ?? `SHEM-${sessionId.slice(-6)}`,
+            name: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim() || 'Employment Matter',
+            client: intake.employer_legal_name ?? '',
+            status: raw.status === 'pre-engagement' ? 'active' : raw.status ?? 'active',
+            issues: (employment.gates ?? [])
+              .filter((g: Record<string, unknown>) => g.triggered)
+              .map((g: Record<string, unknown>, i: number) => ({
+                id: `gate-${g.gate}`,
+                title: String(g.reason ?? g.gate),
+                strength: 'strong' as const,
+                description: String(g.reason ?? ''),
+                descriptionBold: (g.issueCodes as string[] ?? []),
+                sources: [{ label: `Gate ${g.gate}`, type: 'ai' as const }],
+              })),
+            documents: {
+              uploaded: [],
+              generated: [],
+            },
+            timeline: (employment.timeline ?? []).map((e: Record<string, unknown>, i: number) => ({
+              id: `tl-${i}`,
+              date: String(e.date ?? ''),
+              title: String(e.label ?? ''),
+              subtitle: String(e.description ?? ''),
+            })),
+            draftTypes: [
+              { id: 'demand', title: 'Demand Letter', description: 'Professional demand for compensation', cost: '~$1–3', recommended: true },
+              { id: 'soc', title: 'Statement of Claim', description: 'Court filing document', cost: '~$2–5' },
+              { id: 'mediation', title: 'Mediation Brief', description: 'Brief for mandatory mediation', cost: '~$2–4' },
+            ],
+          });
+        } else {
+          setMatter(mapSessionToMatterDetail(sessionId, raw));
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load matter');
