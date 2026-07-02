@@ -13,7 +13,7 @@
  */
 
 import {
-  Document, Packer, Paragraph, TextRun, HeadingLevel,
+  Document, Packer, Paragraph, TextRun,
   AlignmentType, Header, Footer, PageNumber, BorderStyle,
 } from 'docx';
 import { createLogger } from '../utils/logger.js';
@@ -101,34 +101,32 @@ function htmlToParagraphs(html: string): Paragraph[] {
     const trimmed = block.trim();
     if (!trimmed) continue;
 
-    // Heading
+    // Heading — plain bold text, no Word heading styles (avoids blue colours)
     const headingMatch = trimmed.match(/^<h([1-6])[^>]*>([\s\S]*?)<\/h[1-6]>/i);
     if (headingMatch) {
       const level = parseInt(headingMatch[1]);
       const text = stripTags(headingMatch[2]);
       if (text) {
-        const headingLevel = level === 1 ? HeadingLevel.HEADING_1
-          : level === 2 ? HeadingLevel.HEADING_2
-          : HeadingLevel.HEADING_3;
         paragraphs.push(new Paragraph({
-          heading: headingLevel,
-          spacing: { before: 240, after: 120 },
+          spacing: { before: level === 1 ? 360 : 240, after: 120 },
           children: [new TextRun({
-            text,
+            text: level <= 2 ? text.toUpperCase() : text,
             bold: true,
             font: 'Times New Roman',
-            size: level === 1 ? 32 : level === 2 ? 28 : 24,
+            size: level === 1 ? 28 : level === 2 ? 24 : 24,
+            color: '000000',
+            underline: level <= 2 ? { type: 'single', color: '000000' } : undefined,
           })],
         }));
       }
       continue;
     }
 
-    // Horizontal rule
+    // Horizontal rule — subtle black line, not coloured
     if (/^<hr/i.test(trimmed)) {
       paragraphs.push(new Paragraph({
         spacing: { before: 120, after: 120 },
-        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: '999999' } },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: '000000' } },
         children: [],
       }));
       continue;
