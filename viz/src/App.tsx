@@ -883,7 +883,7 @@ export function App() {
           <LoginView
             onAuth={(user) => {
               if (userCtx) userCtx.login(user);
-              window.location.hash = '#/lobby';
+              window.location.hash = '#/';
             }}
             onBack={() => { window.location.hash = '#/quickstart'; }}
           />
