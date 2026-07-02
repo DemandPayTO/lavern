@@ -454,12 +454,30 @@ export function useMatterCreate(): MatterCreateResult {
         });
 
         // Run analysis
-        await fetch('/api/employment/analyze', {
+        const analysisRes = await fetch('/api/employment/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ matterId }),
         });
+
+        // Auto-approve all triggered issues so document generation works immediately.
+        // The lawyer can dismiss specific issues from the Issues tab later.
+        if (analysisRes.ok) {
+          const analysisData = await analysisRes.json();
+          const triggeredCodes = (analysisData.analysis?.gates ?? [])
+            .filter((g: Record<string, unknown>) => g.triggered)
+            .flatMap((g: Record<string, unknown>) => g.issueCodes as string[] ?? []);
+
+          if (triggeredCodes.length > 0) {
+            await fetch(`/api/employment/${matterId}/issues`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ approved: triggeredCodes, dismissed: [] }),
+            });
+          }
+        }
       } catch {
         // Non-fatal — intake saved, analysis can be re-run from matter detail
       }
