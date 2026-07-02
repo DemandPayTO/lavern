@@ -729,15 +729,21 @@ export function useMatterDetail(sessionId: string | null): MatterDetailResult {
           const empData = empRes.ok ? await empRes.json() : { data: {} };
           const employment = empData.data ?? {};
           const intake = employment.intake ?? {};
+          const hireDate = intake.hire_date as string | undefined;
+          const termDate = intake.termination_date as string | undefined;
           setMatter({
-            id: sessionId,
-            number: raw.matterNumber ?? `SHEM-${sessionId.slice(-6)}`,
             name: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim() || 'Employment Matter',
-            client: intake.employer_legal_name ?? '',
-            status: raw.status === 'pre-engagement' ? 'active' : raw.status ?? 'active',
+            number: raw.matterNumber ?? `SHEM-${sessionId.slice(-6)}`,
+            client: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim(),
+            employer: intake.employer_legal_name as string ?? '',
+            dates: {
+              start: hireDate,
+              termination: termDate,
+            },
+            status: 'active',
             issues: (employment.gates ?? [])
               .filter((g: Record<string, unknown>) => g.triggered)
-              .map((g: Record<string, unknown>, i: number) => ({
+              .map((g: Record<string, unknown>) => ({
                 id: `gate-${g.gate}`,
                 title: String(g.reason ?? g.gate),
                 strength: 'strong' as const,
@@ -745,21 +751,13 @@ export function useMatterDetail(sessionId: string | null): MatterDetailResult {
                 descriptionBold: (g.issueCodes as string[] ?? []),
                 sources: [{ label: `Gate ${g.gate}`, type: 'ai' as const }],
               })),
-            documents: {
-              uploaded: [],
-              generated: [],
-            },
+            documents: [],
             timeline: (employment.timeline ?? []).map((e: Record<string, unknown>, i: number) => ({
               id: `tl-${i}`,
               date: String(e.date ?? ''),
               title: String(e.label ?? ''),
               subtitle: String(e.description ?? ''),
             })),
-            draftTypes: [
-              { id: 'demand', title: 'Demand Letter', description: 'Professional demand for compensation', cost: '~$1–3', recommended: true },
-              { id: 'soc', title: 'Statement of Claim', description: 'Court filing document', cost: '~$2–5' },
-              { id: 'mediation', title: 'Mediation Brief', description: 'Brief for mandatory mediation', cost: '~$2–4' },
-            ],
           });
         } else {
           setMatter(mapSessionToMatterDetail(sessionId, raw));
