@@ -399,6 +399,23 @@ export function useMatterCreate(): MatterCreateResult {
       ].filter(Boolean).join('\n');
 
       // Step 3: Create the session
+      // Map parsed docs to the schema format expected by POST /api/sessions.
+      // If no docs were parsed, omit the field entirely.
+      const mappedDocs = parsedDocs.length > 0 ? parsedDocs.map((d, i) => ({
+        id: `doc-${Date.now()}-${i}`,
+        name: d.filename,
+        mimeType: d.mimeType,
+        size: d.content.length,
+        pageCount: 0,
+        wordCount: d.content.split(/\s+/).length,
+        fullText: d.content,
+        sections: [],
+        tables: [],
+        definedTerms: [],
+        parseMethod: 'upload',
+        parsedAt: new Date().toISOString(),
+      })) : undefined;
+
       const sessionRes = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -408,7 +425,7 @@ export function useMatterCreate(): MatterCreateResult {
             type: 'review',
             requestText,
           },
-          documents: parsedDocs,
+          ...(mappedDocs ? { documents: mappedDocs } : {}),
           workflow: 'adversarial',
         }),
       });
