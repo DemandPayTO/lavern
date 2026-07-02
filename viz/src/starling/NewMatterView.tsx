@@ -145,7 +145,7 @@ export default function NewMatterView() {
         constructiveDismissal,
         terminationReason: terminationReason || undefined,
       });
-      handleNav(`#/matter/${result.matterId ?? result.sessionId}`);
+      handleNav(`#/matter-detail/${result.matterId ?? result.sessionId}`);
     } catch {
       // error is already set by the hook
     }

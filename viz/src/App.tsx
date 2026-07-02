@@ -39,6 +39,7 @@ import { LoadingW } from './components/LoadingW.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { YOLO_CONFIGS, type YoloTier } from './landing/yolo-config.js';
 import { CustomCursor } from './components/CustomCursor.js';
+import { IS_STANDALONE } from './standalone.js';
 
 // Lazy-load all views (separate code-split chunks)
 const DemoTourView = lazy(() => import('./demo/DemoTourView.js'));
@@ -227,6 +228,14 @@ export function App() {
       window.location.hash = '#/';
     }
   }, [view]);
+
+  // Redirect to login if not authenticated on protected Starling views
+  const PROTECTED_VIEWS: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results'];
+  useEffect(() => {
+    if (!userCtx?.user && PROTECTED_VIEWS.includes(view) && !IS_STANDALONE) {
+      window.location.hash = '#/login';
+    }
+  }, [userCtx?.user, view]);
 
   // If the user is authenticated, clear any lingering demo session
   useEffect(() => {
