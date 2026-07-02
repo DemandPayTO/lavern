@@ -398,86 +398,30 @@ export function useMatterCreate(): MatterCreateResult {
         data.situation,
       ].filter(Boolean).join('\n');
 
-      // Step 3: Create the session
-      // Map parsed docs to the schema format expected by POST /api/sessions.
-      // If no docs were parsed, omit the field entirely.
-      const mappedDocs = parsedDocs.length > 0 ? parsedDocs.map((d, i) => ({
-        id: `doc-${Date.now()}-${i}`,
-        name: d.filename,
-        mimeType: d.mimeType,
-        size: d.content.length,
-        pageCount: 0,
-        wordCount: d.content.split(/\s+/).length,
-        fullText: d.content,
-        sections: [],
-        tables: [],
-        definedTerms: [],
-        parseMethod: 'upload',
-        parsedAt: new Date().toISOString(),
-      })) : undefined;
-
-      const sessionRes = await fetch('/api/sessions', {
+      // Step 3: Create a matter via /api/matters (not /api/sessions).
+      // Matters are case records — no billing check, no workflow dispatch.
+      // The employment intake + analysis runs separately after creation.
+      const matterRes = await fetch('/api/matters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          request: {
-            type: 'review',
-            requestText,
-          },
-          ...(mappedDocs ? { documents: mappedDocs } : {}),
-          workflow: 'adversarial',
+          clientName: data.clientName,
+          matterTitle: `${data.clientName} v. ${data.employerName}`,
+          matterDescription: data.situation || `Employment matter: ${data.clientName} v. ${data.employerName}`,
+          matterType: 'employment_agreement',
+          jurisdiction: 'CA',
         }),
       });
 
-      if (!sessionRes.ok) {
-        throw new Error(`Failed to create session: ${sessionRes.statusText}`);
+      if (!matterRes.ok) {
+        const errData = await matterRes.json().catch(() => ({}));
+        throw new Error((errData as Record<string, string>).error || `Failed to create matter: ${matterRes.statusText}`);
       }
 
-      const sessionData = await sessionRes.json();
-      const sessionId = sessionData.sessionId ?? sessionData.id;
-
-      // Sync to DemandPay Supabase (fire-and-forget — Starling session is
-      // the source of truth; DemandPay record is for firm billing/tracking).
-      // Only runs if DEMANDPAY_API_URL is configured.
-      try {
-        const dpApiUrl = (window as unknown as Record<string, unknown>).__DEMANDPAY_API_URL as string | undefined;
-        const dpAuthToken = (window as unknown as Record<string, unknown>).__DEMANDPAY_AUTH_TOKEN as string | undefined;
-        if (dpApiUrl && dpAuthToken) {
-          // Convert dd/mm/yyyy to yyyy-mm-dd for the Edge Function
-          const toIso = (dmy: string | undefined): string | undefined => {
-            if (!dmy) return undefined;
-            const parts = dmy.trim().split('/');
-            if (parts.length !== 3) return undefined;
-            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          };
-
-          fetch(`${dpApiUrl}/functions/v1/createMatter`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${dpAuthToken}`,
-            },
-            body: JSON.stringify({
-              title: `${data.clientName} v. ${data.employerName}`,
-              termination_date: toIso(data.termDate) ?? undefined,
-              limitation_deadline: data.termDate ? toIso(data.termDate)?.replace(
-                /^(\d{4})/,
-                (_, y) => String(Number(y) + 2),
-              ) : undefined,
-              clients: [{ full_name: data.clientName, is_primary: true }],
-              respondents: [{ legal_name: data.employerName }],
-            }),
-          }).catch(() => {
-            // Silent fail — DemandPay sync is non-critical
-          });
-        }
-      } catch {
-        // Silent fail — DemandPay sync is non-critical
-      }
-
-      // Step 4: Save employment intake data and run analysis
-      const matterId = sessionData.matterId ?? sessionId;
+      const matterData = await matterRes.json();
+      const matterId = matterData.matterId;
+      const sessionId = matterId;
       const toIsoDate = (dmy: string | undefined): string | undefined => {
         if (!dmy) return undefined;
         const parts = dmy.trim().split('/');
