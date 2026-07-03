@@ -1,5 +1,5 @@
 # DemandPay Starling — Fly.io deployment config
-# Deploy: fly deploy --region yyz
+# Deploy: fly deploy   (primary_region below pins yyz)
 # Region: Toronto (yyz) — data stays in Canada
 
 app = "demandpay-starling"
@@ -26,6 +26,12 @@ primary_region = "yyz"
   LAVERN_AUTH_ENABLED = "true"
   LAVERN_WAITLIST_ENABLED = "false"
   LAVERN_BILLING_CURRENCY = "cad"
+  # 300/min per IP: the dashboard fans out ~30 requests per load (matter
+  # list + per-matter employment enrichment); the default 100/min let an
+  # active firm user rate-limit themselves (verified via local probe).
+  # Auth (5/min login) and session-creation (10/min) limits are separate
+  # and unchanged.
+  SHEM_RATE_LIMIT_MAX = "300"
 
 [http_service]
   internal_port = 3000

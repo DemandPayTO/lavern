@@ -29,6 +29,12 @@ export interface UserProfile {
   lsoNumber: string;
   /** Default court location for Statements of Claim (e.g. Toronto). */
   defaultCourtLocation: string;
+  /** Firm mailing address — fills the signature block on generated documents. */
+  firmAddress: string;
+  /** Firm phone — fills the signature block. */
+  firmPhone: string;
+  /** Firm email for correspondence — fills the signature block. */
+  firmEmail: string;
 
   // Engagement defaults
   defaultWorkflowId: string;
@@ -57,6 +63,9 @@ const DEFAULT_PROFILE: UserProfile = {
   defaultJurisdiction: 'Ontario',
   lsoNumber: '',
   defaultCourtLocation: '',
+  firmAddress: '',
+  firmPhone: '',
+  firmEmail: '',
   defaultWorkflowId: 'counsel',
   defaultIntensity: 'standard',
   defaultBudgetUsd: 10,
@@ -101,6 +110,9 @@ function syncToServer(profile: UserProfile): void {
         defaultJurisdiction: profile.defaultJurisdiction,
         lsoNumber: profile.lsoNumber,
         defaultCourtLocation: profile.defaultCourtLocation,
+        firmAddress: profile.firmAddress,
+        firmPhone: profile.firmPhone,
+        firmEmail: profile.firmEmail,
         defaultWorkflowId: profile.defaultWorkflowId,
         defaultIntensity: profile.defaultIntensity,
         defaultBudgetUsd: profile.defaultBudgetUsd,
@@ -148,6 +160,9 @@ export function useUserProfile() {
             defaultJurisdiction: (serverProfile.defaultJurisdiction as string) || prev.defaultJurisdiction,
             lsoNumber: (serverProfile.lsoNumber as string) || prev.lsoNumber,
             defaultCourtLocation: (serverProfile.defaultCourtLocation as string) || prev.defaultCourtLocation,
+            firmAddress: (serverProfile.firmAddress as string) || prev.firmAddress,
+            firmPhone: (serverProfile.firmPhone as string) || prev.firmPhone,
+            firmEmail: (serverProfile.firmEmail as string) || prev.firmEmail,
             defaultWorkflowId: (serverProfile.defaultWorkflowId as string) || prev.defaultWorkflowId,
             defaultIntensity: (serverProfile.defaultIntensity as string) || prev.defaultIntensity,
             defaultBudgetUsd: (serverProfile.defaultBudgetUsd as number) ?? prev.defaultBudgetUsd,

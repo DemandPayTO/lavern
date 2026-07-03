@@ -44,7 +44,8 @@ describe('MyPageView', () => {
   it('renders identity inputs with correct placeholders', async () => {
     const MyPageView = await loadMyPageView();
     render(<MyPageView onBack={vi.fn()} />);
-    expect(screen.getByPlaceholderText(/demand letters and pleadings/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('As it should appear on demand letters and pleadings')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Fills the signature block/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/generated documents and letterhead/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Law Society of Ontario/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/pre-fills Statements of Claim/i)).toBeInTheDocument();

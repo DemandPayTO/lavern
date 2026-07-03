@@ -126,6 +126,33 @@ export default function MyPageView({ onBack }: Props) {
             style={styles.input}
           />
         </FieldRow>
+        <FieldRow label="Firm Address">
+          <input
+            type="text"
+            value={profile.firmAddress}
+            onChange={e => field('firmAddress')(e.target.value)}
+            placeholder="Fills the signature block — e.g. 10 Dundas St W, Unit 1002, Toronto, ON M5B 2G9"
+            style={styles.input}
+          />
+        </FieldRow>
+        <FieldRow label="Firm Phone">
+          <input
+            type="text"
+            value={profile.firmPhone}
+            onChange={e => field('firmPhone')(e.target.value)}
+            placeholder="e.g. 416-555-0100"
+            style={styles.input}
+          />
+        </FieldRow>
+        <FieldRow label="Firm Email">
+          <input
+            type="text"
+            value={profile.firmEmail}
+            onChange={e => field('firmEmail')(e.target.value)}
+            placeholder="Correspondence email on demand letters and pleadings"
+            style={styles.input}
+          />
+        </FieldRow>
         <FieldRow label="Default Court Location">
           <input
             type="text"

@@ -534,6 +534,21 @@ export default function MatterDetailView() {
       provider: 'anthropic',
     }));
     sessionStorage.setItem('shem-briefing-team', JSON.stringify(spec.team));
+
+    // Record the launch on the matter timeline (fire-and-forget) so the
+    // matter file shows when analyses were commissioned
+    fetch(`/api/employment/${sessionId}/timeline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        label: `Deep Analysis launched: ${spec.label}`,
+        description: 'Results appear in My Cases when the session completes.',
+        category: 'legal',
+      }),
+    }).catch(() => { /* non-fatal */ });
+
     window.location.hash = '#/strategy';
   }, [employment.data, matter, sessionId]);
 
@@ -1250,6 +1265,15 @@ export default function MatterDetailView() {
                         procedureType: genProcedure,
                         lawyerName: profile.displayName || 'Lawyer Name',
                         firmName: profile.firmName || 'Firm Name',
+                        // Composed contact block — the generators accept a single
+                        // firmAddress string and the model fills the signature
+                        // block from it instead of leaving [Address] fill-ins
+                        firmAddress: [
+                          profile.firmAddress,
+                          profile.firmPhone && `Tel: ${profile.firmPhone}`,
+                          profile.firmEmail && `Email: ${profile.firmEmail}`,
+                          profile.lsoNumber && `LSO# ${profile.lsoNumber}`,
+                        ].filter(Boolean).join(' · ') || undefined,
                         courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
                       },
