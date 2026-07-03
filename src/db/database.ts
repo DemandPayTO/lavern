@@ -1068,6 +1068,12 @@ export function getArchivedSessionById(sessionId: string): ArchivedSession | und
   `).get(sessionId) as ArchivedSession | undefined;
 }
 
+/** Delete an archived session by ID. Caller must verify ownership first. */
+export function deleteArchivedSession(sessionId: string): boolean {
+  const result = getDb().prepare(`DELETE FROM session_archive WHERE id = ?`).run(sessionId);
+  return result.changes > 0;
+}
+
 /** Get all archived sessions (no user filter — for unauthenticated / demo mode). */
 export function getAllSessionArchive(limit = 50): ArchivedSession[] {
   return getDb().prepare(`
@@ -1279,6 +1285,14 @@ export function getMatterById(matterId: string, userId: string): { id: string; d
   return getDb().prepare(`
     SELECT id, data_json, status FROM matters WHERE id = ? AND user_id = ?
   `).get(matterId, userId) as { id: string; data_json: string; status: string } | undefined;
+}
+
+/** Delete a matter (ownership enforced by the WHERE clause). Returns true if a row was removed. */
+export function deleteMatter(matterId: string, userId: string): boolean {
+  const result = getDb().prepare(`
+    DELETE FROM matters WHERE id = ? AND user_id = ?
+  `).run(matterId, userId);
+  return result.changes > 0;
 }
 
 // ── Firm Template Queries ────────────────────────────────────────────────

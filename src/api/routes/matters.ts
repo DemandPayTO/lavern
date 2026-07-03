@@ -15,7 +15,7 @@ import { createMatterRecord } from '../../types/matter.js';
 import type { MatterRecord, ConflictCheckResult, KycResult, EngagementLetter } from '../../types/matter.js';
 import { agentProfiles, teamPresets } from '../../agents/profiles.js';
 import { validateBody } from '../middleware/validation.js';
-import { saveMatter as dbSaveMatter, getMattersByUser, getMatterById as dbGetMatterById } from '../../db/database.js';
+import { saveMatter as dbSaveMatter, getMattersByUser, getMatterById as dbGetMatterById, deleteMatter as dbDeleteMatter } from '../../db/database.js';
 import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('MATTERS');
@@ -224,6 +224,31 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
       })),
       total: matters.length,
     });
+  });
+
+  // ── DELETE /api/matters/:id — Delete a matter ────────────────────────
+  fastify.delete('/api/matters/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = requireAuth(request, reply);
+    if (!userId) return;
+    ensureLoaded(userId);
+
+    // Ownership check — in-memory owner map first, then the DB row
+    const inMemoryOwner = matterOwners.get(id);
+    if (inMemoryOwner && inMemoryOwner !== userId) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const removed = dbDeleteMatter(id, userId);
+    const hadInMemory = matterStore.delete(id);
+    matterOwners.delete(id);
+
+    if (!removed && !hadInMemory) {
+      return reply.status(404).send({ error: `Matter not found: ${id}` });
+    }
+
+    logger.info('Matter deleted', { matterId: id, userId });
+    return reply.send({ ok: true, deleted: id });
   });
 
   // ── GET /api/matters/:id — Get matter detail ─────────────────────────

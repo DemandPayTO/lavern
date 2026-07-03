@@ -97,9 +97,26 @@ function htmlToParagraphs(html: string): Paragraph[] {
   // Split into blocks by major HTML elements
   const blocks = html.split(/(?=<h[1-6]|<p|<ol|<ul|<hr|<li)/gi);
 
+  // Ordered-list state — court documents (SOC facts, grounds) require
+  // continuous numbered paragraphs, so <ol><li> items get "N." prefixes
+  // with a hanging indent. <ul> items stay as plain indented paragraphs.
+  let inOrderedList = false;
+  let listCounter = 0;
+
   for (const block of blocks) {
     const trimmed = block.trim();
     if (!trimmed) continue;
+
+    // List container open/close markers
+    if (/^<ol/i.test(trimmed)) {
+      inOrderedList = true;
+      listCounter = 0;
+      continue;
+    }
+    if (/^<ul/i.test(trimmed)) {
+      inOrderedList = false;
+      continue;
+    }
 
     // Heading — plain bold text, no Word heading styles (avoids blue colours)
     const headingMatch = trimmed.match(/^<h([1-6])[^>]*>([\s\S]*?)<\/h[1-6]>/i);
@@ -137,11 +154,32 @@ function htmlToParagraphs(html: string): Paragraph[] {
     if (liMatch) {
       const runs = parseInlineHtml(liMatch[1]);
       if (runs.length > 0) {
-        paragraphs.push(new Paragraph({
-          spacing: { before: 60, after: 60 },
-          indent: { left: 720 }, // 0.5 inch indent
-          children: runs,
-        }));
+        if (inOrderedList) {
+          listCounter++;
+          // Avoid double numbering when the model already wrote "12. ..."
+          const firstText = stripTags(liMatch[1]);
+          const alreadyNumbered = /^\d+[.)]\s/.test(firstText);
+          paragraphs.push(new Paragraph({
+            spacing: { before: 60, after: 120 },
+            // Hanging indent: number sits at 0.25", text wraps at 0.75"
+            indent: { left: 1080, hanging: 720 },
+            children: alreadyNumbered ? runs : [
+              new TextRun({ text: `${listCounter}.\t`, font: 'Times New Roman', size: 24 }),
+              ...runs,
+            ],
+          }));
+        } else {
+          paragraphs.push(new Paragraph({
+            spacing: { before: 60, after: 60 },
+            indent: { left: 720 }, // 0.5 inch indent
+            children: runs,
+          }));
+        }
+      }
+      // A closing </ol> rides along with the last <li> block
+      if (/<\/ol>/i.test(trimmed)) {
+        inOrderedList = false;
+        listCounter = 0;
       }
       continue;
     }

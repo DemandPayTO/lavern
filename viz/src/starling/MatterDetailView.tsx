@@ -184,9 +184,8 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
   {
     id: 'demand',
     title: 'Demand Letter',
-    description: 'Already drafted Jun 22 \u2014 generate a revised version.',
+    description: 'Demand to the employer\u2019s counsel with entitlements, deadline, and settlement position.',
     cost: '~$3\u20138 -- 3\u20138 min',
-    alreadyDrafted: true,
   },
   {
     id: 'motion',
@@ -365,7 +364,10 @@ export default function MatterDetailView() {
 
   // Gate approve/dismiss — a gate is "approved" when its issue codes are in
   // the approved list. Toggling recomputes both lists and syncs to the server.
-  const triggeredGates = employment.data?.gates?.filter(g => g.triggered) ?? [];
+  // Gates with no issue codes (e.g. G16 "closing block") are structural
+  // directives, not lawyer decisions — no approve/dismiss for those.
+  const triggeredGates = employment.data?.gates?.filter(g => g.triggered && g.issueCodes.length > 0) ?? [];
+  const structuralGates = employment.data?.gates?.filter(g => g.triggered && g.issueCodes.length === 0) ?? [];
   const gateDecision = useCallback((gate: { issueCodes: string[] }): 'approved' | 'dismissed' | 'pending' => {
     if (!employment.data) return 'pending';
     if (gate.issueCodes.some(c => employment.data!.approvedIssues.includes(c))) return 'approved';
@@ -384,8 +386,6 @@ export default function MatterDetailView() {
     employment.approveIssues([...approved], [...dismissed]);
   }, [employment]);
 
-  const prettyGateName = (gate: string) =>
-    gate.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
 
   // Docs tab: handle file selection → parse → Claude extraction
   const handleExtractFile = useCallback(async (file: File) => {
@@ -722,14 +722,16 @@ export default function MatterDetailView() {
                         <StatusDot colour={decision === 'approved' ? green : decision === 'dismissed' ? muted : amber} size={8} />
                         <div style={{ flex: 1, minWidth: 220 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>
-                            {prettyGateName(gate.gate)}
+                            {gate.reason.replace(/\.$/, '')}
                             {gate.requiresLawyerReview && (
                               <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
                                 REVIEW REQUIRED
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: 12.5, color: muted }}>{gate.reason}</div>
+                          <div style={{ fontSize: 12, color: muted }}>
+                            Gate {gate.gate} · {gate.issueCodes.map(c => c.replace(/_/g, ' ')).join(', ')}
+                          </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button
@@ -760,6 +762,12 @@ export default function MatterDetailView() {
                       </div>
                     );
                   })}
+                  {structuralGates.length > 0 && (
+                    <div style={{ borderTop: `1px solid ${border}`, paddingTop: 10, fontSize: 12, color: muted }}>
+                      Also applied automatically:{' '}
+                      {structuralGates.map(g => g.reason.replace(/\.$/, '')).join(' · ')}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -917,7 +925,7 @@ export default function MatterDetailView() {
                 {lastExtraction && (
                   <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                      Extracted from {lastExtraction.documentName}
+                      Extracted from {lastExtraction.filename}
                     </div>
                     {lastExtraction.keyFindings.length > 0 && (
                       <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13, color: ink, lineHeight: 1.7 }}>
@@ -926,11 +934,21 @@ export default function MatterDetailView() {
                     )}
                     {Object.keys(lastExtraction.extractedFields).length > 0 && (
                       <div style={{ fontSize: 12.5, color: muted }}>
-                        {Object.entries(lastExtraction.extractedFields).map(([k, v]) => (
-                          <div key={k} style={{ padding: '3px 0' }}>
-                            <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}:</span> {String(v)}
-                          </div>
-                        ))}
+                        {Object.entries(lastExtraction.extractedFields)
+                          .filter(([, f]) => f && f.value !== null && f.value !== '')
+                          .map(([k, f]) => (
+                            <div key={k} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}:</span>
+                              <span style={{ color: ink }}>{String(f.value)}</span>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 2,
+                                background: f.confidence === 'high' ? '#e7f6ec' : f.confidence === 'medium' ? '#fdf0dd' : '#f4f1ec',
+                                color: f.confidence === 'high' ? green : f.confidence === 'medium' ? amber : muted,
+                              }}>
+                                {f.confidence}
+                              </span>
+                            </div>
+                          ))}
                       </div>
                     )}
                     <div style={{ fontSize: 12, color: amber, marginTop: 8 }}>

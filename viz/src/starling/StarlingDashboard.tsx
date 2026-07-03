@@ -174,9 +174,27 @@ export default function StarlingDashboard() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [hoveredMatter, setHoveredMatter] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Wire hook data
   const { matters, loading, refresh } = useMatterList();
+
+  const handleDeleteMatter = async (matterId: string) => {
+    setDeleting(true);
+    try {
+      // Rows come from three sources — try each: employment matter,
+      // live session, then archived session.
+      const id = encodeURIComponent(matterId);
+      let res = await fetch(`/api/matters/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) res = await fetch(`/api/sessions/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) res = await fetch(`/api/sessions/archive/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) refresh();
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(null);
+    }
+  };
 
   // Separate active and completed matters
   const activeMatters = matters.filter(m => m.status !== 'complete');
@@ -404,12 +422,63 @@ export default function StarlingDashboard() {
           </div>
         )}
         {!loading && matters.length === 0 && (
-          <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fff', border: `1px solid ${border}` }}>
-            <div style={{ fontSize: 15, color: ink, fontWeight: 600, marginBottom: 8 }}>No matters yet</div>
-            <div style={{ fontSize: 13.5, color: muted, marginBottom: 14 }}>Create your first matter to get started.</div>
-            <a href="#/new-matter" style={{ fontSize: 13.5, fontWeight: 600, color: orange, textDecoration: 'none' }}>
-              Create your first matter &rarr;
-            </a>
+          <div style={{ padding: '48px 32px', background: '#fff', border: `1px solid ${border}` }}>
+            <div style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+              <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 18 }} aria-hidden="true">
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ea580c' }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f26a3d' }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff8a5c' }} />
+              </div>
+              <div style={{ fontFamily: serif, fontSize: 22, color: navy, fontWeight: 600, marginBottom: 8 }}>
+                Welcome to Starling
+              </div>
+              <div style={{ fontSize: 14, color: muted, marginBottom: 28, lineHeight: 1.6 }}>
+                Your Ontario employment law engine. From intake to demand letter in minutes —
+                every draft reviewed and approved by you.
+              </div>
+
+              <div style={{ textAlign: 'left', margin: '0 auto 28px', display: 'inline-block' }}>
+                {[
+                  ['1', 'Add your details in the Starling Profile', 'Your name, firm, and LSO number flow onto every generated document.'],
+                  ['2', 'Create your first matter', 'Structured intake — or upload the termination letter and let Starling extract the facts.'],
+                  ['3', 'Review issues, then generate', 'Approve the legal issues you want to advance; Starling drafts the demand letter or pleading for your review.'],
+                ].map(([num, title, sub]) => (
+                  <div key={num} style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
+                    <span style={{
+                      width: 24, height: 24, borderRadius: '50%', background: cream, border: `1px solid ${border}`,
+                      color: navy, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', flexShrink: 0, fontFamily: sans,
+                    }}>{num}</span>
+                    <div>
+                      <div style={{ fontSize: 14, color: ink, fontWeight: 600 }}>{title}</div>
+                      <div style={{ fontSize: 12.5, color: muted, lineHeight: 1.5 }}>{sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <a
+                  href="#/new-matter"
+                  style={{
+                    background: orange, color: '#fff', fontSize: 13.5, fontWeight: 600,
+                    padding: '11px 22px', borderRadius: 2, textDecoration: 'none', fontFamily: sans,
+                  }}
+                >
+                  Create your first matter
+                </a>
+                <a
+                  href="#/my-page"
+                  style={{
+                    background: '#fff', color: navy, fontSize: 13.5, fontWeight: 600,
+                    padding: '11px 22px', borderRadius: 2, border: `1px solid ${border}`,
+                    textDecoration: 'none', fontFamily: sans,
+                  }}
+                >
+                  Set up your profile
+                </a>
+              </div>
+            </div>
           </div>
         )}
         {!loading && filteredMatters.length > 0 && (
@@ -429,6 +498,8 @@ export default function StarlingDashboard() {
                 alignItems: 'stretch',
               }}
               role="listitem"
+              onMouseEnter={() => setHoveredMatter(matter.id)}
+              onMouseLeave={() => setHoveredMatter(null)}
             >
               {/* Colour bar */}
               <div style={{ width: 6, background: BAR_COLOURS[matter.status] }} aria-hidden="true" />
@@ -442,8 +513,6 @@ export default function StarlingDashboard() {
                   transition: 'background 0.15s',
                 }}
                 onClick={() => handleNav(`#/matter-detail/${matter.id}`)}
-                onMouseEnter={() => setHoveredMatter(matter.id)}
-                onMouseLeave={() => setHoveredMatter(null)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav(`#/matter-detail/${matter.id}`); } }}
                 tabIndex={0}
                 role="button"
@@ -493,6 +562,37 @@ export default function StarlingDashboard() {
                 <div style={{ fontSize: 13.5, color: matter.metaColour ?? ink, fontWeight: 600 }}>
                   {matter.metaValue}
                 </div>
+                {confirmingDelete === matter.id ? (
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 4 }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteMatter(matter.id); }}
+                      disabled={deleting}
+                      style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#dc2626', border: 'none', borderRadius: 2, padding: '4px 10px', cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                    >
+                      {deleting ? 'Deleting...' : 'Confirm delete'}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmingDelete(null); }}
+                      style={{ fontSize: 11, color: muted, background: 'transparent', border: `1px solid ${border}`, borderRadius: 2, padding: '4px 10px', cursor: 'pointer', fontFamily: sans }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmingDelete(matter.id); }}
+                    aria-label={`Delete matter ${matter.name}`}
+                    style={{
+                      fontSize: 11, color: muted, background: 'transparent', border: 'none',
+                      cursor: 'pointer', fontFamily: sans, padding: 0, marginTop: 4,
+                      textAlign: 'right' as const, textDecoration: 'underline',
+                      opacity: hoveredMatter === matter.id ? 1 : 0,
+                      transition: 'opacity 0.15s',
+                    }}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}

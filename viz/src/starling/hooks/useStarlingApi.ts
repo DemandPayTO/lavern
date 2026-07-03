@@ -680,7 +680,7 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
     ? Math.floor((limitationDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : Infinity;
 
-  if (step === 'delivered' || step === 'complete') {
+  if (step === 'delivered' || step === 'complete' || step === 'completed') {
     status = 'complete';
     statusColour = '#16a34a';
     flagText = 'Complete';
@@ -1443,11 +1443,14 @@ export interface UseEmploymentDataResult {
 }
 
 export interface DocumentExtraction {
-  documentName: string;
-  documentKind: string;
-  extractedFields: Record<string, unknown>;
+  /** Filename of the analysed document. */
+  filename: string;
+  /** Document kind that was analysed (employment_agreement, termination_letter, ...). */
+  documentType: string;
+  /** Each field carries a value plus the model's confidence. */
+  extractedFields: Record<string, { value: string | number | boolean | null; confidence: 'high' | 'medium' | 'low' }>;
   keyFindings: string[];
-  extractedAt?: string;
+  confirmed: boolean;
 }
 
 /**

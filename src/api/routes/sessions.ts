@@ -37,7 +37,7 @@ import { crossProviderChat } from '../../providers/cross-provider-chat.js';
 import { DERIVATIVE_TYPES, DERIVATIVE_TYPE_LIST, buildFullContext } from '../derivatives/derivative-types.js';
 import { agentProfiles } from '../../agents/profiles.js';
 import { getOrchestratorForWorkflow } from '../../workflows/orchestrator-mapping.js';
-import { getSessionArchive, getAllSessionArchive, getArchivedSession, getArchivedSessionById, getUserById, logAuditEvent, holdBillableHours, debitBillableHours, getUserBillableHours, updateArchiveUserId, updateArchiveTitle } from '../../db/database.js';
+import { getSessionArchive, getAllSessionArchive, getArchivedSession, getArchivedSessionById, deleteArchivedSession, getUserById, logAuditEvent, holdBillableHours, debitBillableHours, getUserBillableHours, updateArchiveUserId, updateArchiveTitle } from '../../db/database.js';
 import type { Moment, Audience, Jurisdiction } from '../../types/index.js';
 import type { ClientIdentity } from '../../types/client.js';
 import { config } from '../../config.js';
@@ -1778,5 +1778,28 @@ Apply the partner's notes following the rules in your system prompt. Preserve ev
       message: `Session halted: ${reason}`,
       halted: true,
     });
+  });
+
+  // ── DELETE /api/sessions/archive/:id — Delete an archived session ───
+  // Used by the dashboard's matter-list delete for completed/legacy rows.
+
+  fastify.delete('/api/sessions/archive/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const reqUserId = (request as unknown as { userId?: string }).userId;
+    if (!reqUserId) {
+      return reply.status(401).send({ error: 'Authentication required' });
+    }
+
+    const row = getArchivedSessionById(id);
+    // Ownership: the row's owner, or ownerless rows in LOCAL MODE only.
+    // 404 (not 403) on mismatch to avoid confirming the ID exists.
+    const owns = row && (row.user_id === reqUserId || (row.user_id == null && reqUserId === 'local-user'));
+    if (!row || !owns) {
+      return reply.status(404).send({ error: `Archived session not found: ${id}` });
+    }
+
+    deleteArchivedSession(id);
+    logAuditEvent({ userId: reqUserId, action: 'archive_delete', resource: `session:${id}`, ip: request.ip, userAgent: request.headers['user-agent'] });
+    return reply.send({ success: true, deleted: id });
   });
 }
