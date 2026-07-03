@@ -18,8 +18,8 @@ describe('DeliveryView', () => {
       { sessionOverrides: demoSessionOverrides }
     );
 
-    // Header should show
-    expect(screen.getByText('STARLING')).toBeInTheDocument();
+    // Header should show (wordmark appears in header and footer)
+    expect(screen.getAllByText('STARLING').length).toBeGreaterThan(0);
     expect(screen.getByText(/Delivery/)).toBeInTheDocument();
 
     // Demo data should load (useDeliveryData returns demo data for demo-session-*)

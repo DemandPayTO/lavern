@@ -550,8 +550,9 @@ export function useMatterList(): MatterListResult {
       if (mattersRes?.ok) {
         const mattersData = await mattersRes.json();
         const matters = Array.isArray(mattersData) ? mattersData : (mattersData.matters ?? []);
+        const matterEntries: Array<Record<string, unknown>> = [];
         for (const m of matters) {
-          allSessions.push({
+          matterEntries.push({
             id: m.matterId ?? m.id,
             sessionId: m.matterId ?? m.id,
             title: m.title ?? 'Employment Matter',
@@ -559,8 +560,31 @@ export function useMatterList(): MatterListResult {
             createdAt: m.openedAt ?? m.created_at,
             request: { type: 'employment_agreement', requestText: m.description ?? '' },
             _source: 'matter',
+            _matterNumber: m.matterNumber,
+            _clientName: m.clientId,
           });
         }
+
+        // Enrich with employment intake data (client, employer, limitation
+        // deadline) — cheap local reads, capped to keep the list snappy
+        await Promise.allSettled(matterEntries.slice(0, 25).map(async entry => {
+          try {
+            const res = await fetch(`/api/employment/${entry.id}`, { credentials: 'include' });
+            if (!res.ok) return;
+            const json = await res.json();
+            const intake = json.data?.intake as Record<string, unknown> | undefined;
+            if (intake) {
+              const client = [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ');
+              if (client) entry._clientName = client;
+              const employer = (intake.employer_legal_name ?? intake.employer_operating_name) as string | undefined;
+              if (employer) entry._employerName = employer;
+            }
+            const lim = json.data?.analysis?.limitationDeadline as { date?: string } | undefined;
+            if (lim?.date) entry._limitationDate = lim.date;
+          } catch { /* enrichment is best-effort */ }
+        }));
+
+        allSessions.push(...matterEntries);
       }
 
       // Live sessions (returns { sessions: [...] } or [...])
@@ -620,12 +644,17 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
     ''
   ) as string;
 
-  // Try to extract client/employer name from the request text
+  // Prefer structured intake data (employment matters); fall back to
+  // pattern-matching the request text for legacy sessions
+  const structuredClient = (session._clientName as string) || '';
+  const structuredEmployer = (session._employerName as string) || '';
   const namePatterns = requestText.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:,|was|terminated|from)\s+(?:from\s+)?([A-Z][A-Za-z\s]+(?:Inc|Corp|Ltd|Co|LLC)?)/);
-  const clientName = namePatterns?.[1]?.trim() ?? (requestText.slice(0, 30) || 'Untitled matter');
-  const employerName = namePatterns?.[2]?.trim() ?? '';
+  const clientName = structuredClient || (namePatterns?.[1]?.trim() ?? (requestText.slice(0, 30) || 'Untitled matter'));
+  const employerName = structuredEmployer || (namePatterns?.[2]?.trim() ?? '');
   const name = employerName ? `${clientName} v ${employerName}` : clientName;
-  const number = `#STR-${id.slice(5, 13).toUpperCase()}`;
+  const number = (session._matterNumber as string)
+    ? `#${session._matterNumber}`
+    : `#STR-${id.slice(5, 13).toUpperCase()}`;
 
   // Infer status from workflow state (live: workflow.currentStep, archive: status)
   const workflow = session.workflow as Record<string, unknown> | undefined;
@@ -640,9 +669,13 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
   let flagText = step || 'In progress';
   let flagColour: MatterListItem['flagColour'] = 'navy';
 
-  // Check for limitation date urgency
+  // Check for limitation date urgency — structured analysis data first,
+  // then the legacy request-text pattern
+  const structuredLimitation = session._limitationDate as string | undefined;
   const limitationMatch = requestText.match(/Limitation date:\s*(.+)/i);
-  const limitationDate = limitationMatch ? new Date(limitationMatch[1].trim()) : null;
+  const limitationDate = structuredLimitation
+    ? new Date(structuredLimitation)
+    : limitationMatch ? new Date(limitationMatch[1].trim()) : null;
   const daysUntilLimitation = limitationDate
     ? Math.floor((limitationDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : Infinity;
@@ -1386,13 +1419,35 @@ export interface EmploymentData {
   demandAmount: number | null;
 }
 
+export interface GenerateDocumentResult {
+  ok: boolean;
+  html?: string;
+  error?: string;
+  citations?: SourceCitation[];
+  reviewFlags?: string[];
+}
+
 export interface UseEmploymentDataResult {
   data: EmploymentData | null;
   loading: boolean;
   error: string | null;
+  /** Lawyer's private notes — null until the first fetch completes. */
+  lawyerNotes: string | null;
   refresh: () => void;
   approveIssues: (approved: string[], dismissed: string[]) => Promise<void>;
-  generateDocument: (docType: string, options: Record<string, unknown>) => Promise<{ ok: boolean; html?: string; error?: string }>;
+  generateDocument: (docType: string, options: Record<string, unknown>) => Promise<GenerateDocumentResult>;
+  saveNotes: (notes: string) => Promise<{ ok: boolean; error?: string }>;
+  runAnalysis: () => Promise<{ ok: boolean; error?: string }>;
+  /** Extract facts from an uploaded document via Claude (parse → extract). */
+  extractDocument: (file: File, documentKind: string) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
+}
+
+export interface DocumentExtraction {
+  documentName: string;
+  documentKind: string;
+  extractedFields: Record<string, unknown>;
+  keyFindings: string[];
+  extractedAt?: string;
 }
 
 /**
@@ -1402,6 +1457,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [data, setData] = useState<EmploymentData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lawyerNotes, setLawyerNotes] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!matterId) return;
@@ -1422,6 +1478,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       }
       const json = await res.json();
       setData(json.data ?? null);
+      setLawyerNotes(typeof json.lawyerNotes === 'string' ? json.lawyerNotes : '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load employment data');
     } finally {
@@ -1468,11 +1525,184 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       const json = await res.json();
       if (!res.ok) return { ok: false, error: json.error ?? 'Generation failed' };
       refresh();
-      return { ok: true, html: json.html };
+      return {
+        ok: true,
+        html: json.html,
+        citations: Array.isArray(json.citations) ? json.citations : [],
+        reviewFlags: Array.isArray(json.lawyerReviewFlags) ? json.lawyerReviewFlags : [],
+      };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Generation failed' };
     }
   }, [matterId, refresh]);
 
-  return { data, loading, error, refresh, approveIssues, generateDocument };
+  const saveNotes = useCallback(async (notes: string) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ notes }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        return { ok: false, error: (json as { error?: string }).error ?? 'Failed to save notes' };
+      }
+      setLawyerNotes(notes);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to save notes' };
+    }
+  }, [matterId]);
+
+  const runAnalysis = useCallback(async () => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch('/api/employment/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ matterId }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        return { ok: false, error: (json as { error?: string }).error ?? 'Analysis failed' };
+      }
+      refresh();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Analysis failed' };
+    }
+  }, [matterId, refresh]);
+
+  const extractDocument = useCallback(async (file: File, documentKind: string) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      // Step 1: authoritative parse (PDF/DOCX/MD/TXT → text)
+      const formData = new FormData();
+      formData.append('file', file);
+      const parseRes = await fetch('/api/documents/parse', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!parseRes.ok) return { ok: false, error: 'Could not parse the document. Supported: PDF, DOCX, Markdown, plain text.' };
+      const parsed = await parseRes.json() as { fullText?: string; definedTerms?: string[] };
+      if (!parsed.fullText?.trim()) return { ok: false, error: 'No text could be extracted from this document.' };
+
+      // Step 2: Claude fact extraction (anonymised server-side)
+      const res = await fetch('/api/employment/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          matterId,
+          documentContent: parsed.fullText.slice(0, 100_000),
+          documentName: file.name,
+          documentKind,
+          definedTerms: (parsed.definedTerms ?? []).slice(0, 20),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error ?? 'Extraction failed' };
+      refresh();
+      return { ok: true, extraction: json.extraction as DocumentExtraction };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Extraction failed' };
+    }
+  }, [matterId, refresh]);
+
+  return { data, loading, error, lawyerNotes, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
+}
+
+// ── Firm templates ──────────────────────────────────────────────────────
+
+export interface FirmTemplateInfo {
+  id: string;
+  documentType: string;
+  name: string;
+  placeholders: string[];
+  uploadedAt: string;
+  updatedAt: string;
+}
+
+export interface UseFirmTemplatesResult {
+  templates: FirmTemplateInfo[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+  /** Upload a DOCX template for a document type. Becomes the firm default for ALL matters. */
+  upload: (file: File, documentType: string) => Promise<{ ok: boolean; placeholders?: string[]; error?: string }>;
+  remove: (documentType: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
+/**
+ * Firm DOCX template management. Templates are keyed by (firm, document type):
+ * uploading one makes it the default for that document type on every matter.
+ */
+export function useFirmTemplates(): UseFirmTemplatesResult {
+  const [templates, setTemplates] = useState<FirmTemplateInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/employment/templates', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load templates');
+      const json = await res.json();
+      setTemplates(Array.isArray(json.templates) ? json.templates : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load templates');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const upload = useCallback(async (file: File, documentType: string) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      // Chunked base64 encoding — String.fromCharCode(...bigArray) overflows the stack
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+      }
+      const templateBase64 = btoa(binary);
+
+      const res = await fetch('/api/employment/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ documentType, name: file.name, templateBase64 }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error ?? 'Upload failed' };
+      refresh();
+      return { ok: true, placeholders: json.placeholders as string[] };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Upload failed' };
+    }
+  }, [refresh]);
+
+  const remove = useCallback(async (documentType: string) => {
+    try {
+      const res = await fetch(`/api/employment/templates/${encodeURIComponent(documentType)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) return { ok: false, error: 'Failed to remove template' };
+      refresh();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to remove template' };
+    }
+  }, [refresh]);
+
+  return { templates, loading, error, refresh, upload, remove };
 }

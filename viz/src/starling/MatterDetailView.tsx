@@ -11,8 +11,9 @@
  * Canadian spelling throughout (analyse, licenced).
  */
 
-import { useState, useCallback } from 'react';
-import { useMatterDetail, useEmploymentData } from './hooks/useStarlingApi.js';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useMatterDetail, useEmploymentData, useFirmTemplates } from './hooks/useStarlingApi.js';
+import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -317,14 +318,30 @@ export default function MatterDetailView() {
   const { profile } = useUserProfile();
   const [activeTab, setActiveTab] = useState<TabKey>('issues');
   const [notes, setNotes] = useState(DEMO_NOTES);
+  const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
+  const [genCitations, setGenCitations] = useState<SourceCitation[]>([]);
+  const [genReviewFlags, setGenReviewFlags] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [genTone, setGenTone] = useState('professional');
   const [genDemandAmount, setGenDemandAmount] = useState('');
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
+  // Docs tab: upload & extract
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [uploadKind, setUploadKind] = useState('employment_agreement');
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [lastExtraction, setLastExtraction] = useState<DocumentExtraction | null>(null);
+  // Analysis empty state
+  const [analysing, setAnalysing] = useState(false);
+  const [analyseError, setAnalyseError] = useState<string | null>(null);
+  // Firm templates
+  const firmTemplates = useFirmTemplates();
+  const [templateStatus, setTemplateStatus] = useState<string | null>(null);
+  const templateInputRef = useRef<HTMLInputElement>(null);
 
   const handleNav = useCallback((hash: string) => {
     window.location.hash = hash;
@@ -337,6 +354,72 @@ export default function MatterDetailView() {
   // Wire hook data
   const { matter, loading, error } = useMatterDetail(sessionId);
   const employment = useEmploymentData(sessionId);
+
+  // Sync lawyer notes from the server once loaded (demo text remains the
+  // fallback until real data arrives)
+  useEffect(() => {
+    if (employment.lawyerNotes !== null && employment.lawyerNotes !== '') {
+      setNotes(employment.lawyerNotes);
+    }
+  }, [employment.lawyerNotes]);
+
+  // Gate approve/dismiss — a gate is "approved" when its issue codes are in
+  // the approved list. Toggling recomputes both lists and syncs to the server.
+  const triggeredGates = employment.data?.gates?.filter(g => g.triggered) ?? [];
+  const gateDecision = useCallback((gate: { issueCodes: string[] }): 'approved' | 'dismissed' | 'pending' => {
+    if (!employment.data) return 'pending';
+    if (gate.issueCodes.some(c => employment.data!.approvedIssues.includes(c))) return 'approved';
+    if (gate.issueCodes.some(c => employment.data!.dismissedIssues.includes(c))) return 'dismissed';
+    return 'pending';
+  }, [employment.data]);
+
+  const setGateDecision = useCallback((gate: { issueCodes: string[] }, decision: 'approve' | 'dismiss') => {
+    if (!employment.data) return;
+    const approved = new Set(employment.data.approvedIssues);
+    const dismissed = new Set(employment.data.dismissedIssues);
+    for (const code of gate.issueCodes) {
+      if (decision === 'approve') { approved.add(code); dismissed.delete(code); }
+      else { dismissed.add(code); approved.delete(code); }
+    }
+    employment.approveIssues([...approved], [...dismissed]);
+  }, [employment]);
+
+  const prettyGateName = (gate: string) =>
+    gate.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+
+  // Docs tab: handle file selection → parse → Claude extraction
+  const handleExtractFile = useCallback(async (file: File) => {
+    setExtracting(true);
+    setExtractError(null);
+    setLastExtraction(null);
+    const result = await employment.extractDocument(file, uploadKind);
+    setExtracting(false);
+    if (result.ok && result.extraction) {
+      setLastExtraction(result.extraction);
+    } else {
+      setExtractError(result.error ?? 'Extraction failed.');
+    }
+  }, [employment, uploadKind]);
+
+  // Firm template upload for the selected draft type
+  const TEMPLATE_DOC_TYPES: Record<string, string> = {
+    demand: 'demand_letter',
+    soc: 'statement_of_claim',
+    mediation: 'mediation_brief',
+  };
+  const selectedTemplateDocType = selectedDraft ? TEMPLATE_DOC_TYPES[selectedDraft] : undefined;
+  const currentTemplate = selectedTemplateDocType
+    ? firmTemplates.templates.find(t => t.documentType === selectedTemplateDocType)
+    : undefined;
+
+  const handleTemplateUpload = useCallback(async (file: File) => {
+    if (!selectedTemplateDocType) return;
+    setTemplateStatus('Uploading...');
+    const result = await firmTemplates.upload(file, selectedTemplateDocType);
+    setTemplateStatus(result.ok
+      ? `Template saved — ${result.placeholders?.length ?? 0} placeholder${(result.placeholders?.length ?? 0) === 1 ? '' : 's'} detected. Used for all matters.`
+      : result.error ?? 'Upload failed.');
+  }, [firmTemplates, selectedTemplateDocType]);
 
   // Compute tab badge counts from hook data
   const issueCount = matter?.issues.length ?? 0;
@@ -585,7 +668,102 @@ export default function MatterDetailView() {
           {/* Issues Found */}
           {activeTab === 'issues' && (
             <div id="panel-issues" role="tabpanel" style={{ paddingTop: 22 }}>
-              {matter!.issues.length === 0 && (
+              {/* Run Analysis empty state — employment data exists but analysis hasn't run */}
+              {employment.data && !employment.data.analysis && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '22px 24px', marginBottom: 16, textAlign: 'center' }}>
+                  <div style={{ fontFamily: serif, fontSize: 16, fontWeight: 600, color: navy, marginBottom: 6 }}>
+                    Analysis not run yet
+                  </div>
+                  <div style={{ fontSize: 13.5, color: muted, marginBottom: 14 }}>
+                    Run the 16-gate legal issue analysis to identify claims, calculate ESA and common law entitlements, and check limitation deadlines.
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setAnalysing(true);
+                      setAnalyseError(null);
+                      const result = await employment.runAnalysis();
+                      setAnalysing(false);
+                      if (!result.ok) setAnalyseError(result.error ?? 'Analysis failed.');
+                    }}
+                    disabled={analysing}
+                    style={{
+                      background: analysing ? '#b0b0b0' : orange, color: '#fff', fontSize: 13.5, fontWeight: 600,
+                      padding: '11px 22px', borderRadius: 2, border: 'none', cursor: analysing ? 'not-allowed' : 'pointer', fontFamily: sans,
+                    }}
+                  >
+                    {analysing ? 'Analysing...' : 'Run Analysis'}
+                  </button>
+                  {analyseError && (
+                    <div style={{ marginTop: 10, color: '#dc2626', fontSize: 13 }}>{analyseError}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Lawyer decisions on triggered gates — controls which issues
+                  are included in generated documents */}
+              {triggeredGates.length > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginBottom: 18 }}>
+                  <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+                    Approve issues for drafting
+                  </div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 14 }}>
+                    Only approved issues are included in demand letters, pleadings, and applications. Your call — Starling drafts nothing you haven't approved.
+                  </div>
+                  {triggeredGates.map(gate => {
+                    const decision = gateDecision(gate);
+                    return (
+                      <div
+                        key={gate.gate}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+                          borderTop: `1px solid ${border}`, flexWrap: 'wrap',
+                        }}
+                      >
+                        <StatusDot colour={decision === 'approved' ? green : decision === 'dismissed' ? muted : amber} size={8} />
+                        <div style={{ flex: 1, minWidth: 220 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>
+                            {prettyGateName(gate.gate)}
+                            {gate.requiresLawyerReview && (
+                              <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
+                                REVIEW REQUIRED
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12.5, color: muted }}>{gate.reason}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => setGateDecision(gate, 'approve')}
+                            style={{
+                              fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                              background: decision === 'approved' ? green : '#fff',
+                              color: decision === 'approved' ? '#fff' : green,
+                              border: `1px solid ${green}`,
+                            }}
+                            aria-pressed={decision === 'approved'}
+                          >
+                            {decision === 'approved' ? 'Approved' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => setGateDecision(gate, 'dismiss')}
+                            style={{
+                              fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                              background: decision === 'dismissed' ? muted : '#fff',
+                              color: decision === 'dismissed' ? '#fff' : muted,
+                              border: `1px solid ${muted}`,
+                            }}
+                            aria-pressed={decision === 'dismissed'}
+                          >
+                            {decision === 'dismissed' ? 'Dismissed' : 'Dismiss'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {matter!.issues.length === 0 && triggeredGates.length === 0 && (
                 <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No issues found yet.</div>
               )}
               {matter!.issues.map(issue => (
@@ -683,23 +861,84 @@ export default function MatterDetailView() {
                 <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No documents yet.</div>
               )}
 
-              {/* Upload more */}
-              <button
-                style={{
-                  background: '#fff',
-                  color: navy,
-                  border: `1px solid ${border}`,
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  padding: '11px 18px',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  marginTop: 12,
-                  fontFamily: sans,
-                }}
-              >
-                + Upload more documents
-              </button>
+              {/* Upload & extract */}
+              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginTop: 16 }}>
+                <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+                  Upload a document — Starling extracts the facts
+                </div>
+                <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
+                  PDF, DOCX, or text. Names and identifiers are anonymised before any AI processing. You review every extracted fact before it's used.
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={uploadKind}
+                    onChange={e => setUploadKind(e.target.value)}
+                    aria-label="Document type"
+                    style={{ fontFamily: sans, fontSize: 13.5, padding: '9px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                  >
+                    <option value="employment_agreement">Employment agreement</option>
+                    <option value="termination_letter">Termination letter</option>
+                    <option value="roe">Record of Employment</option>
+                    <option value="t4">T4</option>
+                    <option value="pay_stub">Pay stub</option>
+                    <option value="correspondence">Correspondence</option>
+                    <option value="performance_review">Performance review</option>
+                    <option value="policy_document">Policy document</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.doc,.txt,.md,.rtf"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleExtractFile(file);
+                      if (uploadInputRef.current) uploadInputRef.current.value = '';
+                    }}
+                  />
+                  <button
+                    onClick={() => uploadInputRef.current?.click()}
+                    disabled={extracting}
+                    style={{
+                      background: extracting ? '#b0b0b0' : navy, color: '#fff', fontSize: 13.5, fontWeight: 600,
+                      padding: '10px 18px', borderRadius: 2, border: 'none',
+                      cursor: extracting ? 'not-allowed' : 'pointer', fontFamily: sans,
+                    }}
+                  >
+                    {extracting ? 'Extracting facts...' : '+ Upload & extract'}
+                  </button>
+                </div>
+                {extractError && (
+                  <div style={{ marginTop: 12, padding: '10px 14px', border: '1px solid #dc2626', borderRadius: 2, background: '#fce8e6', color: '#dc2626', fontSize: 13 }}>
+                    {extractError}
+                  </div>
+                )}
+                {lastExtraction && (
+                  <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                      Extracted from {lastExtraction.documentName}
+                    </div>
+                    {lastExtraction.keyFindings.length > 0 && (
+                      <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13, color: ink, lineHeight: 1.7 }}>
+                        {lastExtraction.keyFindings.map((f, i) => <li key={i}>{f}</li>)}
+                      </ul>
+                    )}
+                    {Object.keys(lastExtraction.extractedFields).length > 0 && (
+                      <div style={{ fontSize: 12.5, color: muted }}>
+                        {Object.entries(lastExtraction.extractedFields).map(([k, v]) => (
+                          <div key={k} style={{ padding: '3px 0' }}>
+                            <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}:</span> {String(v)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: amber, marginTop: 8 }}>
+                      Review these facts before relying on them — extraction is a starting point, not a finding.
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -710,6 +949,66 @@ export default function MatterDetailView() {
                 Pick a document type. Starling drafts it, stress-tests it from the employer's perspective,
                 runs 8 verification passes, and returns a court-ready draft with inline source attribution.
               </p>
+
+              {/* Firm template for the selected document type */}
+              {selectedTemplateDocType && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 240 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>
+                      Firm template
+                      {currentTemplate && (
+                        <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: green, background: '#e7f6ec', padding: '2px 7px', borderRadius: 2 }}>
+                          ACTIVE — {currentTemplate.name}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: muted }}>
+                      {currentTemplate
+                        ? 'Downloads use your firm’s letterhead and formatting for every matter.'
+                        : 'Upload your firm’s DOCX template with {{PLACEHOLDER}} markers — it becomes the default for this document type on all matters.'}
+                    </div>
+                    {templateStatus && (
+                      <div style={{ fontSize: 12.5, color: navy, marginTop: 4 }}>{templateStatus}</div>
+                    )}
+                  </div>
+                  <input
+                    ref={templateInputRef}
+                    type="file"
+                    accept=".docx"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleTemplateUpload(file);
+                      if (templateInputRef.current) templateInputRef.current.value = '';
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => templateInputRef.current?.click()}
+                      style={{
+                        background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
+                        padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                      }}
+                    >
+                      {currentTemplate ? 'Replace template' : 'Upload template'}
+                    </button>
+                    {currentTemplate && (
+                      <button
+                        onClick={async () => {
+                          const result = await firmTemplates.remove(selectedTemplateDocType);
+                          setTemplateStatus(result.ok ? 'Template removed — downloads use Starling default formatting.' : result.error ?? 'Failed to remove.');
+                        }}
+                        style={{
+                          background: '#fff', color: muted, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
+                          padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 8 }}>
                 {DEMO_DRAFT_TYPES.map(dt => (
                   <div
@@ -824,6 +1123,8 @@ export default function MatterDetailView() {
                     setGenerating(false);
                     if (result.ok && result.html) {
                       setGeneratedHtml(result.html);
+                      setGenCitations(result.citations ?? []);
+                      setGenReviewFlags(result.reviewFlags ?? []);
                     } else {
                       setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
                     }
@@ -890,6 +1191,38 @@ export default function MatterDetailView() {
                     }}
                     dangerouslySetInnerHTML={{ __html: generatedHtml }}
                   />
+
+                  {/* Lawyer review flags — sections the model wants checked */}
+                  {genReviewFlags.length > 0 && (
+                    <div style={{ marginTop: 12, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '12px 16px' }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: amber, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Review before sending
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: ink, lineHeight: 1.7 }}>
+                        {genReviewFlags.map((flag, i) => <li key={i}>{flag}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Source citations — what each section relies on */}
+                  {genCitations.length > 0 && (
+                    <details style={{ marginTop: 12, background: '#fff', border: `1px solid ${border}`, borderRadius: 2 }}>
+                      <summary style={{ cursor: 'pointer', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: navy, fontFamily: sans }}>
+                        Source citations ({genCitations.length})
+                      </summary>
+                      <div style={{ padding: '0 16px 12px' }}>
+                        {genCitations.map((c, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '7px 0', borderTop: i > 0 ? `1px solid ${border}` : 'none' }}>
+                            <StatusDot colour={c.trustLevel === 'high' ? green : c.trustLevel === 'medium' ? amber : muted} size={7} />
+                            <div>
+                              <div style={{ fontSize: 13, color: ink }}>{c.citation}</div>
+                              <div style={{ fontSize: 11.5, color: muted }}>{c.sourceType} — {c.trustLevel} trust</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               )}
             </div>
@@ -979,22 +1312,36 @@ export default function MatterDetailView() {
                   boxSizing: 'border-box',
                 }}
               />
-              <button
-                style={{
-                  background: orange,
-                  color: '#fff',
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  padding: '11px 18px',
-                  borderRadius: 2,
-                  border: 'none',
-                  cursor: 'pointer',
-                  marginTop: 12,
-                  fontFamily: sans,
-                }}
-              >
-                Save Notes
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+                <button
+                  onClick={async () => {
+                    setNotesStatus('saving');
+                    const result = await employment.saveNotes(notes);
+                    setNotesStatus(result.ok ? 'saved' : 'error');
+                    if (result.ok) setTimeout(() => setNotesStatus('idle'), 2500);
+                  }}
+                  disabled={notesStatus === 'saving'}
+                  style={{
+                    background: notesStatus === 'saving' ? '#b0b0b0' : orange,
+                    color: '#fff',
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    padding: '11px 18px',
+                    borderRadius: 2,
+                    border: 'none',
+                    cursor: notesStatus === 'saving' ? 'not-allowed' : 'pointer',
+                    fontFamily: sans,
+                  }}
+                >
+                  {notesStatus === 'saving' ? 'Saving...' : 'Save Notes'}
+                </button>
+                {notesStatus === 'saved' && (
+                  <span style={{ fontSize: 13, color: green, fontWeight: 600 }} role="status">Saved</span>
+                )}
+                {notesStatus === 'error' && (
+                  <span style={{ fontSize: 13, color: '#dc2626' }} role="alert">Could not save — try again.</span>
+                )}
+              </div>
             </div>
           )}
         </div>

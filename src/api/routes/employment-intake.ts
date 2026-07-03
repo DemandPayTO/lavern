@@ -234,8 +234,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(404).send({ ok: false, error: 'Matter not found' });
     }
 
-    const { employment } = loadEmploymentData(row.data_json);
-    return reply.send({ ok: true, data: employment });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    return reply.send({
+      ok: true,
+      data: employment,
+      lawyerNotes: ((matter as Record<string, unknown>).lawyerNotes as string) ?? '',
+    });
   });
 
   // ── POST /api/employment/:matterId/issues ──────────────────────────────
@@ -435,6 +439,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     (matter as Record<string, unknown>).generatedDemandLetter = {
       html: sanitiseHtml(result.html),
       lawyerReviewFlags: result.lawyerReviewFlags,
+      citations: result.citations,
       tone: parsed.data.tone,
       demandAmount: parsed.data.demandAmount,
       generatedAt: new Date().toISOString(),
@@ -460,6 +465,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       ok: true,
       html: sanitiseHtml(result.html),
       lawyerReviewFlags: result.lawyerReviewFlags,
+      citations: result.citations,
       costUsd: result.costUsd,
     });
   });
@@ -518,6 +524,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       html: sanitiseHtml(result.html),
       procedureType: result.procedureType,
       lawyerReviewFlags: result.lawyerReviewFlags,
+      citations: result.citations,
       claimAmount: parsed.data.claimAmount,
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,
@@ -533,6 +540,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       html: sanitiseHtml(result.html),
       procedureType: result.procedureType,
       lawyerReviewFlags: result.lawyerReviewFlags,
+      citations: result.citations,
       costUsd: result.costUsd,
     });
   });
@@ -591,6 +599,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       applicationType: result.applicationType,
       formName: result.formName,
       lawyerReviewFlags: result.lawyerReviewFlags,
+      citations: result.citations,
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,
       status: 'draft',
@@ -609,6 +618,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       applicationType: result.applicationType,
       formName: result.formName,
       lawyerReviewFlags: result.lawyerReviewFlags,
+      citations: result.citations,
       costUsd: result.costUsd,
     });
   });
@@ -780,7 +790,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(400).send({ ok: false, error: 'Invalid template upload' });
     }
 
-    const { firmId, documentType, name, templateBase64 } = parsed.data;
+    const { documentType, name, templateBase64 } = parsed.data;
+    // Prefer the authenticated user's firm — the body value is a legacy fallback
+    const firmId = (req as { firmId?: string }).firmId ?? parsed.data.firmId ?? 'local-firm';
 
     // Decode base64 to detect placeholders in the template text
     let templateText = '';
@@ -804,11 +816,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
   });
 
-  // ── GET /api/employment/templates/:firmId ──────────────────────────────
-  // List all templates for a firm.
+  // ── GET /api/employment/templates ──────────────────────────────────────
+  // List the requesting user's firm templates. Once uploaded, a template is
+  // the firm default for its document type across ALL matters.
 
-  fastify.get('/api/employment/templates/:firmId', async (req: FastifyRequest, reply: FastifyReply) => {
-    const { firmId } = req.params as { firmId: string };
+  fastify.get('/api/employment/templates', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
     const templates = getFirmTemplates(firmId);
 
     return reply.send({
@@ -824,15 +837,20 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
   });
 
-  // ── DELETE /api/employment/templates/:firmId/:documentType ─────────────
-  // Delete a firm's template for a specific document type.
+  // ── DELETE /api/employment/templates/:documentType ─────────────────────
+  // Remove the requesting user's firm template for a document type.
 
-  fastify.delete('/api/employment/templates/:firmId/:documentType', async (req: FastifyRequest, reply: FastifyReply) => {
-    const { firmId, documentType } = req.params as { firmId: string; documentType: string };
+  fastify.delete('/api/employment/templates/:documentType', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
+    const { documentType } = req.params as { documentType: string };
     deleteFirmTemplate(firmId, documentType);
     logger.info('Template deleted', { firmId, documentType });
     return reply.send({ ok: true });
   });
+
+  // NOTE: the legacy /api/employment/templates/:firmId GET/DELETE routes were
+  // removed — they let any authenticated user read or delete another firm's
+  // templates by guessing a firmId. The routes above derive the firm from auth.
 
   // ── POST /api/employment/:matterId/notes ───────────────────────────────
   // Save lawyer notes on a matter.
