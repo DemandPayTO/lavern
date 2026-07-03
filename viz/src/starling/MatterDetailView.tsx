@@ -421,6 +421,122 @@ export default function MatterDetailView() {
       : result.error ?? 'Upload failed.');
   }, [firmTemplates, selectedTemplateDocType]);
 
+  // ── Deep Analysis — launch a multi-agent session pre-filled from this
+  // matter. Seeds the same sessionStorage keys the engagement flow reads
+  // (briefing memo, config, team), then enters at Strategy.
+  const DEEP_ANALYSES: Record<string, {
+    label: string; workflowId: string; intensity: string; budgetUsd: number;
+    matterType: string; team: string[]; question: string;
+  }> = {
+    second_opinion: {
+      label: 'Second Opinion', workflowId: 'counsel', intensity: 'standard', budgetUsd: 10,
+      matterType: 'case_assessment',
+      team: ['employment-counsel'],
+      question: 'Provide a second opinion on this matter: the merits, the entitlements analysis, and the strategy. Identify anything the analysis to date has missed or overstated.',
+    },
+    moot: {
+      label: "Moot the Employer's Response", workflowId: 'adversarial', intensity: 'thorough', budgetUsd: 25,
+      matterType: 'case_assessment',
+      team: ['employment-counsel', 'litigation-partner', 'red-team', 'synthesis-editor'],
+      question: "Anticipate the employer's strongest response. Attack our position exactly as employer's counsel would — termination clause enforceability, mitigation, cause allegations, quantum — then assess how our claims hold up and how to shore up the weak points before we send anything.",
+    },
+    assessment: {
+      label: 'Full Case Assessment', workflowId: 'review', intensity: 'thorough', budgetUsd: 25,
+      matterType: 'case_assessment',
+      team: ['employment-counsel', 'contract-reviewer', 'legal-researcher', 'evaluator'],
+      question: 'Full case assessment: merits of each claim, realistic damages range, procedural strategy (forum, timing, limitation pressure), litigation risks, and recommended next steps.',
+    },
+    settlement: {
+      label: 'Settlement Valuation', workflowId: 'roundtable', intensity: 'standard', budgetUsd: 20,
+      matterType: 'settlement',
+      team: ['employment-counsel', 'litigation-partner', 'arbitration-specialist', 'synthesis-editor'],
+      question: 'Value this case for settlement: realistic outcome range, the ESA floor, adjustments for litigation cost and risk, tax-effective structuring options, and a negotiation strategy.',
+    },
+  };
+
+  const launchDeepAnalysis = useCallback((key: string) => {
+    const spec = DEEP_ANALYSES[key];
+    if (!spec || !sessionId) return;
+    const intake = (employment.data?.intake ?? {}) as Record<string, unknown>;
+    const analysis = employment.data?.analysis as Record<string, unknown> | null;
+    const clientName = [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ') || matter?.client || 'Client';
+    const employerName = (intake.employer_legal_name as string) || matter?.employer || 'Employer';
+    const title = `${spec.label} — ${clientName} v ${employerName}`;
+
+    // Build the briefing memo from what Starling already knows
+    const lines: string[] = [
+      `# Deep Analysis: ${spec.label}`,
+      `Matter: ${clientName} v ${employerName}`,
+      '',
+      '## Question for the team',
+      spec.question,
+      '',
+      '## Intake facts',
+      `- Client: ${clientName}${intake.job_title ? `, ${intake.job_title}` : ''}`,
+      `- Employer: ${employerName}`,
+      intake.annual_salary ? `- Annual salary: $${Number(intake.annual_salary).toLocaleString('en-CA')}` : '',
+      intake.hire_date ? `- Employment: ${intake.hire_date} to ${intake.termination_date ?? 'present'}` : '',
+      intake.termination_reasons ? `- Stated reason for termination: ${intake.termination_reasons}` : '',
+      intake.employer_alleged_just_cause ? '- Employer alleges just cause' : '',
+      intake.is_constructive_dismissal ? '- Constructive dismissal claimed' : '',
+    ];
+    const gates = employment.data?.gates?.filter(g => g.triggered) ?? [];
+    if (gates.length > 0) {
+      lines.push('', '## Issues identified (16-gate analysis)');
+      for (const g of gates) {
+        const approved = g.issueCodes.some(c => employment.data!.approvedIssues.includes(c));
+        lines.push(`- [${approved ? 'APPROVED' : 'pending'}] ${g.reason}`);
+      }
+    }
+    if (analysis) {
+      const dmg = analysis.damagesEstimate as Record<string, unknown> | undefined;
+      const lim = analysis.limitationDeadline as Record<string, unknown> | undefined;
+      lines.push('', '## Analysis to date');
+      if (dmg) {
+        lines.push(`- ESA notice: ${dmg.esaNoticeWeeks} weeks ($${Number(dmg.esaNoticePay ?? 0).toLocaleString('en-CA')}); ESA severance: $${Number(dmg.esaSeverancePay ?? 0).toLocaleString('en-CA')}`);
+        lines.push(`- Common law range: ${dmg.commonLawLowMonths}–${dmg.commonLawHighMonths} months ($${Number(dmg.commonLawLowAmount ?? 0).toLocaleString('en-CA')}–$${Number(dmg.commonLawHighAmount ?? 0).toLocaleString('en-CA')})`);
+      }
+      if (lim?.date) lines.push(`- Limitation deadline: ${lim.date} (${lim.daysRemaining} days remaining${lim.urgent ? ' — URGENT' : ''})`);
+      if (analysis.recommendedProcedure) lines.push(`- Recommended procedure: ${analysis.recommendedProcedure}`);
+    }
+    const timeline = employment.data?.timeline ?? [];
+    if (timeline.length > 0) {
+      lines.push('', '## Timeline');
+      for (const ev of timeline.slice(0, 12)) lines.push(`- ${ev.date}: ${ev.label}`);
+    }
+
+    sessionStorage.setItem('shem-matter-id', sessionId);
+    sessionStorage.setItem('shem-matter-data', JSON.stringify({
+      matterId: sessionId,
+      matterNumber: matter?.number ?? sessionId,
+      clientName,
+      matterTitle: title,
+      matterType: spec.matterType,
+      jurisdiction: 'Ontario',
+      response: {
+        conflictCheck: { conflictFound: false },
+        kyc: { clientVerified: true, riskLevel: 'low', flags: [] },
+        engagementLetter: {
+          scope: spec.question,
+          feeStructure: 'fixed',
+          estimatedBudget: { min: spec.budgetUsd, max: spec.budgetUsd, currency: 'USD' },
+          accepted: true,
+        },
+      },
+    }));
+    sessionStorage.setItem('shem-briefing-memo', lines.filter(l => l !== '').join('\n'));
+    sessionStorage.setItem('shem-briefing-config', JSON.stringify({
+      workflowId: spec.workflowId,
+      intensity: spec.intensity,
+      budgetUsd: spec.budgetUsd,
+      yoloMode: false,
+      verification: spec.workflowId !== 'counsel',
+      provider: 'anthropic',
+    }));
+    sessionStorage.setItem('shem-briefing-team', JSON.stringify(spec.team));
+    window.location.hash = '#/strategy';
+  }, [employment.data, matter, sessionId]);
+
   // Compute tab badge counts from hook data
   const issueCount = matter?.issues.length ?? 0;
   const docCount = matter?.documents.length ?? 0;
@@ -1390,7 +1506,7 @@ export default function MatterDetailView() {
             Actions
           </span>
           <button
-            onClick={() => handleNav('#/processing')}
+            onClick={() => { setActiveTab('draft'); window.scrollTo(0, 0); }}
             style={{
               background: orange,
               color: '#fff',
@@ -1403,13 +1519,30 @@ export default function MatterDetailView() {
               fontFamily: sans,
             }}
           >
-            Draft Statement of Claim
+            Draft a Document
           </button>
-          <ActionButton label="Open Demand Letter" onClick={() => handleNav(`#/results/${sessionId ?? ''}`)} />
-          <ActionButton label="Upload More Docs" />
-          <ActionButton label="Run Case Assessment" />
-          <ActionButton label="Analyse Settlement Offer" />
-          <ActionButton label="Export Summary" />
+          <ActionButton label="Upload Documents" onClick={() => { setActiveTab('docs'); window.scrollTo(0, 0); }} />
+
+          <span
+            style={{
+              fontFamily: serif,
+              fontSize: 13,
+              color: muted,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              margin: '0 6px 0 14px',
+            }}
+          >
+            Deep Analysis
+          </span>
+          <ActionButton label="Second Opinion" onClick={() => launchDeepAnalysis('second_opinion')} />
+          <ActionButton label="Moot Employer's Response" onClick={() => launchDeepAnalysis('moot')} />
+          <ActionButton label="Full Case Assessment" onClick={() => launchDeepAnalysis('assessment')} />
+          <ActionButton label="Settlement Valuation" onClick={() => launchDeepAnalysis('settlement')} />
+        </div>
+        <div style={{ fontSize: 12, color: muted, marginTop: 8 }}>
+          Deep Analysis convenes a multi-agent team pre-briefed with this matter's facts, issues,
+          and entitlements — you confirm the approach and roster before anything runs.
         </div>
       </main>
     </div>

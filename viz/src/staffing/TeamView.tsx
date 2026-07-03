@@ -58,6 +58,24 @@ const SENIORITY_SUBGROUP: Record<string, string> = {
 /** Derive sub-group key for any profile. */
 function getSubGroup(p: AgentProfile): string {
   if (p.category === 'orchestrator') return 'orchestrators';
+  return subGroupOf(p);
+}
+
+/**
+ * Agents surfaced in the Starling team picker — plaintiff-side Ontario
+ * employment law roster. Everything else stays backend-only.
+ */
+const EMPLOYMENT_ROSTER = new Set([
+  'employment-counsel', 'junior-associate', 'paralegal',
+  'litigation-partner', 'litigation-associate',
+  'contract-reviewer', 'contract-specialist', 'legal-researcher',
+  'red-team', 'design-reviewer', 'synthesis-editor',
+  'evaluator', 'ethics-reviewer', 'legal-engineer',
+  'plain-language-specialist', 'client-relations-partner',
+  'arbitration-specialist', 'dispute-resolution',
+]);
+
+function subGroupOf(p: AgentProfile): string {
   if (p.category === 'lawyer') return SENIORITY_SUBGROUP[p.seniority] ?? 'juniors';
   if (p.category === 'specialist') return SPECIALIST_SUBGROUP[p.role] ?? 'legacy';
   return 'infrastructure';
@@ -159,11 +177,19 @@ export default function TeamView({ onTeamConfirmed, onBack, onSkip }: Props) {
   // ── Data hooks ──────────────────────────────────────────────────────────
 
   const {
-    profiles, allProfiles, loading, error, isOffline, summary,
+    profiles: rawProfiles, allProfiles, loading, error, isOffline, summary,
     category, setCategory,
     sort, setSort,
     search, setSearch,
   } = useAgentProfiles();
+
+  // Starling surfaces only the agents relevant to plaintiff-side Ontario
+  // employment law. The full registry stays registered on the backend
+  // (internal/business use) — this is a display filter, not a removal.
+  const profiles = useMemo(
+    () => rawProfiles.filter(p => EMPLOYMENT_ROSTER.has(p.role) || p.category === 'orchestrator'),
+    [rawProfiles],
+  );
 
   const { presets } = useTeamPresets();
   const { play } = useSoundEffects();
