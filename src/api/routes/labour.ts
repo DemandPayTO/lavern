@@ -8,19 +8,24 @@
  *   POST /api/labour/intake                — save grievance intake, run gates + timeline
  *   POST /api/labour/analyze               — re-run gates/timeline/deadlines
  *   GET  /api/labour/deadlines             — grievance docket across matters (CA clocks)
+ *   GET  /api/labour/ca-profiles           — CA library: list profiles
+ *   POST /api/labour/ca-profiles           — CA library: create/update a profile
+ *   DELETE /api/labour/ca-profiles/:id     — CA library: delete a profile
  *   GET  /api/labour/:matterId             — get labour data
  *   POST /api/labour/:matterId/issues      — approve/dismiss issues
+ *   POST /api/labour/:matterId/step-event  — record a step presentation/response
  *   POST /api/labour/:matterId/document    — generate a grievance document
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { grievanceIntakeSchema, createLabourMatterData } from '../../types/labour-intake.js';
-import type { GrievanceIntakeData, LabourMatterData } from '../../types/labour-intake.js';
+import { grievanceIntakeSchema, stepEventSchema, caProfileSchema, createLabourMatterData } from '../../types/labour-intake.js';
+import type { GrievanceIntakeData, GrievanceStepEvent, LabourMatterData } from '../../types/labour-intake.js';
 import { evaluateLabourGates, buildGrievanceTimeline, computeGrievanceDeadlines } from '../../labour/gate-evaluator.js';
 import { generateGrievanceDocument } from '../../labour/grievance-documents.js';
 import type { GrievanceDocumentType } from '../../labour/grievance-documents.js';
-import { saveMatter, getMatterById, getMattersByUser } from '../../db/database.js';
+import { buildRemedyWorksheet } from '../../labour/remedy-worksheet.js';
+import { saveMatter, getMatterById, getMattersByUser, saveCaProfile, getCaProfiles, getCaProfile, deleteCaProfile } from '../../db/database.js';
 import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('LABOUR');
@@ -48,7 +53,10 @@ async function saveLabourData(
   await saveMatter(userId, matterId, JSON.stringify(matter), (matter.status as string) ?? 'active');
 }
 
-const GRIEVANCE_DOC_TYPES = ['grievance_filing', 'referral_to_arbitration', 'arbitration_brief', 'dfr_response'] as const;
+const GRIEVANCE_DOC_TYPES = [
+  'grievance_filing', 'referral_to_arbitration', 'arbitration_brief', 'dfr_response',
+  'merits_assessment', 'decline_letter', 'member_update', 'remedy_worksheet',
+] as const;
 
 export function registerLabourRoutes(fastify: FastifyInstance): void {
 
@@ -144,6 +152,107 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
     return reply.send({ ok: true, deadlines: items, generatedAt: new Date().toISOString() });
   });
 
+  // ── CA library ─────────────────────────────────────────────────────────
+  // One profile per bargaining unit; copied onto grievances at intake.
+  // NOTE: these static routes must not be shadowed by /api/labour/:matterId
+  // (find-my-way prefers static segments, so ordering is safe either way).
+
+  fastify.get('/api/labour/ca-profiles', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
+    const rows = getCaProfiles(firmId);
+    const profiles = rows.map(r => {
+      try {
+        return { id: r.id, name: r.name, updatedAt: r.updated_at, data: JSON.parse(r.data_json) as Record<string, unknown> };
+      } catch {
+        return { id: r.id, name: r.name, updatedAt: r.updated_at, data: {} };
+      }
+    });
+    return reply.send({ ok: true, profiles });
+  });
+
+  const caProfileBodySchema = z.object({
+    id: z.string().trim().min(1).max(100).optional(),
+    profile: caProfileSchema,
+  });
+
+  fastify.post('/api/labour/ca-profiles', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
+    const parsed = caProfileBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      logger.warn('CA profile validation failed', { firmId, issues: parsed.error.issues.map(i => i.path.join('.')) });
+      return reply.status(400).send({ ok: false, error: 'Invalid CA profile' });
+    }
+
+    // Updates must target a profile this firm owns; otherwise create fresh.
+    let id = parsed.data.id;
+    if (id && !getCaProfile(id, firmId)) {
+      return reply.status(404).send({ ok: false, error: 'CA profile not found' });
+    }
+    if (!id) id = `ca-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    saveCaProfile(id, firmId, parsed.data.profile.name, JSON.stringify(parsed.data.profile));
+    logger.info('CA profile saved', { firmId, id, name: parsed.data.profile.name });
+    return reply.send({ ok: true, id });
+  });
+
+  fastify.delete('/api/labour/ca-profiles/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
+    const { id } = req.params as { id: string };
+    const removed = deleteCaProfile(id, firmId);
+    if (!removed) return reply.status(404).send({ ok: false, error: 'CA profile not found' });
+    return reply.send({ ok: true });
+  });
+
+  // ── POST /api/labour/:matterId/step-event ──────────────────────────────
+  // Record a presentation or employer response at a procedure step. The
+  // event replaces any existing event for the same step, then the gates,
+  // timeline, and clocks are recomputed.
+
+  fastify.post('/api/labour/:matterId/step-event', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = stepEventSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid step event' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, labour } = loadLabourData(row.data_json);
+    if (!labour.intake || Object.keys(labour.intake).length === 0) {
+      return reply.status(400).send({ ok: false, error: 'Complete grievance intake before recording step events.' });
+    }
+
+    const events: GrievanceStepEvent[] = (labour.intake.step_events ?? []).filter(e => e.step_label !== parsed.data.step_label);
+    events.push(parsed.data);
+    // Keep events in procedure order (the clock engine reads the last
+    // event as the current position in the procedure)
+    const steps = labour.intake.procedure_steps ?? [];
+    const orderOf = (label: string): number => {
+      const idx = steps.findIndex(s => s.label === label);
+      return idx === -1 ? steps.length : idx;
+    };
+    events.sort((a, b) => orderOf(a.step_label) - orderOf(b.step_label));
+    labour.intake.step_events = events.slice(-20);
+
+    labour.gates = evaluateLabourGates(labour.intake);
+    labour.timeline = buildGrievanceTimeline(labour.intake);
+    labour.analysis = {
+      ...(labour.analysis ?? {}),
+      deadlines: computeGrievanceDeadlines(labour.intake),
+      evaluatedAt: new Date().toISOString(),
+    };
+    await saveLabourData(userId, matterId, matter, labour);
+
+    logger.info('Step event recorded', { userId, matterId, step: parsed.data.step_label });
+    return reply.send({
+      ok: true,
+      stepEvents: labour.intake.step_events,
+      gates: labour.gates,
+      timeline: labour.timeline,
+      deadlines: labour.analysis.deadlines,
+    });
+  });
+
   // ── GET /api/labour/:matterId ──────────────────────────────────────────
   fastify.get('/api/labour/:matterId', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
@@ -202,21 +311,33 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
       return reply.status(400).send({ ok: false, error: 'Complete grievance intake before generating documents.' });
     }
 
-    // Anonymisation terms: grievor + employer + union names
-    const definedTerms: string[] = [];
-    const grievor = [labour.intake.grievor_first_name, labour.intake.grievor_last_name].filter(Boolean).join(' ');
-    if (grievor) definedTerms.push(grievor);
-    if (labour.intake.employer_name) definedTerms.push(labour.intake.employer_name);
-    if (labour.intake.union_name) definedTerms.push(labour.intake.union_name);
+    let result: { html: string; documentTitle: string; reviewerFlags: string[]; costUsd: number };
 
-    const result = await generateGrievanceDocument({
-      intake: labour.intake,
-      approvedIssues: labour.approvedIssues,
-      documentType: parsed.data.documentType as GrievanceDocumentType,
-      representativeName: parsed.data.representativeName,
-      organizationName: parsed.data.organizationName,
-      additionalContext: parsed.data.additionalContext,
-    }, definedTerms);
+    if (parsed.data.documentType === 'remedy_worksheet') {
+      // Deterministic: arithmetic over the intake, no model call, no cost.
+      try {
+        const worksheet = buildRemedyWorksheet(labour.intake);
+        result = { ...worksheet, costUsd: 0 };
+      } catch (err) {
+        return reply.status(400).send({ ok: false, error: err instanceof Error ? err.message : 'Remedy worksheet inputs are incomplete.' });
+      }
+    } else {
+      // Anonymisation terms: grievor + employer + union names
+      const definedTerms: string[] = [];
+      const grievor = [labour.intake.grievor_first_name, labour.intake.grievor_last_name].filter(Boolean).join(' ');
+      if (grievor) definedTerms.push(grievor);
+      if (labour.intake.employer_name) definedTerms.push(labour.intake.employer_name);
+      if (labour.intake.union_name) definedTerms.push(labour.intake.union_name);
+
+      result = await generateGrievanceDocument({
+        intake: labour.intake,
+        approvedIssues: labour.approvedIssues,
+        documentType: parsed.data.documentType as GrievanceDocumentType,
+        representativeName: parsed.data.representativeName,
+        organizationName: parsed.data.organizationName,
+        additionalContext: parsed.data.additionalContext,
+      }, definedTerms);
+    }
 
     // Store + draft history (same shape as employment)
     const history = Array.isArray(matter.draftHistory) ? matter.draftHistory as Array<Record<string, unknown>> : [];

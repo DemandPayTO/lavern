@@ -100,6 +100,34 @@ describe('applyCaExtraction', () => {
     expect(second.filled).toEqual([]);
   });
 
+  it('parses structured procedure steps from procedure_steps_json', () => {
+    const { intake, filled } = applyCaExtraction({} as GrievanceIntakeData, fields({
+      procedure_steps_json: JSON.stringify([
+        { label: 'Step 1', employer_response_days: 5, advance_days: 5, day_kind: 'working' },
+        { label: 'Step 2', employer_response_days: 10, advance_days: null, day_kind: 'calendar' },
+        { label: '', employer_response_days: 3 },           // dropped: no label
+        { label: 'Step X', employer_response_days: -4, advance_days: 'soon', day_kind: 'lunar' },
+      ]),
+    }));
+
+    expect(filled).toContain('procedure_steps');
+    expect(intake.procedure_steps).toHaveLength(3);
+    expect(intake.procedure_steps![0]).toEqual({ label: 'Step 1', employer_response_days: 5, advance_days: 5, day_kind: 'working' });
+    expect(intake.procedure_steps![2]).toEqual({ label: 'Step X', employer_response_days: null, advance_days: null, day_kind: null });
+  });
+
+  it('ignores malformed procedure_steps_json and existing steps', () => {
+    const none = applyCaExtraction({} as GrievanceIntakeData, fields({ procedure_steps_json: 'not json' }));
+    expect(none.filled).not.toContain('procedure_steps');
+
+    const existing = { procedure_steps: [{ label: 'Step 1' }] } as GrievanceIntakeData;
+    const kept = applyCaExtraction(existing, fields({
+      procedure_steps_json: JSON.stringify([{ label: 'Step 9', employer_response_days: 5 }]),
+    }));
+    expect(kept.intake.procedure_steps![0].label).toBe('Step 1');
+    expect(kept.filled).not.toContain('procedure_steps');
+  });
+
   it('rounds fractional day counts', () => {
     const { intake } = applyCaExtraction({} as GrievanceIntakeData, fields({
       filing_deadline_days: 10.4,

@@ -11,7 +11,7 @@
  *   - Pure function: no I/O, no model calls — testable in isolation.
  */
 
-import type { GrievanceIntakeData } from '../types/labour-intake.js';
+import type { GrievanceIntakeData, CaProcedureStep } from '../types/labour-intake.js';
 
 /** One extracted field as returned by the document extractor. */
 export interface ExtractedField {
@@ -58,7 +58,34 @@ function asBool(v: unknown): boolean | null {
 }
 
 function isEmpty(v: unknown): boolean {
-  return v === undefined || v === null || v === '';
+  return v === undefined || v === null || v === ''
+    || (Array.isArray(v) && v.length === 0);
+}
+
+/**
+ * Parse the extractor's procedure_steps_json string into validated steps.
+ * Returns null unless at least one step with a usable label survives.
+ */
+export function parseProcedureSteps(v: unknown): CaProcedureStep[] | null {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  let raw: unknown;
+  try { raw = JSON.parse(v); } catch { return null; }
+  if (!Array.isArray(raw)) return null;
+
+  const steps: CaProcedureStep[] = [];
+  for (const entry of raw.slice(0, 10)) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const e = entry as Record<string, unknown>;
+    const label = asTrimmedString(e.label, 60);
+    if (!label) continue;
+    steps.push({
+      label,
+      employer_response_days: asPositiveInt(e.employer_response_days),
+      advance_days: asPositiveInt(e.advance_days),
+      day_kind: asDayKind(e.day_kind),
+    });
+  }
+  return steps.length > 0 ? steps : null;
 }
 
 /**
@@ -92,6 +119,7 @@ export function applyCaExtraction(
   fill('referral_deadline_kind', asDayKind(raw('referral_deadline_kind')));
   fill('time_limits_mandatory', asBool(raw('time_limits_mandatory')));
   fill('sunset_clause_months', asPositiveInt(raw('sunset_clause_months')));
+  fill('procedure_steps', parseProcedureSteps(raw('procedure_steps_json')));
 
   // Fields with no dedicated intake column land in ca_notes so nothing
   // the extractor found is lost.

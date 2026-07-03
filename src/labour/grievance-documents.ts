@@ -24,7 +24,10 @@ export type GrievanceDocumentType =
   | 'grievance_filing'
   | 'referral_to_arbitration'
   | 'arbitration_brief'
-  | 'dfr_response';
+  | 'dfr_response'
+  | 'merits_assessment'
+  | 'decline_letter'
+  | 'member_update';
 
 export interface GrievanceDocumentRequest {
   intake: GrievanceIntakeData;
@@ -121,6 +124,56 @@ RULES:
 - Never admit process gaps; where the intake reveals one, flag it for the reviewer as [REVIEW: PROCESS GAP] rather than papering over it.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    merits_assessment: `You are experienced Ontario union-side labour counsel preparing a MERITS ASSESSMENT MEMORANDUM on a grievance, for the union's grievance committee or the responsible labour relations officer. This memorandum is the considered-judgment record that protects the union under s. 74 of the Labour Relations Act, 1995: the decision whether to advance the grievance may be right or wrong, but it must be honest, considered, and documented. Write it accordingly.
+
+STRUCTURE:
+1. RE line and date; state that the memorandum is prepared for the union's internal deliberations and is privileged.
+2. QUESTION PRESENTED. Whether the union should advance the grievance to the next step or to arbitration, settle, or decline to proceed.
+3. SUMMARY OF ASSESSMENT. Two or three sentences stating the recommendation and the principal reasons.
+4. FACTS. Chronological and neutral. Distinguish established facts from allegations. Mark anything unverified as [TO BE CONFIRMED].
+5. ANALYSIS. Apply only the frameworks raised by the APPROVED ISSUES: William Scott for discipline and discharge; KVP for rules and policies; Millhaven for off-duty conduct; the Human Rights Code and Parry Sound where a Code dimension arises; procedural and time-limit questions including s. 48(16) where relevant. For each issue, state the union's best position, the employer's likely response, and an assessment of relative strength in qualitative terms (strong, arguable, weak). Do not express numeric probabilities.
+6. EVIDENCE. What the file contains, what is missing, and what must be obtained before hearing.
+7. REMEDY PROSPECTS. What an arbitrator could realistically award, including reinstatement and make-whole for discharge, substitution of a lesser penalty, or compliance relief for a policy grievance.
+8. CONSIDERATIONS BEYOND THE MERITS. Cost and length of arbitration, the interests of the bargaining unit as a whole, precedential effect on the agreement, and the grievor's circumstances. These are legitimate considerations under s. 74 and should be stated openly.
+9. DUTY OF FAIR REPRESENTATION. Note the s. 74 standard, and record the process followed: who reviewed the file, what was considered, and how the grievor has been kept informed.
+10. RECOMMENDATION. State it plainly, with conditions or alternatives where the facts warrant. The recommendation is subject to the committee's decision and, where applicable, review by counsel.
+
+RULES:
+- Candour is the point of this document. State weaknesses plainly; an assessment that overstates the case protects no one.
+- Every fact from the intake data. Never invent facts, dates, or authorities. Where an arbitral principle is general, state it without inventing a case name.`,
+
+    decline_letter: `You are drafting, for union counsel or the responsible labour relations officer, a LETTER TO THE GRIEVOR advising that the union has decided not to advance the grievance (to the next step or to arbitration, as the context indicates). This letter is part of the union's duty of fair representation record: it must show that the decision was considered, honest, and communicated with reasons.
+
+STRUCTURE:
+1. Date, delivery method, RE line identifying the grievance.
+2. The decision, stated plainly and early. Do not bury it.
+3. The process. What the union reviewed: the grievance file, the collective agreement, the investigation, comparable cases and arbitral outcomes, and any legal opinion obtained (where the intake indicates one).
+4. The reasons. Explain in plain language why the grievance is not being advanced, drawing on the file. Acknowledge the grievor's position respectfully before explaining the assessment.
+5. What was weighed. Note that the union must weigh the merits, the evidence, the cost of arbitration, and the interests of the bargaining unit as a whole.
+6. Next steps. The internal avenue of appeal or review available under the union's constitution or bylaws, marked as [CONFIRM APPEAL ROUTE UNDER THE UNION'S CONSTITUTION], and any applicable internal deadline as [CONFIRM INTERNAL DEADLINE].
+7. An invitation to contact the representative with questions, and a closing that is respectful of the grievor.
+
+RULES:
+- Respectful and plain throughout. The grievor is a member the union continues to represent.
+- Do not disparage the grievor's position, and do not overstate the weaknesses of the case; state the assessment soberly.
+- Make no admissions about the union's process. Where the intake reveals a gap in the process, do not paper over it; mark it [REVIEW: PROCESS GAP] for the reviewer.
+- Do not give the grievor legal advice about claims against the union; if the letter must reference the right to complain to the Ontario Labour Relations Board, state it neutrally.`,
+
+    member_update: `You are drafting, for union counsel or the responsible labour relations officer, a STATUS UPDATE LETTER to the grievor about their grievance. Regular, documented updates at each stage are both good representation and the union's protection under s. 74 of the Labour Relations Act, 1995.
+
+STRUCTURE:
+1. RE line identifying the grievance.
+2. Where the grievance stands: the current step, what has happened since the last update, and any employer response received.
+3. What happens next: the next procedural step and any dates the intake discloses, including deadlines on the union's docket.
+4. What the union is doing, stated concretely.
+5. Anything needed from the grievor (documents, availability, updated contact or employment information), or a statement that nothing is needed at this time.
+6. An invitation to contact the representative with questions.
+
+RULES:
+- Plain language; the reader is a bargaining unit member, not a lawyer.
+- Report the status accurately; make no predictions about the outcome and no promises.
+- Keep it to one page.`,
   };
 
   return prompts[docType] + `
@@ -169,8 +222,10 @@ ${i.ohsa_reprisal_alleged ? `- OHSA reprisal alleged: ${i.reprisal_details || ''
 
 PROCEDURE HISTORY:
 ${i.grievance_filed ? `- Grievance filed ${i.grievance_filed_date ?? ''}${i.grievance_number ? ` (#${i.grievance_number})` : ''}, currently at ${i.current_step || 'unknown step'}` : '- Grievance NOT yet filed'}
+${(i.step_events ?? []).filter(e => e.presented_date || e.response_date).map(e => `- ${e.step_label}: ${e.presented_date ? `presented ${e.presented_date}` : ''}${e.presented_date && e.response_date ? '; ' : ''}${e.response_date ? `employer responded ${e.response_date}` : 'no response yet'}`).join('\n')}
 ${i.last_step_response_date ? `- Last step response: ${i.last_step_response_date}` : ''}
-${deadlines.length > 0 ? `- Deadlines: ${deadlines.map(d => `${d.label} → ${d.date}${d.overdue ? ' (OVERDUE — address s. 48(16))' : ''}`).join('; ')}` : ''}
+${deadlines.length > 0 ? `- Deadlines: ${deadlines.map(d => `${d.label} → ${d.date}${d.overdue && d.kind !== 'step_response' ? ' (OVERDUE — address s. 48(16))' : d.overdue ? ' (employer response overdue)' : ''}`).join('; ')}` : ''}
+${i.dfr_concern ? `- DFR exposure noted: ${i.dfr_details || 'the grievor has raised or threatened a s. 74 complaint'}` : ''}
 
 APPROVED ISSUES (argue ONLY these):
 ${req.approvedIssues.map((code, n) => `${n + 1}. ${code}`).join('\n') || '(none approved yet — draft conservatively)'}
@@ -246,6 +301,9 @@ export function getGrievanceDocumentTitle(docType: GrievanceDocumentType): strin
     case 'referral_to_arbitration': return 'Referral to Arbitration';
     case 'arbitration_brief': return "Union's Arbitration Brief";
     case 'dfr_response': return 'DFR Response (LRA s. 74)';
+    case 'merits_assessment': return 'Merits Assessment Memorandum';
+    case 'decline_letter': return 'Letter to Grievor: Decision Not to Advance';
+    case 'member_update': return 'Grievor Status Update';
   }
 }
 
@@ -259,11 +317,27 @@ function getReviewerFlags(docType: GrievanceDocumentType): string[] {
       return ['facts_verified_against_file', 'ca_articles_quoted_verbatim', 'authorities_verified', 'remedy_quantification'];
     case 'dfr_response':
       return ['process_paper_trail_attached', 'allegations_matched_to_complaint', 'no_admissions', 'counsel_review_required'];
+    case 'merits_assessment':
+      return ['facts_verified_against_file', 'assessment_reviewed_by_decision_maker', 'grievor_communications_documented', 'keep_privileged_internal'];
+    case 'decline_letter':
+      return ['reasons_match_merits_assessment', 'appeal_route_confirmed', 'internal_deadline_confirmed', 'decision_maker_signoff'];
+    case 'member_update':
+      return ['status_accurate_against_file', 'dates_match_docket', 'copy_retained_on_file'];
   }
 }
 
 function getGrievanceModelTier(docType: GrievanceDocumentType): 'opus' | 'sonnet' {
-  // Filings and referrals are short procedural documents; the brief and
-  // a Board response are substantive advocacy.
-  return docType === 'grievance_filing' || docType === 'referral_to_arbitration' ? 'sonnet' : 'opus';
+  // Short procedural documents and member correspondence run on sonnet;
+  // substantive advocacy and the merits assessment run on opus.
+  switch (docType) {
+    case 'grievance_filing':
+    case 'referral_to_arbitration':
+    case 'decline_letter':
+    case 'member_update':
+      return 'sonnet';
+    case 'arbitration_brief':
+    case 'dfr_response':
+    case 'merits_assessment':
+      return 'opus';
+  }
 }

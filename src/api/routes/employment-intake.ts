@@ -842,7 +842,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -872,6 +872,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'referral-to-arbitration': 'referral_to_arbitration',
       'arbitration-brief': 'arbitration_brief',
       'dfr-response': 'dfr_response',
+      'merits-assessment': 'merits_assessment',
+      'decline-letter': 'decline_letter',
+      'member-update': 'member_update',
+      'remedy-worksheet': 'remedy_worksheet',
     };
 
     const buffer = await htmlToDocx(html, {

@@ -172,6 +172,7 @@ Extract these fields from the collective agreement (union-side grievance context
 - time_limits_mandatory (boolean): Whether the CA states time limits are mandatory (e.g. "shall be deemed abandoned/withdrawn" language) vs directory
 - sunset_clause_months (number): Months after which prior discipline is removed from the record, if a sunset clause exists
 - grievance_steps (string): Brief summary of the procedure steps and their time limits, verbatim day counts included
+- procedure_steps_json (string): A JSON array of the procedure steps IN ORDER, encoded as a string. Each element: {"label": "Step 1", "employer_response_days": <days the employer has to respond at this step, or null>, "advance_days": <days the union has to advance to the NEXT step after the response, or null>, "day_kind": "calendar" or "working"}. Include only steps stated in the agreement; use null for any limit not stated. Example: "[{\\"label\\":\\"Step 1\\",\\"employer_response_days\\":5,\\"advance_days\\":5,\\"day_kind\\":\\"working\\"}]"
 
 Also provide keyFindings: notable observations (e.g. "Time limits are mandatory — Article 8.06 deems late grievances abandoned", "Working days defined in Article 2 to exclude statutory holidays", "No sunset clause found").`,
 

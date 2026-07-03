@@ -36,12 +36,37 @@ export const DISCIPLINE_IMPOSED = [
 
 export const DAY_KIND = ['calendar', 'working'] as const;
 
+export const WAGE_RATE_PERIODS = ['hour', 'week', 'year'] as const;
+
 // ── Schema ───────────────────────────────────────────────────────────────
 
 const optString = z.string().trim().max(2000).optional().or(z.literal(''));
 const optDate = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/).optional().or(z.literal(''));
 const optBool = z.boolean().optional().nullable();
 const optNumber = z.number().nonnegative().optional().nullable();
+
+/**
+ * One step of the CA's grievance procedure. Two clocks attach to a step:
+ * the employer's time to answer, and the union's time to advance to the
+ * next step after the answer (or after the answer was due).
+ */
+export const caProcedureStepSchema = z.object({
+  label: z.string().trim().min(1).max(60),
+  /** Days the employer has to respond once the grievance is presented at this step. */
+  employer_response_days: z.number().positive().max(365).optional().nullable(),
+  /** Days the union has to advance to the NEXT step after the employer's response. */
+  advance_days: z.number().positive().max(365).optional().nullable(),
+  day_kind: z.enum(DAY_KIND).optional().nullable(),
+});
+export type CaProcedureStep = z.infer<typeof caProcedureStepSchema>;
+
+/** A recorded event in the procedure: presentation and response at a step. */
+export const stepEventSchema = z.object({
+  step_label: z.string().trim().min(1).max(60),
+  presented_date: optDate,
+  response_date: optDate,
+});
+export type GrievanceStepEvent = z.infer<typeof stepEventSchema>;
 
 export const grievanceIntakeSchema = z.object({
   // ── Grievor ────────────────────────────────────────────────────────────
@@ -77,6 +102,12 @@ export const grievanceIntakeSchema = z.object({
   /** Whether the CA says time limits are mandatory vs directory. */
   time_limits_mandatory: optBool,
   ca_notes: optString,
+  /** CA library profile this matter's CA terms were copied from (snapshot at intake). */
+  ca_profile_id: optString,
+  /** The CA's grievance procedure steps, in order. Drives the step clocks. */
+  procedure_steps: z.array(caProcedureStepSchema).max(10).optional().nullable(),
+  /** Recorded presentations and responses at each step. Drives the step clocks. */
+  step_events: z.array(stepEventSchema).max(20).optional().nullable(),
 
   // ── The incident / grievance ───────────────────────────────────────────
   grievance_type: z.enum(GRIEVANCE_TYPES).optional().nullable(),
@@ -122,6 +153,19 @@ export const grievanceIntakeSchema = z.object({
   remedy_sought: optString,              // reinstatement, make-whole, rescind policy...
   back_pay_estimate: optNumber,
 
+  // ── Compensation (remedy worksheet inputs) ─────────────────────────────
+  wage_rate: optNumber,
+  wage_rate_period: z.enum(WAGE_RATE_PERIODS).optional().nullable(),
+  hours_per_week: optNumber,
+  /** Vacation pay percentage on gross back pay (e.g. 4 or 6). */
+  vacation_pay_percent: optNumber,
+  /** Value of benefits as a percentage of wages, per the CA or benefits booklet. */
+  benefits_load_percent: optNumber,
+  /** Employer pension contribution percentage of wages. */
+  pension_contrib_percent: optNumber,
+  /** Earnings from other employment during the back-pay period (mitigation set-off). */
+  interim_earnings: optNumber,
+
   // ── DFR exposure (unions as clients) ───────────────────────────────────
   dfr_concern: optBool,
   dfr_details: optString,                // grievor threatening s.74 LRA complaint etc.
@@ -155,6 +199,31 @@ export interface LabourMatterData {
   }>;
   analysis: Record<string, unknown> | null;
 }
+
+// ── CA library profile ───────────────────────────────────────────────────
+// A bargaining unit has one collective agreement and many grievances.
+// The profile is extracted or entered once and copied onto each new
+// grievance at intake (a snapshot, so later profile edits do not silently
+// change the docket on existing matters).
+
+export const caProfileSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  union_name: optString,
+  employer_name: optString,
+  ca_title: optString,
+  ca_expiry_date: optDate,
+  grievance_procedure_article: optString,
+  just_cause_article: optString,
+  filing_deadline_days: optNumber,
+  filing_deadline_kind: z.enum(DAY_KIND).optional().nullable(),
+  referral_deadline_days: optNumber,
+  referral_deadline_kind: z.enum(DAY_KIND).optional().nullable(),
+  time_limits_mandatory: optBool,
+  sunset_clause_months: optNumber,
+  procedure_steps: z.array(caProcedureStepSchema).max(10).optional().nullable(),
+  ca_notes: optString,
+});
+export type CaProfileData = z.infer<typeof caProfileSchema>;
 
 export function createLabourMatterData(): LabourMatterData {
   return {

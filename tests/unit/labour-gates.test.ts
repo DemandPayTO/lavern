@@ -75,6 +75,72 @@ describe('computeGrievanceDeadlines', () => {
     } as GrievanceIntakeData;
     expect(computeGrievanceDeadlines(intake)).toHaveLength(0);
   });
+
+  const TWO_STEPS = [
+    { label: 'Step 1', employer_response_days: 5, advance_days: 5, day_kind: 'calendar' as const },
+    { label: 'Step 2', employer_response_days: 10, advance_days: null, day_kind: 'calendar' as const },
+  ];
+
+  it('computes the employer response clock when a step is presented and unanswered', () => {
+    const intake = {
+      grievance_filed: true,
+      procedure_steps: TWO_STEPS,
+      step_events: [{ step_label: 'Step 1', presented_date: iso(-2) }],
+    } as GrievanceIntakeData;
+
+    const deadlines = computeGrievanceDeadlines(intake);
+    expect(deadlines).toHaveLength(1);
+    expect(deadlines[0].kind).toBe('step_response');
+    expect(deadlines[0].date).toBe(iso(3)); // presented -2 + 5
+    expect(deadlines[0].label).toContain('Step 1');
+  });
+
+  it('computes the advance clock after a non-final step response', () => {
+    const intake = {
+      grievance_filed: true,
+      procedure_steps: TWO_STEPS,
+      step_events: [{ step_label: 'Step 1', presented_date: iso(-6), response_date: iso(-1) }],
+    } as GrievanceIntakeData;
+
+    const deadlines = computeGrievanceDeadlines(intake);
+    expect(deadlines).toHaveLength(1);
+    expect(deadlines[0].kind).toBe('step_advance');
+    expect(deadlines[0].date).toBe(iso(4)); // response -1 + 5
+    expect(deadlines[0].label).toContain('Step 2');
+  });
+
+  it('a final step response starts the referral clock', () => {
+    const intake = {
+      grievance_filed: true,
+      referral_deadline_days: 30,
+      referral_deadline_kind: 'calendar',
+      procedure_steps: TWO_STEPS,
+      step_events: [
+        { step_label: 'Step 1', presented_date: iso(-20), response_date: iso(-15) },
+        { step_label: 'Step 2', presented_date: iso(-12), response_date: iso(-5) },
+      ],
+    } as GrievanceIntakeData;
+
+    const deadlines = computeGrievanceDeadlines(intake);
+    expect(deadlines).toHaveLength(1);
+    expect(deadlines[0].kind).toBe('referral');
+    expect(deadlines[0].date).toBe(iso(25)); // -5 + 30
+  });
+
+  it('an explicit last_step_response_date takes precedence over the final step event', () => {
+    const intake = {
+      grievance_filed: true,
+      last_step_response_date: iso(-10),
+      referral_deadline_days: 30,
+      referral_deadline_kind: 'calendar',
+      procedure_steps: TWO_STEPS,
+      step_events: [{ step_label: 'Step 2', presented_date: iso(-12), response_date: iso(-5) }],
+    } as GrievanceIntakeData;
+
+    const referrals = computeGrievanceDeadlines(intake).filter(d => d.kind === 'referral');
+    expect(referrals).toHaveLength(1);
+    expect(referrals[0].date).toBe(iso(20)); // -10 + 30, not -5 + 30
+  });
 });
 
 describe('evaluateLabourGates', () => {
@@ -120,6 +186,18 @@ describe('evaluateLabourGates', () => {
       grievance_filed: false,
     } as GrievanceIntakeData);
     expect(gate(gates, 'LG2').reason).toContain('48(16)');
+  });
+
+  it('LG2 treats an overdue employer response as the employer\'s lateness, not a missed limit', () => {
+    const gates = evaluateLabourGates({
+      grievance_filed: true,
+      procedure_steps: [{ label: 'Step 1', employer_response_days: 5, advance_days: 5, day_kind: 'calendar' }],
+      step_events: [{ step_label: 'Step 1', presented_date: iso(-10) }],
+    } as GrievanceIntakeData);
+    const lg2 = gate(gates, 'LG2');
+    expect(lg2.reason).not.toContain('TIME LIMIT APPEARS MISSED');
+    expect(lg2.reason).toContain('Employer response overdue');
+    expect(lg2.requiresLawyerReview).toBe(true);
   });
 
   it('Weber exclusivity always fires (arbitration is the forum)', () => {

@@ -20,7 +20,14 @@ export interface GrievanceDeadline {
   /** ISO date. */
   date: string;
   label: string;
-  kind: 'filing' | 'referral';
+  /**
+   * filing / referral / step_advance are UNION clocks (missing one can be
+   * fatal, subject to LRA s. 48(16)). step_response is the EMPLOYER's
+   * clock: an overdue response is the employer's lateness, and under many
+   * agreements a non-response is deemed a denial that starts the union's
+   * next clock.
+   */
+  kind: 'filing' | 'referral' | 'step_response' | 'step_advance';
   daysRemaining: number;
   overdue: boolean;
   /** True when computed from working days — approximate (statutory holidays not modelled). */
@@ -78,14 +85,68 @@ export function computeGrievanceDeadlines(intake: GrievanceIntakeData): Grievanc
     }
   }
 
-  if (intake.last_step_response_date && intake.referral_deadline_days) {
+  // ── Step clocks ─────────────────────────────────────────────────────
+  // Once the grievance is in the procedure, the most recent recorded step
+  // event drives two possible clocks: the employer's time to answer, and
+  // the union's time to advance after the answer. A response at the FINAL
+  // step starts the referral clock.
+  const steps = intake.procedure_steps ?? [];
+  const events = (intake.step_events ?? []).filter(e => e.presented_date || e.response_date);
+  let referralStart = intake.last_step_response_date || '';
+
+  if (steps.length > 0 && events.length > 0) {
+    const last = events[events.length - 1];
+    const stepIdx = steps.findIndex(s => s.label === last.step_label);
+    const step = stepIdx >= 0 ? steps[stepIdx] : undefined;
+
+    if (step && last.presented_date && !last.response_date && step.employer_response_days) {
+      const kind = step.day_kind ?? 'calendar';
+      const date = addDays(last.presented_date, step.employer_response_days, kind);
+      if (date) {
+        const days = daysFromToday(date);
+        out.push({
+          date,
+          label: `Employer response due at ${step.label} (${step.employer_response_days} ${kind} days${intake.grievance_procedure_article ? `, ${intake.grievance_procedure_article}` : ''})`,
+          kind: 'step_response',
+          daysRemaining: days,
+          overdue: days < 0,
+          approximate: kind === 'working',
+        });
+      }
+    }
+
+    if (step && last.response_date) {
+      const isFinalStep = stepIdx === steps.length - 1;
+      if (!isFinalStep && step.advance_days) {
+        const kind = step.day_kind ?? 'calendar';
+        const date = addDays(last.response_date, step.advance_days, kind);
+        if (date) {
+          const days = daysFromToday(date);
+          const next = steps[stepIdx + 1];
+          out.push({
+            date,
+            label: `Advance to ${next.label} deadline (${step.advance_days} ${kind} days from the ${step.label} response)`,
+            kind: 'step_advance',
+            daysRemaining: days,
+            overdue: days < 0,
+            approximate: kind === 'working',
+          });
+        }
+      }
+      // The final step's response starts the referral clock where the
+      // reviewer has not recorded last_step_response_date explicitly.
+      if (isFinalStep && !referralStart) referralStart = last.response_date;
+    }
+  }
+
+  if (referralStart && intake.referral_deadline_days) {
     const kind = intake.referral_deadline_kind ?? 'calendar';
-    const date = addDays(intake.last_step_response_date, intake.referral_deadline_days, kind);
+    const date = addDays(referralStart, intake.referral_deadline_days, kind);
     if (date) {
       const days = daysFromToday(date);
       out.push({
         date,
-        label: `Referral to arbitration deadline (${intake.referral_deadline_days} ${kind} days from Step response)`,
+        label: `Referral to arbitration deadline (${intake.referral_deadline_days} ${kind} days from the final step response)`,
         kind: 'referral',
         daysRemaining: days,
         overdue: days < 0,
@@ -94,6 +155,7 @@ export function computeGrievanceDeadlines(intake: GrievanceIntakeData): Grievanc
     }
   }
 
+  out.sort((a, b) => a.date.localeCompare(b.date));
   return out;
 }
 
@@ -118,8 +180,14 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
   });
 
   // ── LG2: Time limits (the CA clock) ───────────────────────────────────
-  const urgentDeadline = deadlines.find(d => d.daysRemaining <= 10 && !d.overdue);
-  const missedDeadline = deadlines.find(d => d.overdue);
+  // Union clocks (filing, advance, referral) can be fatal if missed.
+  // The employer's response clock is different: an overdue response is
+  // the employer's default, and under many agreements a non-response is
+  // deemed a denial that starts the union's next clock.
+  const unionClocks = deadlines.filter(d => d.kind !== 'step_response');
+  const urgentDeadline = unionClocks.find(d => d.daysRemaining <= 10 && !d.overdue);
+  const missedDeadline = unionClocks.find(d => d.overdue);
+  const employerLate = deadlines.find(d => d.kind === 'step_response' && d.overdue);
   results.push({
     gate: 'LG2',
     triggered: deadlines.length > 0,
@@ -127,11 +195,13 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
       ? `TIME LIMIT APPEARS MISSED: ${missedDeadline.label} was ${missedDeadline.date}. Assess relief under LRA s. 48(16) (arbitrator may extend where reasonable grounds and no substantial prejudice) — act immediately.`
       : urgentDeadline
         ? `URGENT: ${urgentDeadline.label} — ${urgentDeadline.daysRemaining} day(s) remaining (${urgentDeadline.date}).`
-        : deadlines.length > 0
-          ? `CA time limits computed: ${deadlines.map(d => `${d.label} → ${d.date}`).join('; ')}.`
-          : 'No CA time limits captured.',
+        : employerLate
+          ? `Employer response overdue: ${employerLate.label} was due ${employerLate.date}. Check whether the CA deems a non-response to be a denial, and whether the union's clock to advance is already running from the date the response was due.`
+          : deadlines.length > 0
+            ? `CA time limits computed: ${deadlines.map(d => `${d.label} → ${d.date}`).join('; ')}.`
+            : 'No CA time limits captured.',
     issueCodes: deadlines.length > 0 ? ['grievance_time_limits'] : [],
-    requiresLawyerReview: Boolean(missedDeadline || urgentDeadline),
+    requiresLawyerReview: Boolean(missedDeadline || urgentDeadline || employerLate),
   });
 
   // ── LG3: Weber exclusivity ────────────────────────────────────────────
@@ -260,7 +330,16 @@ export function buildGrievanceTimeline(intake: GrievanceIntakeData): LabourMatte
   push(intake.knowledge_date, 'Union/grievor became aware of incident', 'incident');
   push(intake.discipline_letter_date, `Discipline imposed${intake.discipline_imposed ? ` (${intake.discipline_imposed})` : ''}`, 'incident');
   push(intake.grievance_filed_date, `Grievance filed${intake.grievance_number ? ` (#${intake.grievance_number})` : ''}`, 'grievance');
-  push(intake.last_step_response_date, `Employer response at ${intake.current_step || 'final step'}`, 'grievance');
+
+  const stepEvents = (intake.step_events ?? []).filter(e => e.presented_date || e.response_date);
+  if (stepEvents.length > 0) {
+    for (const ev of stepEvents) {
+      push(ev.presented_date, `Grievance presented at ${ev.step_label}`, 'grievance');
+      push(ev.response_date, `Employer response at ${ev.step_label}`, 'grievance');
+    }
+  } else {
+    push(intake.last_step_response_date, `Employer response at ${intake.current_step || 'final step'}`, 'grievance');
+  }
 
   for (const d of computeGrievanceDeadlines(intake)) {
     timeline.push({

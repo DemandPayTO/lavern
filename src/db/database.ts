@@ -113,10 +113,22 @@ function runMigrations(db: Database.Database): void {
       UNIQUE(firm_id, document_type)
     );
 
+    -- CA library: one collective agreement profile per bargaining unit,
+    -- copied onto each grievance at intake (labour vertical)
+    CREATE TABLE IF NOT EXISTS ca_profiles (
+      id             TEXT PRIMARY KEY,
+      firm_id        TEXT NOT NULL,
+      name           TEXT NOT NULL,
+      data_json      TEXT NOT NULL,
+      created_at     TEXT NOT NULL,
+      updated_at     TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_session_archive_user ON session_archive(user_id);
     CREATE INDEX IF NOT EXISTS idx_matters_user ON matters(user_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_firm_templates_firm ON firm_templates(firm_id);
+    CREATE INDEX IF NOT EXISTS idx_ca_profiles_firm ON ca_profiles(firm_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
 
     -- API client registry (persists across server restarts)
@@ -1347,6 +1359,48 @@ export function getFirmTemplate(firmId: string, documentType: string): {
 
 export function deleteFirmTemplate(firmId: string, documentType: string): void {
   getDb().prepare(`DELETE FROM firm_templates WHERE firm_id = ? AND document_type = ?`).run(firmId, documentType);
+}
+
+// ── CA Profile Queries (labour CA library) ──────────────────────────────
+
+export interface DbCaProfile {
+  id: string;
+  firm_id: string;
+  name: string;
+  data_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function saveCaProfile(id: string, firmId: string, name: string, dataJson: string): void {
+  const now = new Date().toISOString();
+  getDb().prepare(`
+    INSERT INTO ca_profiles (id, firm_id, name, data_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      data_json = excluded.data_json,
+      updated_at = excluded.updated_at
+  `).run(id, firmId, name, dataJson, now, now);
+}
+
+export function getCaProfiles(firmId: string): DbCaProfile[] {
+  return getDb().prepare(`
+    SELECT id, firm_id, name, data_json, created_at, updated_at
+    FROM ca_profiles WHERE firm_id = ? ORDER BY name
+  `).all(firmId) as DbCaProfile[];
+}
+
+export function getCaProfile(id: string, firmId: string): DbCaProfile | undefined {
+  return getDb().prepare(`
+    SELECT id, firm_id, name, data_json, created_at, updated_at
+    FROM ca_profiles WHERE id = ? AND firm_id = ?
+  `).get(id, firmId) as DbCaProfile | undefined;
+}
+
+export function deleteCaProfile(id: string, firmId: string): boolean {
+  const result = getDb().prepare(`DELETE FROM ca_profiles WHERE id = ? AND firm_id = ?`).run(id, firmId);
+  return result.changes > 0;
 }
 
 // ── API Client Persistence ──────────────────────────────────────────────

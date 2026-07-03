@@ -30,7 +30,7 @@ export interface DeadlineItem {
   /** 'critical' <= 14 days, 'soon' <= 45, 'upcoming' otherwise. */
   urgency: 'overdue' | 'critical' | 'soon' | 'upcoming';
   kind: 'limitation' | 'demand_response' | 'severance_offer' | 'timeline'
-    | 'grievance_filing' | 'grievance_referral';
+    | 'grievance_filing' | 'grievance_referral' | 'grievance_step';
 }
 
 function daysFromToday(isoDate: string): number {
@@ -119,7 +119,10 @@ export function collectDeadlines(
         ? `${grievor}${grievanceNo}${employer ? ` — ${employer}` : ''}`
         : employer || row.id;
       for (const d of computeGrievanceDeadlines(labour.intake)) {
-        push(matterLabel, d.date, d.label, d.kind === 'filing' ? 'grievance_filing' : 'grievance_referral');
+        const kind: DeadlineItem['kind'] = d.kind === 'filing' ? 'grievance_filing'
+          : d.kind === 'referral' ? 'grievance_referral'
+            : 'grievance_step';
+        push(matterLabel, d.date, d.label, kind);
       }
     }
   }
