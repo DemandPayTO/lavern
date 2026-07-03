@@ -10,8 +10,8 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useLabourData } from './hooks/useLabourApi.js';
-import type { LabourGate, GrievanceDeadline } from './hooks/useLabourApi.js';
+import { useLabourData, useCaProfiles } from './hooks/useLabourApi.js';
+import type { LabourGate, GrievanceDeadline, CaProcedureStep, GrievanceStepEvent } from './hooks/useLabourApi.js';
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import {
   navy, orange, cream, frame, green, amber, red, border, ink, muted, serif, sans,
@@ -31,26 +31,50 @@ const DRAFT_TYPES: GrievanceDraftType[] = [
   {
     id: 'grievance_filing',
     title: 'Grievance',
-    description: 'The filing itself — one clear sentence, broad articles basket, broad remedy clause. Construed generously, pleaded broadly anyway.',
-    cost: '~$0.05 -- under 1 min',
+    description: 'The filing itself: one clear sentence, a broad basket of articles, and a broad remedy clause. Grievances are construed generously; this one is pleaded broadly regardless.',
+    cost: '~$0.05 · under 1 minute',
   },
   {
     id: 'referral_to_arbitration',
     title: 'Referral to Arbitration',
     description: 'Formal notice advancing the grievance to arbitration under the CA and the LRA, with the arbitrator-appointment mechanism.',
-    cost: '~$0.05 -- under 1 min',
+    cost: '~$0.05 · under 1 minute',
   },
   {
     id: 'arbitration_brief',
     title: "Union's Arbitration Brief",
-    description: 'Full advocacy brief — Wm Scott, KVP, Millhaven, Parry Sound frameworks argued from the approved issues only.',
-    cost: '~$0.30–0.60 -- 2–5 min',
+    description: 'The full advocacy brief. The Wm. Scott, KVP, Millhaven, and Parry Sound frameworks, argued from the approved issues only.',
+    cost: '~$0.30–0.60 · 2–5 minutes',
   },
   {
     id: 'dfr_response',
     title: 'DFR Response (s. 74)',
-    description: "The union's response to a duty of fair representation complaint — the considered-judgment paper trail the Board looks for.",
-    cost: '~$0.30–0.60 -- 2–5 min',
+    description: "The union's response to a duty of fair representation complaint, presenting the considered-judgment record the Board looks for.",
+    cost: '~$0.30–0.60 · 2–5 minutes',
+  },
+  {
+    id: 'merits_assessment',
+    title: 'Merits Assessment Memorandum',
+    description: 'The internal assessment of whether to advance, settle, or decline. The considered-judgment record that answers a s. 74 complaint before it is made.',
+    cost: '~$0.30–0.60 · 2–5 minutes',
+  },
+  {
+    id: 'decline_letter',
+    title: 'Decision Letter: Not Advancing',
+    description: 'The letter to the grievor where the union declines to advance the grievance, with reasons, the review process, and the internal appeal route.',
+    cost: '~$0.05 · under 1 minute',
+  },
+  {
+    id: 'member_update',
+    title: 'Grievor Status Update',
+    description: 'A plain-language status letter to the grievor. Regular documented updates are both good representation and the answer to s. 74 scrutiny.',
+    cost: '~$0.03 · under 1 minute',
+  },
+  {
+    id: 'remedy_worksheet',
+    title: 'Remedy Worksheet',
+    description: 'The make-whole computation: back pay, vacation pay, benefits, and pension contributions, less interim earnings, with every derivation shown.',
+    cost: 'no AI cost · instant',
   },
 ];
 
@@ -59,6 +83,10 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   referral_to_arbitration: 'referral-to-arbitration',
   arbitration_brief: 'arbitration-brief',
   dfr_response: 'dfr-response',
+  merits_assessment: 'merits-assessment',
+  decline_letter: 'decline-letter',
+  member_update: 'member-update',
+  remedy_worksheet: 'remedy-worksheet',
 };
 
 type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'notes';
@@ -91,6 +119,21 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
     extractedFields: Record<string, { value: string | number | boolean | null; confidence: string }>;
   } | null>(null);
   const [autoFilled, setAutoFilled] = useState<string[]>([]);
+  const caLibrary = useCaProfiles();
+  const [librarySaveStatus, setLibrarySaveStatus] = useState<string | null>(null);
+
+  // Remedy worksheet inputs (merged into the intake before generation)
+  const [wageRate, setWageRate] = useState('');
+  const [wagePeriod, setWagePeriod] = useState('hour');
+  const [hoursPerWeek, setHoursPerWeek] = useState('');
+  const [vacationPct, setVacationPct] = useState('');
+  const [benefitsPct, setBenefitsPct] = useState('');
+  const [pensionPct, setPensionPct] = useState('');
+  const [interimEarnings, setInterimEarnings] = useState('');
+
+  // Step recording drafts (per-step date inputs before save)
+  const [stepDrafts, setStepDrafts] = useState<Record<string, { presented: string; response: string }>>({});
+  const [stepSaveStatus, setStepSaveStatus] = useState<string | null>(null);
 
   // Notes state (matter-level — same store as employment)
   const [notes, setNotes] = useState('');
@@ -131,6 +174,14 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
     if (!orgName && (intake.union_name || profile.firmName)) {
       setOrgName((intake.union_name as string) || profile.firmName);
     }
+    // Remedy inputs prefill from the intake where present
+    if (!wageRate && intake.wage_rate) setWageRate(String(intake.wage_rate));
+    if (intake.wage_rate_period) setWagePeriod(String(intake.wage_rate_period));
+    if (!hoursPerWeek && intake.hours_per_week) setHoursPerWeek(String(intake.hours_per_week));
+    if (!vacationPct && intake.vacation_pay_percent) setVacationPct(String(intake.vacation_pay_percent));
+    if (!benefitsPct && intake.benefits_load_percent) setBenefitsPct(String(intake.benefits_load_percent));
+    if (!pensionPct && intake.pension_contrib_percent) setPensionPct(String(intake.pension_contrib_percent));
+    if (!interimEarnings && intake.interim_earnings) setInterimEarnings(String(intake.interim_earnings));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labour.data, profile.displayName, profile.firmName]);
 
@@ -139,6 +190,22 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
     if (selectedDraft === null && labour.data) {
       setSelectedDraft(intake.grievance_filed ? 'referral_to_arbitration' : 'grievance_filing');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labour.data]);
+
+  // Seed the step-recording inputs from events already on file
+  useEffect(() => {
+    const events = (intake.step_events ?? []) as GrievanceStepEvent[];
+    if (!Array.isArray(events) || events.length === 0) return;
+    setStepDrafts(prev => {
+      const next = { ...prev };
+      for (const ev of events) {
+        if (!next[ev.step_label]) {
+          next[ev.step_label] = { presented: ev.presented_date ?? '', response: ev.response_date ?? '' };
+        }
+      }
+      return next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labour.data]);
 
@@ -164,6 +231,28 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
     if (!selectedDraft) return;
     setGenerating(true);
     setGenError(null);
+
+    // The remedy worksheet computes from the intake: persist the
+    // compensation inputs first so the figures match what is on file.
+    if (selectedDraft === 'remedy_worksheet') {
+      const num = (s: string) => { const n = parseFloat(s); return Number.isFinite(n) && n > 0 ? n : undefined; };
+      const merged: Record<string, unknown> = { ...intake };
+      merged.wage_rate = num(wageRate);
+      merged.wage_rate_period = num(wageRate) ? wagePeriod : undefined;
+      merged.hours_per_week = num(hoursPerWeek);
+      merged.vacation_pay_percent = num(vacationPct);
+      merged.benefits_load_percent = num(benefitsPct);
+      merged.pension_contrib_percent = num(pensionPct);
+      merged.interim_earnings = num(interimEarnings);
+      for (const k of Object.keys(merged)) { if (merged[k] === undefined) delete merged[k]; }
+      const saved = await labour.saveIntake(merged);
+      if (!saved.ok) {
+        setGenerating(false);
+        setGenError(saved.error ?? 'Could not save the compensation inputs.');
+        return;
+      }
+    }
+
     const result = await labour.generateDocument(selectedDraft, {
       representativeName: repName || 'Union Representative',
       organizationName: orgName || 'The Union',
@@ -177,7 +266,51 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
     } else {
       setGenError(result.error ?? 'Generation failed.');
     }
-  }, [selectedDraft, labour, repName, orgName, additionalContext, refreshDraftHistory]);
+  }, [selectedDraft, labour, repName, orgName, additionalContext, refreshDraftHistory, intake, wageRate, wagePeriod, hoursPerWeek, vacationPct, benefitsPct, pensionPct, interimEarnings]);
+
+  // Save the matter's CA terms to the firm's CA library
+  const handleSaveToLibrary = useCallback(async () => {
+    const name = [intake.union_name, intake.employer_name].filter(Boolean).join(' / ')
+      || (intake.ca_title as string)
+      || 'Collective agreement';
+    const profileData: Record<string, unknown> = {
+      name: String(name).slice(0, 200),
+      union_name: intake.union_name || undefined,
+      employer_name: intake.employer_name || undefined,
+      ca_title: intake.ca_title || undefined,
+      ca_expiry_date: intake.ca_expiry_date || undefined,
+      grievance_procedure_article: intake.grievance_procedure_article || undefined,
+      just_cause_article: intake.just_cause_article || undefined,
+      filing_deadline_days: intake.filing_deadline_days ?? undefined,
+      filing_deadline_kind: intake.filing_deadline_kind ?? undefined,
+      referral_deadline_days: intake.referral_deadline_days ?? undefined,
+      referral_deadline_kind: intake.referral_deadline_kind ?? undefined,
+      time_limits_mandatory: intake.time_limits_mandatory ?? undefined,
+      sunset_clause_months: intake.sunset_clause_months ?? undefined,
+      procedure_steps: Array.isArray(intake.procedure_steps) && (intake.procedure_steps as unknown[]).length > 0 ? intake.procedure_steps : undefined,
+      ca_notes: intake.ca_notes || undefined,
+    };
+    for (const k of Object.keys(profileData)) { if (profileData[k] === undefined) delete profileData[k]; }
+    const result = await caLibrary.save(profileData);
+    setLibrarySaveStatus(result.ok
+      ? `Saved to the CA library as "${profileData.name}". New grievances can apply it at intake.`
+      : result.error ?? 'Could not save the CA profile.');
+  }, [intake, caLibrary]);
+
+  // Record a step presentation or response
+  const handleStepSave = useCallback(async (stepLabel: string) => {
+    const draft = stepDrafts[stepLabel];
+    if (!draft || (!draft.presented && !draft.response)) return;
+    setStepSaveStatus(null);
+    const result = await labour.recordStepEvent({
+      step_label: stepLabel,
+      presented_date: draft.presented || undefined,
+      response_date: draft.response || undefined,
+    });
+    setStepSaveStatus(result.ok
+      ? `${stepLabel} recorded. Clocks and gates recomputed.`
+      : result.error ?? 'Could not record the step event.');
+  }, [stepDrafts, labour]);
 
   const handleExtractFile = useCallback(async (file: File) => {
     setExtracting(true);
@@ -210,7 +343,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
   const grievor = [intake.grievor_first_name, intake.grievor_last_name].filter(Boolean).join(' ') || 'Grievor';
   const employer = (intake.employer_name as string) || 'Employer';
   const union = (intake.union_name as string) || '';
-  const title = `${grievor} — Grievance v ${employer}`;
+  const title = `${grievor}: Grievance v ${employer}`;
   const nextDeadline = deadlines.find(d => !d.overdue) ?? deadlines[0];
   const overdue = deadlines.some(d => d.overdue);
   const urgent = overdue || deadlines.some(d => d.daysRemaining <= 10 && !d.overdue);
@@ -274,7 +407,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
             />
             <FactItem
               label="Next deadline"
-              value={nextDeadline ? `${nextDeadline.date}${nextDeadline.approximate ? ' ~' : ''}` : '—'}
+              value={nextDeadline ? `${nextDeadline.date}${nextDeadline.approximate ? ' ~' : ''}` : 'None'}
               valueColour={nextDeadline && (nextDeadline.overdue || nextDeadline.daysRemaining <= 10) ? red : undefined}
               isLast
             />
@@ -333,7 +466,72 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                   ))}
                   {deadlines.some(d => d.approximate) && (
                     <div style={{ fontSize: 12, color: amber, marginTop: 6 }}>
-                      ~ Working-day dates exclude weekends but not statutory holidays — verify against the CA.
+                      ~ Working-day dates exclude weekends but not statutory holidays; verify against the collective agreement.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Procedure step recording — each saved event recomputes the clocks */}
+              {Array.isArray(intake.procedure_steps) && (intake.procedure_steps as CaProcedureStep[]).length > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginBottom: 16 }}>
+                  <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+                    Grievance procedure
+                  </div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
+                    Record each presentation and employer response. Every entry recomputes the response,
+                    advance, and referral clocks on the docket.
+                  </div>
+                  {(intake.procedure_steps as CaProcedureStep[]).map(step => {
+                    const draft = stepDrafts[step.label] ?? { presented: '', response: '' };
+                    const setDraft = (patch: Partial<{ presented: string; response: string }>) =>
+                      setStepDrafts(prev => ({ ...prev, [step.label]: { ...draft, ...patch } }));
+                    const limits = [
+                      step.employer_response_days ? `response ${step.employer_response_days} ${step.day_kind ?? 'calendar'} days` : '',
+                      step.advance_days ? `advance ${step.advance_days} ${step.day_kind ?? 'calendar'} days` : '',
+                    ].filter(Boolean).join('; ');
+                    return (
+                      <div key={step.label} style={{ display: 'flex', alignItems: 'flex-end', gap: 12, padding: '10px 0', borderTop: `1px solid ${border}`, flexWrap: 'wrap' }}>
+                        <div style={{ minWidth: 140 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>{step.label}</div>
+                          {limits && <div style={{ fontSize: 11.5, color: muted }}>{limits}</div>}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11.5, color: muted, marginBottom: 3 }}>Presented</div>
+                          <input
+                            type="date" value={draft.presented}
+                            onChange={e => setDraft({ presented: e.target.value })}
+                            aria-label={`${step.label} presented date`}
+                            style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11.5, color: muted, marginBottom: 3 }}>Employer response</div>
+                          <input
+                            type="date" value={draft.response}
+                            onChange={e => setDraft({ response: e.target.value })}
+                            aria-label={`${step.label} response date`}
+                            style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleStepSave(step.label)}
+                          disabled={!draft.presented && !draft.response}
+                          style={{
+                            fontSize: 12.5, fontWeight: 600, padding: '8px 16px', borderRadius: 2, fontFamily: sans,
+                            background: (!draft.presented && !draft.response) ? '#f0efec' : navy,
+                            color: (!draft.presented && !draft.response) ? muted : '#fff',
+                            border: 'none', cursor: (!draft.presented && !draft.response) ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          Record
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {stepSaveStatus && (
+                    <div style={{ fontSize: 12.5, color: stepSaveStatus.includes('recomputed') ? green : red, marginTop: 8 }} role="status">
+                      {stepSaveStatus}
                     </div>
                   )}
                 </div>
@@ -344,7 +542,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                 structuralGates={structuralGates}
                 decisionFor={gateDecision}
                 onDecision={setGateDecision}
-                subheading="Only approved issues are argued in generated documents. Your call — Starling drafts nothing you haven't approved."
+                subheading="Only approved issues are argued in generated documents. Starling drafts nothing you have not approved."
                 reviewBadge="REVIEW REQUIRED"
               />
 
@@ -361,7 +559,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
             <div id="panel-docs" role="tabpanel" style={{ paddingTop: 22 }}>
               <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px' }}>
                 <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
-                  Upload the collective agreement — Starling fills the clocks
+                  Upload the collective agreement and Starling fills the clocks
                 </div>
                 <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
                   PDF, DOCX, or text. Starling extracts the grievance-procedure article and the filing/referral
@@ -413,7 +611,30 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                 {autoFilled.length > 0 && (
                   <div style={{ marginTop: 12, padding: '10px 14px', border: `1px solid ${green}`, borderRadius: 2, background: '#e7f6ec', color: green, fontSize: 13, fontWeight: 600 }}>
                     Filled {autoFilled.length} CA field{autoFilled.length === 1 ? '' : 's'} from the agreement:{' '}
-                    {autoFilled.map(f => f.replace(/_/g, ' ')).join(', ')} — clocks and gates recomputed.
+                    {autoFilled.map(f => f.replace(/_/g, ' ')).join(', ')}. Clocks and gates recomputed.
+                  </div>
+                )}
+
+                {/* CA library: reuse this agreement's terms on future grievances */}
+                {Boolean(intake.filing_deadline_days || intake.referral_deadline_days || intake.grievance_procedure_article) && (
+                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={handleSaveToLibrary}
+                      style={{
+                        background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
+                        padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                      }}
+                    >
+                      Save this CA to the library
+                    </button>
+                    <span style={{ fontSize: 12, color: muted }}>
+                      One profile per bargaining unit; new grievances apply it at intake.
+                    </span>
+                    {librarySaveStatus && (
+                      <span style={{ fontSize: 12.5, color: librarySaveStatus.startsWith('Saved') ? green : red }} role="status">
+                        {librarySaveStatus}
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -501,6 +722,45 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                 })}
               </div>
 
+              {/* Remedy worksheet inputs — persisted to the intake so the
+                  figures always match the file */}
+              {selectedDraft === 'remedy_worksheet' && !generatedHtml && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 4, marginTop: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Wage rate (CAD)</div>
+                    <input type="text" inputMode="decimal" placeholder="e.g., 32.50" value={wageRate} onChange={e => setWageRate(e.target.value.replace(/[^\d.]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Rate period</div>
+                    <select value={wagePeriod} onChange={e => setWagePeriod(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
+                      <option value="hour">per hour</option>
+                      <option value="week">per week</option>
+                      <option value="year">per year</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Hours per week</div>
+                    <input type="text" inputMode="decimal" placeholder="e.g., 40" value={hoursPerWeek} onChange={e => setHoursPerWeek(e.target.value.replace(/[^\d.]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Interim earnings (CAD)</div>
+                    <input type="text" inputMode="decimal" placeholder="e.g., 2000" value={interimEarnings} onChange={e => setInterimEarnings(e.target.value.replace(/[^\d.]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Vacation pay %</div>
+                    <input type="text" inputMode="decimal" placeholder="e.g., 4" value={vacationPct} onChange={e => setVacationPct(e.target.value.replace(/[^\d.]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Benefits %</div>
+                    <input type="text" inputMode="decimal" placeholder="e.g., 10" value={benefitsPct} onChange={e => setBenefitsPct(e.target.value.replace(/[^\d.]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Pension %</div>
+                    <input type="text" inputMode="decimal" placeholder="e.g., 6" value={pensionPct} onChange={e => setPensionPct(e.target.value.replace(/[^\d.]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              )}
+
               {selectedDraft && !generatedHtml && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
                   <div>
@@ -522,7 +782,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                   <div style={{ gridColumn: '1 / -1' }}>
                     <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Anything else the draft should know (optional)</div>
                     <textarea
-                      placeholder="e.g., The complaint text alleges the union ignored two emails — address that directly."
+                      placeholder="e.g., The complaint alleges the union ignored two emails; address that directly."
                       value={additionalContext}
                       onChange={e => setAdditionalContext(e.target.value)}
                       rows={2}
@@ -535,9 +795,9 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
               {selectedDraft && !generatedHtml && (
                 <button
                   onClick={handleGenerate}
-                  disabled={generating || !repName.trim() || !orgName.trim()}
+                  disabled={generating || !repName.trim() || !orgName.trim() || (selectedDraft === 'remedy_worksheet' && !parseFloat(wageRate))}
                   style={{
-                    background: generating || !repName.trim() || !orgName.trim() ? '#b0b0b0' : orange,
+                    background: generating || !repName.trim() || !orgName.trim() || (selectedDraft === 'remedy_worksheet' && !parseFloat(wageRate)) ? '#b0b0b0' : orange,
                     color: '#fff', fontSize: 13.5, fontWeight: 600, padding: '11px 18px',
                     borderRadius: 2, border: 'none',
                     cursor: generating ? 'not-allowed' : 'pointer', marginTop: 8, fontFamily: sans,
@@ -559,7 +819,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                   reviewFlags={genReviewFlags}
                   downloadHref={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'grievance-filing'}`}
                   onRegenerate={() => setGeneratedHtml(null)}
-                  reviewHeading="Reviewer checklist — verify before use"
+                  reviewHeading="Reviewer checklist: verify before use"
                 />
               )}
 
@@ -639,7 +899,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0110 0v4" />
                 </svg>
-                Private to you — not processed by AI, not included in any deliverable.
+                Private to you. Not processed by AI and not included in any deliverable.
               </div>
               <textarea
                 value={notes}
@@ -677,7 +937,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                   {notesStatus === 'saving' ? 'Saving...' : 'Save Notes'}
                 </button>
                 {notesStatus === 'saved' && <span style={{ fontSize: 13, color: green, fontWeight: 600 }} role="status">Saved</span>}
-                {notesStatus === 'error' && <span style={{ fontSize: 13, color: '#dc2626' }} role="alert">Could not save — try again.</span>}
+                {notesStatus === 'error' && <span style={{ fontSize: 13, color: '#dc2626' }} role="alert">The notes could not be saved. Please try again.</span>}
               </div>
             </div>
           )}
@@ -705,7 +965,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
         </div>
 
         <div style={{ fontSize: 12, color: muted, marginTop: 8 }}>
-          Grievance time limits come from the collective agreement — verify every docket date against the CA.
+          Grievance time limits come from the collective agreement; verify every docket date against it.
           Working-day computations exclude weekends but not statutory holidays.
         </div>
       </main>

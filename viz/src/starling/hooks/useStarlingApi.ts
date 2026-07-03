@@ -188,8 +188,8 @@ const DEMO_MATTER_DETAIL: MatterDetail = {
       description: 'ESA statutory notice: 8 weeks (s. 57). Common law reasonable notice range under Bardal: 10\u201314 months.',
       descriptionBold: ['8 weeks', 'Bardal', '10\u201314 months'],
       sources: [
-        { label: 'statute -- ESA s. 57', type: 'statute' },
-        { label: 'verified -- case_db', type: 'verified' },
+        { label: 'statute · ESA s. 57', type: 'statute' },
+        { label: 'verified · case_db', type: 'verified' },
       ],
     },
     {
@@ -199,7 +199,7 @@ const DEMO_MATTER_DETAIL: MatterDetail = {
       description: 'For-cause provision uses "just cause" rather than ESA "wilful misconduct" standard. Under Waksdale v Swegon (2020 ONCA 391), entire clause is void.',
       descriptionBold: ['Waksdale v Swegon (2020 ONCA 391)', 'entire clause is void'],
       sources: [
-        { label: 'verified -- case_db', type: 'verified' },
+        { label: 'verified · case_db', type: 'verified' },
         { label: 'ESA s. 5(1)', type: 'statute' },
       ],
     },
@@ -210,7 +210,7 @@ const DEMO_MATTER_DETAIL: MatterDetail = {
       description: 'Termination followed shortly after a disability accommodation request. Potential Human Rights Code claim.',
       descriptionBold: ['Human Rights Code'],
       sources: [
-        { label: 'web source -- verify', type: 'web' },
+        { label: 'web source · verify', type: 'web' },
         { label: 'ai_knowledge', type: 'ai' },
       ],
     },
@@ -220,27 +220,27 @@ const DEMO_MATTER_DETAIL: MatterDetail = {
       strength: 'moderate',
       description: 'Client terminated same day as accommodation request. Potential aggravated/moral damages under Honda v Keays (2008 SCC 39).',
       descriptionBold: ['same day', 'Honda v Keays (2008 SCC 39)'],
-      sources: [{ label: 'verified -- case_db', type: 'verified' }],
+      sources: [{ label: 'verified · case_db', type: 'verified' }],
     },
   ],
   documents: [
-    { id: 'd1', name: 'Smith_Termination_Letter.pdf', meta: 'Uploaded Jun 18 -- facts extracted', group: 'uploaded' },
-    { id: 'd2', name: 'Smith_Employment_Agreement_2018.pdf', meta: 'Uploaded Jun 18 -- termination clause flagged', group: 'uploaded' },
-    { id: 'd3', name: 'Record_of_Employment.pdf', meta: 'Uploaded Jun 18 -- salary confirmed', group: 'uploaded' },
-    { id: 'd4', name: 'Demand Letter \u2014 Smith v Acme Corp', meta: 'Generated Jun 22 -- Quality 92/100', group: 'generated' },
+    { id: 'd1', name: 'Smith_Termination_Letter.pdf', meta: 'Uploaded Jun 18 · facts extracted', group: 'uploaded' },
+    { id: 'd2', name: 'Smith_Employment_Agreement_2018.pdf', meta: 'Uploaded Jun 18 · termination clause flagged', group: 'uploaded' },
+    { id: 'd3', name: 'Record_of_Employment.pdf', meta: 'Uploaded Jun 18 · salary confirmed', group: 'uploaded' },
+    { id: 'd4', name: 'Demand Letter \u2014 Smith v Acme Corp', meta: 'Generated Jun 22 · Quality 92/100', group: 'generated' },
   ],
   timeline: [
-    { id: 't1', date: 'Jun 22, 2026', title: 'Demand letter drafted \u2014 Quality 92/100, PASS', subtitle: 'Adversarial workflow -- 8 verification passes -- cost $3.47', isCurrent: true },
+    { id: 't1', date: 'Jun 22, 2026', title: 'Demand letter drafted \u2014 Quality 92/100, PASS', subtitle: 'Adversarial workflow · 8 verification passes · cost $3.47', isCurrent: true },
     { id: 't2', date: 'Jun 22, 2026', title: 'Entitlements calculated (ESA + Bardal)', subtitle: 'ESA notice 8 weeks; common law 10\u201314 months' },
     { id: 't3', date: 'Jun 18, 2026', title: 'Issue analysis complete \u2014 4 issues identified', subtitle: '2 strong, 2 moderate' },
     { id: 't4', date: 'Jun 18, 2026', title: '3 documents uploaded & facts extracted', subtitle: 'Termination letter, employment agreement, ROE' },
-    { id: 't5', date: 'Jun 18, 2026', title: 'Matter created', subtitle: 'Client: Jane Smith -- Employer: Acme Corporation' },
+    { id: 't5', date: 'Jun 18, 2026', title: 'Matter created', subtitle: 'Client: Jane Smith · Employer: Acme Corporation' },
   ],
 };
 
 const DEMO_PROCESSING_STEPS: ProcessingStep[] = [
-  { label: 'Reading your documents', status: 'done', detail: 'Termination letter, employment agreement, ROE -- facts extracted' },
-  { label: 'Identifying legal issues', status: 'done', detail: 'Found 4 issues -- 2 strong, 2 moderate' },
+  { label: 'Reading your documents', status: 'done', detail: 'Termination letter, employment agreement, ROE · facts extracted' },
+  { label: 'Identifying legal issues', status: 'done', detail: 'Found 4 issues · 2 strong, 2 moderate' },
   { label: 'Calculating entitlements', status: 'done', detail: 'ESA notice: 8 weeks ($14,615) / Common law: 10\u201314 months ($79,167\u2013$110,833)' },
   { label: 'Drafting the demand letter', status: 'active', detail: 'Positioning the demand, assembling authorities and source attribution' },
   { label: 'Stress-testing from employer\'s perspective', status: 'pending' },
@@ -250,9 +250,9 @@ const DEMO_PROCESSING_STEPS: ProcessingStep[] = [
 ];
 
 const DEMO_PROCESSING_FINDINGS: ProcessingFinding[] = [
-  { text: 'Termination clause is void under Waksdale v Swegon (2020 ONCA 391) -- defaults client to common law notice.', sourceType: 'case_db', sourceColour: '#16a34a' },
+  { text: 'Termination clause is void under Waksdale v Swegon (2020 ONCA 391) · defaults client to common law notice.', sourceType: 'case_db', sourceColour: '#16a34a' },
   { text: 'ESA statutory notice confirmed at 8 weeks under s. 57(h).', sourceType: 'statute', sourceColour: '#16a34a' },
-  { text: 'Comparable-role availability for senior marketing managers appears limited in current market -- supports upper Bardal range.', sourceType: 'web_search', sourceColour: '#dc2626' },
+  { text: 'Comparable-role availability for senior marketing managers appears limited in current market · supports upper Bardal range.', sourceType: 'web_search', sourceColour: '#dc2626' },
 ];
 
 const DEMO_RESULTS_DOCUMENT = `## Without Prejudice
@@ -267,7 +267,7 @@ Ms. Smith was employed as Senior Marketing Manager for approximately 8.3 years. 
 
 **Entitlements**
 
-Under the *Employment Standards Act, 2000*, Ms. Smith is entitled to a minimum of 8 weeks' notice (s. 57). At common law, applying the Bardal factors — age, length of service, character of employment, and availability of comparable employment — a reasonable notice period of 10 to 14 months is warranted.
+Under the *Employment Standards Act, 2000*, Ms. Smith is entitled to a minimum of 8 weeks' notice (s. 57). At common law, applying the Bardal factors (age, length of service, character of employment, and availability of comparable employment), a reasonable notice period of 10 to 14 months is warranted.
 
 The termination clause in Ms. Smith's employment agreement is unenforceable. The for-cause provision references "just cause" rather than the ESA "wilful misconduct" standard. Under *Waksdale v Swegon*, 2020 ONCA 391, if any part of a termination clause breaches the ESA, the entire clause is void.
 
@@ -712,7 +712,7 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
   } else if (isLabour && daysUntilLimitation <= 0 && daysUntilLimitation > -30) {
     status = 'urgent';
     statusColour = '#dc2626';
-    flagText = 'Grievance time limit passed — assess s. 48(16)';
+    flagText = 'Grievance time limit passed; assess s. 48(16)';
     flagColour = 'red';
   } else if (daysSinceActivity > 7) {
     status = 'stale';

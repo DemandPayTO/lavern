@@ -55,7 +55,7 @@ export const SOURCE_TAGS: Record<string, SourceTag> = {
   'case_db': { label: 'Verified case law', colour: '#16a34a', trustLevel: 'high' },
   'firm_case': { label: 'Firm library', colour: '#0f1a2e', trustLevel: 'medium' },
   'ai_knowledge': { label: 'AI knowledge', colour: '#d97706', trustLevel: 'medium' },
-  'web_search': { label: 'Web source — verify', colour: '#dc2626', trustLevel: 'low' },
+  'web_search': { label: 'Web source; verify', colour: '#dc2626', trustLevel: 'low' },
 };
 
 // Finding severity → display config

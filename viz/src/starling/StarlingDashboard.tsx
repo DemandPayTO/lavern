@@ -490,14 +490,14 @@ export default function StarlingDashboard() {
                 Welcome to Starling
               </div>
               <div style={{ fontSize: 14, color: muted, marginBottom: 28, lineHeight: 1.6 }}>
-                Your Ontario employment law engine. From intake to demand letter in minutes —
+                Your Ontario employment and labour law engine. From intake to demand letter in minutes;
                 every draft reviewed and approved by you.
               </div>
 
               <div style={{ textAlign: 'left', margin: '0 auto 28px', display: 'inline-block' }}>
                 {[
                   ['1', 'Add your details in the Starling Profile', 'Your name, firm, and LSO number flow onto every generated document.'],
-                  ['2', 'Create your first matter', 'Structured intake — or upload the termination letter and let Starling extract the facts.'],
+                  ['2', 'Create your first matter', 'Structured intake, or upload the termination letter and let Starling extract the facts.'],
                   ['3', 'Review issues, then generate', 'Approve the legal issues you want to advance; Starling drafts the demand letter or pleading for your review.'],
                 ].map(([num, title, sub]) => (
                   <div key={num} style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>

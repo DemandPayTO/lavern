@@ -82,8 +82,8 @@ const DEMO_ISSUES: Issue[] = [
     description: 'ESA statutory notice: 8 weeks (s. 57). Common law reasonable notice range under Bardal: 10-14 months given age, 8.3 years\u2019 service, managerial character, and limited comparable roles.',
     descriptionBold: ['8 weeks', 'Bardal', '10\u201314 months'],
     sources: [
-      { label: 'statute -- ESA s. 57', type: 'statute' },
-      { label: 'verified -- case_db', type: 'verified' },
+      { label: 'statute · ESA s. 57', type: 'statute' },
+      { label: 'verified · case_db', type: 'verified' },
     ],
   },
   {
@@ -93,7 +93,7 @@ const DEMO_ISSUES: Issue[] = [
     description: 'The for-cause provision uses "just cause" rather than the ESA "wilful misconduct" standard. Under Waksdale v Swegon (2020 ONCA 391), if any part of the termination clause violates the ESA, the entire clause is void \u2014 defaulting Ms. Smith to common law notice.',
     descriptionBold: ['Waksdale v Swegon (2020 ONCA 391)', 'entire clause is void'],
     sources: [
-      { label: 'verified -- case_db', type: 'verified' },
+      { label: 'verified · case_db', type: 'verified' },
       { label: 'ESA s. 5(1)', type: 'statute' },
     ],
   },
@@ -104,7 +104,7 @@ const DEMO_ISSUES: Issue[] = [
     description: 'Termination followed shortly after a disability accommodation request. Potential Human Rights Code claim (failure to accommodate / reprisal). Requires further evidence on timing and decision-makers.',
     descriptionBold: ['Human Rights Code'],
     sources: [
-      { label: 'web source -- verify', type: 'web' },
+      { label: 'web source · verify', type: 'web' },
       { label: 'ai_knowledge', type: 'ai' },
     ],
   },
@@ -115,7 +115,7 @@ const DEMO_ISSUES: Issue[] = [
     description: 'Client terminated the same day as the accommodation request, with no notice or explanation. Potential aggravated/moral damages under Honda v Keays (2008 SCC 39).',
     descriptionBold: ['same day', 'Honda v Keays (2008 SCC 39)'],
     sources: [
-      { label: 'verified -- case_db', type: 'verified' },
+      { label: 'verified · case_db', type: 'verified' },
     ],
   },
 ];
@@ -124,35 +124,35 @@ const DEMO_DOCS: DocItem[] = [
   {
     id: 'd1',
     name: 'Smith_Termination_Letter.pdf',
-    meta: 'Uploaded Jun 18 -- facts extracted -- termination date, offer of 4 weeks',
+    meta: 'Uploaded Jun 18 · facts extracted · termination date, offer of 4 weeks',
     group: 'uploaded',
     actions: [{ label: 'View', variant: 'default' }, { label: 'Extract data', variant: 'default' }],
   },
   {
     id: 'd2',
     name: 'Smith_Employment_Agreement_2018.pdf',
-    meta: 'Uploaded Jun 18 -- termination clause flagged (Waksdale)',
+    meta: 'Uploaded Jun 18 · termination clause flagged (Waksdale)',
     group: 'uploaded',
     actions: [{ label: 'View', variant: 'default' }, { label: 'Review', variant: 'default' }],
   },
   {
     id: 'd3',
     name: 'Record_of_Employment.pdf',
-    meta: 'Uploaded Jun 18 -- salary $95,000 + benefits confirmed',
+    meta: 'Uploaded Jun 18 · salary $95,000 + benefits confirmed',
     group: 'uploaded',
     actions: [{ label: 'View', variant: 'default' }],
   },
   {
     id: 'd4',
     name: 'Demand Letter \u2014 Smith v Acme Corp',
-    meta: 'Generated Jun 22 -- Quality 92/100 -- PASS -- 8 verification passes',
+    meta: 'Generated Jun 22 · Quality 92/100 · PASS · 8 verification passes',
     group: 'generated',
     actions: [{ label: 'Open', variant: 'gen' }, { label: 'Results', variant: 'default' }],
   },
   {
     id: 'd5',
     name: 'Entitlements Summary (ESA + Bardal)',
-    meta: 'Generated Jun 22 -- CSV / DOCX -- per-cell source citations',
+    meta: 'Generated Jun 22 · CSV / DOCX · per-cell source citations',
     group: 'generated',
     actions: [{ label: 'Open', variant: 'default' }],
   },
@@ -163,108 +163,108 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     id: 'soc',
     title: 'Statement of Claim',
     description: 'File in the Superior Court of Justice for wrongful dismissal and Code damages.',
-    cost: '~$3\u20138 -- 3\u20138 min',
+    cost: '~$3\u20138 · 3\u20138 min',
     recommended: true,
   },
   {
     id: 'severance',
     title: 'Severance Offer Assessment',
     description: 'Offer vs. ESA floor vs. common-law range, with a recommendation. Internal memo.',
-    cost: '~$1\u20132 -- 1\u20132 min',
+    cost: '~$1\u20132 · 1\u20132 min',
   },
   {
     id: 'counter',
     title: 'Counter-Offer Letter',
     description: 'Respond to the employer\u2019s severance offer with a reasoned counter-position.',
-    cost: '~$2\u20134 -- 2\u20135 min',
+    cost: '~$2\u20134 · 2\u20135 min',
   },
   {
     id: 'demand',
     title: 'Demand Letter',
     description: 'Demand to the employer\u2019s counsel with entitlements, deadline, and settlement position.',
-    cost: '~$3\u20138 -- 3\u20138 min',
+    cost: '~$3\u20138 · 3\u20138 min',
   },
   {
     id: 'mediation',
     title: 'Mediation Brief',
     description: 'Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.',
-    cost: '~$3\u20138 -- 3\u20138 min',
+    cost: '~$3\u20138 · 3\u20138 min',
   },
   {
     id: 'reply',
     title: 'Reply (Form 25A)',
     description: 'Respond to new matters in the Statement of Defence \u2014 cause allegations, mitigation, limitations.',
-    cost: '~$2\u20134 -- 2\u20135 min',
+    cost: '~$2\u20134 · 2\u20135 min',
   },
   {
     id: 'rule49',
     title: 'Offer to Settle (Form 49A)',
     description: 'Rule 49 offer with cost consequences \u2014 partial indemnity to the offer, substantial after.',
-    cost: '~$2\u20134 -- 2\u20135 min',
+    cost: '~$2\u20134 · 2\u20135 min',
   },
   {
     id: 'minutes',
     title: 'Minutes of Settlement & Release',
     description: 'Settlement terms plus a full and final release with the carve-outs that must survive.',
-    cost: '~$2\u20135 -- 2\u20135 min',
+    cost: '~$2\u20135 · 2\u20135 min',
   },
   {
     id: 'retainer',
     title: 'Retainer Agreement',
     description: 'Plain-language engagement agreement. Contingency matters use the mandatory standard-form CFA.',
-    cost: '~$1\u20132 -- 1\u20132 min',
+    cost: '~$1\u20132 · 1\u20132 min',
   },
   {
     id: 'confbrief',
     title: 'Settlement Conference Brief',
     description: 'Rule 13 (Small Claims) or Rule 50 pre-trial brief \u2014 adapts to the matter\u2019s forum automatically.',
-    cost: '~$3\u20136 -- 3\u20136 min',
+    cost: '~$3\u20136 · 3\u20136 min',
   },
   {
     id: 'schedulea',
     title: 'HRTO Schedule "A"',
     description: 'The narrative of allegations that accompanies Form 1 \u2014 chronology, grounds, impact, s. 45.2 remedies.',
-    cost: '~$2\u20135 -- 2\u20135 min',
+    cost: '~$2\u20135 · 2\u20135 min',
   },
   {
     id: 'mitigation',
     title: 'Mitigation Log',
     description: 'Client-facing job-search record with instructions \u2014 the damages evidence that wins notice periods.',
-    cost: 'free -- instant',
+    cost: 'free · instant',
   },
 ];
 
 const DEMO_TIMELINE: TimelineEvent[] = [
   {
     id: 't1',
-    date: 'Jun 22, 2026 -- 2:14 PM',
+    date: 'Jun 22, 2026 · 2:14 PM',
     title: 'Demand letter drafted \u2014 Quality 92/100, PASS',
-    subtitle: 'Adversarial workflow -- 8 verification passes -- cost $3.47',
+    subtitle: 'Adversarial workflow · 8 verification passes · cost $3.47',
     isCurrent: true,
   },
   {
     id: 't2',
-    date: 'Jun 22, 2026 -- 2:02 PM',
+    date: 'Jun 22, 2026 · 2:02 PM',
     title: 'Entitlements calculated (ESA + Bardal)',
     subtitle: 'ESA notice 8 weeks; common law 10\u201314 months',
   },
   {
     id: 't3',
-    date: 'Jun 18, 2026 -- 4:40 PM',
+    date: 'Jun 18, 2026 · 4:40 PM',
     title: 'Issue analysis complete \u2014 4 issues identified',
-    subtitle: '2 strong, 2 moderate -- termination clause flagged under Waksdale',
+    subtitle: '2 strong, 2 moderate · termination clause flagged under Waksdale',
   },
   {
     id: 't4',
-    date: 'Jun 18, 2026 -- 4:35 PM',
+    date: 'Jun 18, 2026 · 4:35 PM',
     title: '3 documents uploaded & facts extracted',
     subtitle: 'Termination letter, employment agreement, ROE',
   },
   {
     id: 't5',
-    date: 'Jun 18, 2026 -- 4:30 PM',
+    date: 'Jun 18, 2026 · 4:30 PM',
     title: 'Matter created',
-    subtitle: 'Client: Jane Smith -- Employer: Acme Corporation',
+    subtitle: 'Client: Jane Smith · Employer: Acme Corporation',
   },
 ];
 
@@ -533,7 +533,7 @@ export default function MatterDetailView() {
     setTemplateStatus('Uploading...');
     const result = await firmTemplates.upload(file, selectedTemplateDocType);
     setTemplateStatus(result.ok
-      ? `Template saved — ${result.placeholders?.length ?? 0} placeholder${(result.placeholders?.length ?? 0) === 1 ? '' : 's'} detected. Used for all matters.`
+      ? `Template saved. ${result.placeholders?.length ?? 0} placeholder${(result.placeholders?.length ?? 0) === 1 ? '' : 's'} detected. Used for all matters.`
       : result.error ?? 'Upload failed.');
   }, [firmTemplates, selectedTemplateDocType]);
 
@@ -554,7 +554,7 @@ export default function MatterDetailView() {
       label: "Moot the Employer's Response", workflowId: 'adversarial', intensity: 'thorough', budgetUsd: 25,
       matterType: 'case_assessment',
       team: ['employment-counsel', 'litigation-partner', 'red-team', 'synthesis-editor'],
-      question: "Anticipate the employer's strongest response. Attack our position exactly as employer's counsel would — termination clause enforceability, mitigation, cause allegations, quantum — then assess how our claims hold up and how to shore up the weak points before we send anything.",
+      question: "Anticipate the employer's strongest response. Attack our position exactly as employer's counsel would (termination clause enforceability, mitigation, cause allegations, quantum), then assess how our claims hold up and how to shore up the weak points before we send anything.",
     },
     assessment: {
       label: 'Full Case Assessment', workflowId: 'review', intensity: 'thorough', budgetUsd: 25,
@@ -577,7 +577,7 @@ export default function MatterDetailView() {
     const analysis = employment.data?.analysis as Record<string, unknown> | null;
     const clientName = [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ') || matter?.client || 'Client';
     const employerName = (intake.employer_legal_name as string) || matter?.employer || 'Employer';
-    const title = `${spec.label} — ${clientName} v ${employerName}`;
+    const title = `${spec.label}: ${clientName} v ${employerName}`;
 
     // Build the briefing memo from what Starling already knows
     const lines: string[] = [
@@ -612,7 +612,7 @@ export default function MatterDetailView() {
         lines.push(`- ESA notice: ${dmg.esaNoticeWeeks} weeks ($${Number(dmg.esaNoticePay ?? 0).toLocaleString('en-CA')}); ESA severance: $${Number(dmg.esaSeverancePay ?? 0).toLocaleString('en-CA')}`);
         lines.push(`- Common law range: ${dmg.commonLawLowMonths}–${dmg.commonLawHighMonths} months ($${Number(dmg.commonLawLowAmount ?? 0).toLocaleString('en-CA')}–$${Number(dmg.commonLawHighAmount ?? 0).toLocaleString('en-CA')})`);
       }
-      if (lim?.date) lines.push(`- Limitation deadline: ${lim.date} (${lim.daysRemaining} days remaining${lim.urgent ? ' — URGENT' : ''})`);
+      if (lim?.date) lines.push(`- Limitation deadline: ${lim.date} (${lim.daysRemaining} days remaining${lim.urgent ? '; URGENT' : ''})`);
       if (analysis.recommendedProcedure) lines.push(`- Recommended procedure: ${analysis.recommendedProcedure}`);
     }
     const timeline = employment.data?.timeline ?? [];
@@ -959,7 +959,7 @@ export default function MatterDetailView() {
                 structuralGates={structuralGates}
                 decisionFor={gateDecision}
                 onDecision={setGateDecision}
-                subheading="Only approved issues are included in demand letters, pleadings, and applications. Your call — Starling drafts nothing you haven't approved."
+                subheading="Only approved issues are included in demand letters, pleadings, and applications. Starling drafts nothing you have not approved."
               />
 
               {matter!.issues.length === 0 && triggeredGates.length === 0 && (
@@ -1063,7 +1063,7 @@ export default function MatterDetailView() {
               {/* Upload & extract */}
               <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginTop: 16 }}>
                 <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
-                  Upload a document — Starling extracts the facts
+                  Upload a document and Starling extracts the facts
                 </div>
                 <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
                   PDF, DOCX, or text. Names and identifiers are anonymised before any AI processing. You review every extracted fact before it's used.
@@ -1143,7 +1143,7 @@ export default function MatterDetailView() {
                       </div>
                     )}
                     <div style={{ fontSize: 12, color: amber, marginTop: 8 }}>
-                      Review these facts before relying on them — extraction is a starting point, not a finding.
+                      Review these facts before relying on them; extraction is a starting point, not a finding.
                     </div>
                   </div>
                 )}
@@ -1167,8 +1167,8 @@ export default function MatterDetailView() {
                   </div>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
                     The HRTO SmartForm can't be filled directly (it's a locked dynamic form), but Starling
-                    generates a data file from this matter — applicant, respondent, grounds, date of last
-                    incident, representative. Open the official Form 1 in Acrobat, then{' '}
+                    generates a data file from this matter (applicant, respondent, grounds, date of last
+                    incident, representative). Open the official Form 1 in Acrobat, then{' '}
                     <strong>Prepare Form → More → Import Data</strong> and select this file. Review every
                     field; Starling deliberately leaves narrative questions for Schedule "A".
                   </div>
@@ -1199,14 +1199,14 @@ export default function MatterDetailView() {
                       Firm template
                       {currentTemplate && (
                         <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: green, background: '#e7f6ec', padding: '2px 7px', borderRadius: 2 }}>
-                          ACTIVE — {currentTemplate.name}
+                          ACTIVE · {currentTemplate.name}
                         </span>
                       )}
                     </div>
                     <div style={{ fontSize: 12.5, color: muted }}>
                       {currentTemplate
                         ? 'Downloads use your firm’s letterhead and formatting for every matter.'
-                        : 'Upload your firm’s DOCX template with {{PLACEHOLDER}} markers — it becomes the default for this document type on all matters.'}
+                        : 'Upload your firm’s DOCX template with {{PLACEHOLDER}} markers. It becomes the default for this document type on all matters.'}
                     </div>
                     {templateStatus && (
                       <div style={{ fontSize: 12.5, color: navy, marginTop: 4 }}>{templateStatus}</div>
@@ -1237,7 +1237,7 @@ export default function MatterDetailView() {
                       <button
                         onClick={async () => {
                           const result = await firmTemplates.remove(selectedTemplateDocType);
-                          setTemplateStatus(result.ok ? 'Template removed — downloads use Starling default formatting.' : result.error ?? 'Failed to remove.');
+                          setTemplateStatus(result.ok ? 'Template removed. Downloads use Starling default formatting.' : result.error ?? 'Failed to remove.');
                         }}
                         style={{
                           background: '#fff', color: muted, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
@@ -1464,7 +1464,7 @@ export default function MatterDetailView() {
                             <StatusDot colour={c.trustLevel === 'high' ? green : c.trustLevel === 'medium' ? amber : muted} size={7} />
                             <div>
                               <div style={{ fontSize: 13, color: ink }}>{c.citation}</div>
-                              <div style={{ fontSize: 11.5, color: muted }}>{c.sourceType} — {c.trustLevel} trust</div>
+                              <div style={{ fontSize: 11.5, color: muted }}>{c.sourceType} · {c.trustLevel} trust</div>
                             </div>
                           </div>
                         ))}
@@ -1576,7 +1576,7 @@ export default function MatterDetailView() {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0110 0v4" />
                 </svg>
-                Private to you — not processed by AI, not included in any deliverable.
+                Private to you. Not processed by AI and not included in any deliverable.
               </div>
               <textarea
                 value={notes}
@@ -1622,7 +1622,7 @@ export default function MatterDetailView() {
                   <span style={{ fontSize: 13, color: green, fontWeight: 600 }} role="status">Saved</span>
                 )}
                 {notesStatus === 'error' && (
-                  <span style={{ fontSize: 13, color: '#dc2626' }} role="alert">Could not save — try again.</span>
+                  <span style={{ fontSize: 13, color: '#dc2626' }} role="alert">The notes could not be saved. Please try again.</span>
                 )}
               </div>
             </div>
@@ -1699,7 +1699,7 @@ export default function MatterDetailView() {
           <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '18px 24px', marginTop: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <h3 style={{ fontFamily: serif, fontSize: 16, fontWeight: 600, color: navy, margin: 0 }}>
-                Client Update — Draft
+                Client Update: Draft
               </h3>
               {clientUpdateHtml && (
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -1730,7 +1730,7 @@ export default function MatterDetailView() {
             {clientUpdateHtml && (
               <>
                 <div style={{ fontSize: 12, color: amber, marginBottom: 10 }}>
-                  Review and edit before sending — Starling never contacts your clients.
+                  Review and edit before sending; Starling never contacts your clients.
                 </div>
                 <div
                   style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.7, color: ink, maxHeight: 380, overflowY: 'auto', borderTop: `1px solid ${border}`, paddingTop: 12 }}
@@ -1742,7 +1742,7 @@ export default function MatterDetailView() {
         )}
         <div style={{ fontSize: 12, color: muted, marginTop: 8 }}>
           Deep Analysis convenes a multi-agent team pre-briefed with this matter's facts, issues,
-          and entitlements — you confirm the approach and roster before anything runs.
+          and entitlements. You confirm the approach and roster before anything runs.
         </div>
       </main>
     </div>

@@ -35,6 +35,19 @@ export interface GrievanceDeadline {
   approximate: boolean;
 }
 
+export interface CaProcedureStep {
+  label: string;
+  employer_response_days?: number | null;
+  advance_days?: number | null;
+  day_kind?: 'calendar' | 'working' | null;
+}
+
+export interface GrievanceStepEvent {
+  step_label: string;
+  presented_date?: string;
+  response_date?: string;
+}
+
 export interface LabourData {
   intake: Record<string, unknown>;
   gates: LabourGate[];
@@ -42,6 +55,13 @@ export interface LabourData {
   dismissedIssues: string[];
   timeline: LabourTimelineEvent[];
   analysis: { deadlines?: GrievanceDeadline[]; evaluatedAt?: string } | null;
+}
+
+export interface CaProfileSummary {
+  id: string;
+  name: string;
+  updatedAt: string;
+  data: Record<string, unknown>;
 }
 
 export interface GrievanceGenerateResult {
@@ -81,6 +101,10 @@ export interface UseLabourDataResult {
   }) => Promise<GrievanceGenerateResult>;
   /** Parse an uploaded document and extract facts (CA fills the grievance clocks). */
   extractDocument: (file: File, documentKind: string) => Promise<CaExtractionOutcome>;
+  /** Record a presentation or employer response at a procedure step. */
+  recordStepEvent: (event: GrievanceStepEvent) => Promise<{ ok: boolean; error?: string }>;
+  /** Save the full intake (used to merge remedy inputs before generating the worksheet). */
+  saveIntake: (intake: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export function useLabourData(matterId: string | null): UseLabourDataResult {
@@ -182,7 +206,107 @@ export function useLabourData(matterId: string | null): UseLabourDataResult {
     }
   }, [matterId, refresh]);
 
-  return { data, loading, refresh, approveIssues, generateDocument, extractDocument };
+  const recordStepEvent = useCallback(async (event: GrievanceStepEvent): Promise<{ ok: boolean; error?: string }> => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/labour/${encodeURIComponent(matterId)}/step-event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(event),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: (json as { error?: string }).error ?? 'Could not record the step event' };
+      refresh();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not record the step event' };
+    }
+  }, [matterId, refresh]);
+
+  const saveIntake = useCallback(async (intake: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch('/api/labour/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ matterId, intake }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: (json as { error?: string }).error ?? 'Could not save the intake' };
+      refresh();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not save the intake' };
+    }
+  }, [matterId, refresh]);
+
+  return { data, loading, refresh, approveIssues, generateDocument, extractDocument, recordStepEvent, saveIntake };
+}
+
+// ── CA library ──────────────────────────────────────────────────────────
+
+export interface UseCaProfilesResult {
+  profiles: CaProfileSummary[];
+  loading: boolean;
+  refresh: () => void;
+  save: (profile: Record<string, unknown>, id?: string) => Promise<{ ok: boolean; id?: string; error?: string }>;
+  remove: (id: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
+/** The firm's CA library: one profile per bargaining unit. */
+export function useCaProfiles(): UseCaProfilesResult {
+  const [profiles, setProfiles] = useState<CaProfileSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch('/api/labour/ca-profiles', { credentials: 'include' });
+      if (!res.ok) { setProfiles([]); return; }
+      const json = await res.json();
+      setProfiles(Array.isArray(json.profiles) ? json.profiles : []);
+    } catch {
+      setProfiles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const save = useCallback(async (profile: Record<string, unknown>, id?: string) => {
+    try {
+      const res = await fetch('/api/labour/ca-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id, profile }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: (json as { error?: string }).error ?? 'Could not save the CA profile' };
+      refresh();
+      return { ok: true, id: (json as { id?: string }).id };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not save the CA profile' };
+    }
+  }, [refresh]);
+
+  const remove = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/labour/ca-profiles/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) return { ok: false, error: 'Could not delete the CA profile' };
+      refresh();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not delete the CA profile' };
+    }
+  }, [refresh]);
+
+  return { profiles, loading, refresh, save, remove };
 }
 
 // ── createGrievanceMatter ───────────────────────────────────────────────
@@ -216,7 +340,7 @@ export function useGrievanceCreate(): GrievanceCreateResult {
         credentials: 'include',
         body: JSON.stringify({
           clientName: grievor,
-          matterTitle: `${grievor} — Grievance v ${employer}`,
+          matterTitle: `${grievor}: Grievance v ${employer}`,
           matterDescription: (intake.incident_description as string) || `Grievance: ${grievor} v ${employer}`,
           matterType: 'employment_agreement',
           jurisdiction: 'CA',

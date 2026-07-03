@@ -168,7 +168,7 @@ export interface GateApprovalPanelProps {
 export function GateApprovalPanel({
   gates, structuralGates, decisionFor, onDecision,
   heading = 'Approve issues for drafting',
-  subheading = "Only approved issues are included in generated documents. Your call — Starling drafts nothing you haven't approved.",
+  subheading = "Only approved issues are included in generated documents. Starling drafts nothing you have not approved.",
   reviewBadge = 'REVIEW REQUIRED',
 }: GateApprovalPanelProps) {
   if (gates.length === 0) return null;
@@ -324,7 +324,7 @@ export function DraftPreview({ html, reviewFlags, citations = [], downloadHref, 
                 <StatusDot colour={c.trustLevel === 'high' ? green : c.trustLevel === 'medium' ? amber : muted} size={7} />
                 <div>
                   <div style={{ fontSize: 13, color: ink }}>{c.citation}</div>
-                  <div style={{ fontSize: 11.5, color: muted }}>{c.sourceType} — {c.trustLevel} trust</div>
+                  <div style={{ fontSize: 11.5, color: muted }}>{c.sourceType} · {c.trustLevel} trust</div>
                 </div>
               </div>
             ))}

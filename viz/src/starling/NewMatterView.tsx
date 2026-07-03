@@ -256,8 +256,8 @@ export default function NewMatterView() {
           {/* Practice area */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 26 }} role="radiogroup" aria-label="Practice area">
             {([
-              ['employment', 'Employment', 'Plaintiff-side — wrongful dismissal, ESA, HRTO'],
-              ['labour', 'Union Grievance', 'Union-side — discharge, discipline, policy, arbitration'],
+              ['employment', 'Employment', 'Plaintiff-side: wrongful dismissal, ESA, HRTO'],
+              ['labour', 'Union Grievance', 'Union-side: discharge, discipline, policy, arbitration'],
             ] as const).map(([key, title, sub]) => (
               <button
                 key={key}
@@ -373,8 +373,8 @@ export default function NewMatterView() {
             >
               <span style={{ fontSize: 14, color: navy, fontWeight: 700, flexShrink: 0, lineHeight: 1.4 }}>i</span>
               <span>
-                Plain language is fine. Starling will identify the legal issues
-                — <b style={{ color: navy }}>wrongful dismissal, ESA entitlements, Waksdale termination-clause analysis, Human Rights Code</b> claims, and limitation periods.
+                Plain language is fine. Starling will identify the legal issues:{' '}
+                <b style={{ color: navy }}>wrongful dismissal, ESA entitlements, Waksdale termination-clause analysis, Human Rights Code</b> claims, and limitation periods.
               </span>
             </div>
           </div>
@@ -599,7 +599,7 @@ export default function NewMatterView() {
                   marginLeft: 6,
                 }}
               >
-                optional — Starling extracts these from documents
+                optional; Starling extracts these from documents
               </span>
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

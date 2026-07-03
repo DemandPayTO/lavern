@@ -8,7 +8,8 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { useGrievanceCreate } from './hooks/useLabourApi.js';
+import { useGrievanceCreate, useCaProfiles } from './hooks/useLabourApi.js';
+import type { CaProcedureStep } from './hooks/useLabourApi.js';
 import { navy, orange, cream, border, ink, muted, serif, sans } from './shared.js';
 
 // ── Field styles ────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
 const GRIEVANCE_TYPE_OPTIONS: Array<[string, string]> = [
   ['discharge', 'Discharge (termination)'],
   ['discipline', 'Discipline (suspension, warning, demotion)'],
-  ['policy', 'Policy grievance (employer rule — KVP)'],
+  ['policy', 'Policy grievance (employer rule; KVP)'],
   ['interpretation', 'CA interpretation / application'],
   ['group', 'Group grievance'],
   ['human_rights', 'Human rights / accommodation'],
@@ -81,6 +82,9 @@ const CODE_GROUNDS = [
 
 export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) => void }) {
   const { createGrievance, creating, error } = useGrievanceCreate();
+  const caLibrary = useCaProfiles();
+  const [caProfileId, setCaProfileId] = useState('');
+  const [procedureSteps, setProcedureSteps] = useState<CaProcedureStep[]>([]);
 
   // Grievor + parties
   const [grievorFirst, setGrievorFirst] = useState('');
@@ -145,6 +149,26 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
     setGrounds(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
   }, []);
 
+  // Apply a CA library profile: the CA terms are copied onto this
+  // grievance as a snapshot. Union and employer fill only if empty.
+  const applyCaProfile = useCallback((id: string) => {
+    setCaProfileId(id);
+    const p = caLibrary.profiles.find(x => x.id === id)?.data as Record<string, unknown> | undefined;
+    if (!p) { setProcedureSteps([]); return; }
+    if (p.ca_title) setCaTitle(String(p.ca_title));
+    if (p.grievance_procedure_article) setProcedureArticle(String(p.grievance_procedure_article));
+    if (p.just_cause_article) setJustCauseArticle(String(p.just_cause_article));
+    if (p.filing_deadline_days) setFilingDays(String(p.filing_deadline_days));
+    if (p.filing_deadline_kind) setFilingKind(String(p.filing_deadline_kind));
+    if (p.referral_deadline_days) setReferralDays(String(p.referral_deadline_days));
+    if (p.referral_deadline_kind) setReferralKind(String(p.referral_deadline_kind));
+    if (typeof p.time_limits_mandatory === 'boolean') setLimitsMandatory(p.time_limits_mandatory);
+    if (p.sunset_clause_months) setSunsetMonths(String(p.sunset_clause_months));
+    setUnionName(prev => prev || String(p.union_name ?? ''));
+    setEmployerName(prev => prev || String(p.employer_name ?? ''));
+    setProcedureSteps(Array.isArray(p.procedure_steps) ? p.procedure_steps as CaProcedureStep[] : []);
+  }, [caLibrary.profiles]);
+
   // Live clock preview — mirrors the server's calendar-day computation so
   // the rep sees the filing deadline before submitting
   const filingPreview = useMemo(() => {
@@ -187,6 +211,8 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
       referral_deadline_days: num(referralDays),
       referral_deadline_kind: num(referralDays) ? referralKind : undefined,
       time_limits_mandatory: limitsMandatory || undefined,
+      ca_profile_id: caProfileId || undefined,
+      procedure_steps: procedureSteps.length > 0 ? procedureSteps : undefined,
       grievance_type: grievanceType,
       incident_date: incidentDate || undefined,
       knowledge_date: knowledgeDate || undefined,
@@ -228,7 +254,7 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
   }, [
     createGrievance, onNav, grievorFirst, grievorLast, classification, seniorityDate,
     unionName, unionRep, employerName, workplace, caTitle, procedureArticle, justCauseArticle,
-    filingDays, filingKind, referralDays, referralKind, limitsMandatory, grievanceType,
+    filingDays, filingKind, referralDays, referralKind, limitsMandatory, caProfileId, procedureSteps, grievanceType,
     incidentDate, knowledgeDate, incidentDescription, discipline, disciplineLetterDate, statedGrounds,
     filed, filedDate, grievanceNumber, currentStep, lastStepResponseDate,
     priorDiscipline, priorDetails, sunsetMonths, repPresent, investigated,
@@ -286,6 +312,29 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
       {/* ── Collective agreement ──────────────────────────────── */}
       <div style={{ marginBottom: 22 }}>
         <SectionLabel hint="upload the CA on the matter to auto-fill">Collective agreement time limits</SectionLabel>
+        {caLibrary.profiles.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={subLabelStyle}>Apply a collective agreement from the library</div>
+            <select
+              value={caProfileId}
+              onChange={e => applyCaProfile(e.target.value)}
+              aria-label="CA library profile"
+              style={{ ...inputStyle, width: 'auto', minWidth: 320 }}
+            >
+              <option value="">Enter the CA terms manually</option>
+              {caLibrary.profiles.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            {procedureSteps.length > 0 && (
+              <div style={{ fontSize: 12.5, color: muted, marginTop: 6 }}>
+                Procedure steps applied: {procedureSteps.map(s =>
+                  `${s.label}${s.employer_response_days ? ` (response ${s.employer_response_days}d${s.advance_days ? `, advance ${s.advance_days}d` : ''})` : ''}`,
+                ).join(' · ')}
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <div style={subLabelStyle}>Agreement title / term</div>
@@ -333,7 +382,7 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
             <span style={{ fontSize: 14, color: navy, fontWeight: 700, flexShrink: 0, lineHeight: 1.4 }}>i</span>
             <span>
               Filing deadline computes to <b style={{ color: navy }}>{filingPreview.date}</b>
-              {filingPreview.approximate ? ' (working days — statutory holidays not counted; verify against the CA)' : ''}.
+              {filingPreview.approximate ? ' (working days; statutory holidays are not counted, so verify against the collective agreement)' : ''}.
               Starling puts this on the docket the moment the matter is created.
             </span>
           </div>
@@ -470,7 +519,7 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
           {offDuty && (
             <input type="text" placeholder="Off-duty conduct details" value={offDutyDetails} onChange={e => setOffDutyDetails(e.target.value)} style={{ ...inputStyle, marginLeft: 24, width: 'calc(100% - 24px)' }} />
           )}
-          <Check label="DFR exposure — grievor has raised or threatened a s. 74 complaint" checked={dfrConcern} onChange={setDfrConcern} />
+          <Check label="DFR exposure: the grievor has raised or threatened a s. 74 complaint" checked={dfrConcern} onChange={setDfrConcern} />
           {dfrConcern && (
             <input type="text" placeholder="DFR concern details" value={dfrDetails} onChange={e => setDfrDetails(e.target.value)} style={{ ...inputStyle, marginLeft: 24, width: 'calc(100% - 24px)' }} />
           )}
@@ -498,7 +547,7 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
         marginTop: 30, paddingTop: 22, borderTop: `1px solid ${border}`,
       }}>
         <div style={{ fontSize: 13, color: muted }}>
-          Gate analysis and CA deadline clocks are computed instantly — <b style={{ color: ink }}>no AI cost</b> at intake
+          Gate analysis and CA deadline clocks are computed instantly, at <b style={{ color: ink }}>no AI cost</b>
         </div>
         <div>
           <button
@@ -534,7 +583,7 @@ export default function GrievanceNewMatter({ onNav }: { onNav: (hash: string) =>
       )}
       <div style={{ fontSize: 12, color: muted, marginTop: 14, fontFamily: serif }}>
         Time limits come from the collective agreement, not statute. Working-day computations exclude
-        weekends but not statutory holidays — verify docket dates against the CA before relying on them.
+        weekends but not statutory holidays; verify docket dates against the collective agreement before relying on them.
       </div>
     </>
   );
