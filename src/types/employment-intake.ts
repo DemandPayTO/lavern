@@ -63,6 +63,7 @@ export const UPLOADABLE_DOCUMENT_TYPES = [
   'correspondence',
   'performance_review',
   'policy_document',
+  'collective_agreement',
   'other',
 ] as const;
 

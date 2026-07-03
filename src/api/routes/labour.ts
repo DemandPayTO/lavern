@@ -228,6 +228,7 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
     matter.draftHistory = history.slice(0, 10);
     (matter as Record<string, unknown>)[`generated_${parsed.data.documentType}`] = {
       html: sanitiseHtml(result.html),
+      documentTitle: result.documentTitle,
       reviewerFlags: result.reviewerFlags,
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,

@@ -156,6 +156,25 @@ Extract these fields from the policy document:
 
 Also provide keyFindings: notable observations.`,
 
+    collective_agreement: `
+Extract these fields from the collective agreement (union-side grievance context — the CA's grievance-procedure time limits drive the docket, so get them exactly right):
+- ca_title (string): The agreement's title or term (e.g. "2024–2027 Collective Agreement between X and Y")
+- ca_expiry_date (string, YYYY-MM-DD): Expiry date of the agreement
+- union_name (string): The union party (e.g. "USW Local 1998")
+- employer_name (string): The employer party
+- grievance_procedure_article (string): Article number/name of the grievance procedure (e.g. "Article 8")
+- just_cause_article (string): Article number of the just cause / discipline provision
+- arbitration_article (string): Article number of the arbitration provision
+- filing_deadline_days (number): Days to FILE a grievance after the incident (or the grievor becoming aware of it) — the Step 1 time limit
+- filing_deadline_kind (string): "calendar" or "working" — how the filing limit counts days
+- referral_deadline_days (number): Days to refer/advance the grievance to ARBITRATION after the final step response
+- referral_deadline_kind (string): "calendar" or "working" — how the referral limit counts days
+- time_limits_mandatory (boolean): Whether the CA states time limits are mandatory (e.g. "shall be deemed abandoned/withdrawn" language) vs directory
+- sunset_clause_months (number): Months after which prior discipline is removed from the record, if a sunset clause exists
+- grievance_steps (string): Brief summary of the procedure steps and their time limits, verbatim day counts included
+
+Also provide keyFindings: notable observations (e.g. "Time limits are mandatory — Article 8.06 deems late grievances abandoned", "Working days defined in Article 2 to exclude statutory holidays", "No sunset clause found").`,
+
     other: `
 Extract any employment-relevant facts from this document:
 - document_type_detected (string): What type of document this appears to be

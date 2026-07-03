@@ -409,6 +409,30 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // Store extraction on the matter (lawyer reviews before confirming)
     const { matter, employment } = loadEmploymentData(row.data_json);
     employment.documentExtractions.push(extraction);
+
+    // Collective agreements feed the grievance clocks: fill any blank CA
+    // fields on the labour intake and recompute gates/timeline/deadlines.
+    // Reviewer-entered values are never overwritten.
+    let labourAutoFilled: string[] = [];
+    const labour = matter.labourData as import('../../types/labour-intake.js').LabourMatterData | undefined;
+    if (documentKind === 'collective_agreement' && labour?.intake) {
+      const { applyCaExtraction } = await import('../../labour/ca-extraction.js');
+      const { intake: updatedIntake, filled } = applyCaExtraction(labour.intake, extraction.extractedFields);
+      if (filled.length > 0) {
+        const { evaluateLabourGates, buildGrievanceTimeline, computeGrievanceDeadlines } = await import('../../labour/gate-evaluator.js');
+        labour.intake = updatedIntake;
+        labour.gates = evaluateLabourGates(updatedIntake);
+        labour.timeline = buildGrievanceTimeline(updatedIntake);
+        labour.analysis = {
+          ...(labour.analysis ?? {}),
+          deadlines: computeGrievanceDeadlines(updatedIntake),
+          evaluatedAt: new Date().toISOString(),
+        };
+        matter.labourData = labour;
+        labourAutoFilled = filled;
+      }
+    }
+
     await saveEmploymentData(userId, matterId, matter, employment);
 
     logger.info('Document extracted', {
@@ -418,9 +442,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       documentKind,
       fieldsExtracted: Object.keys(extraction.extractedFields).length,
       keyFindings: extraction.keyFindings.length,
+      labourAutoFilled: labourAutoFilled.length > 0 ? labourAutoFilled : undefined,
     });
 
-    return reply.send({ ok: true, extraction });
+    return reply.send({ ok: true, extraction, labourAutoFilled });
   });
 
   // ── POST /api/employment/:matterId/demand-letter ───────────────────────
@@ -817,7 +842,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -843,6 +868,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'mitigation-log': 'mitigation_log',
       'settlement-conference-brief': 'settlement_conference_brief',
       'hrto-schedule-a': 'hrto_schedule_a',
+      'grievance-filing': 'grievance_filing',
+      'referral-to-arbitration': 'referral_to_arbitration',
+      'arbitration-brief': 'arbitration_brief',
+      'dfr-response': 'dfr_response',
     };
 
     const buffer = await htmlToDocx(html, {

@@ -79,6 +79,60 @@ describe('collectDeadlines', () => {
     expect(items[0].matterId).toBe('ok');
   });
 
+  it('includes grievance CA clocks from labour matters alongside employment deadlines', () => {
+    const labourRow = {
+      id: 'g1',
+      data_json: JSON.stringify({
+        labourData: {
+          intake: {
+            grievor_first_name: 'Rosa', grievor_last_name: 'Delgado',
+            grievance_number: '2026-014',
+            employer_name: 'Lakeview Care Homes',
+            incident_date: iso(-5),
+            filing_deadline_days: 15, filing_deadline_kind: 'calendar',
+            grievance_filed: false,
+          },
+        },
+      }),
+    };
+    const employmentRow = matterRow('m6', {
+      intake: baseIntake,
+      analysis: { limitationDeadline: { date: iso(30) } },
+      timeline: [],
+    });
+
+    const items = collectDeadlines([labourRow, employmentRow]);
+    expect(items.map(i => i.kind).sort()).toEqual(['grievance_filing', 'limitation']);
+
+    const filing = items.find(i => i.kind === 'grievance_filing')!;
+    expect(filing.daysRemaining).toBe(10);
+    expect(filing.urgency).toBe('critical');
+    expect(filing.matterLabel).toBe('Rosa Delgado (#2026-014) — Lakeview Care Homes');
+  });
+
+  it('drops the grievance filing clock once the grievance is filed, keeps the referral clock', () => {
+    const row = {
+      id: 'g2',
+      data_json: JSON.stringify({
+        labourData: {
+          intake: {
+            grievor_first_name: 'Sam', grievor_last_name: 'Odogwu',
+            employer_name: 'Metro Transit',
+            incident_date: iso(-40),
+            filing_deadline_days: 10, filing_deadline_kind: 'calendar',
+            grievance_filed: true,
+            last_step_response_date: iso(-10),
+            referral_deadline_days: 30, referral_deadline_kind: 'calendar',
+          },
+        },
+      }),
+    };
+    const items = collectDeadlines([row]);
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe('grievance_referral');
+    expect(items[0].daysRemaining).toBe(20);
+  });
+
   it('does not duplicate the limitation date from the timeline event', () => {
     const rows = [matterRow('m5', {
       intake: baseIntake,

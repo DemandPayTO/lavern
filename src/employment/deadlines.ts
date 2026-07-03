@@ -14,6 +14,8 @@
  */
 
 import type { EmploymentMatterData } from '../types/employment-intake.js';
+import type { LabourMatterData } from '../types/labour-intake.js';
+import { computeGrievanceDeadlines } from '../labour/gate-evaluator.js';
 
 export interface DeadlineItem {
   matterId: string;
@@ -27,7 +29,8 @@ export interface DeadlineItem {
   daysRemaining: number;
   /** 'critical' <= 14 days, 'soon' <= 45, 'upcoming' otherwise. */
   urgency: 'overdue' | 'critical' | 'soon' | 'upcoming';
-  kind: 'limitation' | 'demand_response' | 'severance_offer' | 'timeline';
+  kind: 'limitation' | 'demand_response' | 'severance_offer' | 'timeline'
+    | 'grievance_filing' | 'grievance_referral';
 }
 
 function daysFromToday(isoDate: string): number {
@@ -51,7 +54,9 @@ const HORIZON_DAYS = 180;
 const OVERDUE_WINDOW_DAYS = -30;
 
 /**
- * Collect deadline items from a set of matter rows.
+ * Collect deadline items from a set of matter rows — employment matters
+ * (limitations, ticklers, severance offers) and labour grievance matters
+ * (CA filing/referral clocks) in one docket.
  * Deduplicates limitation dates that also appear as timeline events.
  */
 export function collectDeadlines(
@@ -66,40 +71,56 @@ export function collectDeadlines(
     } catch {
       continue; // corrupt row — skip, never break the docket
     }
-    const employment = matter.employmentData as EmploymentMatterData | undefined;
-    if (!employment) continue;
 
-    const intake = employment.intake as Record<string, unknown> | undefined;
-    const client = [intake?.client_first_name, intake?.client_last_name].filter(Boolean).join(' ');
-    const employer = (intake?.employer_legal_name ?? intake?.employer_operating_name ?? '') as string;
-    const matterLabel = client && employer ? `${client} v ${employer}` : client || employer || row.id;
-
-    const push = (date: string, label: string, kind: DeadlineItem['kind']) => {
+    const push = (matterLabel: string, date: string, label: string, kind: DeadlineItem['kind']) => {
       const days = daysFromToday(date);
       if (isNaN(days) || days > HORIZON_DAYS || days < OVERDUE_WINDOW_DAYS) return;
       items.push({ matterId: row.id, matterLabel, date, label, daysRemaining: days, urgency: urgencyFor(days), kind });
     };
 
-    // 1. Limitation deadline from the analysis
-    const lim = (employment.analysis as Record<string, unknown> | null)?.limitationDeadline as
-      | { date?: string }
-      | undefined;
-    if (lim?.date) push(lim.date, 'Limitation period expires', 'limitation');
+    const employment = matter.employmentData as EmploymentMatterData | undefined;
+    if (employment) {
+      const intake = employment.intake as Record<string, unknown> | undefined;
+      const client = [intake?.client_first_name, intake?.client_last_name].filter(Boolean).join(' ');
+      const employer = (intake?.employer_legal_name ?? intake?.employer_operating_name ?? '') as string;
+      const matterLabel = client && employer ? `${client} v ${employer}` : client || employer || row.id;
 
-    // 2. Severance offer acceptance deadline from intake
-    if (intake?.received_severance_offer && intake?.severance_deadline) {
-      push(String(intake.severance_deadline), 'Severance offer acceptance deadline', 'severance_offer');
+      // 1. Limitation deadline from the analysis
+      const lim = (employment.analysis as Record<string, unknown> | null)?.limitationDeadline as
+        | { date?: string }
+        | undefined;
+      if (lim?.date) push(matterLabel, lim.date, 'Limitation period expires', 'limitation');
+
+      // 2. Severance offer acceptance deadline from intake
+      if (intake?.received_severance_offer && intake?.severance_deadline) {
+        push(matterLabel, String(intake.severance_deadline), 'Severance offer acceptance deadline', 'severance_offer');
+      }
+
+      // 3. Future timeline events (demand response ticklers + lawyer entries).
+      //    Skip the limitation event — already captured above.
+      for (const ev of employment.timeline ?? []) {
+        if (/limitation/i.test(ev.label)) continue;
+        const days = daysFromToday(ev.date);
+        if (isNaN(days) || days < 0) continue; // past timeline events are history, not deadlines
+        const kind: DeadlineItem['kind'] = /response due/i.test(ev.label) ? 'demand_response' : 'timeline';
+        if (kind === 'timeline' && ev.source !== 'lawyer_entry' && ev.source !== 'system') continue;
+        push(matterLabel, ev.date, ev.label, kind);
+      }
     }
 
-    // 3. Future timeline events (demand response ticklers + lawyer entries).
-    //    Skip the limitation event — already captured above.
-    for (const ev of employment.timeline ?? []) {
-      if (/limitation/i.test(ev.label)) continue;
-      const days = daysFromToday(ev.date);
-      if (isNaN(days) || days < 0) continue; // past timeline events are history, not deadlines
-      const kind: DeadlineItem['kind'] = /response due/i.test(ev.label) ? 'demand_response' : 'timeline';
-      if (kind === 'timeline' && ev.source !== 'lawyer_entry' && ev.source !== 'system') continue;
-      push(ev.date, ev.label, kind);
+    // 4. Grievance clocks from the CA (labour matters). computeGrievanceDeadlines
+    //    already drops the filing clock once the grievance is filed.
+    const labour = matter.labourData as LabourMatterData | undefined;
+    if (labour?.intake) {
+      const grievor = [labour.intake.grievor_first_name, labour.intake.grievor_last_name].filter(Boolean).join(' ');
+      const grievanceNo = labour.intake.grievance_number ? ` (#${labour.intake.grievance_number})` : '';
+      const employer = labour.intake.employer_name ?? '';
+      const matterLabel = grievor
+        ? `${grievor}${grievanceNo}${employer ? ` — ${employer}` : ''}`
+        : employer || row.id;
+      for (const d of computeGrievanceDeadlines(labour.intake)) {
+        push(matterLabel, d.date, d.label, d.kind === 'filing' ? 'grievance_filing' : 'grievance_referral');
+      }
     }
   }
 
