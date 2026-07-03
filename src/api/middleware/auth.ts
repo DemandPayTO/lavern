@@ -278,34 +278,46 @@ export function createAuthMiddleware(
       return;
     }
 
-    // Public paths: inject anonymous identity, skip auth
+    /** Attach identity from Bearer token or cookie if present. Returns true when attached. */
+    const attachIdentity = (): boolean => {
+      // Path 1: Bearer token (API clients / agents)
+      const authHeader = request.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const client = registry.authenticate(token);
+        if (client) {
+          req.userId = client.id;
+          req.user = { id: client.id, email: '', displayName: client.name ?? '' };
+          return true;
+        }
+      }
+      // Path 2: Cookie (browser users)
+      const cookieToken = parseCookieToken(request.headers.cookie);
+      if (cookieToken) {
+        const user = dbGetUserByToken(cookieToken);
+        if (user) {
+          req.userId = user.id;
+          req.firmId = user.firm_id ?? user.firm_name ?? undefined;
+          req.user = { id: user.id, email: user.email, displayName: user.display_name ?? '', firmId: user.firm_id ?? user.firm_name ?? undefined };
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Public paths: skip auth ENFORCEMENT (anonymous callers allowed), but
+    // still attach identity when valid credentials are presented. Routes
+    // under public wildcards run their own checkSessionOwnership() — that
+    // check needs the identity. Before this, an authenticated user's cookie
+    // was IGNORED on public paths, so DELETE /api/sessions/:id (public for
+    // the QuickStart flow) 404'd on the user's own sessions: ownership saw
+    // session.userId set but request.userId undefined.
     if (isPublic(request.method, request.url.split('?')[0])) {
+      attachIdentity(); // best-effort — never 401 on a public path
       return;
     }
 
-    // Path 1: Bearer token (API clients / agents)
-    const authHeader = request.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      const client = registry.authenticate(token);
-      if (client) {
-        req.userId = client.id;
-        req.user = { id: client.id, email: '', displayName: client.name ?? '' };
-        return;
-      }
-    }
-
-    // Path 2: Cookie (browser users)
-    const cookieToken = parseCookieToken(request.headers.cookie);
-    if (cookieToken) {
-      const user = dbGetUserByToken(cookieToken);
-      if (user) {
-        req.userId = user.id;
-        req.firmId = user.firm_id ?? user.firm_name ?? undefined;
-        req.user = { id: user.id, email: user.email, displayName: user.display_name ?? '', firmId: user.firm_id ?? user.firm_name ?? undefined };
-        return;
-      }
-    }
+    if (attachIdentity()) return;
 
     // No valid auth — 401
     return reply.status(401).send({ error: 'Unauthorized' });

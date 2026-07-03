@@ -216,7 +216,10 @@ async function createSession(user: UserContext): Promise<void> {
           type: 'legal_question',
           requestText: `Load test question ${user.index}: What is force majeure in the context of commercial leases?`,
         },
-        team: ['Contract Analyst'],
+        // Must be a valid agent ROLE KEY (not a display name) — invalid
+        // teams now degrade to the router's specialists server-side, but
+        // the test should exercise the happy path
+        team: ['employment-counsel'],
         workflow: 'counsel',
         options: {
           budget: 0.50,
@@ -251,8 +254,10 @@ function connectWebSocket(user: UserContext): Promise<void> {
     try {
       // Node's global WebSocket cannot send headers — use the `ws` package
       // so the auth cookie reaches the handshake like a real browser client.
+      // Origin is REQUIRED: the server's CSRF layer rejects WS upgrades
+      // without one (browsers always send it; must be in SHEM_CORS_ORIGINS).
       const ws = new NodeWebSocket(wsUrl, {
-        headers: { Cookie: `starling_token=${user.cookie}`, ...COMMON_HEADERS },
+        headers: { Cookie: `starling_token=${user.cookie}`, Origin: BASE, ...COMMON_HEADERS },
       }) as unknown as WebSocket;
       user.ws = ws;
 

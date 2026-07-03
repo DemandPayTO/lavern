@@ -222,17 +222,43 @@ export async function runGenericWorkflow(
     filteredAgents['evaluator'] = agentDefinitions['evaluator'];
   }
 
-  // Sanity check: at least one agent must be available
+  // Sanity check: at least one agent must be available. A user-selected
+  // team can contain zero valid roles (stale saved team, deleted custom
+  // agent, display names instead of role keys) — that must degrade to a
+  // working default, never kill the session. Fallback order:
+  //   1. the router's selected specialists (workflow-appropriate)
+  //   2. the template's required agents (empty for dynamic workflows
+  //      like counsel, whose roster the router normally picks)
+  //   3. employment-counsel — Starling's core specialist, always valid
   if (Object.keys(filteredAgents).length === 0) {
-    const fallbackTeam = template.requiredAgents;
-    logger.error('No valid agents from selected team — falling back to template defaults', { fallbackTeam: fallbackTeam.join(', ') });
-    for (const role of fallbackTeam) {
-      if (role in agentDefinitions) {
-        filteredAgents[role] = agentDefinitions[role as keyof typeof agentDefinitions];
+    const fallbackChain: Array<[string, string[]]> = [
+      ['router specialists', classification.selectedSpecialists],
+      ['template defaults', template.requiredAgents],
+      ['core specialist', ['employment-counsel']],
+    ];
+    for (const [source, roles] of fallbackChain) {
+      for (const role of roles) {
+        if (role in agentDefinitions) {
+          filteredAgents[role] = agentDefinitions[role as keyof typeof agentDefinitions];
+        }
+      }
+      if (Object.keys(filteredAgents).length > 0) {
+        logger.error('No valid agents from selected team — falling back', {
+          selectedTeam: teamRoles.join(', '),
+          fallbackSource: source,
+          fallbackTeam: Object.keys(filteredAgents).join(', '),
+        });
+        session.events.emitEvent({
+          type: 'tool_used',
+          tool: `team_fallback: selected team [${teamRoles.join(', ')}] had no valid agents — using ${source} [${Object.keys(filteredAgents).join(', ')}]`,
+          agent: 'system',
+          timestamp: new Date().toISOString(),
+        });
+        break;
       }
     }
     if (Object.keys(filteredAgents).length === 0) {
-      throw new Error(`No valid agent definitions found for workflow "${template.id}". Selected team: [${teamRoles.join(', ')}], required: [${fallbackTeam.join(', ')}]`);
+      throw new Error(`No valid agent definitions found for workflow "${template.id}". Selected team: [${teamRoles.join(', ')}]`);
     }
   }
 
