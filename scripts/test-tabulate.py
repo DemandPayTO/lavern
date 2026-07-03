@@ -46,13 +46,13 @@ payload = {
 
 # Read cookie
 with open('/tmp/cookies.txt') as f:
-    cookie_line = next((l for l in f if 'lavern_token' in l), None)
+    cookie_line = next((l for l in f if 'starling_token' in l or 'lavern_token' in l), None)
 if not cookie_line:
     print('No cookie — login first')
     raise SystemExit(1)
 parts = cookie_line.strip().split('\t')
 token = parts[-1]
-cookie = f'lavern_token={token}'
+cookie = f'starling_token={token}'
 
 body = json.dumps(payload).encode('utf-8')
 conn = http.client.HTTPConnection('127.0.0.1', 3000, timeout=120)

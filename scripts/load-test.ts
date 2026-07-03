@@ -44,6 +44,8 @@
  * server-side overhead is exercised without burning API credits.
  */
 
+import NodeWebSocket from 'ws';
+
 const BASE = process.argv[2]?.startsWith('http') ? process.argv[2] : 'http://localhost:3000';
 const USER_COUNT = (() => {
   const idx = process.argv.indexOf('--users');
@@ -129,7 +131,7 @@ async function timedFetch(
 
 function parseCookie(headers: Headers): string {
   const setCookie = headers.get('set-cookie') ?? '';
-  const match = setCookie.match(/lavern_token=([^;]+)/);
+  const match = setCookie.match(/(?:starling|lavern)_token=([^;]+)/);
   return match ? match[1] : '';
 }
 
@@ -206,7 +208,7 @@ async function createSession(user: UserContext): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: `lavern_token=${user.cookie}`,
+        Cookie: `starling_token=${user.cookie}`,
         ...COMMON_HEADERS,
       },
       body: JSON.stringify({
@@ -247,7 +249,11 @@ function connectWebSocket(user: UserContext): Promise<void> {
 
     const wsUrl = `${BASE.replace(/^http/, 'ws')}/api/sessions/${user.sessionId}/events`;
     try {
-      const ws = new WebSocket(wsUrl);
+      // Node's global WebSocket cannot send headers — use the `ws` package
+      // so the auth cookie reaches the handshake like a real browser client.
+      const ws = new NodeWebSocket(wsUrl, {
+        headers: { Cookie: `starling_token=${user.cookie}`, ...COMMON_HEADERS },
+      }) as unknown as WebSocket;
       user.ws = ws;
 
       const timeout = setTimeout(() => {
@@ -289,7 +295,7 @@ async function pollSession(user: UserContext): Promise<string | null> {
     'poll_status',
     `${BASE}/api/sessions/${user.sessionId}`,
     {
-      headers: { Cookie: `lavern_token=${user.cookie}`, ...COMMON_HEADERS },
+      headers: { Cookie: `starling_token=${user.cookie}`, ...COMMON_HEADERS },
     },
   );
   user.timings.push(timing);
@@ -321,7 +327,7 @@ async function approveGate(user: UserContext): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: `lavern_token=${user.cookie}`,
+        Cookie: `starling_token=${user.cookie}`,
         ...COMMON_HEADERS,
       },
       body: JSON.stringify({ decision: 'approve', notes: 'load test auto-approve' }),
@@ -351,7 +357,7 @@ async function cancelSession(user: UserContext): Promise<void> {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: `lavern_token=${user.cookie}`,
+        Cookie: `starling_token=${user.cookie}`,
         ...COMMON_HEADERS,
       },
       body: JSON.stringify({ reason: 'load test cleanup' }),
@@ -383,7 +389,7 @@ async function deleteAccount(user: UserContext): Promise<void> {
     {
       method: 'DELETE',
       headers: {
-        Cookie: `lavern_token=${user.cookie}`,
+        Cookie: `starling_token=${user.cookie}`,
         'X-Confirm-Delete': 'permanently-delete-my-account',
         ...COMMON_HEADERS,
       },
