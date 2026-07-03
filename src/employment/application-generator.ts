@@ -14,7 +14,7 @@ import { createLogger } from '../utils/logger.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
-import { checkCitationIntegrity } from './citation-canon.js';
+import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 
 const logger = createLogger('APP-GEN');
 
@@ -239,6 +239,7 @@ export async function generateApplication(
     'remedies_sought',
     'other_proceedings_declaration',
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkFillInPlaceholders(html),
   ];
 
   let citations: SourceCitation[] = [];

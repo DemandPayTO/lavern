@@ -15,7 +15,7 @@ import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { extractCitations } from './citation-extractor.js';
-import { checkCitationIntegrity } from './citation-canon.js';
+import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 import { computeBardalFactors } from './timeline-generator.js';
 
 const logger = createLogger('LITIGATION-DOCS');
@@ -274,6 +274,7 @@ export async function generateLitigationDocument(
   const lawyerReviewFlags = [
     ...getLawyerReviewFlags(req.documentType),
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkFillInPlaceholders(html),
   ];
 
   logger.info('Litigation document generated', {

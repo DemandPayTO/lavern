@@ -19,7 +19,7 @@ import type { EmploymentIntakeData, GateResult, IntakeAnalysisResult, SourceCita
 import { TONE_OPTIONS } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
-import { checkCitationIntegrity } from './citation-canon.js';
+import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 
 const logger = createLogger('DEMAND-LETTER');
 
@@ -333,7 +333,12 @@ export async function generateDemandLetter(
   const lawyerReviewFlags = [
     ...computeReviewFlags(req.approvedIssues),
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkFillInPlaceholders(html),
   ];
+  // Every AI draft carries at least one review reminder — Rule 26 posture
+  if (lawyerReviewFlags.length === 0) {
+    lawyerReviewFlags.push('Verify all facts, dates, and dollar amounts against the client file before sending.');
+  }
 
   // Extract source citations if uploaded documents are available
   let citations: SourceCitation[] = [];

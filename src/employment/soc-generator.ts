@@ -18,7 +18,7 @@ import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from 
 import { PROCEDURE_TYPES } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
-import { checkCitationIntegrity } from './citation-canon.js';
+import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 
 const logger = createLogger('SOC-GEN');
 
@@ -294,6 +294,7 @@ export async function generateStatementOfClaim(
     'damages_particulars',
     'prayer_for_relief',
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkFillInPlaceholders(html),
   ];
 
   // Extract source citations if uploaded documents available

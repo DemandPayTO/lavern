@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { checkCitationIntegrity } from '../../src/employment/citation-canon.js';
+import { checkCitationIntegrity, checkFillInPlaceholders } from '../../src/employment/citation-canon.js';
 
 describe('checkCitationIntegrity — known canon', () => {
   it('accepts canon cases with correct citations', () => {
@@ -59,6 +59,31 @@ describe('checkCitationIntegrity — matter parties', () => {
     const flags = checkCitationIntegrity(html, ['Smith', 'Acme Corp']);
     expect(flags).toHaveLength(1);
     expect(flags[0]).toContain('Fakename');
+  });
+});
+
+describe('checkFillInPlaceholders', () => {
+  it('flags signature-block fill-ins the lawyer must complete', () => {
+    const html = '<p>Jordan Whitfield<br>[Address]<br>Tel: [Telephone]<br>Email: [Email]</p>';
+    const flags = checkFillInPlaceholders(html);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toContain('[Address]');
+    expect(flags[0]).toContain('[Telephone]');
+  });
+
+  it('ignores anonymisation-style tokens ([PARTY_1]) — different failure mode', () => {
+    const html = '<p>[PARTY_1] was employed by [PARTY_2].</p>';
+    expect(checkFillInPlaceholders(html)).toEqual([]);
+  });
+
+  it('ignores all-caps court-form directives like [TO BE ASSIGNED]', () => {
+    const html = '<p>Court File No: [TO BE ASSIGNED]</p>';
+    expect(checkFillInPlaceholders(html)).toEqual([]);
+  });
+
+  it('returns no flags for complete documents', () => {
+    const html = '<p>Jordan Whitfield, 10 Dundas St W, Toronto. Tel: 416-555-0100.</p>';
+    expect(checkFillInPlaceholders(html)).toEqual([]);
   });
 });
 

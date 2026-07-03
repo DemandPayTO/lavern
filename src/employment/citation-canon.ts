@@ -69,6 +69,32 @@ function normalise(text: string): string {
 }
 
 /**
+ * Detect fill-in placeholders the model left for unknown facts —
+ * "[Address]", "[Telephone]", "[Postal Code]" in a signature block, etc.
+ * These are correct model behaviour (never invent contact details), but
+ * the lawyer must complete them before serving or filing. Anonymisation
+ * placeholders ([PARTY_1], [SIN_2] — upper-case with an index) are a
+ * different failure mode and are excluded here.
+ */
+export function checkFillInPlaceholders(html: string): string[] {
+  const text = html.replace(/<[^>]+>/g, ' ');
+  const found = new Set<string>();
+  const re = /\[([A-Z][A-Za-z][A-Za-z /]{0,28})\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    // Skip anonymisation-style tokens ([PARTY_1]) and all-caps directives
+    // like [TO BE ASSIGNED] which court forms legitimately carry
+    if (/^[A-Z]+_\d+$/.test(m[1])) continue;
+    if (m[1] === m[1].toUpperCase()) continue;
+    found.add(`[${m[1]}]`);
+  }
+  if (found.size === 0) return [];
+  return [
+    `Contains fill-in placeholders — complete before sending: ${[...found].join(', ')}. Tip: add your firm address and contact details to the Starling Profile so these fill automatically.`,
+  ];
+}
+
+/**
  * Scan generated document HTML for case citations and return lawyer-review
  * flags for anything outside the canon or cited incorrectly.
  *
