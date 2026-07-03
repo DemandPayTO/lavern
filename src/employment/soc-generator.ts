@@ -64,7 +64,7 @@ function buildSystemPrompt(procedureType: ProcedureType): string {
 
 PROCEDURE-SPECIFIC RULES:
 - Maximum claim: $50,000 (exclusive of interest and costs)
-- Language should be clear and accessible (Small Claims Court is designed for self-represented parties, though lawyers use it too)
+- Language should be clear and accessible (the Small Claims Court is designed to be accessible to self-represented parties, although counsel also appear there)
 - No discovery, no jury
 - Numbered paragraphs for facts
 - Simpler structure than Superior Court
@@ -100,7 +100,7 @@ PROCEDURE-SPECIFIC RULES:
 ${procedureInstructions[procedureType]}
 
 CRITICAL RULES:
-1. Every factual allegation must come from the intake data — never fabricate facts.
+1. Every factual allegation must come from the intake data; never fabricate facts.
 2. Use only real, well-known Ontario/SCC case citations. If unsure about a citation, omit it.
 3. Canadian English spelling throughout (honour, labour, behaviour, etc.).
 4. Reference specific statute sections by number (ESA s. 57, Human Rights Code s. 5, etc.).
@@ -108,6 +108,7 @@ CRITICAL RULES:
 6. Number every paragraph of the facts section sequentially (1, 2, 3...).
 7. Plead material facts, not evidence. State WHAT happened, not HOW you will prove it.
 8. The prayer for relief should be specific and itemised.
+9. Write in the professional register of Ontario legal practice. Do not use em dashes anywhere in the document; use commas, colons, semicolons, or parentheses instead.
 
 OUTPUT FORMAT:
 Produce the document in HTML format. Use semantic HTML:
@@ -117,7 +118,7 @@ Produce the document in HTML format. Use semantic HTML:
 - <ol> and <li> for numbered lists (prayer for relief, damages particulars)
 - <strong> for emphasis and defined terms
 - <hr> for section dividers
-- No inline styles — clean semantic HTML only.`;
+- No inline styles; clean semantic HTML only.`;
 }
 
 function buildUserPrompt(req: SOCRequest): string {
@@ -147,7 +148,7 @@ function buildUserPrompt(req: SOCRequest): string {
   // Build issue descriptions for the legal basis section
   const issueDescriptions = req.approvedIssues.map(code => {
     const map: Record<string, string> = {
-      wrongful_dismissal: 'Wrongful dismissal — the Plaintiff is entitled to common law reasonable notice based on Bardal factors',
+      wrongful_dismissal: 'Wrongful dismissal: the Plaintiff is entitled to common law reasonable notice based on the Bardal factors',
       termination_clause_invalidity: 'The termination clause in the employment agreement is invalid and unenforceable',
       waksdale_at_any_time: 'The termination clause contains language that violates the ESA (Waksdale v Swegon North America Inc, 2020 ONCA 391)',
       machtinger_below_esa: 'The termination clause provides less than ESA minimums (Machtinger v HOJ Industries Ltd, [1992] 1 SCR 986)',
@@ -226,7 +227,7 @@ DAMAGES:
 - Common law notice: ${damages.commonLawLowMonths}–${damages.commonLawHighMonths} months ($${damages.commonLawLowAmount.toLocaleString('en-CA')}–$${damages.commonLawHighAmount.toLocaleString('en-CA')})
 - Total claimed: $${req.claimAmount.toLocaleString('en-CA')} CAD
 
-${req.procedureType === 'small_claims' ? `NOTE: Small Claims Court cap is $50,000. If the claim exceeds this, the Plaintiff abandons the excess per Courts of Justice Act, s. 23.` : ''}
+${req.procedureType === 'small_claims' ? `NOTE: The Small Claims Court monetary limit is $50,000. If the claim exceeds this amount, the Plaintiff abandons the excess pursuant to the Courts of Justice Act, s. 23.` : ''}
 ${req.procedureType === 'simplified' ? `NOTE: Include Rule 76 compliance statement. This proceeding is brought under the Simplified Procedure (Rule 76).` : ''}
 
 FILING DETAILS:
@@ -237,7 +238,7 @@ ${limitation ? `- Limitation: ${limitation.date} (${limitation.daysRemaining} da
 DOCUMENT STRUCTURE:
 1. Title of Proceedings (court name, file number placeholder, parties)
 2. CLAIM: "The Plaintiff claims:" followed by itemised relief sought
-3. FACTS: Numbered paragraphs — chronological material facts
+3. FACTS: Numbered paragraphs setting out the material facts in chronological order
 4. LEGAL BASIS: Statutory and common law grounds for each claim
 5. DAMAGES PARTICULARS: Itemised breakdown with amounts
 6. ${req.procedureType === 'simplified' ? 'RULE 76 COMPLIANCE STATEMENT' : 'DATE AND PLACE OF ISSUE'}
@@ -334,7 +335,7 @@ export async function generateStatementOfClaim(
 export function getFormName(procedureType: ProcedureType): string {
   switch (procedureType) {
     case 'small_claims': return "Plaintiff's Claim (Form 7A)";
-    case 'simplified': return 'Statement of Claim (Form 14A — Simplified Procedure, Rule 76)';
+    case 'simplified': return 'Statement of Claim (Form 14A, Simplified Procedure, Rule 76)';
     case 'ordinary': return 'Statement of Claim (Form 14A)';
   }
 }

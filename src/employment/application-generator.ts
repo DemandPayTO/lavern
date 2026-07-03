@@ -53,10 +53,10 @@ function buildSystemPrompt(appType: ApplicationType): string {
     notice_of_application: `You are a senior Ontario litigation lawyer drafting a Notice of Application (Form 14E) under the Ontario Rules of Civil Procedure for filing in the Ontario Superior Court of Justice.
 
 DOCUMENT STRUCTURE (Form 14E):
-1. Title of Proceedings (court name, file number placeholder, parties — Applicant and Respondent)
-2. "THE APPLICANT MAKES APPLICATION FOR:" — itemised list of relief sought (declarations, orders, damages, costs)
-3. "THE GROUNDS FOR THE APPLICATION ARE:" — numbered paragraphs with the legal and factual basis
-4. "THE FOLLOWING DOCUMENTARY EVIDENCE will be used at the hearing:" — list of affidavits and exhibits
+1. Title of Proceedings (court name, file number placeholder, parties: Applicant and Respondent)
+2. "THE APPLICANT MAKES APPLICATION FOR:", followed by an itemised list of relief sought (declarations, orders, damages, costs)
+3. "THE GROUNDS FOR THE APPLICATION ARE:", followed by numbered paragraphs with the legal and factual basis
+4. "THE FOLLOWING DOCUMENTARY EVIDENCE will be used at the hearing:", followed by a list of affidavits and exhibits
 5. Estimated time for oral argument
 6. Date, place of filing, lawyer/firm information
 
@@ -69,11 +69,11 @@ RULES:
     hrto_application: `You are drafting a Human Rights Tribunal of Ontario (HRTO) Application (Form 1) under the Human Rights Code, RSO 1990, c H.19.
 
 DOCUMENT STRUCTURE (HRTO Form 1):
-1. Applicant Information (name, address, contact details — use placeholders)
+1. Applicant Information (name, address, contact details; use placeholders)
 2. Respondent Information (employer name, address, contact details)
 3. Protected Ground(s) checked (from the Human Rights Code, s. 5)
 4. Social Area: Employment
-5. Summary of the Complaint — narrative of events (numbered paragraphs)
+5. Summary of the Complaint: narrative of events (numbered paragraphs)
 6. How the respondent discriminated (connection between protected ground and adverse treatment)
 7. Remedy Sought:
    - Monetary compensation for injury to dignity, feelings, and self-respect (s. 45.2)
@@ -81,7 +81,7 @@ DOCUMENT STRUCTURE (HRTO Form 1):
    - Reinstatement (if applicable)
    - Policy changes / training orders
    - Public interest remedies
-8. Other Proceedings — whether the applicant has filed an ESA complaint, civil action, or other proceeding (s. 34(11) election issue — filing an ESA complaint may bar HRTO)
+8. Other Proceedings: whether the applicant has filed an ESA complaint, civil action, or other proceeding (s. 34(11) election issue: filing an ESA complaint may bar the HRTO application)
 9. Accommodation needs for the hearing
 10. Declaration and signature
 
@@ -94,10 +94,10 @@ IMPORTANT NOTES:
     esa_complaint: `You are drafting an Employment Standards Act (ESA) complaint to the Ontario Ministry of Labour, Immigration, Training and Skills Development.
 
 DOCUMENT STRUCTURE:
-1. Employee Information (name, address, contact — use placeholders)
+1. Employee Information (name, address, contact details; use placeholders)
 2. Employer Information (legal name, operating name, address, industry)
 3. Employment Details (hire date, termination date, job title, wages, hours)
-4. Nature of Complaint — check applicable categories:
+4. Nature of Complaint (check the applicable categories):
    - Unpaid wages
    - Termination pay (s. 54-62)
    - Severance pay (s. 63-66)
@@ -107,8 +107,8 @@ DOCUMENT STRUCTURE:
    - Reprisal (s. 74)
    - Equal pay (s. 42)
    - Lie detector tests (s. 69)
-5. Detailed Description of Complaint — narrative of what happened
-6. Amount Claimed — itemised breakdown by category
+5. Detailed Description of Complaint: narrative of what happened
+6. Amount Claimed: itemised breakdown by category
 7. Supporting Documents List
 8. Whether the employee is still employed
 9. Whether the employee has filed a civil claim (ESA complaint may be barred if civil claim filed for same entitlements)
@@ -125,10 +125,11 @@ IMPORTANT NOTES:
   return `${prompts[appType]}
 
 CRITICAL RULES:
-1. Every factual claim must come from the intake data — never fabricate facts.
+1. Every factual claim must come from the intake data; never fabricate facts.
 2. Use Canadian English spelling throughout.
 3. Reference specific statute sections by number.
 4. All monetary amounts in Canadian dollars.
+5. Write in the professional register of Ontario legal practice. Do not use em dashes anywhere in the document; use commas, colons, semicolons, or parentheses instead.
 
 OUTPUT FORMAT:
 Produce the document in HTML format with semantic HTML (h1, h2, p, ol, li, strong, hr). No inline styles.`;
@@ -280,6 +281,6 @@ export function getApplicationFormName(appType: ApplicationType): string {
   switch (appType) {
     case 'notice_of_application': return 'Notice of Application (Form 14E)';
     case 'hrto_application': return 'HRTO Application (Form 1)';
-    case 'esa_complaint': return 'ESA Complaint — Ministry of Labour';
+    case 'esa_complaint': return 'ESA Complaint (Ministry of Labour)';
   }
 }

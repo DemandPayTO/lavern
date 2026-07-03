@@ -69,7 +69,7 @@ function buildSystemPrompt(tone: DemandLetterTone): string {
 ${toneInstructions[tone]}
 
 CRITICAL RULES:
-1. Every factual claim must come from the intake data provided — never fabricate facts.
+1. Every factual claim must come from the intake data provided; never fabricate facts.
 2. Case law citations must be accurate and real Ontario/SCC cases. Use only well-known precedents:
    - Bardal v Globe & Mail, [1960] OJ No 149 (reasonable notice factors)
    - Waksdale v Swegon North America Inc, 2020 ONCA 391 (termination clause invalidity)
@@ -85,16 +85,17 @@ CRITICAL RULES:
 4. Use Canadian English spelling throughout (honour, labour, behaviour, etc.).
 5. Reference specific ESA sections by number (e.g. "section 57 of the Employment Standards Act, 2000").
 6. All monetary amounts in Canadian dollars.
+7. Write in the professional register of Ontario legal practice. Do not use em dashes anywhere in the document; use commas, colons, semicolons, or parentheses instead.
 
 OUTPUT FORMAT:
 Produce the letter in HTML format. Use semantic HTML:
-- <h1> for the letter title (not displayed — use as document title)
+- <h1> for the letter title (not displayed; use as the document title)
 - <p> for paragraphs
 - <strong> for emphasis
 - <ol> and <li> for numbered lists (e.g. damages particulars)
-- No inline styles, no classes — clean semantic HTML only.
+- No inline styles, no classes; clean semantic HTML only.
 
-Do NOT include letterhead, date, or address block — those come from the firm's template. Start with the salutation ("Dear [name/counsel]") and end with the signature block.`;
+Do NOT include letterhead, date, or address block; those come from the firm's template. Start with the salutation ("Dear [name/counsel]") and end with the signature block.`;
 }
 
 function buildUserPrompt(req: DemandLetterRequest): string {
@@ -117,16 +118,16 @@ function buildUserPrompt(req: DemandLetterRequest): string {
   // Build approved issues description
   const issueDescriptions = req.approvedIssues.map(code => {
     const descriptions: Record<string, string> = {
-      wrongful_dismissal: 'Wrongful dismissal — common law reasonable notice (Bardal factors)',
+      wrongful_dismissal: 'Wrongful dismissal: common law reasonable notice (Bardal factors)',
       termination_clause_invalidity: 'Termination clause is invalid or unenforceable',
       waksdale_at_any_time: 'Termination clause contains "at any time" language (Waksdale / Dufault risk)',
       machtinger_below_esa: 'Termination clause provides less than ESA minimums (Machtinger)',
       no_fresh_consideration: 'Termination clause added mid-employment without fresh consideration',
       dufault_language: 'Termination clause language fails Dufault analysis',
-      termination_for_cause: 'Employer alleged just cause — challenge under McKinley proportionality',
+      termination_for_cause: 'Employer alleged just cause; challenge under McKinley proportionality',
       constructive_dismissal: 'Constructive dismissal (Potter test)',
       inducement: 'Client was induced from secure prior employment (Wallace/Ceccol)',
-      successor_employer: 'Successor employer — tenure includes predecessor service',
+      successor_employer: 'Successor employer: tenure includes predecessor service',
       esa_severance: 'ESA statutory entitlements (notice pay, severance pay)',
       human_rights_overlay: 'Human rights violation (discrimination, Code-protected grounds)',
       disability_accommodation: 'Failure to accommodate disability (duty to accommodate to point of undue hardship)',
@@ -138,7 +139,7 @@ function buildUserPrompt(req: DemandLetterRequest): string {
       non_compete_void: 'Non-compete clause void (ESA s. 67.2 or common law unreasonableness)',
       non_solicitation_unenforceable: 'Non-solicitation clause unenforceable (Shafron test)',
       ohsa_reprisal: 'OHSA reprisal (s. 50 reverse onus)',
-      fixed_term_contract: 'Fixed-term contract — entitled to balance of term',
+      fixed_term_contract: 'Fixed-term contract: entitled to the balance of the term',
       esa_reprisal: 'ESA reprisal (s. 74 reverse onus)',
       punitive_damages: 'Punitive damages',
       age_elongation: 'Age as a Bardal factor extending notice period',
@@ -165,8 +166,8 @@ function buildUserPrompt(req: DemandLetterRequest): string {
 TERMINATION CLAUSE ANALYSIS:
 The employment agreement contains a termination clause. The clause text is:
 "${intake.termination_clause_text ?? '[not provided]'}"
-${intake.clause_added_mid_employment ? 'This clause was added AFTER the initial hiring — fresh consideration is an issue.' : ''}
-${intake.termination_clause_text?.toLowerCase().includes('at any time') ? 'The clause contains "at any time" language — Waksdale / Dufault analysis applies.' : ''}
+${intake.clause_added_mid_employment ? 'This clause was added AFTER the initial hiring; fresh consideration is an issue.' : ''}
+${intake.termination_clause_text?.toLowerCase().includes('at any time') ? 'The clause contains "at any time" language; the Waksdale / Dufault analysis applies.' : ''}
 Argue that this clause is invalid/unenforceable based on the approved issues.`;
   }
 
@@ -246,18 +247,18 @@ LETTER METADATA:
 - Firm: ${req.firmName}
 ${req.firmAddress ? `- Firm address: ${req.firmAddress}` : ''}
 - Response deadline: ${req.responseDeadlineDays} days from the date of the letter
-${limitation ? `- Limitation period expires: ${limitation.date} (${limitation.daysRemaining} days remaining${limitation.urgent ? ' — URGENT' : ''})` : ''}
+${limitation ? `- Limitation period expires: ${limitation.date} (${limitation.daysRemaining} days remaining${limitation.urgent ? '; URGENT' : ''})` : ''}
 
 STRUCTURE:
 1. Salutation
-2. Opening paragraph — identify the firm, the client, and the purpose
-3. Employment background — brief chronology
-4. Termination facts — what happened
-5. Legal analysis — one section per approved issue (cite relevant case law)
-6. Damages quantification — itemised list with amounts
-7. Demand — state the specific amount and terms
-8. Closing — response deadline, consequences of non-response, without-prejudice reservation
-9. Signature block — lawyer name and firm
+2. Opening paragraph: identify the firm, the client, and the purpose
+3. Employment background: brief chronology
+4. Termination facts: what happened
+5. Legal analysis: one section per approved issue (cite relevant case law)
+6. Damages quantification: itemised list with amounts
+7. Demand: state the specific amount and terms
+8. Closing: response deadline, consequences of non-response, without-prejudice reservation
+9. Signature block: lawyer name and firm
 
 Write the complete letter now.`;
 }

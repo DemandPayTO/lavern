@@ -37,6 +37,10 @@ const RESERVE: Record<string, number> = {
   referral_to_arbitration: 0.15,
   arbitration_brief: 1.0,
   dfr_response: 1.0,
+  merits_assessment: 1.0,
+  decline_letter: 0.15,
+  member_update: 0.15,
+  remedy_worksheet: 0,
 };
 /** Filings and referrals are deliberately one page; briefs are not. */
 const MIN_LENGTH: Record<string, number> = {
@@ -44,6 +48,10 @@ const MIN_LENGTH: Record<string, number> = {
   referral_to_arbitration: 800,
   arbitration_brief: 3500,
   dfr_response: 3000,
+  merits_assessment: 3000,
+  decline_letter: 1000,
+  member_update: 600,
+  remedy_worksheet: 500,
 };
 
 let spentUsd = 0;
@@ -91,8 +99,11 @@ const PATTERNS: Pattern[] = [
       investigation_conducted: false,
       remedy_sought: 'Reinstatement with full back pay, benefits, and seniority',
       back_pay_estimate: 96000,
+      wage_rate: 42.5, wage_rate_period: 'hour', hours_per_week: 40,
+      vacation_pay_percent: 6, benefits_load_percent: 12, pension_contrib_percent: 7,
+      interim_earnings: 8000,
     },
-    documents: ['grievance_filing', 'arbitration_brief'],
+    documents: ['grievance_filing', 'merits_assessment', 'remedy_worksheet', 'arbitration_brief'],
   },
   {
     key: 'g2-hr-suspension',
@@ -120,6 +131,14 @@ const PATTERNS: Pattern[] = [
       grievance_filed: true, grievance_filed_date: '2026-05-15',
       grievance_number: '2026-ONA-031', current_step: 'Step 2',
       last_step_response_date: '2026-06-25',
+      procedure_steps: [
+        { label: 'Step 1', employer_response_days: 5, advance_days: 5, day_kind: 'calendar' },
+        { label: 'Step 2', employer_response_days: 10, day_kind: 'calendar' },
+      ],
+      step_events: [
+        { step_label: 'Step 1', presented_date: '2026-05-15', response_date: '2026-05-20' },
+        { step_label: 'Step 2', presented_date: '2026-05-25', response_date: '2026-06-25' },
+      ],
       union_rep_present_at_meeting: true, investigation_conducted: true,
       prior_discipline: false,
       remedy_sought: 'Rescind the suspension, make whole, accommodate per medical restrictions, Code damages',
@@ -152,7 +171,7 @@ const PATTERNS: Pattern[] = [
       dfr_details: 'Grievor alleges the union "did nothing" and settled cheap; committee minutes, the legal opinion, and four written updates to the grievor exist.',
       remedy_sought: 'Dismissal of the s. 74 application',
     },
-    documents: ['dfr_response'],
+    documents: ['decline_letter', 'member_update', 'dfr_response'],
     additionalContext: 'The complaint alleges: (1) the union ignored two emails from the grievor in March 2026; (2) the decision was made to save money; (3) a steward called the grievor "a lost cause" in front of coworkers. Respond to each.',
   },
   {
@@ -278,6 +297,7 @@ async function main() {
           : html.includes(pattern.grievorLastName);
         const checks: Record<string, boolean> = {
           'no placeholder leakage': !PLACEHOLDER_RE.test(html),
+          'no em-dashes (house style)': !html.includes('—'),
           'grievor identified': grievorPresent,
           'employer name present': html.includes(pattern.employerFirstWord),
           [`substantive length (>${MIN_LENGTH[docType]} chars)`]: html.length > (MIN_LENGTH[docType] ?? 800),

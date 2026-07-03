@@ -140,7 +140,7 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
         if (!labour?.intake) continue;
         const grievor = [labour.intake.grievor_first_name, labour.intake.grievor_last_name].filter(Boolean).join(' ');
         const label = grievor
-          ? `${grievor}${labour.intake.grievance_number ? ` (#${labour.intake.grievance_number})` : ''} — ${labour.intake.employer_name ?? ''}`
+          ? `${grievor}${labour.intake.grievance_number ? ` (#${labour.intake.grievance_number})` : ''} v ${labour.intake.employer_name ?? ''}`
           : row.id;
         for (const d of computeGrievanceDeadlines(labour.intake)) {
           items.push({ matterId: row.id, matterLabel: label, ...d });

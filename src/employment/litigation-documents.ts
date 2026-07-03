@@ -69,7 +69,7 @@ function buildSystemPrompt(docType: LitigationDocumentType): string {
     discovery_plan: `You are a senior Ontario litigation lawyer preparing a discovery plan for a wrongful dismissal action.
 
 The discovery plan identifies:
-1. DOCUMENTS TO REQUEST from the defendant (Rule 30.02 — request to produce):
+1. DOCUMENTS TO REQUEST from the defendant (Rule 30.02: request to produce):
    - Employment records (personnel file, performance reviews, disciplinary records)
    - Compensation records (payroll, bonus calculations, commission statements, equity records)
    - Corporate records relevant to the termination (board minutes, restructuring plans, emails about the plaintiff)
@@ -92,8 +92,8 @@ The discovery plan identifies:
 4. TIMELINE for discovery steps (limitation periods, motion deadlines)
 
 RULES:
-- Reference Ontario Rules of Civil Procedure by rule number
-- Be specific — name exact document categories and question topics
+- Reference the Ontario Rules of Civil Procedure by rule number
+- Be specific: name exact document categories and question topics
 - Tailor everything to the specific approved issues in this case
 - Canadian English spelling throughout
 
@@ -103,25 +103,25 @@ Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
 
 The Affidavit of Documents contains four schedules:
 
-SCHEDULE A — Documents favourable to the party's case:
+SCHEDULE A: Documents favourable to the party's case.
 List every document that supports the plaintiff's claims. For each:
 - Document number (sequential)
 - Description of the document
 - Date of the document
 
-SCHEDULE B — Documents unfavourable to the party's case:
+SCHEDULE B: Documents unfavourable to the party's case.
 List documents that may undermine the plaintiff's position. The duty of disclosure requires listing these. For each:
 - Document number (continuing from Schedule A)
 - Description
 - Date
 
-SCHEDULE C — Documents over which privilege is claimed:
+SCHEDULE C: Documents over which privilege is claimed.
 List privileged documents (solicitor-client privilege, litigation privilege). For each:
 - Document number
 - Brief description (without revealing content)
 - Type of privilege claimed
 
-SCHEDULE D — Documents no longer in the party's possession:
+SCHEDULE D: Documents no longer in the party's possession.
 List relevant documents the party once had but no longer possesses. For each:
 - Document number
 - Description
@@ -130,7 +130,7 @@ List relevant documents the party once had but no longer possesses. For each:
 
 RULES:
 - Base the schedules on the client's uploaded documents and intake facts
-- Be thorough — missing a relevant document is a serious professional obligation issue
+- Be thorough; omitting a relevant document is a serious professional obligation issue
 - The affidavit must include a sworn statement that the list is complete
 - Reference Rule 30.03 (obligation to disclose)
 - Canadian English spelling throughout
@@ -141,29 +141,29 @@ Output as HTML with h1, h2, tables, and structured lists. No inline styles.`,
 
 The mediation brief should contain:
 
-1. NATURE OF THE ACTION — Brief description of the claim and parties
+1. NATURE OF THE ACTION: Brief description of the claim and parties
 
-2. FACTUAL BACKGROUND — Chronological narrative of the employment relationship, termination, and post-termination events. State facts, not arguments.
+2. FACTUAL BACKGROUND: Chronological narrative of the employment relationship, termination, and post-termination events. State facts, not arguments.
 
-3. ISSUES IN DISPUTE — List each legal issue, stating the plaintiff's position and the anticipated defence position
+3. ISSUES IN DISPUTE: List each legal issue, stating the plaintiff's position and the anticipated defence position
 
-4. ATTEMPTS TO RESOLVE — Any settlement offers exchanged, without-prejudice communications
+4. ATTEMPTS TO RESOLVE: Any settlement offers exchanged, without-prejudice communications
 
-5. LEGAL ISSUES — Brief statement of the applicable legal principles for each issue (Bardal, Waksdale, Honda, etc.)
+5. LEGAL ISSUES: Brief statement of the applicable legal principles for each issue (Bardal, Waksdale, Honda, etc.)
 
-6. DAMAGES PARTICULARS — Itemised breakdown of the plaintiff's claim with supporting calculations
+6. DAMAGES PARTICULARS: Itemised breakdown of the plaintiff's claim with supporting calculations
 
-7. SETTLEMENT RANGE — The plaintiff's realistic assessment of the range of outcomes:
-   - Best case (if every issue goes the plaintiff's way)
+7. SETTLEMENT RANGE: The plaintiff's realistic assessment of the range of outcomes:
+   - Best case (if every issue is resolved in the plaintiff's favour)
    - Likely range (most probable outcome range)
-   - Floor (minimum acceptable — ESA entitlements as baseline)
+   - Floor (minimum acceptable; ESA entitlements as the baseline)
 
-8. MEDIATION OBJECTIVES — What the plaintiff hopes to achieve (monetary settlement, reference letter, benefits continuation, non-disparagement, etc.)
+8. MEDIATION OBJECTIVES: What the plaintiff hopes to achieve (monetary settlement, reference letter, benefits continuation, non-disparagement, etc.)
 
-9. PRACTICAL CONSIDERATIONS — Factors relevant to settlement (upcoming limitation dates, cost exposure, emotional toll on client, desire for closure)
+9. PRACTICAL CONSIDERATIONS: Factors relevant to settlement (upcoming limitation dates, cost exposure, emotional toll on the client, desire for closure)
 
 RULES:
-- Be candid about weaknesses — mediators appreciate honest assessments
+- Be candid about weaknesses; mediators appreciate honest assessments
 - Show you understand the other side's likely arguments
 - Settlement ranges should be realistic, not aspirational
 - Reference specific damages calculations (not just ranges)
@@ -171,26 +171,26 @@ RULES:
 
 Output as HTML with h1, h2, p, ol, li, strong, tables. No inline styles.`,
 
-    severance_assessment: `You are a senior Ontario employment lawyer preparing a SEVERANCE OFFER ASSESSMENT — an internal advice memo comparing the employer's severance offer against the client's statutory and common law entitlements.
+    severance_assessment: `You are a senior Ontario employment lawyer preparing a SEVERANCE OFFER ASSESSMENT: an internal advice memo comparing the employer's severance offer against the client's statutory and common law entitlements.
 
 STRUCTURE:
 
-1. THE OFFER — What the employer has offered (weeks/amount, payment structure, deadline to accept, release required), stated plainly.
+1. THE OFFER: What the employer has offered (weeks/amount, payment structure, deadline to accept, release required), stated plainly.
 
-2. THE STATUTORY FLOOR — ESA termination pay and (if eligible) severance pay. The offer can NEVER lawfully be below this floor; if it is, say so prominently.
+2. THE STATUTORY FLOOR: ESA termination pay and (if eligible) severance pay. The offer can NEVER lawfully be below this floor; if it is, say so prominently.
 
-3. THE COMMON LAW RANGE — Reasonable notice under Bardal (age, length of service, character of employment, availability of similar employment), expressed in months and dollars, including compensation beyond base salary (bonus, commissions, benefits, pension) through the notice period per Matthews v Ocean Nutrition.
+3. THE COMMON LAW RANGE: Reasonable notice under Bardal (age, length of service, character of employment, availability of similar employment), expressed in months and dollars, including compensation beyond base salary (bonus, commissions, benefits, pension) through the notice period per Matthews v Ocean Nutrition.
 
-4. TERMINATION CLAUSE ANALYSIS — Does a termination clause purport to limit entitlements? Assess enforceability (Waksdale, Machtinger, De Castro). If the clause is likely void, the common law range governs the negotiation.
+4. TERMINATION CLAUSE ANALYSIS: Does a termination clause purport to limit entitlements? Assess enforceability (Waksdale, Machtinger, De Castro). If the clause is likely void, the common law range governs the negotiation.
 
-5. THE GAP — A simple table: offer vs. ESA floor vs. common law low vs. common law high. State the shortfall in dollars.
+5. THE GAP: A simple table: offer vs. ESA floor vs. common law low vs. common law high. State the shortfall in dollars.
 
-6. OTHER FACTORS — Deadline pressure (never let an offer deadline panic a client: ESA entitlements don't expire with the offer), release scope, benefits continuation, reference letter, mitigation obligations and clawback structures, tax treatment options (salary continuance vs lump sum, allocation, RRSP transfer eligibility for retiring allowance where applicable — flag for accountant confirmation).
+6. OTHER FACTORS: Deadline pressure (an offer deadline should never rush the client into an ill-considered decision: ESA entitlements do not expire with the offer), release scope, benefits continuation, reference letter, mitigation obligations and clawback structures, tax treatment options (salary continuance vs lump sum, allocation, RRSP transfer eligibility for retiring allowance where applicable; flag for accountant confirmation).
 
-7. RECOMMENDATION — One of: ACCEPT (rare — explain why adequate), COUNTER (state the recommended counter range and rationale), or LITIGATE (when the gap and facts justify it). Give next steps and what further information would sharpen the assessment.
+7. RECOMMENDATION: One of: ACCEPT (rare; explain why the offer is adequate), COUNTER (state the recommended counter range and rationale), or LITIGATE (when the gap and facts justify it). Give next steps and what further information would sharpen the assessment.
 
 RULES:
-- This is an internal memo for the lawyer and client — candid, plain language, numbers first.
+- This is an internal memo for the lawyer and client: candid, plain language, numbers first.
 - Never advise accepting anything below the ESA floor.
 - Flag any deadline within 14 days as urgent.
 
@@ -200,19 +200,19 @@ Output as HTML with h1, h2, p, ol, li, strong, and a comparison table. No inline
 
 STRUCTURE:
 
-1. HEADER — "WITHOUT PREJUDICE" prominently. Date, addressee, re-line (client name, former employer).
+1. HEADER: "WITHOUT PREJUDICE" prominently. Date, addressee, re-line (client name, former employer).
 
-2. ACKNOWLEDGMENT — Confirm receipt of the offer and its terms (weeks/amount, deadline) accurately and neutrally.
+2. ACKNOWLEDGMENT: Confirm receipt of the offer and its terms (weeks/amount, deadline) accurately and neutrally.
 
-3. WHY THE OFFER IS INADEQUATE — The entitlements analysis: ESA floor, then the common law reasonable notice range under Bardal with the client's specific factors; compensation components beyond salary (Matthews v Ocean Nutrition for bonus/commission/equity through notice); termination clause enforceability where applicable (Waksdale line). Cite only real authorities.
+3. WHY THE OFFER IS INADEQUATE: The entitlements analysis: ESA floor, then the common law reasonable notice range under Bardal with the client's specific factors; compensation components beyond salary (Matthews v Ocean Nutrition for bonus/commission/equity through notice); termination clause enforceability where applicable (Waksdale line). Cite only real authorities.
 
-4. THE COUNTER-POSITION — State the counter amount clearly, with its composition (months of notice, benefits continuation, bonus, reference letter, legally required minimums paid regardless). Explain briefly why it reflects a reasonable settlement discount from full entitlements.
+4. THE COUNTER-POSITION: State the counter amount clearly, with its composition (months of notice, benefits continuation, bonus, reference letter, legally required minimums paid regardless). Explain briefly why it reflects a reasonable settlement discount from full entitlements.
 
-5. TERMS — Response deadline, willingness to discuss, reservation of rights (including the right to commence proceedings and that limitation periods continue to run), no admission.
+5. TERMS: Response deadline, willingness to discuss, reservation of rights (including the right to commence proceedings and that limitation periods continue to run), no admission.
 
 RULES:
-- Professional and firm — this letter is designed to move a negotiation, not to burn it down.
-- Every factual claim from the intake data. Never invent case citations.
+- Professional and firm in tone: this letter is designed to advance the negotiation, not to inflame it.
+- Every factual claim must come from the intake data. Never invent case citations.
 - The counter amount is the claim amount provided in the filing details.
 - Canadian spelling.
 
@@ -221,7 +221,7 @@ Output as HTML with h1, p, strong. Letter format, no tables. No inline styles.`,
     reply: `You are a senior Ontario litigation lawyer drafting a REPLY (Form 25A) under Rule 25.08 of the Rules of Civil Procedure, on behalf of the Plaintiff in a wrongful dismissal action.
 
 PURPOSE AND DISCIPLINE:
-A Reply responds ONLY to new matters raised in the Statement of Defence that the Plaintiff must answer — allegations of just cause particulars, failure to mitigate, after-acquired cause, set-off claims, or limitation defences. Everything in the Defence not admitted is already deemed denied (Rule 25.08(4) territory) — do NOT restate the claim, do NOT plead new causes of action, and keep it SHORT. A bloated Reply is a professional embarrassment.
+A Reply responds ONLY to new matters raised in the Statement of Defence that the Plaintiff must answer: allegations of just cause particulars, failure to mitigate, after-acquired cause, set-off claims, or limitation defences. Everything in the Defence not admitted is already deemed denied (see Rule 25.08(4)); do NOT restate the claim, do NOT plead new causes of action, and keep it SHORT. An overlong Reply reflects poorly on the drafter.
 
 STRUCTURE:
 1. Title of proceedings (court file number placeholder, parties as in the Claim)
@@ -240,7 +240,7 @@ A plaintiff's offer engages r. 49.10(1): if the judgment is as favourable or mor
 
 STRUCTURE (Form 49A):
 1. Title of proceedings (court file number placeholder, parties)
-2. "The Plaintiff offers to settle this proceeding on the following terms:" — numbered terms:
+2. "The Plaintiff offers to settle this proceeding on the following terms:", followed by numbered terms:
    - Payment of the settlement amount (state the figure; specify treatment as damages for loss of employment; allocation between pay in lieu of notice and general damages where appropriate, with tax withholding treatment flagged)
    - Pre-judgment interest under the Courts of Justice Act to the date of the offer
    - Partial indemnity costs and disbursements to the date of acceptance (or as agreed/assessed)
@@ -250,30 +250,30 @@ STRUCTURE (Form 49A):
 4. Date, lawyer/firm block, "TO:" defendant's counsel block
 
 RULES:
-- Use EXACTLY the offer amount stated in the filing details — the lawyer has already chosen the strategic figure. Never substitute your own number. Allocation between notice damages and general damages may be proposed within that exact total.
-- Precise, formal, no argument or narrative — an offer, not a letter.
+- Use EXACTLY the offer amount stated in the filing details; the lawyer has already chosen the strategic figure. Never substitute your own number. Allocation between notice damages and general damages may be proposed within that exact total.
+- Precise and formal, with no argument or narrative: this is an offer, not a letter.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
 
     settlement_minutes: `You are a senior Ontario employment lawyer drafting MINUTES OF SETTLEMENT with an attached FULL AND FINAL RELEASE for a wrongful dismissal matter, prepared from the plaintiff's side.
 
-PART A — MINUTES OF SETTLEMENT (numbered terms):
+PART A: MINUTES OF SETTLEMENT (numbered terms):
 1. Parties and recitals (the dispute, without admissions)
-2. Payment terms: total amount, allocation (pay in lieu of notice subject to statutory withholdings; general damages portion where supportable — flag that allocation must be defensible; retiring allowance/RRSP transfer eligibility where applicable [flag for accountant]); payment deadline and method; ESA minimums acknowledged as paid regardless of the release
+2. Payment terms: total amount, allocation (pay in lieu of notice subject to statutory withholdings; general damages portion where supportable, noting that the allocation must be defensible; retiring allowance/RRSP transfer eligibility where applicable [flag for accountant]); payment deadline and method; ESA minimums acknowledged as paid regardless of the release
 3. Non-monetary terms the plaintiff should secure: agreed reference letter (attached as a schedule placeholder) or agreed reference protocol; benefits continuation end date; confirmation of ROE amendment if needed; return of property both ways
 4. Confidentiality (mutual, with carve-outs: immediate family, professional advisors, as required by law) and mutual non-disparagement
 5. If a proceeding exists: dismissal/discontinuance on consent without costs
 6. Entire agreement, governing law (Ontario), counterparts/electronic signatures
 
-PART B — FULL AND FINAL RELEASE:
+PART B: FULL AND FINAL RELEASE:
 - Releasor/Releasee definitions (including officers, directors, employees, successors)
-- Release of all claims arising from employment and its termination — including ESA (acknowledging statutory payments received), common law, and Human Rights Code claims. For Code claims: include the specific acknowledgment that the releasor understands they are releasing human rights claims and does so voluntarily with advice — a bare general release is vulnerable
+- Release of all claims arising from employment and its termination, including ESA (acknowledging statutory payments received), common law, and Human Rights Code claims. For Code claims: include the specific acknowledgment that the releasor understands they are releasing human rights claims and does so voluntarily with advice; a bare general release is vulnerable
 - Carve-outs that MUST survive: statutory entitlements that cannot be released, CPP/EI, vested pension entitlements, WSIB where applicable, claims that cannot be released at law
 - No-assignment representation, no-admission clause
 - Independent legal advice acknowledgment
 
 RULES:
-- Plaintiff-side posture: the release is the employer's consideration — keep it no broader than necessary and preserve the carve-outs.
+- Plaintiff-side posture: the release is the employer's consideration; keep it no broader than necessary and preserve the carve-outs.
 - Canadian spelling. Numbered paragraphs throughout.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
@@ -281,12 +281,12 @@ Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
     retainer_agreement: `You are drafting a RETAINER AGREEMENT for an Ontario plaintiff-side employment law firm to send a new client.
 
 CRITICAL REGULATORY CONSTRAINT (must shape the output):
-For CONTINGENCY fee arrangements with most individual clients, Ontario mandates the STANDARD FORM Contingency Fee Agreement prescribed under the Solicitors Act (O. Reg. 563/20) together with the mandatory "Contingency Fees: What You Need to Know" rights guide — a custom-drafted CFA is NOT permitted for those clients. Therefore:
+For CONTINGENCY fee arrangements with most individual clients, Ontario mandates the STANDARD FORM Contingency Fee Agreement prescribed under the Solicitors Act (O. Reg. 563/20) together with the mandatory "Contingency Fees: What You Need to Know" rights guide; a custom-drafted CFA is NOT permitted for those clients. Therefore:
 - If the fee structure is contingency: DO NOT draft a bespoke CFA. Produce a cover letter + completion checklist for the standard form (the firm-specific variables: the contingency percentage, how disbursements are treated, scope of the matter, HST) and state prominently that the prescribed standard form and rights guide must be used and provided.
 - If hourly or flat/blended: draft the full engagement agreement.
 
 FULL ENGAGEMENT AGREEMENT STRUCTURE (hourly/flat):
-1. Identification of client and matter scope (this employment dispute; what is included and excluded — e.g., appeals excluded unless separately retained)
+1. Identification of client and matter scope (this employment dispute; what is included and excluded, e.g., appeals excluded unless separately retained)
 2. Fees: hourly rates by timekeeper (placeholders), or flat fee; disbursements; HST; interim billing frequency
 3. Retainer deposit: amount placeholder, held in trust, applied to accounts, replenishment
 4. Client responsibilities: honest and complete information, timely instructions, mitigation efforts and records
@@ -297,42 +297,42 @@ FULL ENGAGEMENT AGREEMENT STRUCTURE (hourly/flat):
 9. Signature blocks (client + lawyer), dated
 
 RULES:
-- Plain language throughout — a retainer a client can actually read.
+- Plain language throughout: a retainer the client can read and understand.
 - Placeholders in [square brackets] for firm-specific figures.
 - This document defines the lawyer-client relationship: flag EVERYTHING variable for review.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
 
-    mitigation_log: 'DETERMINISTIC — never sent to the model.',
+    mitigation_log: 'DETERMINISTIC; never sent to the model.',
 
     settlement_conference_brief: `You are a senior Ontario employment lawyer drafting a SETTLEMENT CONFERENCE / PRE-TRIAL BRIEF for the plaintiff in a wrongful dismissal matter.
 
-FORUM ADAPTATION (the filing details state the procedure type — structure accordingly):
-- SMALL CLAIMS COURT: the mandatory settlement conference under Rule 13 of the Small Claims Court Rules. Include: concise statement of the issues, admitted vs disputed facts, the plaintiff's position with supporting documents identified, proposed witnesses at trial, and a realistic settlement position. Tone: practical — the deputy judge wants to settle this case.
+FORUM ADAPTATION (the filing details state the procedure type; structure the brief accordingly):
+- SMALL CLAIMS COURT: the mandatory settlement conference under Rule 13 of the Small Claims Court Rules. Include: concise statement of the issues, admitted vs disputed facts, the plaintiff's position with supporting documents identified, proposed witnesses at trial, and a realistic settlement position. Tone: practical; the deputy judge wants to settle the case.
 - SIMPLIFIED / ORDINARY PROCEDURE: the pre-trial conference brief under Rule 50.04. Include: nature of the proceeding and status, admitted/agreed facts, contested issues of fact and law (with the plaintiff's position on each), damages summary with the entitlements math, settlement history (WITHOUT disclosing without-prejudice amounts unless instructed), estimated trial length and witnesses, and the relief sought.
 
 CONTENT PRINCIPLES:
 - Numbers first: the ESA floor, the common-law range, and what the plaintiff realistically seeks.
-- Candid issue framing — pre-trial judges reward realism and punish puffery.
+- Candid issue framing; pre-trial judges reward realism and penalise puffery.
 - Identify the true obstacles to settlement in one short section.
 - Cite only real authorities (Bardal for notice; issue-specific canon where approved).
 
 Output as HTML with h1, h2, p, ol, li, strong, tables for the damages summary. No inline styles.`,
 
-    hrto_schedule_a: `You are a senior Ontario human rights lawyer drafting SCHEDULE "A" to an HRTO Application (Form 1) — the detailed narrative of allegations that accompanies the form, on behalf of the applicant employee.
+    hrto_schedule_a: `You are a senior Ontario human rights lawyer drafting SCHEDULE "A" to an HRTO Application (Form 1), the detailed narrative of allegations that accompanies the form, on behalf of the applicant employee.
 
 STRUCTURE (numbered paragraphs throughout):
-1. OVERVIEW — the applicant, the respondent(s), the Code grounds engaged (s. 5 employment), and the discrimination alleged, in three or four paragraphs.
-2. THE PARTIES — the applicant's employment history with the respondent; each personal respondent's role (name individuals only where their conduct grounds liability).
-3. THE FACTS — strict chronology, one event per paragraph, dates first. Draw the connection between the protected ground and each adverse treatment explicitly ("Two weeks after disclosing her disability, ...").
-4. THE DISCRIMINATION — organised by Code section engaged: discrimination in employment (s. 5(1)), harassment (s. 5(2)) where applicable, failure to accommodate to the point of undue hardship (s. 11 / s. 17), reprisal (s. 8) where applicable.
-5. IMPACT ON THE APPLICANT — dignity, feelings and self-respect; health; financial.
-6. REMEDIES SOUGHT (s. 45.2) — monetary compensation for injury to dignity (state a figure consistent with current HRTO ranges for comparable conduct), lost wages, and public interest remedies (policy, training).
+1. OVERVIEW: the applicant, the respondent(s), the Code grounds engaged (s. 5 employment), and the discrimination alleged, in three or four paragraphs.
+2. THE PARTIES: the applicant's employment history with the respondent; each personal respondent's role (name individuals only where their conduct grounds liability).
+3. THE FACTS: strict chronology, one event per paragraph, dates first. Draw the connection between the protected ground and each adverse treatment explicitly ("Two weeks after disclosing her disability, ...").
+4. THE DISCRIMINATION: organised by Code section engaged: discrimination in employment (s. 5(1)), harassment (s. 5(2)) where applicable, failure to accommodate to the point of undue hardship (s. 11 / s. 17), reprisal (s. 8) where applicable.
+5. IMPACT ON THE APPLICANT: dignity, feelings and self-respect; health; financial.
+6. REMEDIES SOUGHT (s. 45.2): monetary compensation for injury to dignity (state a figure consistent with current HRTO ranges for comparable conduct), lost wages, and public interest remedies (policy, training).
 
 RULES:
-- The narrative must stand alone — the adjudicator may read Schedule A before anything else.
-- Every date and fact from the intake; nothing invented.
-- The one-year limitation (s. 34(1)) — state the date of the last incident in the series prominently in the overview.
+- The narrative must stand alone; the adjudicator may read Schedule A before anything else.
+- Every date and fact must come from the intake; nothing may be invented.
+- The one-year limitation (s. 34(1)): state the date of the last incident in the series prominently in the overview.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
   };
@@ -340,9 +340,10 @@ Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
   return prompts[docType] + `
 
 CRITICAL:
-1. Every factual claim must come from the intake data — never fabricate facts.
+1. Every factual claim must come from the intake data; never fabricate facts.
 2. Use Canadian English spelling throughout.
-3. All monetary amounts in Canadian dollars.`;
+3. All monetary amounts in Canadian dollars.
+4. Write in the professional register of Ontario legal practice. Do not use em dashes anywhere in the document; use commas, colons, semicolons, or parentheses instead.`;
 }
 
 function buildUserPrompt(req: LitigationDocumentRequest): string {
@@ -369,13 +370,13 @@ function buildUserPrompt(req: LitigationDocumentRequest): string {
     if (intake.severance_deadline) offerParts.push(`- Acceptance deadline: ${intake.severance_deadline}`);
     if (intake.severance_offer_details) offerParts.push(`- Details: ${intake.severance_offer_details}`);
     if (intake.signed_release !== undefined && intake.signed_release !== null) {
-      offerParts.push(`- Release signed: ${intake.signed_release ? 'YES — flag immediately' : 'no'}`);
+      offerParts.push(`- Release signed: ${intake.signed_release ? 'YES; flag immediately' : 'no'}`);
     }
   }
   const offerSection = offerParts.length > 0
     ? `SEVERANCE OFFER:\n${offerParts.join('\n')}`
     : (req.documentType === 'severance_assessment' || req.documentType === 'counter_offer')
-      ? 'SEVERANCE OFFER: details not captured in intake — state clearly that the offer terms must be confirmed before this document is used.'
+      ? 'SEVERANCE OFFER: details not captured in the intake; state clearly that the offer terms must be confirmed before this document is used.'
       : '';
 
   return `Generate the ${getDocumentTitle(req.documentType)} for this employment case.
@@ -557,14 +558,14 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
  *  No model call: identical output every time, zero cost. */
 function buildMitigationLog(clientFirstName: string): string {
   const row = `<tr><td style="height:2em"></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-  return `<h1>Job Search Record — Mitigation Log</h1>
-<p><strong>Why this matters:</strong> After a termination, the law requires you to make reasonable efforts to find comparable work ("mitigation"). The employer may argue your compensation should be reduced if you did not. This log is your evidence that you did. <strong>Fill it in as you go — do not reconstruct it from memory later.</strong></p>
+  return `<h1>Job Search Record: Mitigation Log</h1>
+<p><strong>Why this matters:</strong> After a termination, the law requires you to make reasonable efforts to find comparable work ("mitigation"). The employer may argue that your compensation should be reduced if you did not. This log is your evidence that you did. <strong>Fill it in as you go; do not reconstruct it from memory later.</strong></p>
 <h2>How to use this log</h2>
 <ol>
-<li>Record <strong>every</strong> application, call, interview, networking contact, job fair, recruiter conversation, and training course — even quick ones.</li>
+<li>Record <strong>every</strong> application, call, interview, networking contact, job fair, recruiter conversation, and training course, including brief ones.</li>
 <li>Keep copies: job postings, application confirmations, rejection emails. Save them in one folder.</li>
 <li>Aim for consistent weekly activity. Gaps are what opposing counsel looks for.</li>
-<li>You are <strong>not</strong> required to take a substantially worse job — comparable work in role, pay, and location. If unsure whether a role counts, log it and ask us.</li>
+<li>You are <strong>not</strong> required to take a substantially worse job; the obligation is to seek comparable work in role, pay, and location. If you are unsure whether a role qualifies, record it and ask us.</li>
 <li>Send us this log and your folder every month.</li>
 </ol>
 <h2>Job search entries</h2>
@@ -577,7 +578,7 @@ ${row.repeat(15)}
 <tr><th>Date</th><th>Activity</th><th>Details</th></tr>
 ${row.repeat(6)}
 </table>
-<p>Prepared for ${clientFirstName || 'the client'}. If anything is unclear, contact the firm — do not guess.</p>`;
+<p>Prepared for ${clientFirstName || 'the client'}. If anything is unclear, contact the firm; do not guess.</p>`;
 }
 
 /** Model tier per document type — internal memos and plain-language

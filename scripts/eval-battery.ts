@@ -257,6 +257,7 @@ async function main() {
 
         const checks: Record<string, boolean> = {
           'no placeholder leakage': !PLACEHOLDER_RE.test(html),
+          'no em-dashes (house style)': !html.includes('—'),
           'client name present': html.includes(pattern.intake.client_last_name as string),
           'employer name present': html.includes(pattern.employerName.split(' ')[0]),
           'substantive length (>2k chars)': html.length > 2000,

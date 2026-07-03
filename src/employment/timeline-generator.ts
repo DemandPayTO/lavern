@@ -34,8 +34,8 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
       date: intake.contract_signed_date,
       label: 'Employment contract signed',
       description: intake.employer_legal_name
-        ? `Signed employment agreement with ${intake.employer_legal_name}.`
-        : 'Signed employment agreement.',
+        ? `The client signed an employment agreement with ${intake.employer_legal_name}.`
+        : 'The client signed an employment agreement.',
       category: 'employment',
       source: 'intake_form',
     });
@@ -46,8 +46,8 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
       date: intake.first_day_of_work,
       label: 'First day of work',
       description: intake.job_title
-        ? `Started as ${intake.job_title}${intake.employer_legal_name ? ` at ${intake.employer_legal_name}` : ''}.`
-        : 'First day of employment.',
+        ? `The client commenced employment as ${intake.job_title}${intake.employer_legal_name ? ` at ${intake.employer_legal_name}` : ''}.`
+        : 'The client\'s first day of employment.',
       category: 'employment',
       source: 'intake_form',
     });
@@ -58,8 +58,8 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
       date: intake.hire_date,
       label: 'Hire date',
       description: intake.job_title
-        ? `Hired as ${intake.job_title}${intake.employer_legal_name ? ` at ${intake.employer_legal_name}` : ''}.`
-        : 'Date of hire.',
+        ? `The client was hired as ${intake.job_title}${intake.employer_legal_name ? ` at ${intake.employer_legal_name}` : ''}.`
+        : 'The client\'s date of hire.',
       category: 'employment',
       source: 'intake_form',
     });
@@ -78,7 +78,7 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
     events.push({
       date: intake.acquisition_date,
       label: 'Employer acquisition/restructuring',
-      description: `${intake.predecessor_employer_name} acquired/restructured — employment continued with ${intake.employer_legal_name ?? 'successor employer'}.`,
+      description: `${intake.predecessor_employer_name} was acquired or restructured; the client's employment continued with ${intake.employer_legal_name ?? 'the successor employer'}.`,
       category: 'employment',
       source: 'intake_form',
     });
@@ -90,7 +90,7 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
     events.push({
       date: intake.clause_signed_date,
       label: 'Termination clause added mid-employment',
-      description: 'New or amended termination clause introduced after initial hiring. Fresh consideration may be an issue.',
+      description: 'A new or amended termination clause was introduced after the initial hiring. Fresh consideration may be in issue.',
       category: 'legal',
       source: 'intake_form',
     });
@@ -108,7 +108,7 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
     events.push({
       date: intake.termination_date,
       label: intake.is_constructive_dismissal ? 'Constructive dismissal' : 'Termination',
-      description: `Employment ended${reasons.length > 0 ? ` (${reasons.join(', ')})` : ''}.${intake.termination_reasons ? ` Stated reason: ${intake.termination_reasons}` : ''}`,
+      description: `The employment ended${reasons.length > 0 ? ` (${reasons.join(', ')})` : ''}.${intake.termination_reasons ? ` Stated reason: ${intake.termination_reasons}` : ''}`,
       category: 'termination',
       source: 'intake_form',
     });
@@ -118,7 +118,7 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
     events.push({
       date: intake.last_day_worked,
       label: 'Last day worked',
-      description: 'Last day the client physically attended work.',
+      description: 'The last day on which the client attended work.',
       category: 'termination',
       source: 'intake_form',
     });
@@ -130,7 +130,7 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
     events.push({
       date: intake.severance_deadline,
       label: 'Severance offer deadline',
-      description: `Deadline to accept severance offer${intake.severance_weeks_offered ? ` (${intake.severance_weeks_offered} weeks offered)` : ''}.`,
+      description: `Deadline for the client to accept the severance offer${intake.severance_weeks_offered ? ` (${intake.severance_weeks_offered} weeks offered)` : ''}.`,
       category: 'legal',
       source: 'intake_form',
     });
@@ -143,8 +143,8 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
       date: intake.new_employment_start_date,
       label: 'New employment started',
       description: intake.new_employment_salary
-        ? `Started new employment at $${intake.new_employment_salary.toLocaleString('en-CA')}/year.`
-        : 'Started new employment (mitigation).',
+        ? `The client commenced new employment at $${intake.new_employment_salary.toLocaleString('en-CA')} per year.`
+        : 'The client commenced new employment (mitigation).',
       category: 'mitigation',
       source: 'intake_form',
     });
@@ -160,7 +160,7 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
       events.push({
         date: limitationDate.toISOString().split('T')[0],
         label: 'Limitation period expires',
-        description: 'Two-year limitation period under the Limitations Act, 2002 (s. 4). Action must be commenced before this date.',
+        description: 'The two-year limitation period under the Limitations Act, 2002 (s. 4) expires. An action must be commenced before this date.',
         category: 'legal',
         source: 'system',
       });

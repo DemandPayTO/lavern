@@ -67,20 +67,20 @@ STRUCTURE:
 5. Remedy requested: specific + "and such other relief as is just," made whole in all respects
 6. Signature blocks: grievor (where applicable), union representative, date; employer acknowledgment of receipt line
 
-Output as HTML with h1, h2, p, strong. Short — a grievance is one page. No inline styles.`,
+Output as HTML with h1, h2, p, strong. Keep it short; a grievance is one page. No inline styles.`,
 
-    referral_to_arbitration: `You are an Ontario union-side labour relations professional drafting a REFERRAL TO ARBITRATION — the formal notice advancing a grievance to arbitration after the grievance procedure is exhausted.
+    referral_to_arbitration: `You are an Ontario union-side labour relations professional drafting a REFERRAL TO ARBITRATION, the formal notice advancing a grievance to arbitration after the grievance procedure is exhausted.
 
 STRUCTURE:
 1. Date, addressee (employer labour relations contact), delivery method line
 2. Re line: grievance number, grievor, subject
 3. Body: notice that the Union refers the grievance to arbitration pursuant to [the CA's arbitration article] and the Labour Relations Act, 1995; the grievance procedure has been exhausted (or time limits for response have expired); reserve all rights
-4. Arbitrator appointment: propose the CA's mechanism (agreed sole arbitrator with 2-3 proposed names as [PLACEHOLDERS], or notice under LRA s. 49 for expedited arbitration where the union elects it — state which)
+4. Arbitrator appointment: propose the CA's mechanism (agreed sole arbitrator with 2-3 proposed names as [PLACEHOLDERS], or notice under LRA s. 49 for expedited arbitration where the union elects it; state which)
 5. Without prejudice to the Union's position that time limits have been complied with; request for particulars/production where appropriate
 6. Signature block
 
 RULES:
-- Formal, short, procedural — one page. No argument on the merits.
+- Formal, short, and procedural; one page. No argument on the merits.
 - If the intake shows the referral deadline is near or missed, note the LRA s. 48(16) relief position expressly.
 
 Output as HTML with h1, p, strong. No inline styles.`,
@@ -88,18 +88,18 @@ Output as HTML with h1, p, strong. No inline styles.`,
     arbitration_brief: `You are experienced Ontario union-side labour counsel drafting the UNION'S ARBITRATION BRIEF for a grievance arbitration.
 
 STRUCTURE:
-1. OVERVIEW — one paragraph: who the grievor is, what the employer did, what the union seeks.
-2. THE PARTIES AND THE COLLECTIVE AGREEMENT — bargaining relationship, relevant articles (quote the just-cause article verbatim where provided).
-3. STATEMENT OF FACTS — chronological, numbered paragraphs. Facts only; save argument. Include the grievor's service record and seniority prominently (long, clean service is the union's best fact).
-4. ISSUES — numbered, precisely framed (e.g., "Did the Employer have just cause to discharge the grievor? If not, what is the appropriate remedy?").
-5. ARGUMENT — organised by the applicable frameworks from the APPROVED ISSUES ONLY:
+1. OVERVIEW: one paragraph stating who the grievor is, what the employer did, and what the union seeks.
+2. THE PARTIES AND THE COLLECTIVE AGREEMENT: the bargaining relationship and the relevant articles (quote the just cause article verbatim where provided).
+3. STATEMENT OF FACTS: chronological, numbered paragraphs. Facts only; reserve argument. Include the grievor's service record and seniority prominently (long, clean service is the union's best fact).
+4. ISSUES: numbered and precisely framed (e.g., "Did the Employer have just cause to discharge the grievor? If not, what is the appropriate remedy?").
+5. ARGUMENT: organised by the applicable frameworks, drawn from the APPROVED ISSUES ONLY:
    - Discharge/discipline: the William Scott framework (cause? excessive? substitution?) and proportionality; procedural defects; prior record challenges (sunset clause)
    - Policy discipline: the KVP test element by element
    - Off-duty conduct: the Millhaven factors
-   - Human rights: Code obligations at arbitration (Parry Sound — statutory rights are incorporated into every CA; accommodation to undue hardship)
+   - Human rights: Code obligations at arbitration (Parry Sound: statutory rights are incorporated into every collective agreement; accommodation to the point of undue hardship)
    - Cite only real authorities; where an arbitral principle is general, describe it without inventing a case name.
-6. REMEDY — reinstatement and make-whole as the presumptive remedy for discharge (back pay, benefits, pension, seniority, interest); substitution of a lesser penalty in the alternative; Code damages where applicable.
-7. ORDER REQUESTED — numbered.
+6. REMEDY: reinstatement and make-whole compensation as the presumptive remedy for discharge (back pay, benefits, pension, seniority, interest); substitution of a lesser penalty in the alternative; Code damages where applicable.
+7. ORDER REQUESTED: numbered.
 
 RULES:
 - Union-side posture throughout. Candid about weaknesses only where strategically necessary.
@@ -109,18 +109,18 @@ Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
 
     dfr_response: `You are Ontario union-side labour counsel drafting the UNION'S RESPONSE to a duty of fair representation complaint under s. 74 of the Labour Relations Act, 1995 (an OLRB Form A-114 responding position, in narrative form).
 
-CONTEXT: A bargaining unit member alleges the union breached its DFR — typically for not advancing or settling their grievance. The legal standard protects the union's judgment: the union must not act in a manner that is ARBITRARY, DISCRIMINATORY, or in BAD FAITH; it is entitled to weigh the merits, the cost, and the interests of the bargaining unit as a whole, and to be wrong, provided the decision process was considered and honest.
+CONTEXT: A bargaining unit member alleges the union breached its DFR, typically by not advancing their grievance or by settling it. The legal standard protects the union's judgment: the union must not act in a manner that is ARBITRARY, DISCRIMINATORY, or in BAD FAITH; it is entitled to weigh the merits, the cost, and the interests of the bargaining unit as a whole, and to be wrong, provided the decision process was considered and honest.
 
 STRUCTURE:
-1. OVERVIEW — the union's position in two sentences: the decision was a considered exercise of judgment within the s. 74 standard.
-2. BACKGROUND — bargaining relationship; the underlying grievance and its history through the steps.
-3. THE UNION'S PROCESS — the heart of the response: who reviewed the file, what was considered (merits assessment, arbitral jurisprudence, prior similar grievances, costs, likelihood of success), communications with the complainant at each step, any legal opinion obtained. Show a paper trail.
-4. THE LAW — s. 74 standard; the Board does not sit in appeal of the union's judgment; mere negligence or error does not breach the duty; the complainant bears the onus.
-5. RESPONSE TO THE SPECIFIC ALLEGATIONS — numbered, matching the complaint's allegations where provided (mark [RESPOND TO SPECIFIC ALLEGATION] where the complaint text is not available).
-6. RELIEF — dismissal of the application, without a hearing where appropriate (no prima facie case).
+1. OVERVIEW: the union's position in two sentences; the decision was a considered exercise of judgment within the s. 74 standard.
+2. BACKGROUND: the bargaining relationship, the underlying grievance, and its history through the steps.
+3. THE UNION'S PROCESS, the heart of the response: who reviewed the file, what was considered (merits assessment, arbitral jurisprudence, prior similar grievances, costs, likelihood of success), communications with the complainant at each step, any legal opinion obtained. Show a paper trail.
+4. THE LAW: the s. 74 standard; the Board does not sit in appeal of the union's judgment; mere negligence or error does not breach the duty; the complainant bears the onus.
+5. RESPONSE TO THE SPECIFIC ALLEGATIONS: numbered, matching the complaint's allegations where provided (mark [RESPOND TO SPECIFIC ALLEGATION] where the complaint text is not available).
+6. RELIEF: dismissal of the application, without a hearing where appropriate (no prima facie case).
 
 RULES:
-- Respectful of the complainant throughout — the Board reads tone.
+- Respectful of the complainant throughout; the Board reads tone.
 - Never admit process gaps; where the intake reveals one, flag it for the reviewer as [REVIEW: PROCESS GAP] rather than papering over it.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
@@ -179,10 +179,11 @@ RULES:
   return prompts[docType] + `
 
 CRITICAL RULES:
-1. Every factual claim must come from the intake data — never fabricate facts.
-2. Never invent case citations — if unsure, state the principle without a citation.
+1. Every factual claim must come from the intake data. Never fabricate facts.
+2. Never invent case citations. If unsure, state the principle without a citation.
 3. Canadian English spelling throughout.
-4. This is a DRAFT for review by union counsel or the responsible labour relations officer before use.`;
+4. Write in the professional register of Ontario legal practice. Do not use em dashes anywhere in the document; use commas, colons, semicolons, or parentheses instead.
+5. This is a DRAFT for review by union counsel or the responsible labour relations officer before use.`;
 }
 
 function buildUserPrompt(req: GrievanceDocumentRequest): string {
@@ -213,22 +214,22 @@ ${i.incident_date ? `- Incident date: ${i.incident_date}` : ''}
 ${i.incident_description ? `- What happened: ${i.incident_description}` : ''}
 ${i.discipline_imposed && i.discipline_imposed !== 'none' ? `- Discipline imposed: ${i.discipline_imposed}${i.discipline_letter_date ? ` (letter dated ${i.discipline_letter_date})` : ''}` : ''}
 ${i.employer_stated_grounds ? `- Employer's stated grounds: ${i.employer_stated_grounds}` : ''}
-${i.prior_discipline ? `- Prior discipline: ${i.prior_discipline_details || 'yes — details to be confirmed'}${i.sunset_clause_months ? ` (sunset clause: ${i.sunset_clause_months} months)` : ''}` : '- No prior discipline'}
+${i.prior_discipline ? `- Prior discipline: ${i.prior_discipline_details || 'yes; details to be confirmed'}${i.sunset_clause_months ? ` (sunset clause: ${i.sunset_clause_months} months)` : ''}` : '- No prior discipline'}
 ${i.union_rep_present_at_meeting === false ? '- NO union representation at the disciplinary meeting' : ''}
 ${i.investigation_conducted === false ? '- NO investigation conducted before discipline' : ''}
 ${i.off_duty_conduct ? `- Off-duty conduct in issue: ${i.off_duty_details || ''}` : ''}
-${i.believes_discriminatory ? `- Human rights dimension: ${(i.discrimination_grounds ?? []).join(', ')}${i.accommodation_details ? ` — ${i.accommodation_details}` : ''}` : ''}
+${i.believes_discriminatory ? `- Human rights dimension: ${(i.discrimination_grounds ?? []).join(', ')}${i.accommodation_details ? `; ${i.accommodation_details}` : ''}` : ''}
 ${i.ohsa_reprisal_alleged ? `- OHSA reprisal alleged: ${i.reprisal_details || ''}` : ''}
 
 PROCEDURE HISTORY:
 ${i.grievance_filed ? `- Grievance filed ${i.grievance_filed_date ?? ''}${i.grievance_number ? ` (#${i.grievance_number})` : ''}, currently at ${i.current_step || 'unknown step'}` : '- Grievance NOT yet filed'}
 ${(i.step_events ?? []).filter(e => e.presented_date || e.response_date).map(e => `- ${e.step_label}: ${e.presented_date ? `presented ${e.presented_date}` : ''}${e.presented_date && e.response_date ? '; ' : ''}${e.response_date ? `employer responded ${e.response_date}` : 'no response yet'}`).join('\n')}
 ${i.last_step_response_date ? `- Last step response: ${i.last_step_response_date}` : ''}
-${deadlines.length > 0 ? `- Deadlines: ${deadlines.map(d => `${d.label} → ${d.date}${d.overdue && d.kind !== 'step_response' ? ' (OVERDUE — address s. 48(16))' : d.overdue ? ' (employer response overdue)' : ''}`).join('; ')}` : ''}
+${deadlines.length > 0 ? `- Deadlines: ${deadlines.map(d => `${d.label} → ${d.date}${d.overdue && d.kind !== 'step_response' ? ' (OVERDUE; address s. 48(16))' : d.overdue ? ' (employer response overdue)' : ''}`).join('; ')}` : ''}
 ${i.dfr_concern ? `- DFR exposure noted: ${i.dfr_details || 'the grievor has raised or threatened a s. 74 complaint'}` : ''}
 
 APPROVED ISSUES (argue ONLY these):
-${req.approvedIssues.map((code, n) => `${n + 1}. ${code}`).join('\n') || '(none approved yet — draft conservatively)'}
+${req.approvedIssues.map((code, n) => `${n + 1}. ${code}`).join('\n') || '(none approved yet; draft conservatively)'}
 
 REMEDY SOUGHT: ${i.remedy_sought || (i.grievance_type === 'discharge' ? 'Reinstatement and make-whole' : 'Full redress')}
 ${i.back_pay_estimate ? `- Back pay estimate: $${Number(i.back_pay_estimate).toLocaleString('en-CA')}` : ''}

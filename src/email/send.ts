@@ -182,7 +182,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<boolean> 
           to get started.
         </p>
         <p style="margin:0;font-size:13px;color:${BRAND.textDim};">
-          No action needed — just keep an eye on this inbox.
+          No action is needed; watch this inbox for your invitation.
         </p>
       </div>
     `),
@@ -194,7 +194,7 @@ export async function sendInviteEmail(email: string, inviteCode: string): Promis
   return send({
     to: email,
     subject: "Your DemandPay Starling invite is ready",
-    text: `Your invite code: ${inviteCode} — Sign up at ${config.email.appUrl} with this code and your email. You'll get 50 free billable hours.`,
+    text: `Your invite code: ${inviteCode}. Sign up at ${config.email.appUrl} with this code and your email. You will receive 50 free billable hours.`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
         <h2 style="margin:0 0 16px;font-size:22px;font-weight:300;color:${BRAND.text};font-family:Georgia,'Times New Roman',serif;">
@@ -214,7 +214,7 @@ export async function sendInviteEmail(email: string, inviteCode: string): Promis
           using <strong style="color:${BRAND.text};">${esc(email)}</strong> and this code.
         </p>
         <p style="margin:0;font-size:14px;color:${BRAND.text};">
-          You'll get <strong style="color:${BRAND.accent};">50 free billable hours</strong> — enough for
+          You'll get <strong style="color:${BRAND.accent};">50 free billable hours</strong>, enough for
           several document reviews.
         </p>
       </div>
@@ -227,7 +227,7 @@ export async function sendPasswordResetEmail(email: string, resetUrl: string): P
   return send({
     to: email,
     subject: 'Reset your DemandPay Starling password',
-    text: `Reset your password: ${resetUrl} — This link expires in 1 hour.`,
+    text: `Reset your password: ${resetUrl} (this link expires in 1 hour).`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
         <h2 style="margin:0 0 16px;font-size:22px;font-weight:300;color:${BRAND.text};font-family:Georgia,'Times New Roman',serif;">
@@ -255,7 +255,7 @@ export async function sendVerificationEmail(email: string, verifyUrl: string): P
   return send({
     to: email,
     subject: 'Verify your DemandPay Starling email',
-    text: `Verify your email: ${verifyUrl} — This link expires in 24 hours.`,
+    text: `Verify your email: ${verifyUrl} (this link expires in 24 hours).`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
         <h2 style="margin:0 0 16px;font-size:22px;font-weight:300;color:${BRAND.text};font-family:Georgia,'Times New Roman',serif;">
@@ -283,7 +283,7 @@ export async function sendReferralEmail(email: string, displayName: string | und
   const greeting = esc(displayName || 'there');
   return send({
     to: email,
-    subject: `You earned ${hoursEarned} hours — someone joined DemandPay Starling with your link`,
+    subject: `You earned ${hoursEarned} hours: someone joined DemandPay Starling with your link`,
     text: `Someone signed up with your referral link. You earned ${hoursEarned} billable hours. Keep sharing: ${config.email.appUrl}`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">
@@ -295,7 +295,7 @@ export async function sendReferralEmail(email: string, displayName: string | und
           <strong style="color:${BRAND.accent};">${hoursEarned} billable hours</strong> to your account.
         </p>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:${BRAND.textDim};">
-          Keep sharing — every signup earns you both ${hoursEarned} hours.
+          Keep sharing; every signup earns you both ${hoursEarned} hours.
         </p>
         <div style="text-align:center;margin-top:28px;">
           <a href="${config.email.appUrl}/#/my-page" style="display:inline-block;padding:14px 32px;background:${BRAND.accent};color:${BRAND.bg};font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:6px;">
@@ -312,7 +312,7 @@ export async function sendWelcomeEmail(email: string, displayName?: string): Pro
   const greeting = esc(displayName ? displayName : 'there');
   return send({
     to: email,
-    subject: "Welcome to DemandPay Starling — 50 hours on us",
+    subject: "Welcome to DemandPay Starling: 50 hours on us",
     text: `Welcome to DemandPay Starling! You have 50 billable hours to start. One hour = $0.10 of compute. Start at ${config.email.appUrl}`,
     html: emailWrapper(`
       <div style="background:${BRAND.surface};border-radius:12px;padding:32px 28px;border:1px solid ${BRAND.border};">

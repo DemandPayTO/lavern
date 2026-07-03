@@ -831,12 +831,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       html = genDL.html as string;
       const clientName = employment ? `${employment.intake?.client_last_name ?? ''}` : '';
       const employerName = employment?.intake?.employer_legal_name ?? '';
-      title = `Demand Letter${clientName ? ` — ${clientName}` : ''}${employerName ? ` v. ${employerName}` : ''}`;
+      title = `Demand Letter${clientName ? ` re ${clientName}` : ''}${employerName ? ` v. ${employerName}` : ''}`;
     } else if (docType === 'statement-of-claim') {
       const soc = matterData.generatedSOC as Record<string, unknown> | undefined;
       if (!soc?.html) return reply.status(404).send({ ok: false, error: 'No statement of claim generated yet.' });
       html = soc.html as string;
-      title = `Statement of Claim${employment?.intake?.client_last_name ? ` — ${employment.intake.client_last_name} v. ${employment.intake.employer_legal_name ?? 'Defendant'}` : ''}`;
+      title = `Statement of Claim${employment?.intake?.client_last_name ? ` re ${employment.intake.client_last_name} v. ${employment.intake.employer_legal_name ?? 'Defendant'}` : ''}`;
     } else if (docType === 'application') {
       const app = matterData.generatedApplication as Record<string, unknown> | undefined;
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
@@ -1075,7 +1075,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
     try {
       const result = await crossProviderChat({
-        system: `You draft client update emails for a plaintiff-side Ontario employment law firm. Voice: warm, professional, plain language — job loss is one of life's most stressful events and your reader is living it. Lead with the bottom line. Explain what happened, what it means, what happens next, and any dates the client must know. Use dollar amounts, not legal formulas. Never over-promise outcomes. No legal advice beyond describing this matter's status. End by inviting questions. This is a DRAFT for the lawyer to review, edit, and send — never reference Starling or AI. Output clean HTML (p, strong, ul/li only).`,
+        system: `You draft client update emails for a plaintiff-side Ontario employment law firm. Voice: warm, professional, plain language; job loss is one of life's most stressful events and your reader is living it. Lead with the bottom line. Explain what happened, what it means, what happens next, and any dates the client must know. Use dollar amounts, not legal formulas. Never over-promise outcomes. Give no legal advice beyond describing the status of this matter. End by inviting questions. This is a DRAFT for the lawyer to review, edit, and send. Never reference Starling or AI. Do not use em dashes; use commas, colons, semicolons, or parentheses instead. Output clean HTML (p, strong, ul/li only).`,
         user: `Draft a status update email to ${clientFirst}.
 
 MATTER STATE:

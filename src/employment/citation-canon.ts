@@ -111,7 +111,7 @@ export function checkFillInPlaceholders(html: string): string[] {
   }
   if (found.size === 0) return [];
   return [
-    `Contains fill-in placeholders — complete before sending: ${[...found].join(', ')}. Tip: add your firm address and contact details to the Starling Profile so these fill automatically.`,
+    `This document contains fill-in placeholders that must be completed before sending: ${[...found].join(', ')}. Adding your firm address and contact details to the Starling Profile will populate these automatically.`,
   ];
 }
 
@@ -155,7 +155,7 @@ export function checkCitationIntegrity(html: string, excludeParties: string[] = 
       if (!seenUnknown.has(full)) {
         seenUnknown.add(full);
         flags.push(
-          `Citation outside the known canon: "${left} v ${match[2]}" — verify this case exists and supports the proposition before sending.`,
+          `Citation outside the known canon: "${left} v ${match[2]}". Verify that this case exists and supports the stated proposition before sending.`,
         );
       }
       continue;
@@ -171,7 +171,7 @@ export function checkCitationIntegrity(html: string, excludeParties: string[] = 
       if (!ok && !seenMismatch.has(canonEntry.keyword)) {
         seenMismatch.add(canonEntry.keyword);
         flags.push(
-          `Citation mismatch for ${canonEntry.name}: document cites "${citeMatch[0].trim()}" but the reported citation is ${canonEntry.citations[0].toUpperCase()} — verify before sending.`,
+          `Citation mismatch for ${canonEntry.name}: the document cites "${citeMatch[0].trim()}" but the reported citation is ${canonEntry.citations[0].toUpperCase()}. Verify the citation before sending.`,
         );
       }
     }

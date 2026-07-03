@@ -116,7 +116,7 @@ export function collectDeadlines(
       const grievanceNo = labour.intake.grievance_number ? ` (#${labour.intake.grievance_number})` : '';
       const employer = labour.intake.employer_name ?? '';
       const matterLabel = grievor
-        ? `${grievor}${grievanceNo}${employer ? ` — ${employer}` : ''}`
+        ? `${grievor}${grievanceNo}${employer ? ` v ${employer}` : ''}`
         : employer || row.id;
       for (const d of computeGrievanceDeadlines(labour.intake)) {
         const kind: DeadlineItem['kind'] = d.kind === 'filing' ? 'grievance_filing'

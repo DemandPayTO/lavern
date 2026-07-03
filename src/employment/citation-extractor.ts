@@ -87,10 +87,10 @@ For each citation, provide:
 - confidence: how confident you are this is the correct source (high/medium/low)
 
 RULES:
-1. Only cite text that ACTUALLY APPEARS in the source documents — never fabricate quotes.
+1. Only cite text that ACTUALLY APPEARS in the source documents; never fabricate quotes.
 2. The quotedText must be VERBATIM from the source document. Copy it exactly.
-3. If a section of the generated document doesn't rely on any source document (e.g. it cites case law or statutory provisions), skip it — only cite uploaded documents.
-4. Be thorough — find every relevant passage, not just the obvious ones.
+3. If a section of the generated document does not rely on any source document (e.g. it cites case law or statutory provisions), skip it; cite only the uploaded documents.
+4. Be thorough; find every relevant passage, not only the obvious ones.
 
 Output ONLY a JSON object: { "citations": [ ... ] }
 No commentary, no markdown fences. JSON only.`;

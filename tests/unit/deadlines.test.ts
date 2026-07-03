@@ -107,7 +107,7 @@ describe('collectDeadlines', () => {
     const filing = items.find(i => i.kind === 'grievance_filing')!;
     expect(filing.daysRemaining).toBe(10);
     expect(filing.urgency).toBe('critical');
-    expect(filing.matterLabel).toBe('Rosa Delgado (#2026-014) — Lakeview Care Homes');
+    expect(filing.matterLabel).toBe('Rosa Delgado (#2026-014) v Lakeview Care Homes');
   });
 
   it('drops the grievance filing clock once the grievance is filed, keeps the referral clock', () => {

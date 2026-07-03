@@ -173,7 +173,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     gate: 'LG1',
     triggered: disciplined,
     reason: disciplined
-      ? `Discipline imposed (${intake.discipline_imposed ?? 'discharge'}) — just cause analysis under the William Scott framework: was there cause, was the penalty excessive, what substitution is appropriate.`
+      ? `Discipline imposed (${intake.discipline_imposed ?? 'discharge'}). Just cause is analysed under the William Scott framework: whether there was cause for some discipline, whether the penalty imposed was excessive, and, if so, what penalty should be substituted.`
       : 'No discipline in issue.',
     issueCodes: disciplined ? ['just_cause_challenge'] : [],
     requiresLawyerReview: false,
@@ -192,9 +192,9 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     gate: 'LG2',
     triggered: deadlines.length > 0,
     reason: missedDeadline
-      ? `TIME LIMIT APPEARS MISSED: ${missedDeadline.label} was ${missedDeadline.date}. Assess relief under LRA s. 48(16) (arbitrator may extend where reasonable grounds and no substantial prejudice) — act immediately.`
+      ? `TIME LIMIT APPEARS MISSED: ${missedDeadline.label} was ${missedDeadline.date}. Assess relief under LRA s. 48(16), which permits an arbitrator to extend time where there are reasonable grounds and no substantial prejudice. Act immediately.`
       : urgentDeadline
-        ? `URGENT: ${urgentDeadline.label} — ${urgentDeadline.daysRemaining} day(s) remaining (${urgentDeadline.date}).`
+        ? `URGENT: ${urgentDeadline.label}; ${urgentDeadline.daysRemaining} day(s) remaining (${urgentDeadline.date}).`
         : employerLate
           ? `Employer response overdue: ${employerLate.label} was due ${employerLate.date}. Check whether the CA deems a non-response to be a denial, and whether the union's clock to advance is already running from the date the response was due.`
           : deadlines.length > 0
@@ -208,7 +208,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
   results.push({
     gate: 'LG3',
     triggered: true,
-    reason: 'Dispute arises from the collective agreement — arbitration is the exclusive forum (Weber v Ontario Hydro). Civil action is not available; frame all claims (including Code and tort-flavoured claims) for the arbitrator, who has s. 48(12)(j) power to apply employment-related statutes.',
+    reason: 'The dispute arises from the collective agreement, so arbitration is the exclusive forum (Weber v Ontario Hydro). A civil action is not available. Frame all claims, including Code and tort-based claims, for the arbitrator, who has the power under s. 48(12)(j) to interpret and apply employment-related statutes.',
     issueCodes: ['weber_exclusive_forum'],
     requiresLawyerReview: false,
   });
@@ -232,7 +232,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     gate: 'LG5',
     triggered: hr,
     reason: hr
-      ? 'Human Rights Code overlay: the arbitrator can interpret and apply the Code (LRA s. 48(12)(j)) including accommodation to undue hardship and Code damages. Plead the Code claim in the grievance/particulars — do not assume a separate HRTO application (s. 45.1 deference risk).'
+      ? 'Human Rights Code overlay: the arbitrator may interpret and apply the Code (LRA s. 48(12)(j)), including the duty to accommodate to the point of undue hardship and Code damages. Plead the Code claim in the grievance and particulars; do not assume a separate HRTO application will be available (s. 45.1 deference risk).'
       : 'No human rights dimension identified.',
     issueCodes: hr ? ['human_rights_overlay'] : [],
     requiresLawyerReview: hr,
@@ -245,7 +245,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     gate: 'LG6',
     triggered: policy,
     reason: policy
-      ? 'Employer rule/policy in issue — KVP test: the rule must be consistent with the CA, reasonable, clear, brought to the employee\'s attention, consistently enforced, and (for discharge) the employee warned of the consequence.'
+      ? 'An employer rule or policy is in issue. Under the KVP test, the rule must be consistent with the collective agreement, reasonable, clear and unequivocal, brought to the employee\'s attention, consistently enforced, and, where discharge may result, the employee must have been warned of that consequence.'
       : 'No unilateral rule/policy challenge identified.',
     issueCodes: policy ? ['kvp_policy_challenge'] : [],
     requiresLawyerReview: false,
@@ -256,7 +256,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     gate: 'LG7',
     triggered: Boolean(intake.off_duty_conduct),
     reason: intake.off_duty_conduct
-      ? 'Discipline for off-duty conduct — Millhaven factors: the employer must show real harm to its reputation or product, inability of the grievor to perform, refusal of others to work with them, serious breach of the Criminal Code, or difficulty managing the workforce.'
+      ? 'The discipline concerns off-duty conduct. Under the Millhaven factors, the employer must show real harm to its reputation or product, an inability of the grievor to perform their duties, a refusal of other employees to work with the grievor, a serious breach of the Criminal Code, or difficulty managing its workforce.'
       : 'No off-duty conduct in issue.',
     issueCodes: intake.off_duty_conduct ? ['off_duty_conduct'] : [],
     requiresLawyerReview: false,
@@ -269,8 +269,8 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     triggered: Boolean(intake.prior_discipline),
     reason: intake.prior_discipline
       ? sunset
-        ? `Employer relies on prior record — check the sunset clause (${intake.sunset_clause_months} months): expunged discipline cannot be relied on. Verify each prior incident's date and challenge any that should be cleared.`
-        : 'Employer relies on prior record — verify each incident was grieved/not grieved, its age, and whether progressive discipline was genuinely followed.'
+        ? `The employer relies on the prior record. Check the sunset clause (${intake.sunset_clause_months} months): discipline that has been expunged cannot be relied on. Verify the date of each prior incident and challenge any that should have been removed.`
+        : 'The employer relies on the prior record. Verify whether each incident was grieved, its age, and whether progressive discipline was genuinely followed.'
       : 'No prior discipline in issue.',
     issueCodes: intake.prior_discipline ? ['prior_record_challenge'] : [],
     requiresLawyerReview: false,
@@ -283,7 +283,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     triggered: procDefect,
     reason: procDefect
       ? `Procedural defects in the discipline: ${[
-          intake.union_rep_present_at_meeting === false ? 'no union representation at the disciplinary meeting (check the CA\'s representation clause — may void the discipline)' : '',
+          intake.union_rep_present_at_meeting === false ? 'no union representation at the disciplinary meeting (check the collective agreement\'s representation clause, breach of which may void the discipline)' : '',
           intake.investigation_conducted === false ? 'no/inadequate investigation before discipline' : '',
         ].filter(Boolean).join('; ')}.`
       : 'No procedural defects identified.',
@@ -296,7 +296,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     gate: 'LG10',
     triggered: Boolean(intake.ohsa_reprisal_alleged),
     reason: intake.ohsa_reprisal_alleged
-      ? 'OHSA reprisal alleged — forum choice: grievance arbitration OR OLRB s. 50 complaint (reverse onus on the employer at the Board), not both. Assess which forum serves the grievor better before filing.'
+      ? 'An OHSA reprisal is alleged. A forum must be chosen: grievance arbitration or an OLRB s. 50 complaint (where the employer bears a reverse onus), but not both. Assess which forum better serves the grievor before filing.'
       : 'No statutory reprisal alleged.',
     issueCodes: intake.ohsa_reprisal_alleged ? ['ohsa_reprisal'] : [],
     requiresLawyerReview: Boolean(intake.ohsa_reprisal_alleged),
@@ -307,7 +307,7 @@ export function evaluateLabourGates(intake: GrievanceIntakeData): LabourGateResu
     gate: 'LG11',
     triggered: discharge,
     reason: discharge
-      ? 'Discharge — remedy framing: reinstatement with full make-whole compensation is the presumptive arbitral remedy (unlike wrongful dismissal damages in court). Quantify back pay, benefits, pension contributions, and seniority restoration; address any mitigation set-off.'
+      ? 'Discharge remedy: reinstatement with full make-whole compensation is the presumptive arbitral remedy, unlike wrongful dismissal damages in court. Quantify back pay, benefits, pension contributions, and the restoration of seniority, and address any mitigation set-off.'
       : 'No discharge remedy analysis required.',
     issueCodes: discharge ? ['reinstatement_make_whole'] : [],
     requiresLawyerReview: false,
@@ -345,7 +345,7 @@ export function buildGrievanceTimeline(intake: GrievanceIntakeData): LabourMatte
     timeline.push({
       date: d.date,
       label: d.label,
-      description: d.approximate ? 'Computed from working days — approximate; verify against the CA and statutory holidays.' : undefined,
+      description: d.approximate ? 'Computed from working days and therefore approximate; verify against the collective agreement and statutory holidays.' : undefined,
       category: 'deadline',
       source: 'system',
     });

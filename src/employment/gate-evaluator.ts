@@ -116,7 +116,7 @@ const GATE_INFO: Record<string, { name: string; description: string }> = {
   G13: { name: 'Restrictive Covenants',           description: 'Non-compete (void under ESA s. 67.2 for most employees) and non-solicitation (Shafron test) enforceability.' },
   G14: { name: 'OHSA Reprisal',                   description: 'Occupational Health and Safety Act reprisal (s. 50) with reverse onus on employer.' },
   G15: { name: 'Special Circumstances',           description: 'Reserved for case-specific issues not covered by other gates.' },
-  G16: { name: 'Document Closing',                description: 'Procedural gate — controls the closing/signature block of the generated document.' },
+  G16: { name: 'Document Closing',                description: 'Procedural gate that controls the closing and signature block of the generated document.' },
 };
 
 // ── Gate evaluation ──────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
   results.push({
     gate: 'G1',
     triggered: false,
-    reason: 'Worker classification requires explicit analysis. Select if the client may be a dependent contractor.',
+    reason: 'Worker classification requires explicit analysis. Select this gate if the client may be a dependent contractor.',
     issueCodes: ['worker_misclassification', 'dependent_contractor'],
     requiresLawyerReview: true,
   });
@@ -152,8 +152,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G2',
     triggered: !!isFixedTerm,
     reason: isFixedTerm
-      ? 'Termination clause text suggests a fixed-term contract.'
-      : 'No fixed-term or probationary indicators detected.',
+      ? 'The termination clause text suggests a fixed-term contract.'
+      : 'No fixed-term or probationary indicators were detected.',
     issueCodes: ['fixed_term_contract', 'probationary_employment'],
     requiresLawyerReview: true,
   });
@@ -172,8 +172,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G3',
     triggered: hasClause,
     reason: hasClause
-      ? `Termination clause detected${atAnyTime ? ' with "at any time" language (Waksdale/Dufault risk)' : ''}${addedMid ? ', added mid-employment' : ''}.`
-      : 'No termination clause detected.',
+      ? `A termination clause was detected${atAnyTime ? ' with "at any time" language (Waksdale/Dufault risk)' : ''}${addedMid ? ', added mid-employment' : ''}.`
+      : 'No termination clause was detected.',
     issueCodes: issues3,
     requiresLawyerReview: true,
   });
@@ -184,8 +184,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G4',
     triggered: causeAlleged,
     reason: causeAlleged
-      ? 'Employer has alleged just cause for termination.'
-      : 'No just cause allegation.',
+      ? 'The employer has alleged just cause for termination.'
+      : 'No just cause has been alleged.',
     issueCodes: ['termination_for_cause'],
     requiresLawyerReview: true,
   });
@@ -197,8 +197,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G5',
     triggered: isConstructive,
     reason: isConstructive
-      ? `Constructive dismissal indicated${cdGrounds.length > 0 ? ` (${cdGrounds.length} ground${cdGrounds.length > 1 ? 's' : ''})` : ''}.`
-      : 'No constructive dismissal indicators.',
+      ? `Constructive dismissal is indicated${cdGrounds.length > 0 ? ` (${cdGrounds.length} ground${cdGrounds.length > 1 ? 's' : ''})` : ''}.`
+      : 'No constructive dismissal indicators are present.',
     issueCodes: ['constructive_dismissal'],
     requiresLawyerReview: true,
   });
@@ -209,8 +209,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G6',
     triggered: terminated,
     reason: terminated
-      ? 'Employment ended — Bardal factor analysis for common law reasonable notice.'
-      : 'Employment has not ended.',
+      ? 'The employment has ended. A Bardal factor analysis is required to assess common law reasonable notice.'
+      : 'The employment has not ended.',
     issueCodes: ['wrongful_dismissal'],
     requiresLawyerReview: false,
   });
@@ -221,8 +221,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G7',
     triggered: induced,
     reason: induced
-      ? 'Client left secure prior employment — inducement (Wallace) factor applies.'
-      : 'No inducement from prior employment.',
+      ? 'The client left secure prior employment; the inducement (Wallace) factor applies.'
+      : 'No inducement from prior employment is indicated.',
     issueCodes: induced ? ['inducement'] : [],
     requiresLawyerReview: true,
   });
@@ -233,8 +233,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G8',
     triggered: successor,
     reason: successor
-      ? `Employer changed through acquisition/restructuring${intake.predecessor_employer_name ? ` (prior: ${intake.predecessor_employer_name})` : ''}.`
-      : 'No successor employer situation.',
+      ? `The employer changed through acquisition or restructuring${intake.predecessor_employer_name ? ` (prior employer: ${intake.predecessor_employer_name})` : ''}.`
+      : 'No successor employer issue arises.',
     issueCodes: successor ? ['successor_employer'] : [],
     requiresLawyerReview: true,
   });
@@ -245,8 +245,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G9',
     triggered: terminated,
     reason: terminated
-      ? 'Employment ended — ESA statutory entitlements (notice, severance, vacation, overtime) must be calculated.'
-      : 'Employment has not ended.',
+      ? 'The employment has ended. ESA statutory entitlements (notice, severance, vacation, overtime) must be calculated.'
+      : 'The employment has not ended.',
     issueCodes: ['esa_severance'],
     requiresLawyerReview: false,
   });
@@ -268,8 +268,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G10',
     triggered: hasHR,
     reason: hasHR
-      ? `Human rights issues detected${discrimGrounds.length > 0 ? ` (grounds: ${discrimGrounds.join(', ')})` : ''}${intake.accommodation_denied ? ', accommodation denied' : ''}${intake.experienced_harassment ? ', harassment' : ''}.`
-      : 'No human rights issues detected.',
+      ? `Human rights issues were identified${discrimGrounds.length > 0 ? ` (grounds: ${discrimGrounds.join(', ')})` : ''}${intake.accommodation_denied ? '; accommodation was denied' : ''}${intake.experienced_harassment ? '; harassment was reported' : ''}.`
+      : 'No human rights issues were detected.',
     issueCodes: issues10,
     requiresLawyerReview: true,
   });
@@ -287,8 +287,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G11',
     triggered: hasBF,
     reason: hasBF
-      ? `Bad faith indicators detected${bfConduct.length > 0 ? ` (${bfConduct.join(', ')})` : ''}${intake.humiliating_termination ? ', humiliating termination' : ''}${intake.roe_wrong_or_missing ? ', ROE issues' : ''}.`
-      : 'No bad faith indicators.',
+      ? `Bad faith indicators were identified${bfConduct.length > 0 ? ` (${bfConduct.join(', ')})` : ''}${intake.humiliating_termination ? '; the manner of termination was humiliating' : ''}${intake.roe_wrong_or_missing ? '; the ROE is incorrect or missing' : ''}.`
+      : 'No bad faith indicators were identified.',
     issueCodes: issues11,
     requiresLawyerReview: true,
   });
@@ -299,8 +299,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G12',
     triggered: hasComp && terminated,
     reason: hasComp && terminated
-      ? `Variable compensation detected (${[intake.has_bonus && 'bonus', intake.has_commissions && 'commissions', intake.has_equity && 'equity'].filter(Boolean).join(', ')}) — Matthews recovery through notice period.`
-      : 'No variable compensation claims.',
+      ? `Variable compensation was identified (${[intake.has_bonus && 'bonus', intake.has_commissions && 'commissions', intake.has_equity && 'equity'].filter(Boolean).join(', ')}); Matthews supports recovery through the reasonable notice period.`
+      : 'No variable compensation claims arise.',
     issueCodes: hasComp && terminated ? ['matthews_bonus_rsu'] : [],
     requiresLawyerReview: true,
   });
@@ -315,8 +315,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G13',
     triggered: hasRC,
     reason: hasRC
-      ? `Restrictive covenants detected (${[intake.has_non_compete && 'non-compete', intake.has_non_solicitation && 'non-solicitation'].filter(Boolean).join(', ')}). Non-competes void under ESA s. 67.2 for most employees.`
-      : 'No restrictive covenants.',
+      ? `Restrictive covenants were detected (${[intake.has_non_compete && 'non-compete', intake.has_non_solicitation && 'non-solicitation'].filter(Boolean).join(', ')}). Non-competition provisions are void under ESA s. 67.2 for most employees.`
+      : 'No restrictive covenants were identified.',
     issueCodes: issues13,
     requiresLawyerReview: true,
   });
@@ -328,8 +328,8 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
     gate: 'G14',
     triggered: ohsa,
     reason: ohsa
-      ? 'OHSA reprisal indicated — s. 50 reverse onus on employer.'
-      : 'No OHSA reprisal.',
+      ? 'OHSA reprisal is indicated; s. 50 places a reverse onus on the employer.'
+      : 'No OHSA reprisal is indicated.',
     issueCodes: ohsa ? ['ohsa_reprisal'] : [],
     requiresLawyerReview: true,
   });
@@ -338,7 +338,7 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
   results.push({
     gate: 'G15',
     triggered: false,
-    reason: 'Reserved for case-specific issues. Select if applicable.',
+    reason: 'Reserved for case-specific issues. Select this gate if applicable.',
     issueCodes: [],
     requiresLawyerReview: true,
   });
@@ -349,7 +349,7 @@ export function evaluateGates(intake: EmploymentIntakeData): GateResult[] {
   results.push({
     gate: 'G16',
     triggered: needsCloser,
-    reason: needsCloser ? 'Document closing block required.' : 'No document closing needed.',
+    reason: needsCloser ? 'A document closing block is required.' : 'No document closing block is required.',
     issueCodes: [],
     requiresLawyerReview: false,
   });
