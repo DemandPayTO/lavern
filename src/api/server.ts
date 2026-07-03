@@ -64,6 +64,7 @@ import { createPerUserRateLimitHook } from './middleware/rate-limit.js';
 import { registerUserAuthRoutes } from './routes/auth-routes.js';
 import { registerGoogleAuthRoutes } from './routes/google-auth.js';
 import { initDatabase, cleanExpiredTokens, cleanExpiredUserTokens, rotateAuditLog, logAuditEvent, cleanOldArchives, sweepStaleHolds } from '../db/database.js';
+import { startDbBackupSchedule } from '../db/backup.js';
 import { config } from '../config.js';
 import { captureError, isSentryEnabled } from '../utils/sentry.js';
 import { createLogger } from '../utils/logger.js';
@@ -203,6 +204,10 @@ export async function startApiServer(port: number): Promise<void> {
   // ── Database ────────────────────────────────────────────────────────
 
   initDatabase();
+
+  // Daily consistent SQLite backup into <data-dir>/backups (14-day
+  // retention). Layer 2 alongside Fly's daily volume snapshots.
+  startDbBackupSchedule();
 
   // Clean expired auth tokens at startup and every hour
   const expired = cleanExpiredTokens();
@@ -436,7 +441,7 @@ export async function startApiServer(port: number): Promise<void> {
 
     const base = {
       status: 'ok' as string,
-      service: 'the-shem',
+      service: 'demandpay-starling',
       version: config.version,
       sessions: sessionManager.size,
       wsConnections: getWsConnectionCount(),
@@ -651,10 +656,6 @@ export async function startApiServer(port: number): Promise<void> {
   registerWorkflowRoutes(fastify);
   // v10: LLM-powered briefing analysis
   registerBriefingRoutes(fastify);
-  registerAgentBuilderRoutes(fastify);
-  // v11: Partner consultation (conversational intake)
-  registerPartnerRoutes(fastify);
-  registerVoiceRoutes(fastify);
   // v10: Agent API — engage endpoint + capabilities manifest
   registerEngageRoutes(fastify, sessionManager);
   registerCapabilitiesRoutes(fastify);
@@ -668,12 +669,22 @@ export async function startApiServer(port: number): Promise<void> {
   registerKnowledgeBaseRoutes(fastify);
   // v16: Standalone document verification
   registerVerifyRoutes(fastify, sessionManager);
-  // Claw Mode — remote monitoring & control
-  registerClawRoutes(fastify);
-  // v19: The Lavern Challenge — blind document comparison
-  registerChallengeRoutes(fastify);
-  // v22: Waitlist — join, status, admin invite & listing
-  registerWaitlistRoutes(fastify);
+  // Legacy Lavern surfaces — hidden in the Starling UI and gated off in
+  // the API by default (attack-surface reduction for the employment law
+  // product). LAVERN_LEGACY_ROUTES=true re-enables them.
+  if (config.legacyRoutesEnabled) {
+    registerAgentBuilderRoutes(fastify);
+    // v11: Partner consultation (conversational intake)
+    registerPartnerRoutes(fastify);
+    registerVoiceRoutes(fastify);
+    // Claw Mode — remote monitoring & control
+    registerClawRoutes(fastify);
+    // v19: The Challenge — blind document comparison
+    registerChallengeRoutes(fastify);
+    // v22: Waitlist — join, status, admin invite & listing (invite-code
+    // VALIDATION at signup lives in auth-routes and stays available)
+    registerWaitlistRoutes(fastify);
+  }
   // Starling status monitor + weekly digest
   registerStarlingDigestRoutes(fastify);
   // Admin observability endpoints (X-Admin-Key gated)

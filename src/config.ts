@@ -52,6 +52,14 @@ export const config = {
    */
   authEnabled: process.env.LAVERN_AUTH_ENABLED === 'true',
 
+  /**
+   * Legacy Lavern API routes (claw, challenge, agent-builder, voice
+   * dispatch, partner consult, waitlist). Hidden from the Starling UI and
+   * OFF by default in the API too — smaller attack surface for the
+   * employment law product. Set LAVERN_LEGACY_ROUTES=true to re-enable.
+   */
+  legacyRoutesEnabled: process.env.LAVERN_LEGACY_ROUTES === 'true',
+
   // ── Paths ──────────────────────────────────────────────────────────────
   auditDir: process.env.SHEM_AUDIT_DIR ?? './audit-logs',
   memoryDir: process.env.SHEM_MEMORY_DIR ?? '.shem/memory',

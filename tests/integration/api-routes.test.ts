@@ -142,7 +142,7 @@ async function buildApp(): Promise<FastifyInstance> {
   // Health check
   fastify.get('/health', async () => ({
     status: 'ok',
-    service: 'the-shem',
+    service: 'demandpay-starling',
     version: '0.10.0',
   }));
 
@@ -170,7 +170,7 @@ describe('API Routes Integration', () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.status).toBe('ok');
-      expect(body.service).toBe('the-shem');
+      expect(body.service).toBe('demandpay-starling');
     });
   });
 
