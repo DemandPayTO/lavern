@@ -252,7 +252,7 @@ export async function startApiServer(port: number): Promise<void> {
 
   // ── Public paths ──────────────────────────────────────────────────
   // Paths listed here bypass auth (no Bearer token or cookie required).
-  // Most POST mutations require a lavern_token cookie (set by
+  // Most POST mutations require a starling_token cookie (set by
   // /api/auth/login). Exceptions: session creation is public so the
   // QuickStart express lane works without login.
   const publicPaths: string[] = [

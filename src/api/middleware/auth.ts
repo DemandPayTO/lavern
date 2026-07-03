@@ -3,7 +3,7 @@
  *
  * Two authentication paths:
  * 1. Bearer token (API clients / agents): Authorization: Bearer shem_agent_abc123...
- * 2. Cookie (browser users): lavern_token=<token> (HttpOnly, set by /api/auth/login)
+ * 2. Cookie (browser users): starling_token=<token> (HttpOnly, set by /api/auth/login)
  *
  * If neither is present and the path isn't public, returns 401.
  */
@@ -198,11 +198,15 @@ function hashApiKey(apiKey: string): string {
 }
 
 /**
- * Parse the lavern_token from a cookie header string.
+ * Parse the auth token from a cookie header string.
+ * Accepts starling_token; falls back to the legacy lavern_token so
+ * sessions issued before the rebrand stay valid until they expire.
  */
 export function parseCookieToken(cookieHeader?: string): string | null {
   if (!cookieHeader) return null;
-  const match = cookieHeader.split(';').find(c => c.trim().startsWith('lavern_token='));
+  const cookies = cookieHeader.split(';');
+  const match = cookies.find(c => c.trim().startsWith('starling_token='))
+    ?? cookies.find(c => c.trim().startsWith('lavern_token='));
   if (!match) return null;
   const idx = match.indexOf('=');
   return idx >= 0 ? match.slice(idx + 1).trim() || null : null;

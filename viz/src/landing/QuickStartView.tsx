@@ -14,7 +14,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { colors, fonts } from '../staffing/styles/tokens.js';
 import { cn } from '../utils/cn.js';
-import { LavernIlluminated } from '../components/LavernIlluminated.js';
+import { StarlingIlluminated } from '../components/StarlingIlluminated.js';
 import { DocumentList } from '../briefing/components/DocumentList.js';
 import { useDocumentUpload } from '../briefing/hooks/useDocumentUpload.js';
 import { useCoworkFolder } from '../cowork/useCoworkFolder.js';
@@ -776,7 +776,7 @@ export default function QuickStartView({ onQuickStart, onGuidedFlow, onChallenge
         className="relative z-2 mt-auto pt-16 pb-8 text-center flex flex-col items-center gap-4"
         style={{ animation: 'qsFadeIn 0.4s ease 1s both' }}
       >
-        <LavernIlluminated
+        <StarlingIlluminated
           color={colors.textDim}
           glow="rgba(150, 135, 95, 0.4)"
           style={{ fontSize: 9, letterSpacing: 4 }}

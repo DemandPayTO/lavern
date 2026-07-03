@@ -1,5 +1,5 @@
 /**
- * LoginView — Login / Signup screen for Lavern.
+ * LoginView — Login / Signup screen for DemandPay Starling.
  *
  * Same background as the lobby, but with an overlay card.
  * Typography wordmark instead of SVG. Clean, editorial, warm.

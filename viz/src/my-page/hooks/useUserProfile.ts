@@ -25,6 +25,10 @@ export interface UserProfile {
   displayName: string;
   firmName: string;
   defaultJurisdiction: string;
+  /** Law Society of Ontario licence number — appears on generated documents. */
+  lsoNumber: string;
+  /** Default court location for Statements of Claim (e.g. Toronto). */
+  defaultCourtLocation: string;
 
   // Engagement defaults
   defaultWorkflowId: string;
@@ -35,7 +39,8 @@ export interface UserProfile {
   // Custom instructions (appended to briefing memos)
   customInstructions: string;
 
-  // Soul — defines Lavern's personality, voice, and principles for this user
+  // Legacy free-text firm personality (no longer editable in the UI;
+  // kept so previously saved data round-trips through server sync)
   soul: string;
 
   // Saved teams
@@ -49,7 +54,9 @@ const STORAGE_KEY = 'shem-user-profile';
 const DEFAULT_PROFILE: UserProfile = {
   displayName: '',
   firmName: '',
-  defaultJurisdiction: '',
+  defaultJurisdiction: 'Ontario',
+  lsoNumber: '',
+  defaultCourtLocation: '',
   defaultWorkflowId: 'counsel',
   defaultIntensity: 'standard',
   defaultBudgetUsd: 10,
@@ -92,6 +99,8 @@ function syncToServer(profile: UserProfile): void {
       firmName: profile.firmName,
       profileJson: JSON.stringify({
         defaultJurisdiction: profile.defaultJurisdiction,
+        lsoNumber: profile.lsoNumber,
+        defaultCourtLocation: profile.defaultCourtLocation,
         defaultWorkflowId: profile.defaultWorkflowId,
         defaultIntensity: profile.defaultIntensity,
         defaultBudgetUsd: profile.defaultBudgetUsd,
@@ -137,6 +146,8 @@ export function useUserProfile() {
             firmName: serverUser.firmName || prev.firmName,
             // Server profile fields take precedence if present
             defaultJurisdiction: (serverProfile.defaultJurisdiction as string) || prev.defaultJurisdiction,
+            lsoNumber: (serverProfile.lsoNumber as string) || prev.lsoNumber,
+            defaultCourtLocation: (serverProfile.defaultCourtLocation as string) || prev.defaultCourtLocation,
             defaultWorkflowId: (serverProfile.defaultWorkflowId as string) || prev.defaultWorkflowId,
             defaultIntensity: (serverProfile.defaultIntensity as string) || prev.defaultIntensity,
             defaultBudgetUsd: (serverProfile.defaultBudgetUsd as number) ?? prev.defaultBudgetUsd,

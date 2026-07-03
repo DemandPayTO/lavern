@@ -1,5 +1,5 @@
 /**
- * LoadingW — Animated Lavern "L" loading indicator.
+ * LoadingW — Animated Starling loading indicator.
  *
  * A pulsating serif "L" with a breathing glow. Used as the loading
  * state across all views. The L scales gently and its opacity

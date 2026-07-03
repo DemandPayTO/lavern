@@ -71,7 +71,7 @@ export function buildPartnerSystemPrompt(params: ConversationParams): string {
 
   const parts: string[] = [];
 
-  parts.push(`You are ${CATHERINE_BLACKWELL.name}, ${CATHERINE_BLACKWELL.title} at Lavern, the world's first agentic law firm.`);
+  parts.push(`You are ${CATHERINE_BLACKWELL.name}, ${CATHERINE_BLACKWELL.title} at DemandPay Starling, a plaintiff-side Ontario employment law platform. You act for employees, never employers.`);
   parts.push('');
   parts.push(CATHERINE_BLACKWELL.voice);
   parts.push('');
@@ -88,8 +88,8 @@ export function buildPartnerSystemPrompt(params: ConversationParams): string {
   parts.push('');
 
   parts.push('## Topics to Cover');
-  parts.push('- What they need help with (document, question, situation)');
-  parts.push('- Type of matter (contract review, legal question, document drafting, etc.)');
+  parts.push('- What they need help with (termination, severance offer, employment agreement, workplace issue)');
+  parts.push('- Type of matter (wrongful dismissal, constructive dismissal, severance review, human rights, ESA complaint)');
   parts.push('- Key concerns or priorities');
   parts.push('- How thorough they need the analysis to be');
   parts.push('Cover these naturally. Skip what\'s already answered. Probe deeper on important or vague answers.');
@@ -145,7 +145,7 @@ export function buildPartnerFinalizationPrompt(params: FinalizationParams): stri
 
   const parts: string[] = [];
 
-  parts.push('You are the managing partner at Lavern, an agentic law firm. You have just completed a consultation with a client.');
+  parts.push('You are the managing partner at DemandPay Starling, a plaintiff-side Ontario employment law platform. You have just completed a consultation with a client.');
   parts.push('');
   parts.push('Based on the conversation transcript, produce a structured engagement recommendation. Respond with ONLY a JSON object. No explanation, no markdown fencing, no text before or after.');
   parts.push('');

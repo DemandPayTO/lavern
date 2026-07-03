@@ -1,10 +1,10 @@
 {
-  "name": "lavern",
+  "name": "demandpay-starling",
   "version": "0.15.0",
-  "description": "Lavern — An agentic legal architecture. A law firm staffed with AI agents.",
+  "description": "DemandPay Starling — Plaintiff-side Ontario employment law platform for law firms.",
   "license": "Apache-2.0",
-  "author": "Antti Innanen (https://lavern.ai)",
-  "homepage": "https://lavern.ai",
+  "author": "DemandPay",
+  "homepage": "https://starling.demandpay.ca",
   "repository": {
     "type": "git",
     "url": "https://github.com/AnttiHero/lavern.git"

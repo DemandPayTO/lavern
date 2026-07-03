@@ -24,7 +24,7 @@ import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('GOOGLE_AUTH');
 
-const COOKIE_NAME = 'lavern_token';
+const COOKIE_NAME = 'starling_token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
 const SECURE_FLAG = config.isDevelopment ? '' : '; Secure';
 
@@ -150,7 +150,7 @@ export function registerGoogleAuthRoutes(fastify: FastifyInstance): void {
           // Only auto-link if the existing account's email is already verified
           // AND the Google profile claims the email is verified.
           // This prevents account takeover: an attacker can't create a Google
-          // account with victim@example.com and auto-link to the victim's Lavern account.
+          // account with victim@example.com and auto-link to the victim's Starling account.
           if (!existingByEmail.email_verified || !profile.email_verified) {
             logger.warn('google_link_blocked', {
               email,
@@ -180,7 +180,7 @@ export function registerGoogleAuthRoutes(fastify: FastifyInstance): void {
           logger.info('google_user_created', { userId: user.id, email });
 
           // Credit free trial hours
-          creditBillableHours(user.id, config.billableHours.freeTrialHours, 'welcome', 'Welcome to Lavern — free trial hours.');
+          creditBillableHours(user.id, config.billableHours.freeTrialHours, 'welcome', 'Welcome to DemandPay Starling — free trial hours.');
 
           // Send welcome email
           sendWelcomeEmail(email, displayName).catch(err => logger.error('welcome_email_failed', err));

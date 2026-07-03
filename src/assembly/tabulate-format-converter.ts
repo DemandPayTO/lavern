@@ -316,7 +316,7 @@ export async function convertTabulateToDocx(result: TabulateResult, title?: stri
   }));
 
   const doc = new Document({
-    creator: 'Lavern',
+    creator: 'DemandPay Starling',
     title: title ?? result.documentTitle,
     sections: [{ children: bodyChildren }],
   });

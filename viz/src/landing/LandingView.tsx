@@ -11,7 +11,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { colors } from '../staffing/styles/tokens.js';
 import { cn } from '../utils/cn.js';
-import { LavernIlluminated } from '../components/LavernIlluminated.js';
+import { StarlingIlluminated } from '../components/StarlingIlluminated.js';
 
 interface Props {
   onEnter: () => void;
@@ -454,7 +454,7 @@ export default function LandingView({ onEnter, onMyPage, onAgentDocs, authEnable
         }}
       >
         <span className="text-[9px] font-medium font-sans text-[rgba(250,249,246,0.12)] tracking-[6px] uppercase">
-          <LavernIlluminated color="rgba(250,249,246,0.12)" glow="rgba(250,249,246,0.35)" />
+          <StarlingIlluminated color="rgba(250,249,246,0.12)" glow="rgba(250,249,246,0.35)" />
         </span>
       </div>
     </div>

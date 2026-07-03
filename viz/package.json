@@ -1,9 +1,9 @@
 {
-  "name": "lavern-dashboard",
-  "version": "0.14.0",
+  "name": "starling-dashboard",
+  "version": "0.15.0",
   "type": "module",
   "license": "Apache-2.0",
-  "description": "Lavern Dashboard — React frontend for the driverless law firm",
+  "description": "DemandPay Starling — Ontario employment law dashboard for law firms",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

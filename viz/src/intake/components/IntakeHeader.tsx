@@ -4,7 +4,7 @@
 
 import { IntakeProgress, type IntakePhase, type IntakeMode } from './IntakeProgress.js';
 import { colors, fonts, radii } from '../../staffing/styles/tokens.js';
-import { LavernIlluminated } from '../../components/LavernIlluminated.js';
+import { StarlingIlluminated } from '../../components/StarlingIlluminated.js';
 
 interface Props {
   phase: IntakePhase;
@@ -25,7 +25,7 @@ export function IntakeHeader({ phase, mode, onBack, onSkip }: Props) {
         >{'←'} Back</button>
 
         <div style={styles.center}>
-          <div style={styles.logoType}><LavernIlluminated color={colors.textMuted} /></div>
+          <div style={styles.logoType}><StarlingIlluminated color={colors.textMuted} /></div>
           <h1 style={styles.title}>
             Starling <span style={{ fontWeight: 500 }}>Intake</span>
           </h1>

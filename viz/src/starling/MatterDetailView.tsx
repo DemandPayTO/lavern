@@ -13,6 +13,7 @@
 
 import { useState, useCallback } from 'react';
 import { useMatterDetail, useEmploymentData } from './hooks/useStarlingApi.js';
+import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
 // ── Design Tokens ───────────────────────────────────────────────────────
@@ -312,6 +313,8 @@ function SourceTag({ label, type }: { label: string; type: 'verified' | 'statute
 // ── Component ───────────────────────────────────────────────────────────
 
 export default function MatterDetailView() {
+  // Lawyer/firm details from the Starling Profile — flow into generated documents
+  const { profile } = useUserProfile();
   const [activeTab, setActiveTab] = useState<TabKey>('issues');
   const [notes, setNotes] = useState(DEMO_NOTES);
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
@@ -320,7 +323,7 @@ export default function MatterDetailView() {
   const [genError, setGenError] = useState<string | null>(null);
   const [genTone, setGenTone] = useState('professional');
   const [genDemandAmount, setGenDemandAmount] = useState('');
-  const [genCourtLocation, setGenCourtLocation] = useState('Toronto');
+  const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
 
   const handleNav = useCallback((hash: string) => {
@@ -812,8 +815,8 @@ export default function MatterDetailView() {
                         demandAmount: amount,
                         claimAmount: amount,
                         procedureType: genProcedure,
-                        lawyerName: 'Lawyer Name',
-                        firmName: 'Firm Name',
+                        lawyerName: profile.displayName || 'Lawyer Name',
+                        firmName: profile.firmName || 'Firm Name',
                         courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
                       },

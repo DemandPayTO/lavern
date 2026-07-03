@@ -16,7 +16,7 @@
 import { useState, useEffect } from 'react';
 import { useResponsive } from '../hooks/useMediaQuery.js';
 import { colors, fonts, radii, spacing } from '../staffing/styles/tokens.js';
-import { LavernIlluminated } from '../components/LavernIlluminated.js';
+import { StarlingIlluminated } from '../components/StarlingIlluminated.js';
 import { useDeliveryData } from './hooks/useDeliveryData.js';
 import { DeliveryHeader } from './components/DeliveryHeader.js';
 import { TabBar, type DeliveryTab } from './components/TabBar.js';
@@ -108,9 +108,9 @@ export default function DeliveryView({ onContinue, onBack, onSkip }: Props) {
                 <div style={styles.demoConversationNotice}>
                   <div style={styles.demoNoticeTitle}>Live Session Feature</div>
                   <div style={styles.demoNoticeBody}>
-                    In a live engagement, you can ask the team follow-up questions about their analysis,
-                    request alternative clause drafts, or drill into specific findings. The team responds
-                    with full context from the session.
+                    In a live matter analysis, you can ask follow-up questions about the findings,
+                    request alternative drafting language, or drill into specific issues. Starling responds
+                    with full context from the matter.
                   </div>
                 </div>
               ) : (
@@ -173,7 +173,7 @@ export default function DeliveryView({ onContinue, onBack, onSkip }: Props) {
 
       {/* Branding footer */}
       <div style={styles.brandingFooter}>
-        <LavernIlluminated
+        <StarlingIlluminated
           color={colors.textDim}
           glow="rgba(150, 135, 95, 0.4)"
           style={{ fontSize: 9, letterSpacing: 4 }}

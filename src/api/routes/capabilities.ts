@@ -2,7 +2,7 @@
  * Capabilities Routes — Machine-readable service manifest.
  *
  * GET /api/capabilities — Returns a structured manifest describing:
- *   - What Lavern can do (available workflows, request types)
+ *   - What DemandPay Starling can do (available workflows, request types)
  *   - How to use it (API schema, registration flow)
  *   - What it costs (per-workflow estimates, intensity tiers)
  *   - How to monitor (status endpoints, WebSocket events)
@@ -44,10 +44,10 @@ export function registerCapabilitiesRoutes(fastify: FastifyInstance): void {
       version: config.version,
 
       service: {
-        name: 'Lavern',
-        tagline: 'AI law firm. Structured legal intelligence for humans and agents.',
+        name: 'DemandPay Starling',
+        tagline: 'Plaintiff-side Ontario employment law platform for law firms.',
         version: config.version,
-        description: 'Multi-agent legal orchestration platform. Upload documents, describe tasks, and receive structured legal analysis. Same engine serves human clients through a visual interface and AI agents through this API.',
+        description: 'Ontario employment law platform. Structured employment intake, legal issue identification, demand letters, Statements of Claim, HRTO applications, and ESA complaints. Serves law firms through a dashboard and AI agents through this API.',
         provider: config.provider,
         providerModel: config.provider === 'mistral' ? config.mistral.defaultModel : config.defaultModel,
       },

@@ -1,15 +1,14 @@
 /**
- * LavernMark — The Lavern "L" mark.
+ * StarlingMark — The Starling three-dot mark.
  *
- * A single serif "L" rendered in Newsreader.
- * Appears in the upper-left corner of every page.
- * Clicking navigates home (landing page).
+ * Three orange dots in the upper-left corner of every page.
+ * Clicking navigates home (Starling dashboard).
  */
 
 import { useState, useEffect } from 'react';
 import { colors, fonts } from '../staffing/styles/tokens.js';
 
-interface LavernMarkProps {
+interface StarlingMarkProps {
   /** Font size of the W in pixels. Default 28. */
   size?: number;
   /** Navigate on click. Default: go to landing. */
@@ -18,7 +17,7 @@ interface LavernMarkProps {
   hideCursor?: boolean;
 }
 
-export function LavernMark({ size = 28, onClick, hideCursor }: LavernMarkProps) {
+export function StarlingMark({ size = 28, onClick, hideCursor }: StarlingMarkProps) {
   const [hovered, setHovered] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -31,7 +30,7 @@ export function LavernMark({ size = 28, onClick, hideCursor }: LavernMarkProps) 
     if (onClick) {
       onClick();
     } else {
-      window.location.hash = '#/quickstart';
+      window.location.hash = '#/';
     }
   };
 

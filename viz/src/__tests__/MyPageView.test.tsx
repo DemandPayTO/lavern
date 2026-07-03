@@ -44,18 +44,20 @@ describe('MyPageView', () => {
   it('renders identity inputs with correct placeholders', async () => {
     const MyPageView = await loadMyPageView();
     render(<MyPageView onBack={vi.fn()} />);
-    expect(screen.getByPlaceholderText('Your name or handle')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Firm or organization')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/e\.g\. California/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/demand letters and pleadings/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/generated documents and letterhead/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Law Society of Ontario/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/pre-fills Statements of Claim/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Ontario')).toBeInTheDocument();
   });
 
-  it('renders workflow dropdown with 6 options', async () => {
+  it('renders workflow dropdown with 4 options', async () => {
     const MyPageView = await loadMyPageView();
     render(<MyPageView onBack={vi.fn()} />);
     const select = screen.getByRole('combobox');
     expect(select).toBeInTheDocument();
     const options = select.querySelectorAll('option');
-    expect(options).toHaveLength(6);
+    expect(options).toHaveLength(4);
   });
 
   it('renders intensity radio buttons', async () => {
@@ -70,7 +72,7 @@ describe('MyPageView', () => {
   it('renders custom instructions textarea', async () => {
     const MyPageView = await loadMyPageView();
     render(<MyPageView onBack={vi.fn()} />);
-    expect(screen.getByPlaceholderText(/California privacy/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Waksdale/i)).toBeInTheDocument();
     expect(screen.getByText(/0 \/ 2000/)).toBeInTheDocument();
   });
 

@@ -1,20 +1,20 @@
 /**
- * MyPageView — Persistent user profile, saved teams & custom instructions.
+ * MyPageView — Lawyer profile & practice defaults for DemandPay Starling.
  *
- * Five sections:
- *   1. About You       — name, firm, jurisdiction
- *   2. Default Settings — workflow, intensity, budget, yolo toggle
- *   3. Custom Instructions — free-text appended to every briefing memo
- *   4. Lavern's Soul — personality, voice, principles that shape agent behavior
- *   5. Saved Teams     — reusable team presets
+ * Sections:
+ *   1. About You       — lawyer name, firm, LSO number, jurisdiction, court location
+ *   2. Default Settings — analysis workflow, intensity, budget defaults
+ *   3. Custom Instructions — free-text appended to every matter analysis
+ *   4. Saved Teams     — reusable analysis team presets
  *
+ * Lawyer name, firm name, LSO number, and court location flow into
+ * generated documents (demand letters, Statements of Claim).
  * Auto-saves on every change (debounced 500ms via React state → localStorage).
  */
 
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { colors, fonts, spacing, radii } from '../staffing/styles/tokens.js';
 import { useUserProfile } from './hooks/useUserProfile.js';
-import { useCustomAgents } from '../agent-builder/hooks/useCustomAgents.js';
 import type { UserProfile } from './hooks/useUserProfile.js';
 
 interface Props {
@@ -24,12 +24,10 @@ interface Props {
 // ── Workflow options ────────────────────────────────────────────────────
 
 const WORKFLOW_OPTIONS = [
-  { value: 'counsel', label: 'Counsel' },
-  { value: 'review', label: 'Review' },
-  { value: 'adversarial', label: 'Adversarial' },
-  { value: 'roundtable', label: 'Roundtable' },
-  { value: 'full-bench', label: 'Full Bench' },
-  { value: 'pre-engagement', label: 'Pre-Engagement' },
+  { value: 'counsel', label: 'Counsel — quick opinion' },
+  { value: 'review', label: 'Review — document review' },
+  { value: 'adversarial', label: 'Adversarial — draft + stress-test' },
+  { value: 'roundtable', label: 'Roundtable — expert panel' },
 ];
 
 const INTENSITY_OPTIONS = [
@@ -40,18 +38,15 @@ const INTENSITY_OPTIONS = [
 ];
 
 const MAX_INSTRUCTIONS = 2000;
-const MAX_SOUL = 5000;
 
 // ── Component ──────────────────────────────────────────────────────────
 
 export default function MyPageView({ onBack }: Props) {
   const { profile, updateProfile, deleteTeam, hasSavedTeams } = useUserProfile();
-  const { agents: customAgents, removeAgent } = useCustomAgents();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // LOCAL MODE (the default in v0.15.0) has no auth surface, so the
   // referral and change-password endpoints 404 and their cards render
-  // empty under "Share Lavern" / "Security" headers. Read the runtime
+  // empty under "Share Starling" / "Security" headers. Read the runtime
   // `auth` flag from /api/capabilities and hide both sections when off.
   // Default `null` = "still loading" so we don't flash the sections
   // briefly before the fetch resolves.
@@ -89,10 +84,10 @@ export default function MyPageView({ onBack }: Props) {
       {/* Page title */}
       <h1 style={styles.pageTitle}>Starling <span style={{ fontWeight: 500 }}>Profile</span></h1>
       <p style={styles.pageSub}>
-        Your preferences persist across engagements. Everything saves automatically.
+        Your details flow into every generated document. Everything saves automatically.
       </p>
 
-      {/* ── Share Lavern (Referral) ──────────────────────────────── */}
+      {/* ── Share Starling (Referral) ────────────────────────────── */}
       {authEnabled && (
         <>
           <SectionDivider label="Share Starling" />
@@ -104,30 +99,48 @@ export default function MyPageView({ onBack }: Props) {
       <SectionDivider label="About You" />
 
       <div style={styles.fieldGroup}>
-        <FieldRow label="Display Name">
+        <FieldRow label="Lawyer Name">
           <input
             type="text"
             value={profile.displayName}
             onChange={e => field('displayName')(e.target.value)}
-            placeholder="Your name or handle"
+            placeholder="As it should appear on demand letters and pleadings"
             style={styles.input}
           />
         </FieldRow>
-        <FieldRow label="Firm / Organization">
+        <FieldRow label="Firm Name">
           <input
             type="text"
             value={profile.firmName}
             onChange={e => field('firmName')(e.target.value)}
-            placeholder="Firm or organization"
+            placeholder="Appears on generated documents and letterhead"
             style={styles.input}
           />
         </FieldRow>
-        <FieldRow label="Default Jurisdiction">
+        <FieldRow label="LSO Number">
+          <input
+            type="text"
+            value={profile.lsoNumber}
+            onChange={e => field('lsoNumber')(e.target.value)}
+            placeholder="Law Society of Ontario licence number"
+            style={styles.input}
+          />
+        </FieldRow>
+        <FieldRow label="Default Court Location">
+          <input
+            type="text"
+            value={profile.defaultCourtLocation}
+            onChange={e => field('defaultCourtLocation')(e.target.value)}
+            placeholder="e.g. Toronto — pre-fills Statements of Claim"
+            style={styles.input}
+          />
+        </FieldRow>
+        <FieldRow label="Jurisdiction">
           <input
             type="text"
             value={profile.defaultJurisdiction}
             onChange={e => field('defaultJurisdiction')(e.target.value)}
-            placeholder="e.g. California, EU, England & Wales"
+            placeholder="Ontario"
             style={styles.input}
           />
         </FieldRow>
@@ -218,7 +231,7 @@ export default function MyPageView({ onBack }: Props) {
 
       <div style={styles.fieldGroup}>
         <p style={styles.fieldHint}>
-          Appended to every briefing memo. Tell your agents what matters to you.
+          Appended to every matter analysis. Tell Starling what matters to your practice.
         </p>
         <textarea
           value={profile.customInstructions}
@@ -226,7 +239,7 @@ export default function MyPageView({ onBack }: Props) {
             const val = e.target.value.slice(0, MAX_INSTRUCTIONS);
             field('customInstructions')(val);
           }}
-          placeholder="Always consider California privacy law. Prefer plain language. Flag any GDPR implications."
+          placeholder="Always check the termination clause against Waksdale. Flag human rights overlays early. Prefer firm but professional tone in demand letters."
           rows={6}
           style={styles.textarea}
         />
@@ -235,39 +248,7 @@ export default function MyPageView({ onBack }: Props) {
         </span>
       </div>
 
-      {/* ── Section 4: Lavern's Soul ──────────────────────────────── */}
-      <div style={styles.soulContainer}>
-        <div style={styles.soulInner}>
-          {/* Decorative Lavern L watermark */}
-          <div style={styles.soulWatermark} aria-hidden="true">L</div>
-
-          <div style={styles.soulLabel}>Soul</div>
-          <h2 style={styles.soulHeading}>
-            What kind of firm<br />is Starling <span style={{ fontWeight: 500 }}>for you?</span>
-          </h2>
-          <p style={styles.soulSub}>
-            Voice. Principles. Values. The character that shapes every decision your agents make.
-          </p>
-
-          <textarea
-            value={profile.soul}
-            onChange={e => {
-              const val = e.target.value.slice(0, MAX_SOUL);
-              field('soul')(val);
-            }}
-            placeholder={'Precise but warm. Explain complex legal concepts without condescension.\n\nAlways prioritize plain language. Show your work. Admit uncertainty.\n\nConservative on risk — creative on design.'}
-            rows={10}
-            style={styles.soulTextarea}
-            onFocus={e => { e.currentTarget.style.borderColor = 'rgba(196, 93, 62, 0.4)'; e.currentTarget.style.backgroundColor = 'rgba(250, 249, 246, 0.07)'; }}
-            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(250, 249, 246, 0.1)'; e.currentTarget.style.backgroundColor = 'rgba(250, 249, 246, 0.05)'; }}
-          />
-          <span style={styles.soulCharCount}>
-            {profile.soul.length} / {MAX_SOUL}
-          </span>
-        </div>
-      </div>
-
-      {/* ── Section 5: Saved Teams ─────────────────────────────────── */}
+      {/* ── Section 4: Saved Teams ─────────────────────────────────── */}
       <SectionDivider label="Saved Teams" />
 
       {hasSavedTeams ? (
@@ -288,7 +269,7 @@ export default function MyPageView({ onBack }: Props) {
                   label="Use"
                   onClick={() => {
                     sessionStorage.setItem('shem-briefing-team', JSON.stringify(team.roles));
-                    window.location.hash = '#/staffing';
+                    window.location.hash = '#/strategy';
                   }}
                 />
                 <TeamActionButton
@@ -302,108 +283,8 @@ export default function MyPageView({ onBack }: Props) {
         </div>
       ) : (
         <p style={styles.emptyState}>
-          No saved teams yet. Build a team in Staffing and save it from there.
+          No saved teams yet. Build a team during a matter analysis and save it from there.
         </p>
-      )}
-
-      {/* ── Section 6: Custom Agents ────────────────────────────────── */}
-      <SectionDivider label="Custom Agents" />
-
-      {customAgents.length > 0 ? (
-        <div style={styles.agentList}>
-          {customAgents.map(agent => {
-            const p = agent.profile;
-            const avatarSeed = p.avatarSeed || p.displayName;
-            const avatarSrc = `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(avatarSeed)}&backgroundColor=transparent&size=48${p.avatarExtra ? '&' + p.avatarExtra : ''}`;
-            const isDeleting = deletingId === agent.id;
-            const archetype = p.personality?.archetype || p.category;
-            return (
-              <div key={agent.id} style={styles.agentCard}>
-                <div style={styles.agentLeft}>
-                  {/* Avatar */}
-                  <div style={styles.agentAvatar}>
-                    <img
-                      src={avatarSrc}
-                      alt={p.displayName}
-                      width={44}
-                      height={44}
-                      style={{ display: 'block', borderRadius: '50%' }}
-                    />
-                  </div>
-
-                  {/* Info */}
-                  <div style={styles.agentInfo}>
-                    <span style={styles.agentName}>{p.displayName}</span>
-                    <span style={styles.agentTagline}>
-                      {archetype} {'\u00B7'} {p.category}
-                    </span>
-                    <span style={styles.agentMeta}>
-                      Created {new Date(agent.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={styles.agentActions}>
-                  <TeamActionButton
-                    label="Edit"
-                    onClick={() => {
-                      window.location.hash = `#/agent-builder?edit=${agent.id}`;
-                    }}
-                  />
-                  {isDeleting ? (
-                    <div style={styles.deleteConfirm}>
-                      <span style={{ fontSize: 11, color: colors.danger, fontFamily: fonts.sans }}>
-                        Delete?
-                      </span>
-                      <TeamActionButton
-                        label="Yes"
-                        danger
-                        onClick={() => {
-                          removeAgent(agent.id);
-                          setDeletingId(null);
-                        }}
-                      />
-                      <TeamActionButton
-                        label="No"
-                        onClick={() => setDeletingId(null)}
-                      />
-                    </div>
-                  ) : (
-                    <TeamActionButton
-                      label="Delete"
-                      danger
-                      onClick={() => setDeletingId(agent.id)}
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Build new agent link */}
-          <button
-            onClick={() => { window.location.hash = '#/agent-builder'; }}
-            style={styles.buildAgentLink}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = colors.text; e.currentTarget.style.color = colors.text; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = colors.border; e.currentTarget.style.color = colors.textMuted; }}
-          >
-            + Build New Agent
-          </button>
-        </div>
-      ) : (
-        <div style={styles.agentEmptyState}>
-          <p style={styles.emptyState}>
-            No custom agents yet.
-          </p>
-          <button
-            onClick={() => { window.location.hash = '#/agent-builder'; }}
-            style={styles.buildAgentBtn}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.text; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.text; }}
-          >
-            Build Your First Agent
-          </button>
-        </div>
       )}
 
       {/* Bottom spacer */}

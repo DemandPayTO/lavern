@@ -64,7 +64,7 @@ async function interceptResponse(res: Response, url: string): Promise<void> {
     // Only show "expired" if the user was actually logged in. If there's
     // no evidence of a prior session, this is just an unauthenticated
     // visit hitting a protected endpoint — not an expiration event.
-    // Note: lavern_token is HttpOnly so document.cookie can't see it —
+    // Note: starling_token is HttpOnly so document.cookie can't see it —
     // check sessionStorage and also verify with the server before
     // triggering a destructive logout.
     const hadSession = sessionStorage.getItem('shem-session-id') !== null;

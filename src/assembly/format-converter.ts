@@ -618,7 +618,7 @@ function buildCoverPage(title: string, profile: StyleProfile, branding?: SoulBra
   }
 
   // "Prepared by" block — uses soul branding when available
-  const brandName = branding?.firmName ?? 'Lavern';
+  const brandName = branding?.firmName ?? 'DemandPay Starling';
   const hasSoul = !!branding?.firmName;
 
   paragraphs.push(new Paragraph({
@@ -909,7 +909,7 @@ export async function convertToDocx(markdown: string, title: string, style?: Doc
   const doc = new Document({
     title,
     subject: title,
-    creator: branding?.firmName ?? 'Lavern',
+    creator: branding?.firmName ?? 'DemandPay Starling',
     description: `Generated deliverable: ${title}`,
     lastModifiedBy: 'Lavern Legal Design System',
     numbering: {
@@ -1040,7 +1040,7 @@ export async function convertToDocx(markdown: string, title: string, style?: Doc
 // ── HTML / PDF Conversion ───────────────────────────────────────────────
 
 function getHtmlCover(title: string, dateStr: string, profile: StyleProfile, branding?: SoulBranding): string {
-  const brandName = branding?.firmName ?? 'Lavern';
+  const brandName = branding?.firmName ?? 'DemandPay Starling';
   const hasSoul = !!branding?.firmName;
   const engineCredit = hasSoul ? 'Powered by Lavern' : 'Multi-Agent Legal Design System';
   const taglineHtml = hasSoul && branding.tagline
@@ -1425,7 +1425,7 @@ export function convertToHtml(markdown: string, title: string, style?: DocumentS
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)}</title>
-  <meta name="author" content="${escapeHtml(branding?.firmName ?? 'Lavern')}">
+  <meta name="author" content="${escapeHtml(branding?.firmName ?? 'DemandPay Starling')}">
   <meta name="description" content="${escapeHtml(title)}">
   <meta name="generator" content="Lavern Legal Design System">
   ${profile.htmlFontImport}
@@ -1439,7 +1439,7 @@ export function convertToHtml(markdown: string, title: string, style?: DocumentS
   </div>
 
   <div class="doc-footer">
-    <p class="brand-mark">${escapeHtml(branding?.firmName ?? 'Lavern')}</p>
+    <p class="brand-mark">${escapeHtml(branding?.firmName ?? 'DemandPay Starling')}</p>
     <p>${escapeHtml(branding?.firmName ? 'Powered by Lavern' : 'Multi-Agent Legal Design System')}</p>
     <p>Generated ${escapeHtml(dateStr)}</p>
   </div>

@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { colors } from '../staffing/styles/tokens.js';
 import { UserContext } from '../auth/UserContext.js';
-import { LavernIlluminated } from '../components/LavernIlluminated.js';
+import { StarlingIlluminated } from '../components/StarlingIlluminated.js';
 import { cn } from '../utils/cn.js';
 
 interface Props {
@@ -181,7 +181,7 @@ export default function LobbyView({ onEnter, onMyPage, onLogin, onAgentDocs, onD
           className="text-4xl sm:text-6xl md:text-7xl lg:text-[130px] font-light font-serif text-text m-0 tracking-[6px] sm:tracking-[12px] md:tracking-[16px] lg:tracking-[22px] uppercase"
           style={{ animation: 'lobbyNameReveal 1.8s ease 0.6s both' }}
         >
-          <LavernIlluminated />
+          <StarlingIlluminated />
         </HoverText>
 
         <div

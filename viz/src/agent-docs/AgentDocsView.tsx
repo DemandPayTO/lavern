@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { colors, fonts, radii } from '../staffing/styles/tokens.js';
-import { LavernIlluminated } from '../components/LavernIlluminated.js';
+import { StarlingIlluminated } from '../components/StarlingIlluminated.js';
 
 interface Props {
   onBack: () => void;
@@ -410,7 +410,7 @@ export default function AgentDocsView({ onBack }: Props) {
         {/* ── Header ─────────────────────────────────────── */}
         <div style={{ ...sty.header, animation: 'agentFadeIn 0.8s ease 0.1s both' }}>
           <h1 style={sty.title}>
-            <LavernIlluminated color="rgba(250,249,246,0.55)" glow="rgba(250,249,246,0.95)" />
+            <StarlingIlluminated color="rgba(250,249,246,0.55)" glow="rgba(250,249,246,0.95)" />
           </h1>
           <p style={sty.subtitle}>for Agents</p>
           <p style={sty.description}>
@@ -793,7 +793,7 @@ export default function AgentDocsView({ onBack }: Props) {
 
         {/* ── Footer ──────────────────────────────────── */}
         <div style={sty.footer}>
-          <LavernIlluminated color="rgba(250,249,246,0.15)" glow="rgba(250,249,246,0.4)" />
+          <StarlingIlluminated color="rgba(250,249,246,0.15)" glow="rgba(250,249,246,0.4)" />
           {capabilities && (
             <>
               <span style={sty.footerDot}>{'\u00b7'}</span>

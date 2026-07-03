@@ -143,7 +143,7 @@ function PrivacyContent() {
       </Section>
 
       <Section title="7. Cookies">
-        We use a single HttpOnly authentication cookie (lavern_token) for session management.
+        We use a single HttpOnly authentication cookie (starling_token) for session management.
         We do not use tracking cookies or third-party analytics.
       </Section>
 

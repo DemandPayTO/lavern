@@ -204,7 +204,7 @@ describe('API Routes Integration', () => {
 
       // Should set auth cookie
       const setCookie = res.headers['set-cookie'] as string;
-      expect(setCookie).toContain('lavern_token=');
+      expect(setCookie).toContain('starling_token=');
       authCookie = setCookie;
     });
 
@@ -273,7 +273,7 @@ describe('API Routes Integration', () => {
 
       // Save cookie for subsequent requests
       const setCookie = res.headers['set-cookie'] as string;
-      expect(setCookie).toContain('lavern_token=');
+      expect(setCookie).toContain('starling_token=');
       authCookie = setCookie;
     });
 
@@ -400,7 +400,9 @@ describe('API Routes Integration', () => {
         headers: { cookie: authCookie },
       });
       expect(res.statusCode).toBe(200);
-      const setCookie = res.headers['set-cookie'] as string;
+      // Logout clears both starling_token and the legacy lavern_token,
+      // so set-cookie is an array — stringify before matching.
+      const setCookie = String(res.headers['set-cookie']);
       expect(setCookie).toContain('Max-Age=0');
     });
 

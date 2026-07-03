@@ -2,7 +2,7 @@
  * ErrorToast — Dismissible error notification banner.
  *
  * Replaces browser alert() calls with a styled toast that matches
- * the Lavern design language. Auto-dismisses after 8 seconds.
+ * the Starling design language. Auto-dismisses after 8 seconds.
  * Slides in from the top with a subtle animation.
  */
 

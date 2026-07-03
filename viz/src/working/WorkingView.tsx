@@ -397,7 +397,7 @@ export default function WorkingView({ onComplete, onBack, onSkip }: WorkingViewP
               Session Interrupted
             </h2>
             <p style={{ fontFamily: fonts.sans, fontSize: 13, color: colors.textSecondary, marginTop: 8, lineHeight: 1.5 }}>
-              The engagement encountered an error and could not complete.
+              The analysis encountered an error and could not complete.
               {state.cost ? ` Approximately $${state.cost.accumulated.toFixed(2)} was consumed.` : ''}
             </p>
             <p style={{ fontFamily: fonts.sans, fontSize: 12, color: colors.textDim, marginTop: 8, lineHeight: 1.5 }}>

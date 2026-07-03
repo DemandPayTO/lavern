@@ -441,38 +441,10 @@ export default function TeamView({ onTeamConfirmed, onBack, onSkip }: Props) {
         </div>
       )}
 
-      {/* + Build Agent button */}
-      {!loading && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: spacing.xl,
-        }}>
-          <button
-            onClick={() => { window.location.hash = '#/agent-builder'; }}
-            style={{
-              padding: '10px 24px',
-              fontSize: 12,
-              fontFamily: fonts.sans,
-              fontWeight: 600,
-              color: colors.textSecondary,
-              backgroundColor: colors.bgPanel,
-              border: `1.5px dashed ${colors.border}`,
-              borderRadius: radii.md,
-              cursor: 'pointer',
-              letterSpacing: 0.5,
-              transition: 'all 0.2s ease',
-            }}
-          >
-            + Build Custom Agent
-          </button>
-        </div>
-      )}
-
       {/* Recommended team banner */}
       {!loading && recommendedRoles.length > 0 && teamSize > 0 && (
         <div style={styles.recommendedBanner}>
-          <span style={styles.recommendedLabel}>Recommended for your engagement</span>
+          <span style={styles.recommendedLabel}>Recommended for your matter</span>
           <span style={styles.recommendedDetail}>
             {teamSize} agents auto-selected based on your briefing and strategy.
             Adjust below or proceed with this team.

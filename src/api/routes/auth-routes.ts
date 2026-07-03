@@ -1,7 +1,7 @@
 /**
  * Auth Routes — User signup, login, logout, and profile management.
  *
- * Uses cookie-based auth (lavern_token HttpOnly cookie).
+ * Uses cookie-based auth (starling_token HttpOnly cookie).
  * Passwords hashed with Node's built-in crypto.scrypt.
  *
  * POST  /api/auth/signup              — Create account
@@ -100,7 +100,7 @@ const ChangePasswordSchema = z.object({
 
 // ── Cookie helpers ───────────────────────────────────────────────────────
 
-const COOKIE_NAME = 'lavern_token';
+const COOKIE_NAME = 'starling_token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
 
 // Secure flag must be omitted on plain HTTP (localhost dev). Check both
@@ -118,7 +118,11 @@ function setAuthCookie(reply: FastifyReply, token: string): void {
 }
 
 function clearAuthCookie(reply: FastifyReply): void {
-  reply.header('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${SECURE_FLAG}`);
+  // Clear both the current cookie and the legacy pre-rebrand name
+  reply.header('Set-Cookie', [
+    `${COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${SECURE_FLAG}`,
+    `lavern_token=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${SECURE_FLAG}`,
+  ]);
 }
 
 function sanitizeUser(user: { id: string; email: string; display_name: string; firm_name: string; profile_json: string; email_verified?: number }) {
@@ -159,7 +163,7 @@ export function registerUserAuthRoutes(fastify: FastifyInstance): void {
   }, async (request, reply) => {
     // Signup gate — set LAVERN_SIGNUP_DISABLED=true to block new registrations
     if (config.signupDisabled) {
-      return reply.status(503).send({ error: 'We are not accepting new accounts at this time. Join the waitlist at lavern.ai.' });
+      return reply.status(503).send({ error: 'We are not accepting new accounts at this time. Contact us at demandpay.ca.' });
     }
 
     const body = validateBody(SignupSchema, request, reply);
@@ -199,7 +203,7 @@ export function registerUserAuthRoutes(fastify: FastifyInstance): void {
         user.id,
         config.billableHours.welcomeHours,
         'welcome',
-        `Welcome to Lavern — ${config.billableHours.welcomeHours} billable hours on us.`,
+        `Welcome to DemandPay Starling — ${config.billableHours.welcomeHours} billable hours on us.`,
       );
     } else if (config.billableHours.freeTrialHours > 0) {
       creditBillableHours(
@@ -216,7 +220,7 @@ export function registerUserAuthRoutes(fastify: FastifyInstance): void {
       if (referrer && referrer.id !== user.id) {
         const hours = config.billableHours.referralHours;
         setReferredBy(user.id, referrer.id);
-        creditBillableHours(user.id, hours, 'referral', `Referral bonus — welcome to Lavern.`);
+        creditBillableHours(user.id, hours, 'referral', `Referral bonus — welcome to DemandPay Starling.`);
         creditBillableHours(referrer.id, hours, 'referral', `Referral bonus — someone joined with your link.`);
         // Notify referrer
         sendReferralEmail(referrer.email, referrer.display_name, hours).catch(err => logger.error('referral_email_failed', err));

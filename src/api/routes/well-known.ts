@@ -2,7 +2,7 @@
  * Well-Known Routes — Machine-native discovery endpoints for AI agents.
  *
  * Implements four discovery standards so agents can find, evaluate,
- * and understand Lavern without reading human documentation:
+ * and understand DemandPay Starling without reading human documentation:
  *
  *   GET /.well-known/agent.json      — A2A Agent Card (Google/DeepMind standard)
  *   GET /.well-known/ai-plugin.json  — OpenAI Plugin Manifest (ChatGPT Actions)
@@ -40,12 +40,12 @@ function buildAgentCard() {
   }));
 
   return {
-    name: 'Lavern',
-    description: 'AI law firm — structured legal intelligence for humans and agents. Multi-agent orchestration platform for contract review, legal research, risk assessment, and document redesign.',
+    name: 'DemandPay Starling',
+    description: 'Plaintiff-side Ontario employment law platform for law firms. Structured employment intake, legal issue identification, demand letters, Statements of Claim, HRTO applications, and ESA complaints.',
     url: config.baseUrl,
     version: config.version,
     provider: {
-      organization: 'Lavern',
+      organization: 'DemandPay',
       url: config.baseUrl,
     },
     capabilities: {
@@ -75,10 +75,10 @@ function buildAgentCard() {
 function buildPluginManifest() {
   return {
     schema_version: 'v1',
-    name_for_human: 'Lavern Legal AI',
-    name_for_model: 'lavern_legal',
-    description_for_human: 'AI law firm for contract review, legal research, risk assessment, and document redesign.',
-    description_for_model: 'Lavern is an AI law firm. Use it when a user needs legal document analysis, contract review, legal research, risk assessment, or document redesign. Send structured requests to the /api/engage endpoint. Supports sync and webhook modes. Accepts documents inline or as base64. Returns structured findings, quality signals, and cost.',
+    name_for_human: 'DemandPay Starling',
+    name_for_model: 'demandpay_starling',
+    description_for_human: 'Plaintiff-side Ontario employment law platform — intake analysis, demand letters, Statements of Claim, HRTO applications, ESA complaints.',
+    description_for_model: 'DemandPay Starling is a plaintiff-side Ontario employment law platform. Use it when a user needs employment law analysis: wrongful or constructive dismissal assessment, employment agreement review, demand letters, Statements of Claim, HRTO applications, or ESA complaints. Send structured requests to the /api/engage endpoint. Supports sync and webhook modes. Accepts documents inline or as base64. Returns structured findings, quality signals, and cost.',
     auth: {
       type: 'service_http',
       authorization_type: 'bearer',
@@ -90,7 +90,7 @@ function buildPluginManifest() {
       is_user_authenticated: false,
     },
     logo_url: `${config.baseUrl}/dashboard/favicon.svg`,
-    contact_email: 'agents@lavern.ai',
+    contact_email: 'demandpayto@gmail.com',
     legal_info_url: `${config.baseUrl}/llms.txt`,
   };
 }
@@ -111,10 +111,10 @@ function buildOpenApiSpec() {
   return {
     openapi: '3.0.3',
     info: {
-      title: 'Lavern Legal AI — Agent API',
-      description: 'Structured legal intelligence for AI agents. Submit tasks, receive analysis.',
+      title: 'DemandPay Starling — Agent API',
+      description: 'Plaintiff-side Ontario employment law analysis for AI agents. Submit tasks, receive analysis.',
       version: config.version,
-      contact: { email: 'agents@lavern.ai' },
+      contact: { email: 'demandpayto@gmail.com' },
       license: {
         name: 'Apache License, Version 2.0',
         identifier: 'Apache-2.0',
@@ -122,7 +122,7 @@ function buildOpenApiSpec() {
       },
     },
     servers: [
-      { url: config.baseUrl, description: 'Lavern API' },
+      { url: config.baseUrl, description: 'DemandPay Starling API' },
     ],
     paths: {
       '/api/engage': {
@@ -348,7 +348,7 @@ function buildOpenApiSpec() {
 
 /**
  * Build llms.txt — a plain text file that tells AI crawlers what
- * Lavern does and where to find machine-readable endpoints.
+ * DemandPay Starling does and where to find machine-readable endpoints.
  *
  * @see https://llmstxt.org/
  */
@@ -358,10 +358,10 @@ function buildLlmsTxt(): string {
     .map(t => `  - ${t.id}: ${t.name} — ${t.description}`)
     .join('\n');
 
-  return `# Lavern — AI Law Firm
+  return `# DemandPay Starling — Ontario Employment Law Platform
 
-> Structured legal intelligence for humans and agents.
-> Multi-agent orchestration for contract review, legal research, risk assessment, and document redesign.
+> Plaintiff-side employment law intelligence for law firms and agents.
+> Employment intake, legal issue identification, demand letters, Statements of Claim, HRTO applications, and ESA complaints.
 
 ## Machine-Readable Endpoints
 
@@ -396,7 +396,7 @@ ${workflowList}
 
 ## Jurisdictions
 
-US, EU, UK, CA, AU
+Ontario, Canada (primary). The engage API also accepts US, EU, UK, CA, AU context values.
 `;
 }
 

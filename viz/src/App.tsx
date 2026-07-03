@@ -1,22 +1,23 @@
 /**
  * App — Main application shell.
  *
- * Law firm engagement flow:
- *   (default)    → Cinematic landing page (dark, bold, mysterious)
- *   #/quickstart → Quick Start: drop docs + type question + go
- *   #/dashboard  → Hero: begin engagement + YOLO
- *   #/intake     → Client intake / reception
- *   #/briefing   → Context capture / document upload / Q&A
- *   #/strategy   → Choose approach, depth, team leader
- *   #/instruct   → (legacy redirect → team)
- *   #/team       → Browse & select agents
- *   #/working    → Live agent dashboard (thinking stream)
- *   #/delivery   → Work results presentation
- *   #/my-cases   → Active & past sessions
- *   #/my-page    → User profile & settings
- *   #/claw       → Claw Mode remote monitoring dashboard
- *   #/challenge  → The Lavern Challenge — blind document comparison
- *   #/agent-builder → custom agent builder wizard
+ * DemandPay Starling — plaintiff-side Ontario employment law matter flow:
+ *   (default)        → Starling dashboard (matter list)
+ *   #/new-matter     → Employment intake (new matter)
+ *   #/matter-detail  → Matter detail (issues, documents, drafts, timeline)
+ *   #/billing        → Billing
+ *   #/my-cases       → Active & past matters
+ *   #/my-page        → User profile & settings
+ *
+ * Deep-analysis session flow (reached from a matter; also used to view
+ * past sessions from My Cases):
+ *   #/briefing → #/strategy → #/team → #/working → #/delivery
+ *
+ * Legacy Lavern routes (landing, foyer, lobby, quickstart, challenge,
+ * claw, dispatch, agent-builder, agent-docs, ralph, partner, archive,
+ * showcase, demo) are intentionally NOT routed — unknown hashes fall
+ * through to the Starling dashboard. Their view code remains for the
+ * scoped follow-up that re-introduces deep analysis inside matters.
  *
  * All views are lazy-loaded React components in their own directories.
  * App.tsx handles routing and cross-view data flow via sessionStorage.
@@ -34,7 +35,7 @@ import type { MatterData } from './intake/hooks/useIntakeState.js';
 import type { BriefingPayload } from './briefing/hooks/useBriefingState.js';
 import type { FrontendParsedDocument } from './briefing/hooks/useDocumentUpload.js';
 import { SessionList } from './components/SessionList.js';
-import { LavernMark } from './components/LavernMark.js';
+import { StarlingMark } from './components/StarlingMark.js';
 import { LoadingW } from './components/LoadingW.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { YOLO_CONFIGS, type YoloTier } from './landing/yolo-config.js';
@@ -90,39 +91,18 @@ function getViewFromHash(): AppView {
   if (typeof window !== 'undefined' && !hash && window.location.pathname.startsWith('/demo/')) {
     return 'demo';
   }
-  if (hash.startsWith('#/quickstart')) return 'quickstart';
-  if (hash.startsWith('#/partner')) return 'partner';
-  if (hash.startsWith('#/lobby')) return 'lobby';
   if (hash.startsWith('#/login')) return 'login';
   if (hash.startsWith('#/reset-password')) return 'reset-password';
   if (hash.startsWith('#/verify-email')) return 'verify-email';
-  if (hash.startsWith('#/dashboard')) return 'dashboard';
-  if (hash.startsWith('#/intake')) return 'intake';
   if (hash.startsWith('#/briefing')) return 'briefing';
   if (hash.startsWith('#/strategy')) return 'strategy';
-  if (hash.startsWith('#/instruct')) return 'team'; // legacy redirect
   if (hash.startsWith('#/team')) return 'team';
-  if (hash.startsWith('#/staffing')) return 'strategy'; // backward compat redirect
   if (hash.startsWith('#/working')) return 'working';
   if (hash.startsWith('#/delivery')) return 'delivery';
   if (hash.startsWith('#/my-cases')) return 'my-cases';
   if (hash.startsWith('#/my-page')) return 'my-page';
-  if (hash.startsWith('#/agent-docs')) return 'agent-docs';
-  if (hash.startsWith('#/dispatch')) return 'dispatch';
-  if (hash.startsWith('#/claw-live')) return 'claw-live';
-  if (hash.startsWith('#/claw')) return 'claw';
-  if (hash.startsWith('#/ralph')) return 'ralph';
-  if (hash.startsWith('#/archive')) return 'archive';
-  if (hash.startsWith('#/challenge')) return 'challenge';
-  if (hash.startsWith('#/agent-builder')) return 'agent-builder';
-  if (hash.startsWith('#/a/')) return 'shared-agent';
-  if (hash.startsWith('#/t/')) return 'shared-team';
   if (hash.startsWith('#/terms')) return 'terms';
   if (hash.startsWith('#/privacy')) return 'privacy';
-  if (hash.startsWith('#/landing')) return 'landing';
-  if (hash.startsWith('#/showcase')) return 'showcase';
-  if (hash.startsWith('#/demo')) return 'demo';
-  if (hash.startsWith('#/foyer')) return 'foyer';
   if (hash.startsWith('#/new-matter')) return 'new-matter';
   if (hash.startsWith('#/matter-detail')) return 'matter-detail';
   if (hash.startsWith('#/processing')) return 'starling-processing';
@@ -221,7 +201,7 @@ export function App() {
   }, []);
 
   // Demo containment — if a demo session is active, only allow demo-safe routes
-  const DEMO_SAFE: AppView[] = ['foyer', 'starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'billing', 'working', 'delivery', 'claw', 'claw-live', 'demo', 'login'];
+  const DEMO_SAFE: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'billing', 'working', 'delivery', 'demo', 'login'];
   useEffect(() => {
     const sid = sessionStorage.getItem('shem-session-id') ?? '';
     if (sid.startsWith('demo-session') && !DEMO_SAFE.includes(view)) {
@@ -253,8 +233,8 @@ export function App() {
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.includes('oauth=success')) {
-      // Clean the hash — remove the query string
-      window.location.hash = '#/briefing';
+      // Clean the hash — remove the query string, land on the Starling dashboard
+      window.location.hash = '#/';
     } else if (hash.includes('oauth_denied') || hash.includes('oauth_failed')) {
       setErrorToast('Google sign-in was not completed. Please try again.');
       window.location.hash = '#/login';
@@ -611,7 +591,7 @@ export function App() {
       'shem-demo-case',
     ];
     keysToRemove.forEach(k => sessionStorage.removeItem(k));
-    window.location.hash = '#/quickstart';
+    window.location.hash = '#/';
   }, []);
 
   // ── View rendering ────────────────────────────────────────────────────
@@ -687,11 +667,11 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading intake..." />}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <IntakeView
               onComplete={handleIntakeComplete}
               onSkip={handleIntakeSkip}
-              onBack={() => { window.location.hash = '#/quickstart'; }}
+              onBack={() => { window.location.hash = '#/'; }}
             />
           </Suspense>
         </ViewTransition>
@@ -709,7 +689,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading briefing..." />}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <BriefingView
               onComplete={handleBriefingComplete}
               onBack={() => { window.location.hash = '#/intake'; }}
@@ -731,7 +711,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading strategy..." />}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <StrategyView
               onComplete={handleStrategyComplete}
               onBack={() => { sessionStorage.removeItem('shem-briefing-config'); window.location.hash = '#/briefing'; }}
@@ -753,7 +733,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading team..." />}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <TeamView
               onTeamConfirmed={handleStaffingComplete}
               onBack={() => { sessionStorage.removeItem('shem-briefing-team'); window.location.hash = '#/strategy'; }}
@@ -774,13 +754,13 @@ export function App() {
         {verifyBanner}
         {cursor}
         <Suspense fallback={<ViewFallback text="Loading session..." />}>
-          {showMark && <LavernMark />}
+          {showMark && <StarlingMark />}
           <WorkingView
             onComplete={navToDelivery}
             onBack={() => {
               const sid = sessionStorage.getItem('shem-session-id') ?? '';
               sessionStorage.removeItem('shem-session-id'); sessionStorage.removeItem('shem-demo-case');
-              window.location.hash = sid.startsWith('demo-session') ? '#/' : '#/quickstart';
+              window.location.hash = '#/';
             }}
             onSkip={navToDelivery}
           />
@@ -799,12 +779,12 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading delivery..." />}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <DeliveryView
               onContinue={handleDeliveryDone}
               onBack={() => {
                 const sid = sessionStorage.getItem('shem-session-id') ?? '';
-                window.location.hash = sid.startsWith('demo-session') ? '#/demo' : '#/quickstart';
+                window.location.hash = sid.startsWith('demo-session') ? '#/demo' : '#/';
               }}
             />
           </Suspense>
@@ -823,8 +803,8 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading profile..." />}>
-            {showMark && <LavernMark />}
-            <MyPageView onBack={() => { window.location.hash = '#/quickstart'; }} />
+            {showMark && <StarlingMark />}
+            <MyPageView onBack={() => { window.location.hash = '#/'; }} />
           </Suspense>
         </ViewTransition>
       </ErrorBoundary>
@@ -841,7 +821,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading cases..." />}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <MyCasesView
               onConnectSession={(id) => {
                 sessionStorage.setItem('shem-session-id', id);
@@ -852,7 +832,7 @@ export function App() {
                 sessionStorage.setItem('shem-from-archive', 'true');
                 window.location.hash = '#/delivery';
               }}
-              onBack={() => { window.location.hash = '#/quickstart'; }}
+              onBack={() => { window.location.hash = '#/'; }}
             />
           </Suspense>
         </ViewTransition>
@@ -871,8 +851,8 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading Archive..." />}>
-            {showMark && <LavernMark />}
-            <ArchiveView onBack={() => { window.location.hash = '#/quickstart'; }} />
+            {showMark && <StarlingMark />}
+            <ArchiveView onBack={() => { window.location.hash = '#/'; }} />
           </Suspense>
         </ViewTransition>
       </ErrorBoundary>
@@ -894,7 +874,7 @@ export function App() {
               if (userCtx) userCtx.login(user);
               window.location.hash = '#/';
             }}
-            onBack={() => { window.location.hash = '#/quickstart'; }}
+            onBack={() => { window.location.hash = '#/'; }}
           />
         </Suspense>
       </ErrorBoundary>
@@ -947,8 +927,8 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading API docs..." />}>
-            {showMark && <LavernMark />}
-            <AgentDocsView onBack={() => { window.location.hash = '#/quickstart'; }} />
+            {showMark && <StarlingMark />}
+            <AgentDocsView onBack={() => { window.location.hash = '#/'; }} />
           </Suspense>
         </ViewTransition>
       </ErrorBoundary>
@@ -967,7 +947,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading..." />}>
-            <ChallengeView onBack={() => { window.location.hash = '#/quickstart'; }} />
+            <ChallengeView onBack={() => { window.location.hash = '#/'; }} />
           </Suspense>
         </ViewTransition>
       </ErrorBoundary>
@@ -985,7 +965,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading Agent Builder..." />}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <AgentBuilderView
               onBack={() => { window.location.hash = '#/team'; }}
               editAgentId={window.location.hash.includes('?edit=') ? window.location.hash.split('?edit=')[1] : undefined}
@@ -1041,7 +1021,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading..." />}>
-            <LegalView page={view} onBack={() => { window.location.hash = '#/quickstart'; }} />
+            <LegalView page={view} onBack={() => { window.location.hash = '#/'; }} />
           </Suspense>
         </ViewTransition>
       </ErrorBoundary>
@@ -1067,8 +1047,8 @@ export function App() {
         {cursor}
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading Clawern..." />}>
-            {showMark && <LavernMark />}
-            <ClawView onBack={() => { window.location.hash = '#/quickstart'; }} />
+            {showMark && <StarlingMark />}
+            <ClawView onBack={() => { window.location.hash = '#/'; }} />
           </Suspense>
         </ViewTransition>
       </ErrorBoundary>
@@ -1135,7 +1115,7 @@ export function App() {
         <ViewTransition>
           <Suspense fallback={<ViewFallback text="Loading..." />}>
             <LobbyView
-              onEnter={() => { window.location.hash = '#/quickstart'; }}
+              onEnter={() => { window.location.hash = '#/'; }}
               onMyPage={() => { window.location.hash = '#/my-page'; }}
               onLogin={() => { window.location.hash = '#/login'; }}
               onAgentDocs={() => { window.location.hash = '#/agent-docs'; }}
@@ -1158,7 +1138,7 @@ export function App() {
         {cursor}
         <ViewTransition>
           <div style={styles.app}>
-            {showMark && <LavernMark />}
+            {showMark && <StarlingMark />}
             <div style={styles.sessionOverlay}>
               <SessionList
                 onConnectSession={(id) => {
@@ -1189,7 +1169,7 @@ export function App() {
         {verifyBanner}
         {cursor}
         <Suspense fallback={<div style={{ width: '100%', height: '100vh', backgroundColor: '#1A1A1A' }} />}>
-          <LavernMark hideCursor />
+          <StarlingMark hideCursor />
           <LandingView
             onEnter={() => { window.location.hash = '#/lobby'; }}
             onMyPage={() => { window.location.hash = '#/my-page'; }}
@@ -1218,7 +1198,7 @@ export function App() {
                 sessionStorage.setItem('shem-session-id', sessionId);
                 window.location.hash = '#/working';
               }}
-              onManualFlow={() => { window.location.hash = '#/quickstart'; }}
+              onManualFlow={() => { window.location.hash = '#/'; }}
               onBack={() => { sessionStorage.removeItem('shem-demo-case'); window.location.hash = '#/'; }}
             />
           </Suspense>

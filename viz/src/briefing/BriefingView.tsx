@@ -5,7 +5,7 @@
  *   Documents → Interviewer → Questions → Follow-ups → Instructions → Brief
  *
  * After static questions, an LLM analyzes sufficiency and generates
- * targeted follow-up questions + a structured engagement brief.
+ * targeted follow-up questions + a structured matter brief.
  *
  * Reads matter data from sessionStorage (set by IntakeView).
  * Comes BEFORE staffing — no team data needed.

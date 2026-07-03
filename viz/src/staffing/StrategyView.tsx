@@ -92,7 +92,7 @@ export default function StrategyView({ onComplete, onBack, onSkip }: Props) {
       {/* Title + intro \u2014 share the same left edge as everything below */}
       <h1 style={styles.title}>Starling <span style={{ fontWeight: 500 }}>Strategy</span></h1>
       <p style={styles.intro}>
-        Defaults work well for most engagements. Adjust only if you need to.
+        Defaults work well for most matters. Adjust only if you need to.
       </p>
 
       {/* Configurator: workflow cards, connector, orchestrator, depth, autopilot */}

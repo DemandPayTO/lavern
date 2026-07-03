@@ -1,5 +1,5 @@
 /**
- * LavernIlluminated — Wordmark with a slow light-sweep effect.
+ * StarlingIlluminated — Wordmark with a slow light-sweep effect.
  *
  * A warm highlight band drifts across the letters like sunlight
  * catching veins in stone. Works on both light and dark backgrounds
@@ -17,7 +17,7 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-export function LavernIlluminated({
+export function StarlingIlluminated({
   color = '#1a1a1a',
   glow = '#96875f',
   style,

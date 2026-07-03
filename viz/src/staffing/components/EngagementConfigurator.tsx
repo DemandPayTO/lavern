@@ -14,7 +14,6 @@ import { IntensitySelector } from './IntensitySelector.js';
 import { TeamCostSummary } from './TeamCostSummary.js';
 import { YoloToggle } from './YoloToggle.js';
 import { VerificationToggle } from './VerificationToggle.js';
-import { ProviderToggle } from './ProviderToggle.js';
 import { OrchestratorMiniCard } from './OrchestratorMiniCard.js';
 import { colors, fonts, radii, spacing } from '../styles/tokens.js';
 import type { WorkflowSummary } from '../hooks/useWorkflows.js';
@@ -60,7 +59,6 @@ export function EngagementConfigurator({
   onIntensityChange,
   onYoloChange,
   onVerificationChange,
-  onProviderChange,
   showCostSummary = true,
 }: Props) {
   const { isMobile } = useResponsive();
@@ -137,12 +135,8 @@ export function EngagementConfigurator({
               onToggle={onVerificationChange}
             />
           </div>
-          <div style={{ marginTop: spacing.md }}>
-            <ProviderToggle
-              provider={config.provider}
-              onToggle={onProviderChange}
-            />
-          </div>
+          {/* ProviderToggle (EU Sovereign / Mistral) hidden for Starling —
+              Ontario employment law product defaults to Anthropic */}
         </div>
       </div>
     </motion.div>
