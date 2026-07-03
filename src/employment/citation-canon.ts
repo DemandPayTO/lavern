@@ -57,6 +57,16 @@ export const CITATION_CANON: CanonEntry[] = [
   { keyword: 'celestini', name: 'Celestini v Shoplogix Inc', citations: ['2023 onca 131'] },
   { keyword: 'van dolder', name: "Baker v Van Dolder's Home Team Inc", citations: ['2025 onsc 952'] },
   { keyword: 'wayfair', name: 'Li v Wayfair Canada Inc', citations: ['2025 onsc 2959'] },
+  // ── Labour (union-side) canon — added with the labour vertical.
+  // Old-format cites (LAC, CLRBR, UMAC) don't match the neutral-citation
+  // regex, so no mismatch check fires on them — name recognition only.
+  { keyword: 'kvp', name: "Lumber & Sawmill Workers' Union, Local 2537 v KVP Co (1965)", citations: ['16 lac 73'] },
+  { keyword: 'william scott', name: 'Wm. Scott & Company Ltd', citations: ['[1977] 1 clrbr 1'] },
+  { keyword: 'wm. scott', name: 'Wm. Scott & Company Ltd', citations: ['[1977] 1 clrbr 1'] },
+  { keyword: 'weber', name: 'Weber v Ontario Hydro', citations: ['[1995] 2 scr 929', '1995 canlii 108'] },
+  { keyword: 'vavilov', name: 'Canada (Minister of Citizenship and Immigration) v Vavilov', citations: ['2019 scc 65'] },
+  { keyword: 'millhaven', name: 'Millhaven Fibres Ltd v OCAW, Local 9-670 (1967)', citations: ['1 (a) umac 328'] },
+  { keyword: 'parry sound', name: 'Parry Sound (District) Social Services Administration Board v OPSEU, Local 324', citations: ['2003 scc 42'] },
 ];
 
 // ── Detection ────────────────────────────────────────────────────────────

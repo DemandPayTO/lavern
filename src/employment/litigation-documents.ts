@@ -32,7 +32,9 @@ export type LitigationDocumentType =
   | 'rule49_offer'
   | 'settlement_minutes'
   | 'retainer_agreement'
-  | 'mitigation_log';
+  | 'mitigation_log'
+  | 'settlement_conference_brief'
+  | 'hrto_schedule_a';
 
 export interface LitigationDocumentRequest {
   intake: EmploymentIntakeData;
@@ -302,6 +304,37 @@ RULES:
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
 
     mitigation_log: 'DETERMINISTIC — never sent to the model.',
+
+    settlement_conference_brief: `You are a senior Ontario employment lawyer drafting a SETTLEMENT CONFERENCE / PRE-TRIAL BRIEF for the plaintiff in a wrongful dismissal matter.
+
+FORUM ADAPTATION (the filing details state the procedure type — structure accordingly):
+- SMALL CLAIMS COURT: the mandatory settlement conference under Rule 13 of the Small Claims Court Rules. Include: concise statement of the issues, admitted vs disputed facts, the plaintiff's position with supporting documents identified, proposed witnesses at trial, and a realistic settlement position. Tone: practical — the deputy judge wants to settle this case.
+- SIMPLIFIED / ORDINARY PROCEDURE: the pre-trial conference brief under Rule 50.04. Include: nature of the proceeding and status, admitted/agreed facts, contested issues of fact and law (with the plaintiff's position on each), damages summary with the entitlements math, settlement history (WITHOUT disclosing without-prejudice amounts unless instructed), estimated trial length and witnesses, and the relief sought.
+
+CONTENT PRINCIPLES:
+- Numbers first: the ESA floor, the common-law range, and what the plaintiff realistically seeks.
+- Candid issue framing — pre-trial judges reward realism and punish puffery.
+- Identify the true obstacles to settlement in one short section.
+- Cite only real authorities (Bardal for notice; issue-specific canon where approved).
+
+Output as HTML with h1, h2, p, ol, li, strong, tables for the damages summary. No inline styles.`,
+
+    hrto_schedule_a: `You are a senior Ontario human rights lawyer drafting SCHEDULE "A" to an HRTO Application (Form 1) — the detailed narrative of allegations that accompanies the form, on behalf of the applicant employee.
+
+STRUCTURE (numbered paragraphs throughout):
+1. OVERVIEW — the applicant, the respondent(s), the Code grounds engaged (s. 5 employment), and the discrimination alleged, in three or four paragraphs.
+2. THE PARTIES — the applicant's employment history with the respondent; each personal respondent's role (name individuals only where their conduct grounds liability).
+3. THE FACTS — strict chronology, one event per paragraph, dates first. Draw the connection between the protected ground and each adverse treatment explicitly ("Two weeks after disclosing her disability, ...").
+4. THE DISCRIMINATION — organised by Code section engaged: discrimination in employment (s. 5(1)), harassment (s. 5(2)) where applicable, failure to accommodate to the point of undue hardship (s. 11 / s. 17), reprisal (s. 8) where applicable.
+5. IMPACT ON THE APPLICANT — dignity, feelings and self-respect; health; financial.
+6. REMEDIES SOUGHT (s. 45.2) — monetary compensation for injury to dignity (state a figure consistent with current HRTO ranges for comparable conduct), lost wages, and public interest remedies (policy, training).
+
+RULES:
+- The narrative must stand alone — the adjudicator may read Schedule A before anything else.
+- Every date and fact from the intake; nothing invented.
+- The one-year limitation (s. 34(1)) — state the date of the last incident in the series prominently in the overview.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
   };
 
   return prompts[docType] + `
@@ -486,6 +519,8 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'settlement_minutes': return 'Minutes of Settlement & Release';
     case 'retainer_agreement': return 'Retainer Agreement';
     case 'mitigation_log': return 'Mitigation Log (Client Job-Search Record)';
+    case 'settlement_conference_brief': return 'Settlement Conference / Pre-Trial Brief';
+    case 'hrto_schedule_a': return 'HRTO Schedule "A" (Narrative of Allegations)';
   }
 }
 
@@ -511,6 +546,10 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
       return ['fee_structure_and_rates', 'contingency_standard_form_required_if_CFA', 'scope_inclusions_exclusions', 'retainer_deposit_amount'];
     case 'mitigation_log':
       return ['client_instructions_cover_note'];
+    case 'settlement_conference_brief':
+      return ['forum_and_rule_confirmed', 'settlement_position_authorized', 'without_prejudice_disclosure_check', 'witness_list'];
+    case 'hrto_schedule_a':
+      return ['last_incident_date_within_limitation', 'grounds_match_form_selections', 'respondents_named_deliberately', 'dignity_quantum_range'];
   }
 }
 

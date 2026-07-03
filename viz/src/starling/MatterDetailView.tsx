@@ -212,6 +212,18 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     cost: '~$1\u20132 -- 1\u20132 min',
   },
   {
+    id: 'confbrief',
+    title: 'Settlement Conference Brief',
+    description: 'Rule 13 (Small Claims) or Rule 50 pre-trial brief \u2014 adapts to the matter\u2019s forum automatically.',
+    cost: '~$3\u20136 -- 3\u20136 min',
+  },
+  {
+    id: 'schedulea',
+    title: 'HRTO Schedule "A"',
+    description: 'The narrative of allegations that accompanies Form 1 \u2014 chronology, grounds, impact, s. 45.2 remedies.',
+    cost: '~$2\u20135 -- 2\u20135 min',
+  },
+  {
     id: 'mitigation',
     title: 'Mitigation Log',
     description: 'Client-facing job-search record with instructions \u2014 the damages evidence that wins notice periods.',
@@ -268,6 +280,8 @@ const DRAFT_TO_DOCTYPE: Record<string, string> = {
   minutes: 'settlement_minutes',
   retainer: 'retainer_agreement',
   mitigation: 'mitigation_log',
+  confbrief: 'settlement_conference_brief',
+  schedulea: 'hrto_schedule_a',
 };
 
 const DRAFT_TO_DOWNLOAD: Record<string, string> = {
@@ -281,6 +295,8 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   minutes: 'settlement-minutes',
   retainer: 'retainer-agreement',
   mitigation: 'mitigation-log',
+  confbrief: 'settlement-conference-brief',
+  schedulea: 'hrto-schedule-a',
 };
 
 /** Cards that need a dollar amount before Generate makes sense. */

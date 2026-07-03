@@ -40,7 +40,9 @@ export type TemplateDocumentType =
   | 'rule49_offer'
   | 'settlement_minutes'
   | 'retainer_agreement'
-  | 'mitigation_log';
+  | 'mitigation_log'
+  | 'settlement_conference_brief'
+  | 'hrto_schedule_a';
 
 export interface FirmTemplate {
   /** Unique template ID. */
@@ -213,6 +215,7 @@ export const templateUploadSchema = z.object({
     'affidavit_of_documents', 'mediation_brief',
     'severance_assessment', 'counter_offer',
     'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log',
+    'settlement_conference_brief', 'hrto_schedule_a',
   ]),
   name: z.string().trim().min(1).max(200),
   /** Base64-encoded DOCX file content. */

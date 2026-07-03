@@ -700,7 +700,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // ── POST /api/employment/:matterId/litigation-document ──────────────────
   // Generate a discovery plan, affidavit of documents, or mediation brief.
 
-  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log'] as const;
+  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a'] as const;
 
   const litigationDocBodySchema = z.object({
     documentType: z.enum(LITIGATION_DOC_TYPES),
@@ -817,7 +817,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -841,6 +841,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'settlement-minutes': 'settlement_minutes',
       'retainer-agreement': 'retainer_agreement',
       'mitigation-log': 'mitigation_log',
+      'settlement-conference-brief': 'settlement_conference_brief',
+      'hrto-schedule-a': 'hrto_schedule_a',
     };
 
     const buffer = await htmlToDocx(html, {
