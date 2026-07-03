@@ -1287,6 +1287,12 @@ export function getMatterById(matterId: string, userId: string): { id: string; d
   `).get(matterId, userId) as { id: string; data_json: string; status: string } | undefined;
 }
 
+/** Distinct user IDs that own matters — used by the admin deadline digest. */
+export function getAllUserIds(): string[] {
+  const rows = getDb().prepare(`SELECT DISTINCT user_id FROM matters`).all() as Array<{ user_id: string }>;
+  return rows.map(r => r.user_id).filter(Boolean);
+}
+
 /** Delete a matter (ownership enforced by the WHERE clause). Returns true if a row was removed. */
 export function deleteMatter(matterId: string, userId: string): boolean {
   const result = getDb().prepare(`

@@ -8,7 +8,7 @@
  * Canadian spelling throughout (analyse, licenced).
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMatterList } from './hooks/useStarlingApi.js';
 
 // ── Design Tokens (CSS variable references) ─────────────────────────────
@@ -179,6 +179,26 @@ export default function StarlingDashboard() {
 
   // Wire hook data
   const { matters, loading, refresh } = useMatterList();
+
+  // Deadline docket — consolidated limitations / response deadlines /
+  // severance deadlines across all matters
+  interface DeadlineItem {
+    matterId: string; matterLabel: string; date: string; label: string;
+    daysRemaining: number; urgency: 'overdue' | 'critical' | 'soon' | 'upcoming'; kind: string;
+  }
+  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/employment/deadlines', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d?.ok) setDeadlines(d.deadlines ?? []); })
+      .catch(() => { /* docket is best-effort */ });
+    return () => { cancelled = true; };
+  }, [matters.length]);
+
+  const URGENCY_COLOURS: Record<string, string> = {
+    overdue: '#dc2626', critical: '#dc2626', soon: '#d97706', upcoming: muted,
+  };
 
   const handleDeleteMatter = async (matterId: string) => {
     setDeleting(true);
@@ -369,6 +389,43 @@ export default function StarlingDashboard() {
             onClick={() => handleNav('#/matter-detail')}
           />
         </div>
+
+        {/* ── Deadlines docket ─────────────────────────────────── */}
+        {deadlines.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
+              Deadlines
+              {deadlines.some(d => d.urgency === 'overdue' || d.urgency === 'critical') && (
+                <span style={{ marginLeft: 8, color: '#dc2626' }}>
+                  · {deadlines.filter(d => d.urgency === 'overdue' || d.urgency === 'critical').length} need attention
+                </span>
+              )}
+            </div>
+            <div style={{ background: '#fff', border: `1px solid ${border}` }} role="list" aria-label="Upcoming deadlines">
+              {deadlines.slice(0, 6).map((d, i) => (
+                <div
+                  key={`${d.matterId}-${d.date}-${d.kind}`}
+                  role="listitem"
+                  onClick={() => handleNav(`#/matter-detail/${d.matterId}`)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleNav(`#/matter-detail/${d.matterId}`); }}
+                  tabIndex={0}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer',
+                    borderBottom: i < Math.min(deadlines.length, 6) - 1 ? `1px solid ${border}` : 'none',
+                  }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: URGENCY_COLOURS[d.urgency], flexShrink: 0 }} aria-hidden="true" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: URGENCY_COLOURS[d.urgency], minWidth: 92 }}>
+                    {d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`}
+                  </span>
+                  <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{d.label}</span>
+                  <span style={{ fontSize: 13, color: muted, marginLeft: 'auto' }}>{d.matterLabel}</span>
+                  <span style={{ fontSize: 12, color: muted, minWidth: 84, textAlign: 'right' as const }}>{d.date}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── My Matters ──────────────────────────────────────── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 14px' }}>

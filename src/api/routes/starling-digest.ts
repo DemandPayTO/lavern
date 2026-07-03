@@ -11,7 +11,9 @@
 
 import type { FastifyInstance } from 'fastify';
 import { inferMatterStatuses, aggregateWeeklyDigest } from '../../starling/status-monitor.js';
-import { sendClawDigestEmail } from '../../email/send.js';
+import { sendClawDigestEmail, sendDeadlineDigestEmail } from '../../email/send.js';
+import { collectDeadlines } from '../../employment/deadlines.js';
+import { getAllUserIds, getMattersByUser } from '../../db/database.js';
 import { config } from '../../config.js';
 import { createLogger } from '../../utils/logger.js';
 
@@ -66,11 +68,19 @@ export function registerStarlingDigestRoutes(fastify: FastifyInstance): void {
     try {
       const digest = aggregateWeeklyDigest();
 
+      // Deadline docket across all users' matters (admin digest — the
+      // recipient is the firm principal)
+      const deadlines = getAllUserIds()
+        .flatMap(uid => collectDeadlines(getMattersByUser(uid)))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
       if (dryRun) {
-        return reply.send({ ok: true, dry_run: true, digest });
+        return reply.send({ ok: true, dry_run: true, digest, deadlines });
       }
 
       const sent = await sendClawDigestEmail(email!, digest);
+      const deadlinesSent = await sendDeadlineDigestEmail(email!, deadlines);
+      if (!deadlinesSent) logger.warn('Deadline digest email failed (stats digest may still have sent)');
 
       if (sent) {
         logger.info(`Weekly digest sent to ${email}`, {

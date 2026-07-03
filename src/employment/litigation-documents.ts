@@ -22,7 +22,12 @@ const logger = createLogger('LITIGATION-DOCS');
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type LitigationDocumentType = 'discovery_plan' | 'affidavit_of_documents' | 'mediation_brief';
+export type LitigationDocumentType =
+  | 'discovery_plan'
+  | 'affidavit_of_documents'
+  | 'mediation_brief'
+  | 'severance_assessment'
+  | 'counter_offer';
 
 export interface LitigationDocumentRequest {
   intake: EmploymentIntakeData;
@@ -158,6 +163,53 @@ RULES:
 - Canadian English spelling throughout
 
 Output as HTML with h1, h2, p, ol, li, strong, tables. No inline styles.`,
+
+    severance_assessment: `You are a senior Ontario employment lawyer preparing a SEVERANCE OFFER ASSESSMENT — an internal advice memo comparing the employer's severance offer against the client's statutory and common law entitlements.
+
+STRUCTURE:
+
+1. THE OFFER — What the employer has offered (weeks/amount, payment structure, deadline to accept, release required), stated plainly.
+
+2. THE STATUTORY FLOOR — ESA termination pay and (if eligible) severance pay. The offer can NEVER lawfully be below this floor; if it is, say so prominently.
+
+3. THE COMMON LAW RANGE — Reasonable notice under Bardal (age, length of service, character of employment, availability of similar employment), expressed in months and dollars, including compensation beyond base salary (bonus, commissions, benefits, pension) through the notice period per Matthews v Ocean Nutrition.
+
+4. TERMINATION CLAUSE ANALYSIS — Does a termination clause purport to limit entitlements? Assess enforceability (Waksdale, Machtinger, De Castro). If the clause is likely void, the common law range governs the negotiation.
+
+5. THE GAP — A simple table: offer vs. ESA floor vs. common law low vs. common law high. State the shortfall in dollars.
+
+6. OTHER FACTORS — Deadline pressure (never let an offer deadline panic a client: ESA entitlements don't expire with the offer), release scope, benefits continuation, reference letter, mitigation obligations and clawback structures, tax treatment options (salary continuance vs lump sum, allocation, RRSP transfer eligibility for retiring allowance where applicable — flag for accountant confirmation).
+
+7. RECOMMENDATION — One of: ACCEPT (rare — explain why adequate), COUNTER (state the recommended counter range and rationale), or LITIGATE (when the gap and facts justify it). Give next steps and what further information would sharpen the assessment.
+
+RULES:
+- This is an internal memo for the lawyer and client — candid, plain language, numbers first.
+- Never advise accepting anything below the ESA floor.
+- Flag any deadline within 14 days as urgent.
+
+Output as HTML with h1, h2, p, ol, li, strong, and a comparison table. No inline styles.`,
+
+    counter_offer: `You are a senior Ontario employment lawyer drafting a COUNTER-OFFER LETTER to the employer's counsel (or HR, if unrepresented) in response to a severance offer, on behalf of a terminated employee.
+
+STRUCTURE:
+
+1. HEADER — "WITHOUT PREJUDICE" prominently. Date, addressee, re-line (client name, former employer).
+
+2. ACKNOWLEDGMENT — Confirm receipt of the offer and its terms (weeks/amount, deadline) accurately and neutrally.
+
+3. WHY THE OFFER IS INADEQUATE — The entitlements analysis: ESA floor, then the common law reasonable notice range under Bardal with the client's specific factors; compensation components beyond salary (Matthews v Ocean Nutrition for bonus/commission/equity through notice); termination clause enforceability where applicable (Waksdale line). Cite only real authorities.
+
+4. THE COUNTER-POSITION — State the counter amount clearly, with its composition (months of notice, benefits continuation, bonus, reference letter, legally required minimums paid regardless). Explain briefly why it reflects a reasonable settlement discount from full entitlements.
+
+5. TERMS — Response deadline, willingness to discuss, reservation of rights (including the right to commence proceedings and that limitation periods continue to run), no admission.
+
+RULES:
+- Professional and firm — this letter is designed to move a negotiation, not to burn it down.
+- Every factual claim from the intake data. Never invent case citations.
+- The counter amount is the claim amount provided in the filing details.
+- Canadian spelling.
+
+Output as HTML with h1, p, strong. Letter format, no tables. No inline styles.`,
   };
 
   return prompts[docType] + `
@@ -184,6 +236,23 @@ function buildUserPrompt(req: LitigationDocumentRequest): string {
   // List uploaded documents for the affidavit
   const uploadedDocs = (req.sourceDocuments ?? []).map((d, i) => `${i + 1}. ${d.name}`).join('\n');
 
+  // Severance offer details — the core input for assessment + counter-offer
+  const offerParts: string[] = [];
+  if (intake.received_severance_offer) {
+    if (intake.severance_weeks_offered) offerParts.push(`- Offered: ${intake.severance_weeks_offered} weeks`);
+    if (intake.severance_payment_type) offerParts.push(`- Payment structure: ${intake.severance_payment_type}`);
+    if (intake.severance_deadline) offerParts.push(`- Acceptance deadline: ${intake.severance_deadline}`);
+    if (intake.severance_offer_details) offerParts.push(`- Details: ${intake.severance_offer_details}`);
+    if (intake.signed_release !== undefined && intake.signed_release !== null) {
+      offerParts.push(`- Release signed: ${intake.signed_release ? 'YES — flag immediately' : 'no'}`);
+    }
+  }
+  const offerSection = offerParts.length > 0
+    ? `SEVERANCE OFFER:\n${offerParts.join('\n')}`
+    : (req.documentType === 'severance_assessment' || req.documentType === 'counter_offer')
+      ? 'SEVERANCE OFFER: details not captured in intake — state clearly that the offer terms must be confirmed before this document is used.'
+      : '';
+
   return `Generate the ${getDocumentTitle(req.documentType)} for this employment case.
 
 PARTIES:
@@ -209,10 +278,13 @@ DAMAGES:
 - Common law: ${damages.commonLawLowMonths}–${damages.commonLawHighMonths} months ($${damages.commonLawLowAmount.toLocaleString('en-CA')}–$${damages.commonLawHighAmount.toLocaleString('en-CA')})
 ${req.claimAmount ? `- Total claimed: $${req.claimAmount.toLocaleString('en-CA')}` : ''}
 
+${offerSection}
+
 ${uploadedDocs ? `UPLOADED DOCUMENTS:\n${uploadedDocs}` : ''}
 
 FILING DETAILS:
 - Lawyer: ${req.lawyerName}, ${req.firmName}
+${req.claimAmount && req.documentType === 'counter_offer' ? `- Counter-offer amount: $${req.claimAmount.toLocaleString('en-CA')}` : ''}
 ${req.courtLocation ? `- Court: ${req.courtLocation}` : ''}
 
 ${req.additionalContext ? `ADDITIONAL CONTEXT:\n${req.additionalContext}` : ''}
@@ -240,7 +312,7 @@ export async function generateLitigationDocument(
     const result = await crossProviderChat({
       system: systemPrompt,
       user: userPrompt,
-      tier: 'opus',
+      tier: getModelTier(req.documentType),
       maxTokens: 10240,
       maxRetries: 2,
       definedTerms: definedTerms ?? undefined,
@@ -301,6 +373,8 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'discovery_plan': return 'Discovery Plan';
     case 'affidavit_of_documents': return 'Affidavit of Documents';
     case 'mediation_brief': return 'Mediation Brief';
+    case 'severance_assessment': return 'Severance Offer Assessment';
+    case 'counter_offer': return 'Counter-Offer Letter';
   }
 }
 
@@ -312,5 +386,15 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
       return ['schedule_a_completeness', 'schedule_b_completeness', 'privilege_claims', 'sworn_statement'];
     case 'mediation_brief':
       return ['factual_accuracy', 'settlement_range', 'weakness_assessment', 'objectives'];
+    case 'severance_assessment':
+      return ['offer_terms_confirmed', 'entitlement_math', 'recommendation', 'tax_treatment_flag_for_accountant'];
+    case 'counter_offer':
+      return ['counter_amount', 'entitlement_analysis', 'deadline_terms', 'without_prejudice_header'];
   }
+}
+
+/** Model tier per document type — the assessment is an internal memo
+ *  (fast, cheap); outbound legal correspondence gets the strongest model. */
+function getModelTier(docType: LitigationDocumentType): 'opus' | 'sonnet' {
+  return docType === 'severance_assessment' ? 'sonnet' : 'opus';
 }

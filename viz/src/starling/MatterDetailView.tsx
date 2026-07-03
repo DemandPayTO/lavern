@@ -164,16 +164,10 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     recommended: true,
   },
   {
-    id: 'mediation',
-    title: 'Mediation Brief',
-    description: 'Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.',
-    cost: '~$3\u20138 -- 3\u20138 min',
-  },
-  {
-    id: 'settlement',
-    title: 'Settlement Conference Brief',
-    description: 'Position summary for a settlement conference, with supporting authorities.',
-    cost: '~$3\u20138 -- 3\u20138 min',
+    id: 'severance',
+    title: 'Severance Offer Assessment',
+    description: 'Offer vs. ESA floor vs. common-law range, with a recommendation. Internal memo.',
+    cost: '~$1\u20132 -- 1\u20132 min',
   },
   {
     id: 'counter',
@@ -188,10 +182,10 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     cost: '~$3\u20138 -- 3\u20138 min',
   },
   {
-    id: 'motion',
-    title: 'Motion Materials',
-    description: 'Notice of motion, supporting affidavit, and factum for an interlocutory motion.',
-    cost: '~$5\u20138 -- 5\u201310 min',
+    id: 'mediation',
+    title: 'Mediation Brief',
+    description: 'Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.',
+    cost: '~$3\u20138 -- 3\u20138 min',
   },
 ];
 
@@ -341,6 +335,11 @@ export default function MatterDetailView() {
   const firmTemplates = useFirmTemplates();
   const [templateStatus, setTemplateStatus] = useState<string | null>(null);
   const templateInputRef = useRef<HTMLInputElement>(null);
+  // Client update draft
+  const [clientUpdateHtml, setClientUpdateHtml] = useState<string | null>(null);
+  const [clientUpdateLoading, setClientUpdateLoading] = useState(false);
+  const [clientUpdateError, setClientUpdateError] = useState<string | null>(null);
+  const [clientUpdateCopied, setClientUpdateCopied] = useState(false);
 
   const handleNav = useCallback((hash: string) => {
     window.location.hash = hash;
@@ -387,6 +386,31 @@ export default function MatterDetailView() {
   }, [employment]);
 
 
+  // Draft a plain-language client status update (lawyer reviews + sends)
+  const handleClientUpdate = useCallback(async () => {
+    if (!sessionId || clientUpdateLoading) return;
+    setClientUpdateLoading(true);
+    setClientUpdateError(null);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/client-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setClientUpdateError(json.error ?? 'Draft generation failed.');
+      } else {
+        setClientUpdateHtml(json.html);
+      }
+    } catch {
+      setClientUpdateError('Could not reach the server.');
+    } finally {
+      setClientUpdateLoading(false);
+    }
+  }, [sessionId, clientUpdateLoading]);
+
   // Docs tab: handle file selection → parse → Claude extraction
   const handleExtractFile = useCallback(async (file: File) => {
     setExtracting(true);
@@ -406,6 +430,8 @@ export default function MatterDetailView() {
     demand: 'demand_letter',
     soc: 'statement_of_claim',
     mediation: 'mediation_brief',
+    severance: 'severance_assessment',
+    counter: 'counter_offer',
   };
   const selectedTemplateDocType = selectedDraft ? TEMPLATE_DOC_TYPES[selectedDraft] : undefined;
   const currentTemplate = selectedTemplateDocType
@@ -1257,6 +1283,8 @@ export default function MatterDetailView() {
                       selectedDraft === 'demand' ? 'demand_letter'
                         : selectedDraft === 'soc' ? 'statement_of_claim'
                         : selectedDraft === 'mediation' ? 'mediation_brief'
+                        : selectedDraft === 'severance' ? 'severance_assessment'
+                        : selectedDraft === 'counter' ? 'counter_offer'
                         : 'demand_letter',
                       {
                         tone: genTone,
@@ -1329,7 +1357,12 @@ export default function MatterDetailView() {
                         Regenerate
                       </button>
                       <a
-                        href={`/api/employment/${sessionId}/download/${selectedDraft === 'demand' ? 'demand-letter' : selectedDraft === 'soc' ? 'statement-of-claim' : 'mediation-brief'}`}
+                        href={`/api/employment/${sessionId}/download/${
+                          selectedDraft === 'demand' ? 'demand-letter'
+                            : selectedDraft === 'soc' ? 'statement-of-claim'
+                            : selectedDraft === 'severance' ? 'severance-assessment'
+                            : selectedDraft === 'counter' ? 'counter-offer'
+                            : 'mediation-brief'}`}
                         download
                         style={{
                           background: navy, color: '#fff',
@@ -1563,7 +1596,58 @@ export default function MatterDetailView() {
           <ActionButton label="Moot Employer's Response" onClick={() => launchDeepAnalysis('moot')} />
           <ActionButton label="Full Case Assessment" onClick={() => launchDeepAnalysis('assessment')} />
           <ActionButton label="Settlement Valuation" onClick={() => launchDeepAnalysis('settlement')} />
+          <ActionButton
+            label={clientUpdateLoading ? 'Drafting update...' : 'Draft Client Update'}
+            onClick={handleClientUpdate}
+          />
         </div>
+
+        {/* Client update draft — plain-language status email for lawyer review */}
+        {(clientUpdateHtml || clientUpdateError) && (
+          <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '18px 24px', marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <h3 style={{ fontFamily: serif, fontSize: 16, fontWeight: 600, color: navy, margin: 0 }}>
+                Client Update — Draft
+              </h3>
+              {clientUpdateHtml && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => {
+                      const tmp = document.createElement('div');
+                      tmp.innerHTML = clientUpdateHtml;
+                      navigator.clipboard.writeText(tmp.innerText);
+                      setClientUpdateCopied(true);
+                      setTimeout(() => setClientUpdateCopied(false), 2000);
+                    }}
+                    style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600, padding: '7px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                  >
+                    {clientUpdateCopied ? 'Copied ✓' : 'Copy text'}
+                  </button>
+                  <button
+                    onClick={() => { setClientUpdateHtml(null); }}
+                    style={{ background: '#fff', color: muted, border: `1px solid ${border}`, fontSize: 12.5, padding: '7px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+            {clientUpdateError && (
+              <div style={{ color: '#dc2626', fontSize: 13.5 }}>{clientUpdateError}</div>
+            )}
+            {clientUpdateHtml && (
+              <>
+                <div style={{ fontSize: 12, color: amber, marginBottom: 10 }}>
+                  Review and edit before sending — Starling never contacts your clients.
+                </div>
+                <div
+                  style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.7, color: ink, maxHeight: 380, overflowY: 'auto', borderTop: `1px solid ${border}`, paddingTop: 12 }}
+                  dangerouslySetInnerHTML={{ __html: clientUpdateHtml }}
+                />
+              </>
+            )}
+          </div>
+        )}
         <div style={{ fontSize: 12, color: muted, marginTop: 8 }}>
           Deep Analysis convenes a multi-agent team pre-briefed with this matter's facts, issues,
           and entitlements — you confirm the approach and roster before anything runs.

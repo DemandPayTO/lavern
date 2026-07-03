@@ -1510,19 +1510,26 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const generateDocument = useCallback(async (docType: string, options: Record<string, unknown>) => {
     if (!matterId) return { ok: false, error: 'No matter ID' };
     try {
+      const LITIGATION_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer'];
       const endpoint = docType === 'demand_letter'
         ? `/api/employment/${matterId}/demand-letter`
         : docType === 'statement_of_claim'
           ? `/api/employment/${matterId}/statement-of-claim`
-          : docType.startsWith('discovery') || docType.startsWith('affidavit') || docType.startsWith('mediation')
+          : LITIGATION_TYPES.includes(docType)
             ? `/api/employment/${matterId}/litigation-document`
             : `/api/employment/${matterId}/application`;
+
+      // The litigation-document route requires documentType in the body —
+      // without this, the Mediation Brief card silently 400'd
+      const body = LITIGATION_TYPES.includes(docType)
+        ? { documentType: docType, ...options }
+        : options;
 
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(options),
+        body: JSON.stringify(body),
       });
 
       const json = await res.json();

@@ -51,6 +51,10 @@ export const CITATION_CANON: CanonEntry[] = [
   // heard together at the ONCA March 2026, decision reserved. Update when
   // the appeal is released.
   { keyword: 'de castro', name: 'De Castro v Arista Homes Ltd', citations: ['2025 onca 260'] },
+  // Added after the model cited it organically in a severance assessment
+  // (changed substratum doctrine — long-service employees whose roles grew
+  // beyond the original contract). Real case, verified.
+  { keyword: 'celestini', name: 'Celestini v Shoplogix Inc', citations: ['2023 onca 131'] },
   { keyword: 'van dolder', name: "Baker v Van Dolder's Home Team Inc", citations: ['2025 onsc 952'] },
   { keyword: 'wayfair', name: 'Li v Wayfair Canada Inc', citations: ['2025 onsc 2959'] },
 ];

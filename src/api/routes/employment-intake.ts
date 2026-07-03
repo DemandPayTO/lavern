@@ -19,7 +19,8 @@ import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
 import { buildTimelineFromIntake, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
-import { saveMatter, getMatterById, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate } from '../../db/database.js';
+import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate } from '../../db/database.js';
+import { collectDeadlines } from '../../employment/deadlines.js';
 import { createLogger } from '../../utils/logger.js';
 import { extractEmploymentDocument } from '../briefing/employment-extractor.js';
 import { UPLOADABLE_DOCUMENT_TYPES, TONE_OPTIONS, PROCEDURE_TYPES } from '../../types/employment-intake.js';
@@ -220,6 +221,27 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
 
     return reply.send({ ok: true, analysis });
+  });
+
+  // ── GET /api/employment/deadlines ──────────────────────────────────────
+  // Consolidated deadline docket across all of the user's matters:
+  // limitations, demand response deadlines, severance offer deadlines,
+  // future timeline events. Read-only aggregation, no LLM calls.
+
+  fastify.get('/api/employment/deadlines', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const rows = getMattersByUser(userId);
+    const deadlines = collectDeadlines(rows);
+    return reply.send({
+      ok: true,
+      deadlines,
+      counts: {
+        overdue: deadlines.filter(d => d.urgency === 'overdue').length,
+        critical: deadlines.filter(d => d.urgency === 'critical').length,
+        soon: deadlines.filter(d => d.urgency === 'soon').length,
+      },
+      generatedAt: new Date().toISOString(),
+    });
   });
 
   // ── GET /api/employment/:matterId ──────────────────────────────────────
@@ -464,6 +486,18 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     employment.demandAmount = parsed.data.demandAmount;
     employment.selectedDocumentType = 'demand_letter';
 
+    // Tickler: the response deadline goes on the matter timeline so the
+    // dashboard docket and weekly digest can surface it
+    const responseDue = new Date();
+    responseDue.setDate(responseDue.getDate() + parsed.data.responseDeadlineDays);
+    employment.timeline = addTimelineEvent(employment.timeline, {
+      date: responseDue.toISOString().slice(0, 10),
+      label: 'Demand letter response due',
+      description: `${parsed.data.responseDeadlineDays}-day response deadline from the demand letter generated today. Follow up if no response.`,
+      category: 'legal',
+      source: 'system',
+    });
+
     await saveEmploymentData(userId, matterId, matter, employment);
 
     logger.info('Demand letter generated', {
@@ -640,7 +674,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // ── POST /api/employment/:matterId/litigation-document ──────────────────
   // Generate a discovery plan, affidavit of documents, or mediation brief.
 
-  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief'] as const;
+  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer'] as const;
 
   const litigationDocBodySchema = z.object({
     documentType: z.enum(LITIGATION_DOC_TYPES),
@@ -753,7 +787,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -770,6 +804,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'discovery-plan': 'discovery_plan',
       'affidavit-of-documents': 'affidavit_of_documents',
       'mediation-brief': 'mediation_brief',
+      'severance-assessment': 'severance_assessment',
+      'counter-offer': 'counter_offer',
     };
 
     const buffer = await htmlToDocx(html, {
@@ -865,6 +901,85 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // NOTE: the legacy /api/employment/templates/:firmId GET/DELETE routes were
   // removed — they let any authenticated user read or delete another firm's
   // templates by guessing a firmId. The routes above derive the firm from auth.
+
+  // ── POST /api/employment/:matterId/client-update ────────────────────────
+  // Draft a plain-language client status update from the matter's timeline
+  // and current state, in the client-communications voice. The lawyer
+  // reviews and sends it themselves — Starling never contacts clients.
+
+  const clientUpdateBodySchema = z.object({
+    /** Anything the lawyer wants emphasised or added (optional). */
+    additionalContext: z.string().trim().max(3000).optional(),
+  });
+
+  fastify.post('/api/employment/:matterId/client-update', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+
+    const parsed = clientUpdateBodySchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ ok: false, error: 'Invalid request' });
+    }
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const intake = employment.intake as Record<string, unknown> | undefined;
+    if (!intake) {
+      return reply.status(400).send({ ok: false, error: 'Complete intake before drafting a client update.' });
+    }
+
+    const clientFirst = String(intake.client_first_name ?? 'the client');
+    const definedTerms: string[] = [];
+    if (intake.client_first_name && intake.client_last_name) {
+      definedTerms.push(`${intake.client_first_name} ${intake.client_last_name}`);
+    }
+    if (intake.employer_legal_name) definedTerms.push(String(intake.employer_legal_name));
+
+    const recentEvents = (employment.timeline ?? []).slice(-8)
+      .map(ev => `- ${ev.date}: ${ev.label}${ev.description ? ` (${ev.description})` : ''}`)
+      .join('\n');
+    const generated: string[] = [];
+    if ((matter as Record<string, unknown>).generatedDemandLetter) generated.push('demand letter (drafted)');
+    if ((matter as Record<string, unknown>).generatedSOC) generated.push('Statement of Claim (drafted)');
+    if ((matter as Record<string, unknown>).generatedApplication) generated.push('application (drafted)');
+
+    const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+    try {
+      const result = await crossProviderChat({
+        system: `You draft client update emails for a plaintiff-side Ontario employment law firm. Voice: warm, professional, plain language — job loss is one of life's most stressful events and your reader is living it. Lead with the bottom line. Explain what happened, what it means, what happens next, and any dates the client must know. Use dollar amounts, not legal formulas. Never over-promise outcomes. No legal advice beyond describing this matter's status. End by inviting questions. This is a DRAFT for the lawyer to review, edit, and send — never reference Starling or AI. Output clean HTML (p, strong, ul/li only).`,
+        user: `Draft a status update email to ${clientFirst}.
+
+MATTER STATE:
+- Stage: ${String((matter as Record<string, unknown>).status ?? 'active')}
+- Documents prepared so far: ${generated.join(', ') || 'none yet'}
+${employment.analysis ? '- Analysis complete: entitlements assessed' : '- Analysis pending'}
+
+RECENT TIMELINE:
+${recentEvents || '- Matter opened; work is underway'}
+${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.data.additionalContext}` : ''}`,
+        tier: 'sonnet',
+        maxTokens: 1500,
+        temperature: 0.5,
+        definedTerms,
+      });
+
+      const html = sanitiseHtml(result.text);
+      (matter as Record<string, unknown>).generatedClientUpdate = {
+        html,
+        generatedAt: new Date().toISOString(),
+        costUsd: result.cost,
+      };
+      await saveEmploymentData(userId, matterId, matter, employment);
+
+      logger.info('Client update drafted', { userId, matterId, costUsd: result.cost.toFixed(4) });
+      return reply.send({ ok: true, html, costUsd: result.cost });
+    } catch (err) {
+      logger.error('Client update generation failed', { matterId, error: err instanceof Error ? err.message : String(err) });
+      return reply.status(500).send({ ok: false, error: 'Draft generation failed. Please try again.' });
+    }
+  });
 
   // ── POST /api/employment/:matterId/notes ───────────────────────────────
   // Save lawyer notes on a matter.

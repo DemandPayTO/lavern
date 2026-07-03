@@ -375,6 +375,54 @@ export async function sendClawAlertEmail(
   });
 }
 
+/**
+ * Deadline docket email — the Monday-morning list of every date the firm
+ * must not miss. Sent by the weekly digest cron alongside the stats digest.
+ */
+export async function sendDeadlineDigestEmail(
+  email: string,
+  deadlines: Array<{
+    matterLabel: string; date: string; label: string;
+    daysRemaining: number; urgency: string;
+  }>,
+): Promise<boolean> {
+  if (deadlines.length === 0) return true; // nothing due — no email noise
+
+  const urgent = deadlines.filter(d => d.urgency === 'overdue' || d.urgency === 'critical');
+  const textLines = deadlines.map(d =>
+    `${d.daysRemaining < 0 ? `${-d.daysRemaining}d OVERDUE` : `in ${d.daysRemaining}d`} — ${d.label} — ${d.matterLabel} (${d.date})`);
+
+  const rows = deadlines.slice(0, 15).map(d => {
+    const colour = d.urgency === 'overdue' || d.urgency === 'critical' ? '#dc2626'
+      : d.urgency === 'soon' ? '#d97706' : BRAND.textDim;
+    const when = d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`;
+    return `<tr>
+      <td style="padding:8px 0;border-bottom:1px solid ${BRAND.border};color:${colour};font-weight:600;white-space:nowrap;">${esc(when)}</td>
+      <td style="padding:8px 8px;border-bottom:1px solid ${BRAND.border};">${esc(d.label)}</td>
+      <td style="padding:8px 0;border-bottom:1px solid ${BRAND.border};color:${BRAND.textDim};">${esc(d.matterLabel)}</td>
+      <td style="padding:8px 0;border-bottom:1px solid ${BRAND.border};text-align:right;font-family:monospace;">${esc(d.date)}</td>
+    </tr>`;
+  }).join('');
+
+  return send({
+    to: email,
+    subject: urgent.length > 0
+      ? `Starling Deadlines — ${urgent.length} need attention this week`
+      : 'Starling Deadlines — upcoming dates',
+    text: `Deadline docket:\n\n${textLines.join('\n')}`,
+    html: emailWrapper(`
+      <div style="background:${BRAND.surface};border-radius:12px;padding:28px;border:1px solid ${BRAND.border};">
+        <div style="font-size:18px;font-weight:600;color:${BRAND.accent};margin-bottom:20px;font-family:Georgia,'Times New Roman',serif;">
+          Deadline Docket
+        </div>
+        ${urgent.length > 0 ? `<div style="font-size:13px;color:#dc2626;font-weight:600;margin-bottom:12px;">${urgent.length} deadline${urgent.length === 1 ? '' : 's'} overdue or within 14 days</div>` : ''}
+        <table style="width:100%;border-collapse:collapse;font-size:14px;color:${BRAND.text};">${rows}</table>
+        ${deadlines.length > 15 ? `<div style="font-size:12px;color:${BRAND.textDim};margin-top:10px;">+ ${deadlines.length - 15} more in the dashboard docket</div>` : ''}
+      </div>
+    `),
+  });
+}
+
 /** Weekly digest of Claw activity. */
 export async function sendClawDigestEmail(
   email: string,
