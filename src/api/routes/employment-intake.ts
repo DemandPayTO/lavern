@@ -348,12 +348,26 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(404).send({ ok: false, error: 'Matter not found' });
     }
 
-    // Extract facts via Claude
+    // Merge the matter's known party names into the anonymisation terms —
+    // an uploaded termination letter contains the client's and employer's
+    // names in plain text, and the caller may not have passed them.
+    const { employment: existingEmployment } = loadEmploymentData(row.data_json);
+    const partyTerms: string[] = [];
+    const intake = existingEmployment.intake as Record<string, unknown> | undefined;
+    if (intake?.client_first_name && intake?.client_last_name) {
+      partyTerms.push(`${intake.client_first_name} ${intake.client_last_name}`);
+      partyTerms.push(String(intake.client_last_name));
+    }
+    if (intake?.employer_legal_name) partyTerms.push(String(intake.employer_legal_name));
+    if (intake?.employer_operating_name) partyTerms.push(String(intake.employer_operating_name));
+    const mergedTerms = [...new Set([...(definedTerms ?? []), ...partyTerms])].slice(0, 20);
+
+    // Extract facts via Claude (anonymised via crossProviderChat)
     const extraction = await extractEmploymentDocument(
       documentContent,
       documentName,
       documentKind,
-      definedTerms,
+      mergedTerms,
     );
 
     // Store extraction on the matter (lawyer reviews before confirming)
