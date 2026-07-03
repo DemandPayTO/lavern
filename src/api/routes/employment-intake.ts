@@ -939,6 +939,48 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // removed — they let any authenticated user read or delete another firm's
   // templates by guessing a firmId. The routes above derive the firm from auth.
 
+  // ── GET /api/employment/:matterId/form/hrto-form1-data ──────────────────
+  // XFA datasets XML that pre-fills the official HRTO Form 1 SmartForm.
+  // The lawyer opens the pristine official form and imports this file
+  // (Acrobat: Prepare Form → More → Import Data). See hrto-form1-data.ts.
+
+  fastify.get('/api/employment/:matterId/form/hrto-form1-data', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { employment } = loadEmploymentData(row.data_json);
+    if (!employment.intake) {
+      return reply.status(400).send({ ok: false, error: 'Complete intake before generating the Form 1 data file.' });
+    }
+
+    // Representative details from the user profile where available
+    let rep: { lawyerName?: string; lsoNumber?: string } = {};
+    try {
+      const { getUserById } = await import('../../db/database.js');
+      const user = getUserById(userId);
+      if (user?.profile_json) {
+        const profile = JSON.parse(user.profile_json) as Record<string, unknown>;
+        rep = { lawyerName: user.display_name ?? undefined, lsoNumber: (profile.lsoNumber as string) || undefined };
+      }
+    } catch { /* profile is best-effort */ }
+
+    const { buildForm1DatasetsXml, form1DataFilename } = await import('../../employment/hrto-form1-data.js');
+    const xml = buildForm1DatasetsXml(employment.intake, rep);
+
+    logAuditForm1(userId, matterId);
+    return reply
+      .header('Content-Type', 'application/xml; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${form1DataFilename(employment.intake)}"`)
+      .send(xml);
+  });
+
+  function logAuditForm1(userId: string, matterId: string): void {
+    logger.info('Form 1 data file generated', { userId, matterId });
+  }
+
   // ── GET /api/employment/:matterId/drafts ────────────────────────────────
   // Draft version history — every generated document, newest first.
 
