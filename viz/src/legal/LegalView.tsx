@@ -1,8 +1,9 @@
 /**
- * LegalView — Terms of Service & Privacy Policy placeholder pages.
+ * LegalView — Terms of Service & Privacy Policy for DemandPay Starling.
  *
- * Renders placeholder legal text. Will be replaced with real legal
- * documents before public launch.
+ * Operated by Detail Dude Ltd. (o/a DemandPay), Toronto, Ontario.
+ * Framed for the B2B law-firm audience: PIPEDA, solicitor-client
+ * privilege, AI-processing disclosure, Ontario governing law.
  */
 
 interface Props {
@@ -28,7 +29,7 @@ export default function LegalView({ page, onBack }: Props) {
           <h1 style={styles.title}>
             {isTerms ? 'Terms of Service' : 'Privacy Policy'}
           </h1>
-          <p style={styles.date}>Last updated: March 2026</p>
+          <p style={styles.date}>Last updated: July 2, 2026</p>
         </div>
 
         <div style={styles.content}>
@@ -37,8 +38,10 @@ export default function LegalView({ page, onBack }: Props) {
 
         <div style={styles.footer}>
           <p style={styles.footerText}>
-            Questions? Contact us at{' '}
-            <a href="mailto:legal@lavern.legal" style={styles.link}>legal@lavern.legal</a>
+            Detail Dude Ltd. (operating as DemandPay) · 10 Dundas Street West, Unit 1002, Toronto, Ontario
+            <br />
+            Questions or legal notices:{' '}
+            <a href="mailto:jordan@demandpay.ca" style={styles.link}>jordan@demandpay.ca</a>
           </p>
         </div>
       </div>
@@ -49,58 +52,103 @@ export default function LegalView({ page, onBack }: Props) {
 function TermsContent() {
   return (
     <>
-      <Section title="1. Service Description">
-        Starling is an AI-powered legal document analysis platform. Starling does not provide legal advice.
-        All outputs should be reviewed by qualified legal professionals before reliance.
+      <Section title="1. Who We Are">
+        Starling is operated by Detail Dude Ltd., an Ontario corporation operating as DemandPay
+        ("DemandPay", "we", "us"), located at 10 Dundas Street West, Unit 1002, Toronto, Ontario,
+        in the Legal Innovation Zone. These Terms are a binding agreement between DemandPay and
+        the law firm or legal professional accessing the service ("you", "the Firm").
       </Section>
 
-      <Section title="2. Eligibility">
-        You must be at least 18 years old and have legal capacity to enter into agreements.
-        Access is currently by invitation only during our early access period.
+      <Section title="2. What Starling Is — and Is Not">
+        Starling is a drafting and analysis platform for licensed legal professionals practising
+        plaintiff-side employment law in Ontario. Starling is software. It is not a law firm, does
+        not practise law, and does not provide legal advice to you or to your clients. No
+        solicitor-client relationship is created between DemandPay and anyone by use of the service.
       </Section>
 
-      <Section title="3. Your Account">
-        You are responsible for maintaining the confidentiality of your account credentials.
-        You agree to provide accurate information and to notify us of any unauthorized use.
+      <Section title="3. Professional Responsibility">
+        Every document Starling produces is a draft prepared for your review. You retain full
+        professional responsibility for any work product you adopt, file, serve, or send — including
+        compliance with the Law Society of Ontario's Rules of Professional Conduct on competence,
+        supervision, and technological competence. You must review AI-generated content, verify
+        every citation and factual assertion, and exercise independent professional judgment before
+        relying on any output. Starling flags sections it believes need review; those flags are an
+        aid, not a substitute for review of the whole document.
       </Section>
 
-      <Section title="4. Billable Hours & Payments">
-        Starling uses a credit system measured in "billable hours." Purchased hours never expire.
-        All payments are processed securely through Stripe. Refunds are handled on a case-by-case basis.
+      <Section title="4. Eligibility & Accounts">
+        The service is offered for business use by law firms and their personnel. You must be at
+        least 18, have authority to bind the Firm, and provide accurate account information. You are
+        responsible for safeguarding your credentials and for all activity under your account, and
+        you agree to notify us promptly of any unauthorized use.
       </Section>
 
-      <Section title="5. Your Data">
-        Documents you upload are processed for the purpose of providing analysis.
-        We do not use your documents to train AI models. See our Privacy Policy for details.
+      <Section title="5. Fees & Payments">
+        Starling is billed through prepaid credits measured in "billable hours." Purchased hours do
+        not expire. Payments are processed by Stripe; we do not store your payment card details.
+        Fees are in the currency stated at purchase and are exclusive of applicable taxes (HST).
+        Refunds are handled case by case — contact jordan@demandpay.ca.
       </Section>
 
-      <Section title="6. Acceptable Use">
-        You agree not to use Starling for any unlawful purpose, to attempt to circumvent security measures,
-        or to reverse-engineer the service.
+      <Section title="6. Your Clients' Information">
+        Matter data you enter or upload may include your clients' personal information. As between
+        us, you are responsible for having the right to use that information (including any consent
+        or notice your clients require), and we process it only to provide the service, as described
+        in our Privacy Policy. We apply an anonymisation layer that redacts names and identifiers
+        before content is sent to an AI model. Nothing in the service is intended to, and use of the
+        service is not intended to, waive solicitor-client privilege or litigation privilege over
+        your materials; we treat matter content as confidential.
       </Section>
 
-      <Section title="7. Limitation of Liability">
-        Starling is provided "as is." We make no warranties regarding the accuracy or completeness
-        of any analysis. Our total liability is limited to the amount you have paid us in the
-        preceding 12 months.
+      <Section title="7. AI-Generated Content">
+        Outputs are generated by large language models and can contain errors, omissions, or
+        incorrect citations despite our safeguards. Damages estimates, notice-period ranges, and
+        procedure recommendations are analytical starting points, not opinions on the merits.
+        You must not present Starling output to a client, court, or opposing party without a
+        licensed lawyer's review.
       </Section>
 
-      <Section title="8. Disclaimer">
-        Starling is a legal technology tool, not a law firm. No attorney-client relationship is created
-        by using our service. Always consult a qualified legal professional for legal advice.
+      <Section title="8. Intellectual Property">
+        You own your uploaded materials and the documents generated for your matters. We own the
+        platform, including its prompts, models configuration, templates, and interface. You grant
+        us a limited licence to process your content solely to operate the service. We do not use
+        your content to train AI models.
       </Section>
 
-      <Section title="9. Changes">
-        We may update these terms from time to time. Continued use of the service after changes
-        constitutes acceptance. We will notify you of material changes via email.
+      <Section title="9. Acceptable Use">
+        You agree not to use Starling for any unlawful purpose; to input content you lack the right
+        to use; to attempt to circumvent security, rate limits, or the anonymisation layer; to
+        reverse-engineer the service; or to resell access without our written agreement.
       </Section>
 
-      <div style={styles.placeholder}>
-        <p style={styles.placeholderText}>
-          Complete terms of service are being finalized with our legal counsel.
-          This is a preliminary version for the early access period.
-        </p>
-      </div>
+      <Section title="10. Warranty Disclaimer & Liability">
+        The service is provided "as is" and "as available," without warranties of any kind, express
+        or implied, including accuracy, completeness, fitness for a particular purpose, or
+        non-infringement. To the maximum extent permitted by law, DemandPay's total aggregate
+        liability arising out of or related to the service is limited to the amounts you paid us in
+        the 12 months preceding the claim, and neither party is liable for indirect, incidental,
+        consequential, or punitive damages. Nothing in these Terms limits liability that cannot be
+        limited under applicable law.
+      </Section>
+
+      <Section title="11. Termination">
+        You may stop using the service and delete your account at any time. We may suspend or
+        terminate access for material breach of these Terms on notice to you. On termination you
+        may export your data as described in the Privacy Policy.
+      </Section>
+
+      <Section title="12. Changes to These Terms">
+        We may update these Terms from time to time. We will notify you of material changes by
+        email or in-app notice at least 30 days before they take effect; continued use after the
+        effective date constitutes acceptance.
+      </Section>
+
+      <Section title="13. Governing Law & Notices">
+        These Terms are governed by the laws of the Province of Ontario and the federal laws of
+        Canada applicable in Ontario. The courts of Ontario, sitting in Toronto, have exclusive
+        jurisdiction. Legal notices to DemandPay must be sent to jordan@demandpay.ca or to
+        Detail Dude Ltd., 10 Dundas Street West, Unit 1002, Toronto, Ontario.
+      </Section>
     </>
   );
 }
@@ -108,60 +156,80 @@ function TermsContent() {
 function PrivacyContent() {
   return (
     <>
-      <Section title="1. What We Collect">
-        We collect your email address, display name, and firm name when you create an account.
-        We process documents you upload solely to provide our analysis service.
+      <Section title="1. Who Is Responsible">
+        Starling is operated by Detail Dude Ltd., operating as DemandPay, 10 Dundas Street West,
+        Unit 1002, Toronto, Ontario. We handle personal information in accordance with the Personal
+        Information Protection and Electronic Documents Act (PIPEDA). Our privacy contact is
+        jordan@demandpay.ca.
       </Section>
 
-      <Section title="2. How We Use Your Data">
-        Your data is used exclusively to provide the Starling service.
-        We do not sell your personal data. We do not use your documents to train AI models.
+      <Section title="2. Two Kinds of Information">
+        We handle (a) account information about you — email, name, firm name, LSO number, billing
+        records — for which we are responsible; and (b) matter information your firm enters or
+        uploads, which may include your clients' personal information (employment details,
+        compensation, and sometimes sensitive information such as health or accommodation facts).
+        For matter information, your firm decides what is collected and why; we process it only on
+        your instructions to provide the service. Your firm is responsible for any consent or
+        notice its clients require.
       </Section>
 
-      <Section title="3. Data Processing">
-        Document analysis is performed using third-party AI models (Anthropic Claude, Mistral AI).
-        Documents are transmitted securely and are not retained by these providers after processing.
-        When EU Sovereign mode is selected, processing occurs exclusively within the EU.
+      <Section title="3. AI Processing & Anonymisation">
+        Document analysis and drafting are performed using Anthropic's Claude models via API.
+        Before any matter content is sent to the AI provider, our anonymisation layer redacts
+        names, social insurance numbers, financial and health identifiers, addresses, and dates of
+        birth, replacing them with placeholders; real values are restored only on our servers after
+        the response returns. Salaries, dates, and job titles are preserved because the legal
+        analysis depends on them. Anthropic processes data on servers outside Canada (United
+        States) and, per its commercial terms, does not use API data to train its models; content
+        may be retained briefly by Anthropic for trust-and-safety monitoring under its policies.
+        By using Starling, your firm acknowledges this cross-border processing.
       </Section>
 
-      <Section title="4. Data Storage">
-        Account data and session metadata are stored in our database.
-        Uploaded documents are processed in-memory and are not permanently stored on our servers
-        after your session completes.
+      <Section title="4. Storage & Data Residency">
+        Application data — accounts, matters, generated documents, and audit logs — is stored on
+        our servers located in Toronto, Canada. Backups are also maintained in Canada. Apart from
+        the anonymised AI processing described above and payment processing by Stripe, your data
+        does not leave Canada.
       </Section>
 
-      <Section title="5. Your Rights (GDPR)">
-        If you are in the EU/EEA, you have the right to: access your data, correct inaccuracies,
-        request deletion, export your data, and object to processing. Use the account settings
-        page or contact us to exercise these rights.
+      <Section title="5. How Long We Keep It">
+        Account information is kept while your account is active. Matter information is kept until
+        your firm deletes the matter or the account. Payment records are retained as required by
+        tax law. Audit logs are retained for security purposes.
       </Section>
 
-      <Section title="6. Data Export & Deletion">
-        You can export all your data at any time from your account settings (GET /api/auth/export).
-        You can delete your account, which anonymizes your personal data while retaining
-        anonymized analytics data.
+      <Section title="6. Analytics & Cookies">
+        We use one HttpOnly authentication cookie (starling_token) for login sessions — no
+        advertising or tracking cookies. We use Plausible, a privacy-focused analytics service,
+        which collects aggregate page-view statistics without cookies and without identifying
+        individual visitors. Matter content is never sent to analytics.
       </Section>
 
-      <Section title="7. Cookies">
-        We use a single HttpOnly authentication cookie (starling_token) for session management.
-        We do not use tracking cookies or third-party analytics.
+      <Section title="7. Safeguards">
+        All connections are encrypted with TLS. Passwords are hashed with scrypt. Access is
+        firm-scoped: one firm cannot see another firm's matters or templates. We apply rate
+        limiting and audit logging, and we review our security posture regularly.
       </Section>
 
-      <Section title="8. Security">
-        Passwords are hashed using scrypt. All connections are encrypted with TLS.
-        We implement rate limiting, CSRF protection, and regular security audits.
+      <Section title="8. Your Rights">
+        You may access, correct, export, or delete your information at any time: export from your
+        account settings, or write to jordan@demandpay.ca. Deleting your account removes your
+        personal information (anonymised, aggregate statistics may be retained). If you are not
+        satisfied with our handling of your information, you may complain to the Office of the
+        Privacy Commissioner of Canada.
       </Section>
 
-      <Section title="9. Contact">
-        For privacy-related inquiries, contact us at legal@lavern.legal.
+      <Section title="9. Service Providers">
+        We use a small number of processors: Anthropic (AI processing, US — anonymised content
+        only), Stripe (payments), Fly.io (hosting, Toronto region), and Plausible (cookieless
+        analytics). We do not sell personal information to anyone.
       </Section>
 
-      <div style={styles.placeholder}>
-        <p style={styles.placeholderText}>
-          Complete privacy policy is being finalized with our legal counsel.
-          This is a preliminary version for the early access period.
-        </p>
-      </div>
+      <Section title="10. Changes & Contact">
+        We will post updates to this policy here and notify you of material changes. Questions,
+        requests, or complaints: jordan@demandpay.ca, or Detail Dude Ltd., 10 Dundas Street West,
+        Unit 1002, Toronto, Ontario.
+      </Section>
     </>
   );
 }

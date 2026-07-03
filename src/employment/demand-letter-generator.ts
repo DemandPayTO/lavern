@@ -19,6 +19,7 @@ import type { EmploymentIntakeData, GateResult, IntakeAnalysisResult, SourceCita
 import { TONE_OPTIONS } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
+import { checkCitationIntegrity } from './citation-canon.js';
 
 const logger = createLogger('DEMAND-LETTER');
 
@@ -327,8 +328,12 @@ export async function generateDemandLetter(
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
 
-  // Compute review flags
-  const lawyerReviewFlags = computeReviewFlags(req.approvedIssues);
+  // Compute review flags + citation integrity check (flags any case name
+  // outside the known canon, and canon cases with mismatched citations)
+  const lawyerReviewFlags = [
+    ...computeReviewFlags(req.approvedIssues),
+    ...checkCitationIntegrity(html, definedTerms ?? []),
+  ];
 
   // Extract source citations if uploaded documents are available
   let citations: SourceCitation[] = [];

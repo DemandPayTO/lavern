@@ -18,6 +18,7 @@ import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from 
 import { PROCEDURE_TYPES } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
+import { checkCitationIntegrity } from './citation-canon.js';
 
 const logger = createLogger('SOC-GEN');
 
@@ -285,12 +286,14 @@ export async function generateStatementOfClaim(
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
 
-  // Review flags — all SOC sections need lawyer review
+  // Review flags — all SOC sections need lawyer review; plus citation
+  // integrity (unknown case names / mismatched citations)
   const lawyerReviewFlags = [
     'facts_section',
     'legal_basis',
     'damages_particulars',
     'prayer_for_relief',
+    ...checkCitationIntegrity(html, definedTerms ?? []),
   ];
 
   // Extract source citations if uploaded documents available
