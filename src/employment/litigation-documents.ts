@@ -27,7 +27,12 @@ export type LitigationDocumentType =
   | 'affidavit_of_documents'
   | 'mediation_brief'
   | 'severance_assessment'
-  | 'counter_offer';
+  | 'counter_offer'
+  | 'reply'
+  | 'rule49_offer'
+  | 'settlement_minutes'
+  | 'retainer_agreement'
+  | 'mitigation_log';
 
 export interface LitigationDocumentRequest {
   intake: EmploymentIntakeData;
@@ -210,6 +215,93 @@ RULES:
 - Canadian spelling.
 
 Output as HTML with h1, p, strong. Letter format, no tables. No inline styles.`,
+
+    reply: `You are a senior Ontario litigation lawyer drafting a REPLY (Form 25A) under Rule 25.08 of the Rules of Civil Procedure, on behalf of the Plaintiff in a wrongful dismissal action.
+
+PURPOSE AND DISCIPLINE:
+A Reply responds ONLY to new matters raised in the Statement of Defence that the Plaintiff must answer — allegations of just cause particulars, failure to mitigate, after-acquired cause, set-off claims, or limitation defences. Everything in the Defence not admitted is already deemed denied (Rule 25.08(4) territory) — do NOT restate the claim, do NOT plead new causes of action, and keep it SHORT. A bloated Reply is a professional embarrassment.
+
+STRUCTURE:
+1. Title of proceedings (court file number placeholder, parties as in the Claim)
+2. "1. The Plaintiff repeats the allegations in the Statement of Claim." (or equivalent)
+3. Numbered paragraphs responding to each NEW matter in the Defence: state the response to the allegation and the material facts relied on (e.g., mitigation efforts made; why alleged cause fails McKinley proportionality; why the limitation defence fails)
+4. Date, lawyer/firm block
+
+IMPORTANT: The user prompt includes the case facts but NOT the actual Statement of Defence text unless provided in additional context. Where the Defence's contents are unknown, draft responsive paragraphs to the ANTICIPATED defences evident from the intake (cause allegations, mitigation) and clearly mark each with [CONFIRM AGAINST DEFENCE] so the lawyer tailors them to the actual pleading.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    rule49_offer: `You are a senior Ontario litigation lawyer drafting an OFFER TO SETTLE (Form 49A) under Rule 49 of the Rules of Civil Procedure, served by the Plaintiff in a wrongful dismissal action.
+
+WHY RULE 49 MATTERS (reflect this in drafting, not in commentary):
+A plaintiff's offer engages r. 49.10(1): if the judgment is as favourable or more favourable than the offer, the plaintiff presumptively gets partial indemnity costs to the date of the offer and SUBSTANTIAL indemnity costs from that date. The offer must therefore be (a) genuinely capable of acceptance, (b) clear enough that a court can later compare it to the judgment, and (c) made early to maximise the costs period.
+
+STRUCTURE (Form 49A):
+1. Title of proceedings (court file number placeholder, parties)
+2. "The Plaintiff offers to settle this proceeding on the following terms:" — numbered terms:
+   - Payment of the settlement amount (state the figure; specify treatment as damages for loss of employment; allocation between pay in lieu of notice and general damages where appropriate, with tax withholding treatment flagged)
+   - Pre-judgment interest under the Courts of Justice Act to the date of the offer
+   - Partial indemnity costs and disbursements to the date of acceptance (or as agreed/assessed)
+   - Dismissal of the action on consent, without costs, upon payment
+   - Mutual releases in a form satisfactory to counsel
+3. Time for acceptance: open for acceptance until one minute after the commencement of the hearing, unless earlier revoked in writing (preserves full r. 49.10 effect)
+4. Date, lawyer/firm block, "TO:" defendant's counsel block
+
+RULES:
+- Use EXACTLY the offer amount stated in the filing details — the lawyer has already chosen the strategic figure. Never substitute your own number. Allocation between notice damages and general damages may be proposed within that exact total.
+- Precise, formal, no argument or narrative — an offer, not a letter.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    settlement_minutes: `You are a senior Ontario employment lawyer drafting MINUTES OF SETTLEMENT with an attached FULL AND FINAL RELEASE for a wrongful dismissal matter, prepared from the plaintiff's side.
+
+PART A — MINUTES OF SETTLEMENT (numbered terms):
+1. Parties and recitals (the dispute, without admissions)
+2. Payment terms: total amount, allocation (pay in lieu of notice subject to statutory withholdings; general damages portion where supportable — flag that allocation must be defensible; retiring allowance/RRSP transfer eligibility where applicable [flag for accountant]); payment deadline and method; ESA minimums acknowledged as paid regardless of the release
+3. Non-monetary terms the plaintiff should secure: agreed reference letter (attached as a schedule placeholder) or agreed reference protocol; benefits continuation end date; confirmation of ROE amendment if needed; return of property both ways
+4. Confidentiality (mutual, with carve-outs: immediate family, professional advisors, as required by law) and mutual non-disparagement
+5. If a proceeding exists: dismissal/discontinuance on consent without costs
+6. Entire agreement, governing law (Ontario), counterparts/electronic signatures
+
+PART B — FULL AND FINAL RELEASE:
+- Releasor/Releasee definitions (including officers, directors, employees, successors)
+- Release of all claims arising from employment and its termination — including ESA (acknowledging statutory payments received), common law, and Human Rights Code claims. For Code claims: include the specific acknowledgment that the releasor understands they are releasing human rights claims and does so voluntarily with advice — a bare general release is vulnerable
+- Carve-outs that MUST survive: statutory entitlements that cannot be released, CPP/EI, vested pension entitlements, WSIB where applicable, claims that cannot be released at law
+- No-assignment representation, no-admission clause
+- Independent legal advice acknowledgment
+
+RULES:
+- Plaintiff-side posture: the release is the employer's consideration — keep it no broader than necessary and preserve the carve-outs.
+- Canadian spelling. Numbered paragraphs throughout.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    retainer_agreement: `You are drafting a RETAINER AGREEMENT for an Ontario plaintiff-side employment law firm to send a new client.
+
+CRITICAL REGULATORY CONSTRAINT (must shape the output):
+For CONTINGENCY fee arrangements with most individual clients, Ontario mandates the STANDARD FORM Contingency Fee Agreement prescribed under the Solicitors Act (O. Reg. 563/20) together with the mandatory "Contingency Fees: What You Need to Know" rights guide — a custom-drafted CFA is NOT permitted for those clients. Therefore:
+- If the fee structure is contingency: DO NOT draft a bespoke CFA. Produce a cover letter + completion checklist for the standard form (the firm-specific variables: the contingency percentage, how disbursements are treated, scope of the matter, HST) and state prominently that the prescribed standard form and rights guide must be used and provided.
+- If hourly or flat/blended: draft the full engagement agreement.
+
+FULL ENGAGEMENT AGREEMENT STRUCTURE (hourly/flat):
+1. Identification of client and matter scope (this employment dispute; what is included and excluded — e.g., appeals excluded unless separately retained)
+2. Fees: hourly rates by timekeeper (placeholders), or flat fee; disbursements; HST; interim billing frequency
+3. Retainer deposit: amount placeholder, held in trust, applied to accounts, replenishment
+4. Client responsibilities: honest and complete information, timely instructions, mitigation efforts and records
+5. Communication expectations and file updates
+6. Termination: client may terminate anytime; firm withdrawal per the Rules of Professional Conduct; fees to date payable
+7. Assessment rights: client's right to have accounts assessed under the Solicitors Act
+8. LawPRO insurance disclosure; complaints process; privacy/file retention
+9. Signature blocks (client + lawyer), dated
+
+RULES:
+- Plain language throughout — a retainer a client can actually read.
+- Placeholders in [square brackets] for firm-specific figures.
+- This document defines the lawyer-client relationship: flag EVERYTHING variable for review.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    mitigation_log: 'DETERMINISTIC — never sent to the model.',
   };
 
   return prompts[docType] + `
@@ -285,6 +377,7 @@ ${uploadedDocs ? `UPLOADED DOCUMENTS:\n${uploadedDocs}` : ''}
 FILING DETAILS:
 - Lawyer: ${req.lawyerName}, ${req.firmName}
 ${req.claimAmount && req.documentType === 'counter_offer' ? `- Counter-offer amount: $${req.claimAmount.toLocaleString('en-CA')}` : ''}
+${req.claimAmount && req.documentType === 'rule49_offer' ? `- OFFER AMOUNT (use exactly this figure): $${req.claimAmount.toLocaleString('en-CA')}` : ''}
 ${req.courtLocation ? `- Court: ${req.courtLocation}` : ''}
 
 ${req.additionalContext ? `ADDITIONAL CONTEXT:\n${req.additionalContext}` : ''}
@@ -298,6 +391,19 @@ export async function generateLitigationDocument(
   req: LitigationDocumentRequest,
   definedTerms?: string[],
 ): Promise<LitigationDocumentResult> {
+  // Mitigation log is deterministic — identical client-facing template
+  // every time, no model call, zero cost.
+  if (req.documentType === 'mitigation_log') {
+    return {
+      html: buildMitigationLog(String(req.intake.client_first_name ?? '')),
+      documentType: req.documentType,
+      documentTitle: getDocumentTitle(req.documentType),
+      lawyerReviewFlags: getLawyerReviewFlags(req.documentType),
+      citations: [],
+      costUsd: 0,
+    };
+  }
+
   const systemPrompt = buildSystemPrompt(req.documentType);
   const userPrompt = buildUserPrompt(req);
 
@@ -375,6 +481,11 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'mediation_brief': return 'Mediation Brief';
     case 'severance_assessment': return 'Severance Offer Assessment';
     case 'counter_offer': return 'Counter-Offer Letter';
+    case 'reply': return 'Reply (Form 25A)';
+    case 'rule49_offer': return 'Offer to Settle (Form 49A)';
+    case 'settlement_minutes': return 'Minutes of Settlement & Release';
+    case 'retainer_agreement': return 'Retainer Agreement';
+    case 'mitigation_log': return 'Mitigation Log (Client Job-Search Record)';
   }
 }
 
@@ -390,11 +501,55 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
       return ['offer_terms_confirmed', 'entitlement_math', 'recommendation', 'tax_treatment_flag_for_accountant'];
     case 'counter_offer':
       return ['counter_amount', 'entitlement_analysis', 'deadline_terms', 'without_prejudice_header'];
+    case 'reply':
+      return ['confirm_against_actual_defence', 'no_new_causes_of_action', 'responsive_paragraphs_only'];
+    case 'rule49_offer':
+      return ['offer_amount_strategy', 'allocation_and_tax_treatment', 'acceptance_window', 'costs_terms'];
+    case 'settlement_minutes':
+      return ['payment_allocation_defensible', 'release_scope_and_carveouts', 'human_rights_release_acknowledgment', 'reference_letter_schedule', 'confidentiality_carveouts'];
+    case 'retainer_agreement':
+      return ['fee_structure_and_rates', 'contingency_standard_form_required_if_CFA', 'scope_inclusions_exclusions', 'retainer_deposit_amount'];
+    case 'mitigation_log':
+      return ['client_instructions_cover_note'];
   }
 }
 
-/** Model tier per document type — the assessment is an internal memo
- *  (fast, cheap); outbound legal correspondence gets the strongest model. */
+/** Deterministic mitigation log — a client-facing job-search record.
+ *  No model call: identical output every time, zero cost. */
+function buildMitigationLog(clientFirstName: string): string {
+  const row = `<tr><td style="height:2em"></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+  return `<h1>Job Search Record — Mitigation Log</h1>
+<p><strong>Why this matters:</strong> After a termination, the law requires you to make reasonable efforts to find comparable work ("mitigation"). The employer may argue your compensation should be reduced if you did not. This log is your evidence that you did. <strong>Fill it in as you go — do not reconstruct it from memory later.</strong></p>
+<h2>How to use this log</h2>
+<ol>
+<li>Record <strong>every</strong> application, call, interview, networking contact, job fair, recruiter conversation, and training course — even quick ones.</li>
+<li>Keep copies: job postings, application confirmations, rejection emails. Save them in one folder.</li>
+<li>Aim for consistent weekly activity. Gaps are what opposing counsel looks for.</li>
+<li>You are <strong>not</strong> required to take a substantially worse job — comparable work in role, pay, and location. If unsure whether a role counts, log it and ask us.</li>
+<li>Send us this log and your folder every month.</li>
+</ol>
+<h2>Job search entries</h2>
+<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%">
+<tr><th>Date</th><th>Employer / Contact</th><th>Position</th><th>How applied / contacted</th><th>Response / status</th><th>Documents kept?</th></tr>
+${row.repeat(15)}
+</table>
+<h2>Other efforts (courses, networking events, recruiters, career counselling)</h2>
+<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%">
+<tr><th>Date</th><th>Activity</th><th>Details</th></tr>
+${row.repeat(6)}
+</table>
+<p>Prepared for ${clientFirstName || 'the client'}. If anything is unclear, contact the firm — do not guess.</p>`;
+}
+
+/** Model tier per document type — internal memos and plain-language
+ *  client documents run on sonnet (fast, cheap); court filings and
+ *  binding settlement documents get the strongest model. */
 function getModelTier(docType: LitigationDocumentType): 'opus' | 'sonnet' {
-  return docType === 'severance_assessment' ? 'sonnet' : 'opus';
+  switch (docType) {
+    case 'severance_assessment':
+    case 'retainer_agreement':
+      return 'sonnet';
+    default:
+      return 'opus';
+  }
 }

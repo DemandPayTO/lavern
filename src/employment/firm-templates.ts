@@ -35,7 +35,12 @@ export type TemplateDocumentType =
   | 'affidavit_of_documents'
   | 'mediation_brief'
   | 'severance_assessment'
-  | 'counter_offer';
+  | 'counter_offer'
+  | 'reply'
+  | 'rule49_offer'
+  | 'settlement_minutes'
+  | 'retainer_agreement'
+  | 'mitigation_log';
 
 export interface FirmTemplate {
   /** Unique template ID. */
@@ -207,6 +212,7 @@ export const templateUploadSchema = z.object({
     'hrto_application', 'esa_complaint', 'discovery_plan',
     'affidavit_of_documents', 'mediation_brief',
     'severance_assessment', 'counter_offer',
+    'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log',
   ]),
   name: z.string().trim().min(1).max(200),
   /** Base64-encoded DOCX file content. */

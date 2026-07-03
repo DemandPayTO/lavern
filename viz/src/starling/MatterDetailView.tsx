@@ -187,6 +187,36 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     description: 'Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.',
     cost: '~$3\u20138 -- 3\u20138 min',
   },
+  {
+    id: 'reply',
+    title: 'Reply (Form 25A)',
+    description: 'Respond to new matters in the Statement of Defence \u2014 cause allegations, mitigation, limitations.',
+    cost: '~$2\u20134 -- 2\u20135 min',
+  },
+  {
+    id: 'rule49',
+    title: 'Offer to Settle (Form 49A)',
+    description: 'Rule 49 offer with cost consequences \u2014 partial indemnity to the offer, substantial after.',
+    cost: '~$2\u20134 -- 2\u20135 min',
+  },
+  {
+    id: 'minutes',
+    title: 'Minutes of Settlement & Release',
+    description: 'Settlement terms plus a full and final release with the carve-outs that must survive.',
+    cost: '~$2\u20135 -- 2\u20135 min',
+  },
+  {
+    id: 'retainer',
+    title: 'Retainer Agreement',
+    description: 'Plain-language engagement agreement. Contingency matters use the mandatory standard-form CFA.',
+    cost: '~$1\u20132 -- 1\u20132 min',
+  },
+  {
+    id: 'mitigation',
+    title: 'Mitigation Log',
+    description: 'Client-facing job-search record with instructions \u2014 the damages evidence that wins notice periods.',
+    cost: 'free -- instant',
+  },
 ];
 
 const DEMO_TIMELINE: TimelineEvent[] = [
@@ -224,6 +254,37 @@ const DEMO_TIMELINE: TimelineEvent[] = [
 ];
 
 const DEMO_NOTES = `Client call Jun 20: Jane very keen to avoid litigation if possible \u2014 prefers a strong demand letter first, mediation second. Confirm accommodation request was emailed to her manager (Rajiv) on May 28, 3 days before termination \u2014 pull the email for the HRC claim. Acme's HR contact is Susan Bell.`;
+
+// ── Draft card → backend document type / download slug ─────────────────
+
+const DRAFT_TO_DOCTYPE: Record<string, string> = {
+  demand: 'demand_letter',
+  soc: 'statement_of_claim',
+  mediation: 'mediation_brief',
+  severance: 'severance_assessment',
+  counter: 'counter_offer',
+  reply: 'reply',
+  rule49: 'rule49_offer',
+  minutes: 'settlement_minutes',
+  retainer: 'retainer_agreement',
+  mitigation: 'mitigation_log',
+};
+
+const DRAFT_TO_DOWNLOAD: Record<string, string> = {
+  demand: 'demand-letter',
+  soc: 'statement-of-claim',
+  mediation: 'mediation-brief',
+  severance: 'severance-assessment',
+  counter: 'counter-offer',
+  reply: 'reply',
+  rule49: 'rule49-offer',
+  minutes: 'settlement-minutes',
+  retainer: 'retainer-agreement',
+  mitigation: 'mitigation-log',
+};
+
+/** Cards that need a dollar amount before Generate makes sense. */
+const DRAFTS_NEEDING_AMOUNT = new Set(['demand', 'soc', 'counter', 'rule49']);
 
 // ── Tab definitions ─────────────────────────────────────────────────────
 
@@ -335,6 +396,19 @@ export default function MatterDetailView() {
   const firmTemplates = useFirmTemplates();
   const [templateStatus, setTemplateStatus] = useState<string | null>(null);
   const templateInputRef = useRef<HTMLInputElement>(null);
+  // Draft version history
+  interface DraftHistoryEntry { docType: string; title: string; html: string; costUsd: number; generatedAt: string; meta?: Record<string, unknown> }
+  const [draftHistory, setDraftHistory] = useState<DraftHistoryEntry[]>([]);
+  const refreshDraftHistory = useCallback(() => {
+    const sid = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1]?.replace(/\s+/g, '');
+    if (!sid) return;
+    fetch(`/api/employment/${sid}/drafts`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setDraftHistory(d.drafts ?? []); })
+      .catch(() => { /* history is best-effort */ });
+  }, []);
+  useEffect(() => { refreshDraftHistory(); }, [refreshDraftHistory]);
+
   // Client update draft
   const [clientUpdateHtml, setClientUpdateHtml] = useState<string | null>(null);
   const [clientUpdateLoading, setClientUpdateLoading] = useState(false);
@@ -426,14 +500,7 @@ export default function MatterDetailView() {
   }, [employment, uploadKind]);
 
   // Firm template upload for the selected draft type
-  const TEMPLATE_DOC_TYPES: Record<string, string> = {
-    demand: 'demand_letter',
-    soc: 'statement_of_claim',
-    mediation: 'mediation_brief',
-    severance: 'severance_assessment',
-    counter: 'counter_offer',
-  };
-  const selectedTemplateDocType = selectedDraft ? TEMPLATE_DOC_TYPES[selectedDraft] : undefined;
+  const selectedTemplateDocType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
   const currentTemplate = selectedTemplateDocType
     ? firmTemplates.templates.find(t => t.documentType === selectedTemplateDocType)
     : undefined;
@@ -1280,12 +1347,7 @@ export default function MatterDetailView() {
                     setGenError(null);
                     const amount = parseInt(genDemandAmount) || 100000;
                     const result = await employment.generateDocument(
-                      selectedDraft === 'demand' ? 'demand_letter'
-                        : selectedDraft === 'soc' ? 'statement_of_claim'
-                        : selectedDraft === 'mediation' ? 'mediation_brief'
-                        : selectedDraft === 'severance' ? 'severance_assessment'
-                        : selectedDraft === 'counter' ? 'counter_offer'
-                        : 'demand_letter',
+                      DRAFT_TO_DOCTYPE[selectedDraft ?? ''] ?? 'demand_letter',
                       {
                         tone: genTone,
                         demandAmount: amount,
@@ -1311,11 +1373,12 @@ export default function MatterDetailView() {
                       setGeneratedHtml(result.html);
                       setGenCitations(result.citations ?? []);
                       setGenReviewFlags(result.reviewFlags ?? []);
+                      refreshDraftHistory();
                     } else {
                       setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
                     }
                   }}
-                  disabled={generating || !genDemandAmount}
+                  disabled={generating || (DRAFTS_NEEDING_AMOUNT.has(selectedDraft ?? '') && !genDemandAmount)}
                   style={{
                     background: generating ? '#b0b0b0' : orange,
                     color: '#fff',
@@ -1357,12 +1420,7 @@ export default function MatterDetailView() {
                         Regenerate
                       </button>
                       <a
-                        href={`/api/employment/${sessionId}/download/${
-                          selectedDraft === 'demand' ? 'demand-letter'
-                            : selectedDraft === 'soc' ? 'statement-of-claim'
-                            : selectedDraft === 'severance' ? 'severance-assessment'
-                            : selectedDraft === 'counter' ? 'counter-offer'
-                            : 'mediation-brief'}`}
+                        href={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'demand-letter'}`}
                         download
                         style={{
                           background: navy, color: '#fff',
@@ -1415,6 +1473,41 @@ export default function MatterDetailView() {
                     </details>
                   )}
                 </div>
+              )}
+
+              {/* Previous drafts — regeneration never destroys a version */}
+              {draftHistory.length > 0 && (
+                <details style={{ marginTop: 16, background: '#fff', border: `1px solid ${border}`, borderRadius: 2 }}>
+                  <summary style={{ cursor: 'pointer', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: navy, fontFamily: sans }}>
+                    Previous drafts ({draftHistory.length})
+                  </summary>
+                  <div style={{ padding: '0 16px 12px' }}>
+                    {draftHistory.map((d, i) => (
+                      <div key={`${d.generatedAt}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i > 0 ? `1px solid ${border}` : 'none' }}>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{d.title}</span>
+                          <span style={{ fontSize: 12, color: muted, marginLeft: 8 }}>
+                            {new Date(d.generatedAt).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                            {d.meta?.tone ? ` · ${String(d.meta.tone)}` : ''}
+                            {d.meta?.demandAmount ? ` · $${Number(d.meta.demandAmount).toLocaleString('en-CA')}` : ''}
+                            {d.meta?.claimAmount ? ` · $${Number(d.meta.claimAmount).toLocaleString('en-CA')}` : ''}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setGeneratedHtml(d.html);
+                            setGenCitations([]);
+                            setGenReviewFlags([]);
+                            window.scrollTo(0, 0);
+                          }}
+                          style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                        >
+                          View
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               )}
             </div>
           )}

@@ -66,6 +66,20 @@ async function saveEmploymentData(
   await saveMatter(userId, matterId, JSON.stringify(matter), status ?? (matter.status as string) ?? 'active');
 }
 
+/**
+ * Draft version history — lawyers iterate tone and amounts; regeneration
+ * must never destroy the previous draft. Newest first, capped.
+ */
+const DRAFT_HISTORY_CAP = 10;
+function recordDraftHistory(
+  matter: Record<string, unknown>,
+  entry: { docType: string; title: string; html: string; costUsd: number; meta?: Record<string, unknown> },
+): void {
+  const history = Array.isArray(matter.draftHistory) ? matter.draftHistory as Array<Record<string, unknown>> : [];
+  history.unshift({ ...entry, generatedAt: new Date().toISOString() });
+  matter.draftHistory = history.slice(0, DRAFT_HISTORY_CAP);
+}
+
 // ── Route registration ───────────────────────────────────────────────────
 
 export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
@@ -472,6 +486,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }, definedTerms);
 
     // Store the generated letter on the matter
+    recordDraftHistory(matter as Record<string, unknown>, {
+      docType: 'demand_letter', title: 'Demand Letter', html: sanitiseHtml(result.html),
+      costUsd: result.costUsd, meta: { tone: parsed.data.tone, demandAmount: parsed.data.demandAmount },
+    });
     (matter as Record<string, unknown>).generatedDemandLetter = {
       html: sanitiseHtml(result.html),
       lawyerReviewFlags: result.lawyerReviewFlags,
@@ -568,6 +586,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       courtLocation: parsed.data.courtLocation,
     }, definedTerms);
 
+    recordDraftHistory(matter as Record<string, unknown>, {
+      docType: 'statement_of_claim', title: 'Statement of Claim', html: sanitiseHtml(result.html),
+      costUsd: result.costUsd, meta: { procedureType: result.procedureType, claimAmount: parsed.data.claimAmount },
+    });
     (matter as Record<string, unknown>).generatedSOC = {
       html: sanitiseHtml(result.html),
       procedureType: result.procedureType,
@@ -642,6 +664,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       courtLocation: parsed.data.courtLocation,
     }, definedTerms);
 
+    recordDraftHistory(matter as Record<string, unknown>, {
+      docType: parsed.data.applicationType, title: result.formName, html: sanitiseHtml(result.html),
+      costUsd: result.costUsd,
+    });
     (matter as Record<string, unknown>).generatedApplication = {
       html: sanitiseHtml(result.html),
       applicationType: result.applicationType,
@@ -674,7 +700,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // ── POST /api/employment/:matterId/litigation-document ──────────────────
   // Generate a discovery plan, affidavit of documents, or mediation brief.
 
-  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer'] as const;
+  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log'] as const;
 
   const litigationDocBodySchema = z.object({
     documentType: z.enum(LITIGATION_DOC_TYPES),
@@ -723,6 +749,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }, definedTerms);
 
     // Store on the matter
+    recordDraftHistory(matter as Record<string, unknown>, {
+      docType: parsed.data.documentType, title: result.documentTitle, html: sanitiseHtml(result.html),
+      costUsd: result.costUsd,
+    });
     const docKey = `generated_${parsed.data.documentType}`;
     (matter as Record<string, unknown>)[docKey] = {
       html: sanitiseHtml(result.html),
@@ -787,7 +817,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -806,6 +836,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'mediation-brief': 'mediation_brief',
       'severance-assessment': 'severance_assessment',
       'counter-offer': 'counter_offer',
+      'reply': 'reply',
+      'rule49-offer': 'rule49_offer',
+      'settlement-minutes': 'settlement_minutes',
+      'retainer-agreement': 'retainer_agreement',
+      'mitigation-log': 'mitigation_log',
     };
 
     const buffer = await htmlToDocx(html, {
@@ -901,6 +936,21 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // NOTE: the legacy /api/employment/templates/:firmId GET/DELETE routes were
   // removed — they let any authenticated user read or delete another firm's
   // templates by guessing a firmId. The routes above derive the firm from auth.
+
+  // ── GET /api/employment/:matterId/drafts ────────────────────────────────
+  // Draft version history — every generated document, newest first.
+
+  fastify.get('/api/employment/:matterId/drafts', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const matter = JSON.parse(row.data_json) as Record<string, unknown>;
+    const drafts = Array.isArray(matter.draftHistory) ? matter.draftHistory : [];
+    return reply.send({ ok: true, drafts });
+  });
 
   // ── POST /api/employment/:matterId/client-update ────────────────────────
   // Draft a plain-language client status update from the matter's timeline
