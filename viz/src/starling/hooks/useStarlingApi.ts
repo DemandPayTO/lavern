@@ -566,21 +566,38 @@ export function useMatterList(): MatterListResult {
         }
 
         // Enrich with employment intake data (client, employer, limitation
-        // deadline) — cheap local reads, capped to keep the list snappy
+        // deadline) — cheap local reads, capped to keep the list snappy.
+        // Matters with no employment intake are probed for labour
+        // (grievance) data instead.
         await Promise.allSettled(matterEntries.slice(0, 25).map(async entry => {
           try {
             const res = await fetch(`/api/employment/${entry.id}`, { credentials: 'include' });
             if (!res.ok) return;
             const json = await res.json();
             const intake = json.data?.intake as Record<string, unknown> | undefined;
-            if (intake) {
-              const client = [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ');
-              if (client) entry._clientName = client;
-              const employer = (intake.employer_legal_name ?? intake.employer_operating_name) as string | undefined;
+            const client = intake ? [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ') : '';
+            if (client) {
+              entry._clientName = client;
+              const employer = (intake!.employer_legal_name ?? intake!.employer_operating_name) as string | undefined;
               if (employer) entry._employerName = employer;
+              const lim = json.data?.analysis?.limitationDeadline as { date?: string } | undefined;
+              if (lim?.date) entry._limitationDate = lim.date;
+              return;
             }
-            const lim = json.data?.analysis?.limitationDeadline as { date?: string } | undefined;
-            if (lim?.date) entry._limitationDate = lim.date;
+
+            // No employment intake — labour (grievance) matter?
+            const lres = await fetch(`/api/labour/${entry.id}`, { credentials: 'include' });
+            if (!lres.ok) return;
+            const ljson = await lres.json();
+            const li = ljson.data?.intake as Record<string, unknown> | undefined;
+            if (!li || Object.keys(li).length === 0) return;
+            const grievor = [li.grievor_first_name, li.grievor_last_name].filter(Boolean).join(' ');
+            if (grievor) entry._clientName = grievor;
+            if (li.employer_name) entry._employerName = String(li.employer_name);
+            entry._isLabour = true;
+            const griefDeadlines = (ljson.data?.analysis?.deadlines ?? []) as Array<{ date: string; overdue: boolean }>;
+            const next = griefDeadlines.find(d => !d.overdue) ?? griefDeadlines[0];
+            if (next?.date) entry._grievanceDeadline = next.date;
           } catch { /* enrichment is best-effort */ }
         }));
 
@@ -670,8 +687,10 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
   let flagColour: MatterListItem['flagColour'] = 'navy';
 
   // Check for limitation date urgency — structured analysis data first,
-  // then the legacy request-text pattern
-  const structuredLimitation = session._limitationDate as string | undefined;
+  // then the legacy request-text pattern. Labour matters use the nearest
+  // grievance CA clock instead.
+  const isLabour = Boolean(session._isLabour);
+  const structuredLimitation = (session._grievanceDeadline ?? session._limitationDate) as string | undefined;
   const limitationMatch = requestText.match(/Limitation date:\s*(.+)/i);
   const limitationDate = structuredLimitation
     ? new Date(structuredLimitation)
@@ -688,7 +707,12 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
   } else if (daysUntilLimitation <= 30 && daysUntilLimitation > 0) {
     status = 'urgent';
     statusColour = '#dc2626';
-    flagText = `Limitation in ${daysUntilLimitation} days`;
+    flagText = isLabour ? `Grievance deadline in ${daysUntilLimitation} days` : `Limitation in ${daysUntilLimitation} days`;
+    flagColour = 'red';
+  } else if (isLabour && daysUntilLimitation <= 0 && daysUntilLimitation > -30) {
+    status = 'urgent';
+    statusColour = '#dc2626';
+    flagText = 'Grievance time limit passed — assess s. 48(16)';
     flagColour = 'red';
   } else if (daysSinceActivity > 7) {
     status = 'stale';

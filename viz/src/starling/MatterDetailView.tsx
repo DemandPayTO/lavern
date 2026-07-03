@@ -15,6 +15,9 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMatterDetail, useEmploymentData, useFirmTemplates } from './hooks/useStarlingApi.js';
 import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
+import { useLabourData } from './hooks/useLabourApi.js';
+import LabourMatterDetailView from './LabourMatterDetailView.js';
+import { GateApprovalPanel } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
 // ── Design Tokens ───────────────────────────────────────────────────────
@@ -442,6 +445,10 @@ export default function MatterDetailView() {
   // Wire hook data
   const { matter, loading, error } = useMatterDetail(sessionId);
   const employment = useEmploymentData(sessionId);
+  // Labour (grievance) matters render the labour view instead — detected
+  // by the presence of grievance data on the matter
+  const labour = useLabourData(sessionId);
+  const isLabourMatter = Boolean(labour.data && Object.keys(labour.data.intake ?? {}).length > 0);
 
   // Sync lawyer notes from the server once loaded (demo text remains the
   // fallback until real data arrives)
@@ -672,8 +679,14 @@ export default function MatterDetailView() {
     { key: 'notes', label: 'Notes' },
   ];
 
-  // Loading state
-  if (loading) {
+  // Labour matters get the grievance view (same shell, labour tabs)
+  if (isLabourMatter && sessionId) {
+    return <LabourMatterDetailView sessionId={sessionId} matterNumber={matter?.number} />;
+  }
+
+  // Loading state — wait for the labour probe too, so grievance matters
+  // don't flash the employment view before switching
+  if (loading || labour.loading) {
     return (
       <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
         <MatterDetailTopBar />
@@ -940,76 +953,14 @@ export default function MatterDetailView() {
               )}
 
               {/* Lawyer decisions on triggered gates — controls which issues
-                  are included in generated documents */}
-              {triggeredGates.length > 0 && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginBottom: 18 }}>
-                  <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
-                    Approve issues for drafting
-                  </div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 14 }}>
-                    Only approved issues are included in demand letters, pleadings, and applications. Your call — Starling drafts nothing you haven't approved.
-                  </div>
-                  {triggeredGates.map(gate => {
-                    const decision = gateDecision(gate);
-                    return (
-                      <div
-                        key={gate.gate}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-                          borderTop: `1px solid ${border}`, flexWrap: 'wrap',
-                        }}
-                      >
-                        <StatusDot colour={decision === 'approved' ? green : decision === 'dismissed' ? muted : amber} size={8} />
-                        <div style={{ flex: 1, minWidth: 220 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>
-                            {gate.reason.replace(/\.$/, '')}
-                            {gate.requiresLawyerReview && (
-                              <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
-                                REVIEW REQUIRED
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 12, color: muted }}>
-                            Gate {gate.gate} · {gate.issueCodes.map(c => c.replace(/_/g, ' ')).join(', ')}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => setGateDecision(gate, 'approve')}
-                            style={{
-                              fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
-                              background: decision === 'approved' ? green : '#fff',
-                              color: decision === 'approved' ? '#fff' : green,
-                              border: `1px solid ${green}`,
-                            }}
-                            aria-pressed={decision === 'approved'}
-                          >
-                            {decision === 'approved' ? 'Approved' : 'Approve'}
-                          </button>
-                          <button
-                            onClick={() => setGateDecision(gate, 'dismiss')}
-                            style={{
-                              fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
-                              background: decision === 'dismissed' ? muted : '#fff',
-                              color: decision === 'dismissed' ? '#fff' : muted,
-                              border: `1px solid ${muted}`,
-                            }}
-                            aria-pressed={decision === 'dismissed'}
-                          >
-                            {decision === 'dismissed' ? 'Dismissed' : 'Dismiss'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {structuralGates.length > 0 && (
-                    <div style={{ borderTop: `1px solid ${border}`, paddingTop: 10, fontSize: 12, color: muted }}>
-                      Also applied automatically:{' '}
-                      {structuralGates.map(g => g.reason.replace(/\.$/, '')).join(' · ')}
-                    </div>
-                  )}
-                </div>
-              )}
+                  are included in generated documents (shared with the labour view) */}
+              <GateApprovalPanel
+                gates={triggeredGates}
+                structuralGates={structuralGates}
+                decisionFor={gateDecision}
+                onDecision={setGateDecision}
+                subheading="Only approved issues are included in demand letters, pleadings, and applications. Your call — Starling drafts nothing you haven't approved."
+              />
 
               {matter!.issues.length === 0 && triggeredGates.length === 0 && (
                 <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No issues found yet.</div>

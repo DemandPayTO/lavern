@@ -9,8 +9,10 @@
  * Canadian spelling throughout (analyse, licenced).
  */
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useMatterCreate } from './hooks/useStarlingApi.js';
+
+const GrievanceNewMatter = lazy(() => import('./GrievanceNewMatter.js'));
 
 // ── Design Tokens ───────────────────────────────────────────────────────
 const navy = '#0f1a2e';
@@ -76,6 +78,7 @@ function getFileTypeLabel(name: string): string {
 // ── Component ───────────────────────────────────────────────────────────
 
 export default function NewMatterView() {
+  const [practiceArea, setPracticeArea] = useState<'employment' | 'labour'>('employment');
   const [clientName, setClientName] = useState('');
   const [employerName, setEmployerName] = useState('');
   const [situation, setSituation] = useState('');
@@ -244,10 +247,43 @@ export default function NewMatterView() {
           <h1 style={{ fontFamily: serif, fontSize: 25, fontWeight: 600, color: navy, margin: '0 0 4px' }}>
             New Matter
           </h1>
-          <p style={{ color: muted, fontSize: 14, margin: '0 0 28px' }}>
-            Give Starling the basics. It will extract dates, identify employment law issues, and flag missing documents automatically.
+          <p style={{ color: muted, fontSize: 14, margin: '0 0 20px' }}>
+            {practiceArea === 'employment'
+              ? 'Give Starling the basics. It will extract dates, identify employment law issues, and flag missing documents automatically.'
+              : 'Capture the grievance. Starling runs the 11-gate labour analysis (Wm Scott, KVP, Weber, DFR) and puts the CA time limits on the docket instantly.'}
           </p>
 
+          {/* Practice area */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 26 }} role="radiogroup" aria-label="Practice area">
+            {([
+              ['employment', 'Employment', 'Plaintiff-side — wrongful dismissal, ESA, HRTO'],
+              ['labour', 'Union Grievance', 'Union-side — discharge, discipline, policy, arbitration'],
+            ] as const).map(([key, title, sub]) => (
+              <button
+                key={key}
+                onClick={() => setPracticeArea(key)}
+                role="radio"
+                aria-checked={practiceArea === key}
+                style={{
+                  flex: 1, textAlign: 'left', padding: '12px 14px', borderRadius: 2, cursor: 'pointer',
+                  fontFamily: sans, background: practiceArea === key ? '#fff' : cream,
+                  border: `1px solid ${practiceArea === key ? orange : border}`,
+                  boxShadow: practiceArea === key ? `0 2px 0 ${orange}` : 'none',
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, color: navy }}>{title}</div>
+                <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>{sub}</div>
+              </button>
+            ))}
+          </div>
+
+          {practiceArea === 'labour' && (
+            <Suspense fallback={<div style={{ padding: '40px 0', textAlign: 'center', color: muted, fontSize: 14 }}>Loading grievance intake...</div>}>
+              <GrievanceNewMatter onNav={handleNav} />
+            </Suspense>
+          )}
+
+          {practiceArea === 'employment' && (<>
           {/* Client Name */}
           <div style={{ marginBottom: 22 }}>
             <label style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: navy, marginBottom: 7 }}>
@@ -711,6 +747,7 @@ export default function NewMatterView() {
               {error}
             </div>
           )}
+          </>)}
         </div>
       </main>
     </div>
