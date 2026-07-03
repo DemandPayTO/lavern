@@ -46,6 +46,13 @@ export const CITATION_CANON: CanonEntry[] = [
   { keyword: 'dufault', name: 'Dufault v Ignace (Township)', citations: ['2024 onsc 1029', '2024 onca 915'] },
   { keyword: 'rahman', name: 'Rahman v Cannon Design Architecture Inc', citations: ['2022 onca 451'] },
   { keyword: 'fraser', name: 'Fraser v Canada (Attorney General)', citations: ['2020 scc 28'] },
+  // Added 2026-07-03 legal currency review (docs/legal-currency-review-2026-07.md).
+  // Baker and Li state opposite positions on "at any time" clauses — both
+  // heard together at the ONCA March 2026, decision reserved. Update when
+  // the appeal is released.
+  { keyword: 'de castro', name: 'De Castro v Arista Homes Ltd', citations: ['2025 onca 260'] },
+  { keyword: 'van dolder', name: "Baker v Van Dolder's Home Team Inc", citations: ['2025 onsc 952'] },
+  { keyword: 'wayfair', name: 'Li v Wayfair Canada Inc', citations: ['2025 onsc 2959'] },
 ];
 
 // ── Detection ────────────────────────────────────────────────────────────

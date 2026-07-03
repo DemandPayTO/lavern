@@ -91,7 +91,7 @@ Guide the strategic choice of forum:
 **Civil Action (Superior Court / Small Claims Court)**:
 - Advantages: broader remedies (common law reasonable notice under Bardal, Wallace/Honda bad faith damages, punitive damages under Boucher v. Wal-Mart, moral damages), discovery process, jury trial available in Superior Court
 - Disadvantages: slower, costs risk (especially Superior Court), burden of proof on plaintiff, need to fund litigation
-- Small Claims Court: claims up to $50,000 (increased from $35,000 effective January 2025), simplified procedure, lower costs risk
+- Small Claims Court: claims up to $50,000 (increased from $35,000 effective October 1, 2025, O. Reg. 42/25), simplified procedure, lower costs risk
 - Superior Court: unlimited damages, full discovery, costs follow the event
 - Best for: wrongful dismissal claims seeking common law notice period, constructive dismissal, claims involving bad faith or egregious conduct
 - Limitation period: 2 years from discovery (Limitations Act, 2002)

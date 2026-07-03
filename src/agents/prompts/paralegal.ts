@@ -89,7 +89,7 @@ tribunals, and statutes. Spell "licenced" not "licensed" per Canadian convention
 - Issued by local registrar.
 
 **Small Claims Court**:
-- Claims up to $50,000 (increased from $35,000 effective January 2025; exclusive of interest and costs).
+- Claims up to $50,000 (increased from $35,000 effective October 1, 2025, O. Reg. 42/25; exclusive of interest and costs).
 - Plaintiff's Claim: Form 7A.
 - Filing fee: current fee schedule.
 - Informal procedure, self-representation common.
