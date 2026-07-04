@@ -60,9 +60,19 @@ interface DraftType {
   title: string;
   description: string;
   cost: string;
+  section: string;
   recommended?: boolean;
   alreadyDrafted?: boolean;
 }
+
+/** Draft tab section order. */
+const DRAFT_SECTIONS = [
+  'Advice and negotiation',
+  'Pleadings and applications',
+  'Motions and hearings',
+  'Offers and settlement',
+  'Court forms and service (no AI cost)',
+] as const;
 
 interface TimelineEvent {
   id: string;
@@ -159,78 +169,151 @@ const DEMO_DOCS: DocItem[] = [
 ];
 
 const DEMO_DRAFT_TYPES: DraftType[] = [
-  {
-    id: 'soc',
-    title: 'Statement of Claim',
-    description: 'File in the Superior Court of Justice for wrongful dismissal and Code damages.',
-    cost: '~$3\u20138 · 3\u20138 min',
-    recommended: true,
-  },
+  // ── Advice and negotiation ─────────────────────────────────────────────
   {
     id: 'severance',
     title: 'Severance Offer Assessment',
     description: 'Offer vs. ESA floor vs. common-law range, with a recommendation. Internal memo.',
-    cost: '~$1\u20132 · 1\u20132 min',
+    cost: '~$1\u20132 \u00B7 1\u20132 min',
+    section: 'Advice and negotiation',
   },
   {
     id: 'counter',
     title: 'Counter-Offer Letter',
     description: 'Respond to the employer\u2019s severance offer with a reasoned counter-position.',
-    cost: '~$2\u20134 · 2\u20135 min',
+    cost: '~$2\u20134 \u00B7 2\u20135 min',
+    section: 'Advice and negotiation',
   },
   {
     id: 'demand',
     title: 'Demand Letter',
     description: 'Demand to the employer\u2019s counsel with entitlements, deadline, and settlement position.',
-    cost: '~$3\u20138 · 3\u20138 min',
-  },
-  {
-    id: 'mediation',
-    title: 'Mediation Brief',
-    description: 'Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.',
-    cost: '~$3\u20138 · 3\u20138 min',
-  },
-  {
-    id: 'reply',
-    title: 'Reply (Form 25A)',
-    description: 'Respond to new matters in the Statement of Defence \u2014 cause allegations, mitigation, limitations.',
-    cost: '~$2\u20134 · 2\u20135 min',
-  },
-  {
-    id: 'rule49',
-    title: 'Offer to Settle (Form 49A)',
-    description: 'Rule 49 offer with cost consequences \u2014 partial indemnity to the offer, substantial after.',
-    cost: '~$2\u20134 · 2\u20135 min',
-  },
-  {
-    id: 'minutes',
-    title: 'Minutes of Settlement & Release',
-    description: 'Settlement terms plus a full and final release with the carve-outs that must survive.',
-    cost: '~$2\u20135 · 2\u20135 min',
+    cost: '~$3\u20138 \u00B7 3\u20138 min',
+    section: 'Advice and negotiation',
   },
   {
     id: 'retainer',
     title: 'Retainer Agreement',
     description: 'Plain-language engagement agreement. Contingency matters use the mandatory standard-form CFA.',
-    cost: '~$1\u20132 · 1\u20132 min',
-  },
-  {
-    id: 'confbrief',
-    title: 'Settlement Conference Brief',
-    description: 'Rule 13 (Small Claims) or Rule 50 pre-trial brief \u2014 adapts to the matter\u2019s forum automatically.',
-    cost: '~$3\u20136 · 3\u20136 min',
-  },
-  {
-    id: 'schedulea',
-    title: 'HRTO Schedule "A"',
-    description: 'The narrative of allegations that accompanies Form 1 \u2014 chronology, grounds, impact, s. 45.2 remedies.',
-    cost: '~$2\u20135 · 2\u20135 min',
+    cost: '~$1\u20132 \u00B7 1\u20132 min',
+    section: 'Advice and negotiation',
   },
   {
     id: 'mitigation',
     title: 'Mitigation Log',
-    description: 'Client-facing job-search record with instructions \u2014 the damages evidence that wins notice periods.',
-    cost: 'free · instant',
+    description: 'Client-facing job-search record with instructions: the damages evidence that supports the notice claim.',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Advice and negotiation',
+  },
+  // ── Pleadings and applications ─────────────────────────────────────────
+  {
+    id: 'soc',
+    title: 'Statement of Claim',
+    description: 'File in the Superior Court of Justice for wrongful dismissal and Code damages.',
+    cost: '~$3\u20138 \u00B7 3\u20138 min',
+    section: 'Pleadings and applications',
+    recommended: true,
+  },
+  {
+    id: 'noa',
+    title: 'Notice of Action (Form 14C)',
+    description: 'Stops the limitation clock when there is no time to plead; the Statement of Claim follows within thirty days.',
+    cost: '~$1\u20132 \u00B7 1\u20132 min',
+    section: 'Pleadings and applications',
+  },
+  {
+    id: 'reply',
+    title: 'Reply (Form 25A)',
+    description: 'Respond to new matters in the Statement of Defence: cause allegations, mitigation, limitations.',
+    cost: '~$2\u20134 \u00B7 2\u20135 min',
+    section: 'Pleadings and applications',
+  },
+  {
+    id: 'schedulea',
+    title: 'HRTO Schedule "A"',
+    description: 'The narrative of allegations that accompanies Form 1: chronology, grounds, impact, s. 45.2 remedies.',
+    cost: '~$2\u20135 \u00B7 2\u20135 min',
+    section: 'Pleadings and applications',
+  },
+  // ── Motions and hearings ───────────────────────────────────────────────
+  {
+    id: 'sjmotion',
+    title: 'SJ Notice of Motion (Form 37A)',
+    description: 'The Rule 20 summary judgment motion: relief and grounds tracking the approved issues.',
+    cost: '~$2\u20134 \u00B7 2\u20135 min',
+    section: 'Motions and hearings',
+  },
+  {
+    id: 'sjaffidavit',
+    title: 'SJ Affidavit (Form 4D)',
+    description: 'The plaintiff\u2019s sworn evidence from the intake facts. Every paragraph must be verified with the client before swearing.',
+    cost: '~$3\u20136 \u00B7 3\u20136 min',
+    section: 'Motions and hearings',
+  },
+  {
+    id: 'sjfactum',
+    title: 'SJ Factum',
+    description: 'The argument: Hryniak, Bardal, Waksdale, and the issue-specific authorities, from the approved issues only.',
+    cost: '~$3\u20138 \u00B7 3\u20138 min',
+    section: 'Motions and hearings',
+  },
+  {
+    id: 'mediation',
+    title: 'Mediation Brief',
+    description: 'Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.',
+    cost: '~$3\u20138 \u00B7 3\u20138 min',
+    section: 'Motions and hearings',
+  },
+  {
+    id: 'confbrief',
+    title: 'Settlement Conference Brief',
+    description: 'Rule 13 (Small Claims) or Rule 50 pre-trial brief; adapts to the matter\u2019s forum automatically.',
+    cost: '~$3\u20136 \u00B7 3\u20136 min',
+    section: 'Motions and hearings',
+  },
+  // ── Offers and settlement ──────────────────────────────────────────────
+  {
+    id: 'rule49',
+    title: 'Offer to Settle (Form 49A)',
+    description: 'Rule 49 offer with cost consequences: partial indemnity to the offer, substantial after.',
+    cost: '~$2\u20134 \u00B7 2\u20135 min',
+    section: 'Offers and settlement',
+  },
+  {
+    id: 'rule49acceptance',
+    title: 'Acceptance of Offer (Form 49C)',
+    description: 'Accepts the other side\u2019s Rule 49 offer and creates a binding settlement. Written client instructions first.',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Offers and settlement',
+  },
+  {
+    id: 'rule49withdrawal',
+    title: 'Withdrawal of Offer (Form 49B)',
+    description: 'Withdraws an outstanding offer and ends its cost consequences from the date of withdrawal.',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Offers and settlement',
+  },
+  {
+    id: 'minutes',
+    title: 'Minutes of Settlement & Release',
+    description: 'Settlement terms plus a full and final release with the carve-outs that must survive.',
+    cost: '~$2\u20135 \u00B7 2\u20135 min',
+    section: 'Offers and settlement',
+  },
+  // ── Court forms and service ────────────────────────────────────────────
+  {
+    id: 'aos',
+    title: 'Affidavit of Service (Form 16B)',
+    description: 'Proof of service from the service details you enter. Sworn before a commissioner.',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Court forms and service (no AI cost)',
+  },
+  {
+    id: 'costsoutline',
+    title: 'Costs Outline (Form 57B)',
+    description: 'The rule 57.01 costs claim from your rates, hours, and disbursements, with the arithmetic shown.',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Court forms and service (no AI cost)',
   },
 ];
 
@@ -285,6 +368,57 @@ const DRAFT_TO_DOCTYPE: Record<string, string> = {
   mitigation: 'mitigation_log',
   confbrief: 'settlement_conference_brief',
   schedulea: 'hrto_schedule_a',
+  noa: 'notice_of_action',
+  sjmotion: 'sj_notice_of_motion',
+  sjaffidavit: 'sj_affidavit',
+  sjfactum: 'sj_factum',
+  aos: 'affidavit_of_service',
+  rule49withdrawal: 'rule49_withdrawal',
+  rule49acceptance: 'rule49_acceptance',
+  costsoutline: 'costs_outline',
+};
+
+/** Structured inputs for the deterministic court forms. */
+interface CourtFieldDef {
+  key: string;
+  label: string;
+  placeholder?: string;
+  type?: 'text' | 'date' | 'select' | 'textarea';
+  options?: Array<[string, string]>;
+  required?: boolean;
+}
+
+const COURT_FORM_FIELDS: Record<string, CourtFieldDef[]> = {
+  aos: [
+    { key: 'document_served', label: 'Document served', placeholder: 'e.g., Statement of Claim', required: true },
+    { key: 'served_party', label: 'Party served', placeholder: 'e.g., the defendant corporation', required: true },
+    { key: 'service_date', label: 'Date of service', type: 'date', required: true },
+    {
+      key: 'service_method', label: 'Method of service', type: 'select', required: true,
+      options: [['personal', 'Personal service'], ['mail', 'Mail'], ['courier', 'Courier'], ['email', 'Email'], ['alternative', 'Alternative to personal service']],
+    },
+    { key: 'server_name', label: 'Served by (deponent)', placeholder: 'Name of the person who served', required: true },
+    { key: 'server_city', label: 'Deponent’s city', placeholder: 'e.g., City of Toronto', required: true },
+    { key: 'service_address', label: 'Address of service (optional)', placeholder: 'Where service was made' },
+  ],
+  rule49acceptance: [
+    { key: 'offer_date', label: 'Date the offer was served', type: 'date', required: true },
+    {
+      key: 'offering_party', label: 'Whose offer is accepted', type: 'select', required: true,
+      options: [['defendant', 'The defendant’s offer'], ['plaintiff', 'The plaintiff’s offer']],
+    },
+  ],
+  rule49withdrawal: [
+    { key: 'offer_date', label: 'Date our offer was served', type: 'date', required: true },
+  ],
+  costsoutline: [
+    { key: 'actual_rate', label: 'Actual hourly rate (CAD)', placeholder: 'e.g., 450', required: true },
+    { key: 'hours_total', label: 'Total hours', placeholder: 'e.g., 38.5', required: true },
+    { key: 'partial_indemnity_rate', label: 'Partial indemnity rate (optional)', placeholder: 'defaults to 60% of actual' },
+    { key: 'lawyer_year_of_call', label: 'Year of call', placeholder: 'e.g., 2015' },
+    { key: 'step_description', label: 'Step in the proceeding', placeholder: 'e.g., the motion for summary judgment' },
+    { key: 'disbursements', label: 'Disbursements (one per line, ending with the amount)', type: 'textarea', placeholder: 'Filing fees $229\nProcess server $150' },
+  ],
 };
 
 const DRAFT_TO_DOWNLOAD: Record<string, string> = {
@@ -300,6 +434,14 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   mitigation: 'mitigation-log',
   confbrief: 'settlement-conference-brief',
   schedulea: 'hrto-schedule-a',
+  noa: 'notice-of-action',
+  sjmotion: 'sj-notice-of-motion',
+  sjaffidavit: 'sj-affidavit',
+  sjfactum: 'sj-factum',
+  aos: 'affidavit-of-service',
+  rule49withdrawal: 'rule49-withdrawal',
+  rule49acceptance: 'rule49-acceptance',
+  costsoutline: 'costs-outline',
 };
 
 /** Cards that need a dollar amount before Generate makes sense. */
@@ -402,6 +544,8 @@ export default function MatterDetailView() {
   const [genDemandAmount, setGenDemandAmount] = useState('');
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
+  // Structured inputs for the deterministic court forms
+  const [courtFields, setCourtFields] = useState<Record<string, string>>({});
   // Docs tab: upload & extract
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [uploadKind, setUploadKind] = useState('employment_agreement');
@@ -1250,55 +1394,102 @@ export default function MatterDetailView() {
                   </div>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 8 }}>
-                {DEMO_DRAFT_TYPES.map(dt => (
-                  <div
-                    key={dt.id}
-                    onClick={() => setSelectedDraft(dt.id)}
-                    style={{
-                      background: '#fff',
-                      border: `1px solid ${selectedDraft === dt.id || dt.recommended ? orange : border}`,
-                      padding: 18,
-                      cursor: 'pointer',
-                      boxShadow: selectedDraft === dt.id || dt.recommended ? `0 2px 0 ${orange}` : 'none',
-                    }}
-                    role="radio"
-                    aria-checked={selectedDraft === dt.id}
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDraft(dt.id); } }}
-                  >
-                    {dt.recommended && (
-                      <span
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          color: '#fff',
-                          background: orange,
-                          padding: '2px 7px',
-                          borderRadius: 2,
-                          letterSpacing: '0.04em',
-                        }}
-                      >
-                        RECOMMENDED NEXT
-                      </span>
-                    )}
-                    <h4 style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, margin: dt.recommended ? '10px 0 5px' : '0 0 5px' }}>
-                      {dt.title}
-                    </h4>
-                    <p style={{ fontSize: 12.5, color: dt.alreadyDrafted ? green : muted, margin: 0 }}>
-                      {dt.alreadyDrafted && (
-                        <>
-                          <StatusDot colour={green} size={6} />{' '}
-                        </>
-                      )}
-                      {dt.description}
-                    </p>
-                    <div style={{ fontSize: 12, color: muted, marginTop: 10 }}>{dt.cost}</div>
+              {DRAFT_SECTIONS.map(section => (
+                <div key={section} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
+                    {section}
                   </div>
-                ))}
-              </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                    {DEMO_DRAFT_TYPES.filter(dt => dt.section === section).map(dt => (
+                      <div
+                        key={dt.id}
+                        onClick={() => setSelectedDraft(dt.id)}
+                        style={{
+                          background: '#fff',
+                          border: `1px solid ${selectedDraft === dt.id || dt.recommended ? orange : border}`,
+                          padding: 18,
+                          cursor: 'pointer',
+                          boxShadow: selectedDraft === dt.id || dt.recommended ? `0 2px 0 ${orange}` : 'none',
+                        }}
+                        role="radio"
+                        aria-checked={selectedDraft === dt.id}
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDraft(dt.id); } }}
+                      >
+                        {dt.recommended && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: '#fff',
+                              background: orange,
+                              padding: '2px 7px',
+                              borderRadius: 2,
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            RECOMMENDED NEXT
+                          </span>
+                        )}
+                        <h4 style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, margin: dt.recommended ? '10px 0 5px' : '0 0 5px' }}>
+                          {dt.title}
+                        </h4>
+                        <p style={{ fontSize: 12.5, color: dt.alreadyDrafted ? green : muted, margin: 0 }}>
+                          {dt.alreadyDrafted && (
+                            <>
+                              <StatusDot colour={green} size={6} />{' '}
+                            </>
+                          )}
+                          {dt.description}
+                        </p>
+                        <div style={{ fontSize: 12, color: muted, marginTop: 10 }}>{dt.cost}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* Court-form inputs: the deterministic forms are data, and
+                  these fields are that data */}
+              {selectedDraft && COURT_FORM_FIELDS[selectedDraft] && !generatedHtml && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
+                  {COURT_FORM_FIELDS[selectedDraft].map(f => (
+                    <div key={f.key} style={f.type === 'textarea' ? { gridColumn: '1 / -1' } : undefined}>
+                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>
+                        {f.label}{f.required ? ' *' : ''}
+                      </div>
+                      {f.type === 'select' ? (
+                        <select
+                          value={courtFields[f.key] ?? ''}
+                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                        >
+                          <option value="">Select</option>
+                          {(f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      ) : f.type === 'textarea' ? (
+                        <textarea
+                          value={courtFields[f.key] ?? ''}
+                          placeholder={f.placeholder}
+                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          rows={3}
+                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box', resize: 'vertical' }}
+                        />
+                      ) : (
+                        <input
+                          type={f.type ?? 'text'}
+                          value={courtFields[f.key] ?? ''}
+                          placeholder={f.placeholder}
+                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Generation options */}
-              {selectedDraft && !generatedHtml && (
+              {selectedDraft && !COURT_FORM_FIELDS[selectedDraft] && !generatedHtml && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
                   {(selectedDraft === 'demand') && (
                     <>
@@ -1345,6 +1536,12 @@ export default function MatterDetailView() {
                     setGenerating(true);
                     setGenError(null);
                     const amount = parseInt(genDemandAmount) || 100000;
+                    const fieldDefs = COURT_FORM_FIELDS[selectedDraft ?? ''];
+                    const formFields = fieldDefs
+                      ? Object.fromEntries(fieldDefs
+                          .map(f => [f.key, (courtFields[f.key] ?? '').trim()])
+                          .filter(([, v]) => v !== ''))
+                      : undefined;
                     const result = await employment.generateDocument(
                       DRAFT_TO_DOCTYPE[selectedDraft ?? ''] ?? 'demand_letter',
                       {
@@ -1352,6 +1549,7 @@ export default function MatterDetailView() {
                         demandAmount: amount,
                         claimAmount: amount,
                         procedureType: genProcedure,
+                        formFields,
                         lawyerName: profile.displayName || 'Lawyer Name',
                         firmName: profile.firmName || 'Firm Name',
                         // Composed contact block — the generators accept a single
@@ -1377,7 +1575,9 @@ export default function MatterDetailView() {
                       setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
                     }
                   }}
-                  disabled={generating || (DRAFTS_NEEDING_AMOUNT.has(selectedDraft ?? '') && !genDemandAmount)}
+                  disabled={generating
+                    || (DRAFTS_NEEDING_AMOUNT.has(selectedDraft ?? '') && !genDemandAmount)
+                    || Boolean(COURT_FORM_FIELDS[selectedDraft ?? '']?.some(f => f.required && !(courtFields[f.key] ?? '').trim()))}
                   style={{
                     background: generating ? '#b0b0b0' : orange,
                     color: '#fff',

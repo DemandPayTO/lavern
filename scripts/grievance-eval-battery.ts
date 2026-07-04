@@ -41,6 +41,10 @@ const RESERVE: Record<string, number> = {
   decline_letter: 0.15,
   member_update: 0.15,
   remedy_worksheet: 0,
+  particulars: 0.15,
+  production_request: 0.15,
+  settlement_memorandum: 1.0,
+  ohsa_reprisal_complaint: 1.0,
 };
 /** Filings and referrals are deliberately one page; briefs are not. */
 const MIN_LENGTH: Record<string, number> = {
@@ -52,6 +56,10 @@ const MIN_LENGTH: Record<string, number> = {
   decline_letter: 1000,
   member_update: 600,
   remedy_worksheet: 500,
+  particulars: 1200,
+  production_request: 1200,
+  settlement_memorandum: 2000,
+  ohsa_reprisal_complaint: 2000,
 };
 
 let spentUsd = 0;
@@ -103,7 +111,7 @@ const PATTERNS: Pattern[] = [
       vacation_pay_percent: 6, benefits_load_percent: 12, pension_contrib_percent: 7,
       interim_earnings: 8000,
     },
-    documents: ['grievance_filing', 'merits_assessment', 'remedy_worksheet', 'arbitration_brief'],
+    documents: ['grievance_filing', 'particulars', 'production_request', 'merits_assessment', 'remedy_worksheet', 'arbitration_brief'],
   },
   {
     key: 'g2-hr-suspension',
@@ -143,7 +151,7 @@ const PATTERNS: Pattern[] = [
       prior_discipline: false,
       remedy_sought: 'Rescind the suspension, make whole, accommodate per medical restrictions, Code damages',
     },
-    documents: ['referral_to_arbitration'],
+    documents: ['referral_to_arbitration', 'settlement_memorandum'],
   },
   {
     key: 'g3-dfr',

@@ -31,6 +31,14 @@ const BASE = process.env.EVAL_BASE_URL ?? 'http://localhost:3000';
 const budgetArg = process.argv.indexOf('--budget');
 const BUDGET_USD = budgetArg > -1 ? parseFloat(process.argv[budgetArg + 1]) : 12;
 const RESERVE_PER_GEN = 1.5;
+/** Deterministic court forms and short notices are legitimately brief. */
+const MIN_LENGTH: Record<string, number> = {
+  notice_of_action: 1500,
+  affidavit_of_service: 700,
+  costs_outline: 900,
+  rule49_withdrawal: 400,
+  rule49_acceptance: 400,
+};
 
 let spentUsd = 0;
 
@@ -75,6 +83,17 @@ const PATTERNS: Pattern[] = [
       { kind: 'demand', body: { tone: 'firm', demandAmount: 190000, responseDeadlineDays: 14, ...LAWYER } },
       { kind: 'soc', body: { procedureType: 'simplified', claimAmount: 190000, courtLocation: 'Toronto', ...LAWYER } },
       { kind: 'litigation', body: { documentType: 'mediation_brief', claimAmount: 190000, courtLocation: 'Toronto', ...LAWYER } },
+      { kind: 'litigation', body: { documentType: 'notice_of_action', claimAmount: 190000, courtLocation: 'Toronto', ...LAWYER } },
+      { kind: 'litigation', body: { documentType: 'affidavit_of_service', courtLocation: 'Toronto', ...LAWYER, formFields: {
+        document_served: 'Statement of Claim', served_party: 'Cadence Manufacturing Ltd',
+        service_date: '2026-07-02', service_method: 'courier',
+        server_name: 'Dana Whitfield', server_city: 'City of Toronto',
+      } } },
+      { kind: 'litigation', body: { documentType: 'costs_outline', courtLocation: 'Toronto', ...LAWYER, formFields: {
+        actual_rate: 450, hours_total: 22, lawyer_year_of_call: '2015',
+        step_description: 'the mediation and the motion for summary judgment',
+        disbursements: 'Filing fees $229\nProcess server $150',
+      } } },
     ],
   },
   {
@@ -146,6 +165,9 @@ const PATTERNS: Pattern[] = [
     },
     documents: [
       { kind: 'soc', body: { procedureType: 'ordinary', claimAmount: 320000, courtLocation: 'Toronto', ...LAWYER } },
+      { kind: 'litigation', body: { documentType: 'sj_notice_of_motion', claimAmount: 320000, courtLocation: 'Toronto', ...LAWYER } },
+      { kind: 'litigation', body: { documentType: 'sj_affidavit', claimAmount: 320000, courtLocation: 'Toronto', ...LAWYER } },
+      { kind: 'litigation', body: { documentType: 'sj_factum', claimAmount: 320000, courtLocation: 'Toronto', ...LAWYER } },
     ],
   },
 ];
@@ -260,7 +282,7 @@ async function main() {
           'no em-dashes (house style)': !html.includes('—'),
           'client name present': html.includes(pattern.intake.client_last_name as string),
           'employer name present': html.includes(pattern.employerName.split(' ')[0]),
-          'substantive length (>2k chars)': html.length > 2000,
+          [`substantive length (>${MIN_LENGTH[label] ?? 2000} chars)`]: html.length > (MIN_LENGTH[label] ?? 2000),
           'review flags present': flags.length > 0,
         };
 

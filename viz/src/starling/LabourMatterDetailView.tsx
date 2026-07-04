@@ -25,56 +25,104 @@ interface GrievanceDraftType {
   title: string;
   description: string;
   cost: string;
+  section: string;
 }
 
+const LABOUR_DRAFT_SECTIONS = [
+  'The grievance',
+  'Hearing and assessment',
+  'Resolution and the member',
+  'Board proceedings',
+] as const;
+
 const DRAFT_TYPES: GrievanceDraftType[] = [
+  // ── The grievance ──────────────────────────────────────────────────────
   {
     id: 'grievance_filing',
     title: 'Grievance',
     description: 'The filing itself: one clear sentence, a broad basket of articles, and a broad remedy clause. Grievances are construed generously; this one is pleaded broadly regardless.',
-    cost: '~$0.05 · under 1 minute',
+    cost: '~$0.05 \u00B7 under 1 minute',
+    section: 'The grievance',
+  },
+  {
+    id: 'particulars',
+    title: 'Particulars of the Grievance',
+    description: 'Fair notice of the case the employer must meet, and nothing more: dated allegations tied to articles, with the right to supplement reserved.',
+    cost: '~$0.05 \u00B7 under 1 minute',
+    section: 'The grievance',
+  },
+  {
+    id: 'production_request',
+    title: 'Production Request',
+    description: 'The pre-arbitration disclosure demand: the investigation file, the decision trail, and the comparator discipline, tailored to the approved issues.',
+    cost: '~$0.05 \u00B7 under 1 minute',
+    section: 'The grievance',
   },
   {
     id: 'referral_to_arbitration',
     title: 'Referral to Arbitration',
     description: 'Formal notice advancing the grievance to arbitration under the CA and the LRA, with the arbitrator-appointment mechanism.',
-    cost: '~$0.05 · under 1 minute',
+    cost: '~$0.05 \u00B7 under 1 minute',
+    section: 'The grievance',
   },
+  // ── Hearing and assessment ─────────────────────────────────────────────
   {
     id: 'arbitration_brief',
     title: "Union's Arbitration Brief",
     description: 'The full advocacy brief. The Wm. Scott, KVP, Millhaven, and Parry Sound frameworks, argued from the approved issues only.',
-    cost: '~$0.30–0.60 · 2–5 minutes',
-  },
-  {
-    id: 'dfr_response',
-    title: 'DFR Response (s. 74)',
-    description: "The union's response to a duty of fair representation complaint, presenting the considered-judgment record the Board looks for.",
-    cost: '~$0.30–0.60 · 2–5 minutes',
+    cost: '~$0.30\u20130.60 \u00B7 2\u20135 minutes',
+    section: 'Hearing and assessment',
   },
   {
     id: 'merits_assessment',
     title: 'Merits Assessment Memorandum',
     description: 'The internal assessment of whether to advance, settle, or decline. The considered-judgment record that answers a s. 74 complaint before it is made.',
-    cost: '~$0.30–0.60 · 2–5 minutes',
+    cost: '~$0.30\u20130.60 \u00B7 2\u20135 minutes',
+    section: 'Hearing and assessment',
+  },
+  // ── Resolution and the member ──────────────────────────────────────────
+  {
+    id: 'settlement_memorandum',
+    title: 'Memorandum of Settlement',
+    description: 'The binding resolution: terms, the disposition of the discipline record, without-precedent protections, and the Code cautions.',
+    cost: '~$0.30\u20130.60 \u00B7 2\u20135 minutes',
+    section: 'Resolution and the member',
   },
   {
     id: 'decline_letter',
     title: 'Decision Letter: Not Advancing',
     description: 'The letter to the grievor where the union declines to advance the grievance, with reasons, the review process, and the internal appeal route.',
-    cost: '~$0.05 · under 1 minute',
+    cost: '~$0.05 \u00B7 under 1 minute',
+    section: 'Resolution and the member',
   },
   {
     id: 'member_update',
     title: 'Grievor Status Update',
     description: 'A plain-language status letter to the grievor. Regular documented updates are both good representation and the answer to s. 74 scrutiny.',
-    cost: '~$0.03 · under 1 minute',
+    cost: '~$0.03 \u00B7 under 1 minute',
+    section: 'Resolution and the member',
   },
   {
     id: 'remedy_worksheet',
     title: 'Remedy Worksheet',
     description: 'The make-whole computation: back pay, vacation pay, benefits, and pension contributions, less interim earnings, with every derivation shown.',
-    cost: 'no AI cost · instant',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Resolution and the member',
+  },
+  // ── Board proceedings ──────────────────────────────────────────────────
+  {
+    id: 'dfr_response',
+    title: 'DFR Response (s. 74, Form A-30)',
+    description: "The union's response to a duty of fair representation complaint, presenting the considered-judgment record the Board looks for.",
+    cost: '~$0.30\u20130.60 \u00B7 2\u20135 minutes',
+    section: 'Board proceedings',
+  },
+  {
+    id: 'ohsa_reprisal_complaint',
+    title: 'OHSA s. 50 Reprisal (Form A-53)',
+    description: 'The reprisal application narrative for the Board, built to trigger the s. 50(5) reverse onus. Confirm the forum election first.',
+    cost: '~$0.30\u20130.60 \u00B7 2\u20135 minutes',
+    section: 'Board proceedings',
   },
 ];
 
@@ -87,6 +135,10 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   decline_letter: 'decline-letter',
   member_update: 'member-update',
   remedy_worksheet: 'remedy-worksheet',
+  particulars: 'particulars',
+  production_request: 'production-request',
+  settlement_memorandum: 'settlement-memorandum',
+  ohsa_reprisal_complaint: 'ohsa-reprisal-complaint',
 };
 
 type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'notes';
@@ -684,43 +736,50 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                 flags anything that needs verification, and never invents facts or authorities.
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 8 }}>
-                {DRAFT_TYPES.map(dt => {
-                  const recommended = (dt.id === 'grievance_filing' && !intake.grievance_filed)
-                    || (dt.id === 'referral_to_arbitration' && Boolean(intake.grievance_filed) && Boolean(intake.last_step_response_date));
-                  return (
-                    <div
-                      key={dt.id}
-                      onClick={() => setSelectedDraft(dt.id)}
-                      style={{
-                        background: '#fff',
-                        border: `1px solid ${selectedDraft === dt.id ? orange : border}`,
-                        padding: 18,
-                        cursor: 'pointer',
-                        boxShadow: selectedDraft === dt.id ? `0 2px 0 ${orange}` : 'none',
-                      }}
-                      role="radio"
-                      aria-checked={selectedDraft === dt.id}
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDraft(dt.id); } }}
-                    >
-                      {recommended && (
-                        <span style={{
-                          fontSize: 10.5, fontWeight: 700, color: '#fff', background: orange,
-                          padding: '2px 7px', borderRadius: 2, letterSpacing: '0.04em',
-                        }}>
-                          RECOMMENDED NEXT
-                        </span>
-                      )}
-                      <h4 style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, margin: recommended ? '10px 0 5px' : '0 0 5px' }}>
-                        {dt.title}
-                      </h4>
-                      <p style={{ fontSize: 12.5, color: muted, margin: 0 }}>{dt.description}</p>
-                      <div style={{ fontSize: 12, color: muted, marginTop: 10 }}>{dt.cost}</div>
-                    </div>
-                  );
-                })}
-              </div>
+              {LABOUR_DRAFT_SECTIONS.map(section => (
+                <div key={section} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
+                    {section}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+                    {DRAFT_TYPES.filter(dt => dt.section === section).map(dt => {
+                      const recommended = (dt.id === 'grievance_filing' && !intake.grievance_filed)
+                        || (dt.id === 'referral_to_arbitration' && Boolean(intake.grievance_filed) && Boolean(intake.last_step_response_date));
+                      return (
+                        <div
+                          key={dt.id}
+                          onClick={() => setSelectedDraft(dt.id)}
+                          style={{
+                            background: '#fff',
+                            border: `1px solid ${selectedDraft === dt.id ? orange : border}`,
+                            padding: 18,
+                            cursor: 'pointer',
+                            boxShadow: selectedDraft === dt.id ? `0 2px 0 ${orange}` : 'none',
+                          }}
+                          role="radio"
+                          aria-checked={selectedDraft === dt.id}
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDraft(dt.id); } }}
+                        >
+                          {recommended && (
+                            <span style={{
+                              fontSize: 10.5, fontWeight: 700, color: '#fff', background: orange,
+                              padding: '2px 7px', borderRadius: 2, letterSpacing: '0.04em',
+                            }}>
+                              RECOMMENDED NEXT
+                            </span>
+                          )}
+                          <h4 style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, margin: recommended ? '10px 0 5px' : '0 0 5px' }}>
+                            {dt.title}
+                          </h4>
+                          <p style={{ fontSize: 12.5, color: muted, margin: 0 }}>{dt.description}</p>
+                          <div style={{ fontSize: 12, color: muted, marginTop: 10 }}>{dt.cost}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
 
               {/* Remedy worksheet inputs — persisted to the intake so the
                   figures always match the file */}
