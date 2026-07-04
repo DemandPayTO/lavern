@@ -17,6 +17,8 @@ import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from 
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 import { computeBardalFactors } from './timeline-generator.js';
+import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline } from './court-forms.js';
+import type { CourtFormFields } from './court-forms.js';
 
 const logger = createLogger('LITIGATION-DOCS');
 
@@ -34,7 +36,15 @@ export type LitigationDocumentType =
   | 'retainer_agreement'
   | 'mitigation_log'
   | 'settlement_conference_brief'
-  | 'hrto_schedule_a';
+  | 'hrto_schedule_a'
+  | 'notice_of_action'
+  | 'sj_notice_of_motion'
+  | 'sj_affidavit'
+  | 'sj_factum'
+  | 'affidavit_of_service'
+  | 'rule49_withdrawal'
+  | 'rule49_acceptance'
+  | 'costs_outline';
 
 export interface LitigationDocumentRequest {
   intake: EmploymentIntakeData;
@@ -51,6 +61,9 @@ export interface LitigationDocumentRequest {
   sourceDocuments?: Array<{ name: string; content: string }>;
   /** Additional context specific to the document type. */
   additionalContext?: string;
+  /** Structured inputs for the deterministic court forms (service details,
+   *  offer dates, costs figures). Each builder validates its own fields. */
+  formFields?: CourtFormFields;
 }
 
 export interface LitigationDocumentResult {
@@ -335,6 +348,74 @@ RULES:
 - The one-year limitation (s. 34(1)): state the date of the last incident in the series prominently in the overview.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    notice_of_action: `You are a senior Ontario litigation lawyer drafting a NOTICE OF ACTION (Form 14C, Rules of Civil Procedure) for a wrongful dismissal action. A Notice of Action is issued when the limitation period leaves insufficient time to prepare a full Statement of Claim; the Statement of Claim (Form 14D) must then be filed within thirty days.
+
+STRUCTURE:
+1. General heading: court, court file number placeholder, parties (plaintiff and defendant with full legal names).
+2. The notice text: "TO THE DEFENDANT: A LEGAL PROCEEDING HAS BEEN COMMENCED AGAINST YOU by the plaintiff. The claim made against you is set out in the following pages." followed by the standard Form 14C warnings about filing a defence and the applicable time limits.
+3. A SHORT AND CONCISE statement of the nature of the claim: two or three numbered paragraphs identifying the parties, the employment, the termination, and the relief claimed (damages for wrongful dismissal, Human Rights Code damages where approved, aggravated or punitive damages where approved, interest, and costs). Include the amounts from the damages analysis. This is a summary, not the pleading; the full claim follows in the Statement of Claim.
+4. Date, court address placeholder, and the plaintiff's lawyer's name, firm, and contact block.
+
+RULES:
+- This document exists to stop the limitation clock. State the relief in terms broad enough to cover the claims the Statement of Claim will plead.
+- Claim only the causes of action supported by the APPROVED ISSUES.`,
+
+    sj_notice_of_motion: `You are a senior Ontario employment litigation lawyer drafting a NOTICE OF MOTION (Form 37A) for the plaintiff's motion for summary judgment under Rule 20 in a wrongful dismissal action.
+
+STRUCTURE:
+1. General heading (court, file number placeholder, parties).
+2. The moving party and the hearing details as placeholders ([DATE], [TIME], [COURT ADDRESS], method of hearing to be confirmed).
+3. THE MOTION IS FOR: numbered relief: summary judgment for damages for wrongful dismissal in the amount claimed; any Code or moral damages the approved issues support; prejudgment and postjudgment interest under the Courts of Justice Act; costs; such further relief as counsel may advise.
+4. THE GROUNDS FOR THE MOTION ARE: numbered grounds tracking the approved issues: there is no genuine issue requiring a trial (Rule 20.04; Hryniak v Mauldin, 2014 SCC 7); the employment and dismissal are not in dispute; the termination clause is unenforceable where that issue is approved (Waksdale v Swegon North America Inc, 2020 ONCA 391); the only real issue is the quantum of reasonable notice, which is a question the motion judge can decide on a paper record (Bardal factors); and the specific grounds arising from the approved issues.
+5. THE FOLLOWING DOCUMENTARY EVIDENCE will be used: the affidavit of the plaintiff, the pleadings, and the exhibits.
+6. Date and the lawyer's contact block; TO: the defendant's lawyer placeholder.
+
+RULES:
+- Wrongful dismissal actions are well suited to summary judgment and the courts have said so; the grounds should reflect that confidence without overstatement.
+- Relief and grounds must track the APPROVED ISSUES only.`,
+
+    sj_affidavit: `You are a senior Ontario employment litigation lawyer drafting the PLAINTIFF'S AFFIDAVIT (Form 4D) in support of a motion for summary judgment under Rule 20 in a wrongful dismissal action. The affiant is the plaintiff. This is sworn evidence: every paragraph must state a fact the plaintiff can swear to from personal knowledge, in the first person, one fact per numbered paragraph.
+
+STRUCTURE:
+1. Style of proceeding heading; the affiant's full name, city, and the opening: "I, [name], of the City of [city], MAKE OATH AND SAY (or AFFIRM):".
+2. Introduction: who the affiant is and that the affidavit is made in support of the motion for summary judgment, with the basis of knowledge stated.
+3. THE EMPLOYMENT: hire date, position(s), compensation (salary, bonus, benefits, pension), reporting structure, and tenure, in chronological numbered paragraphs.
+4. THE TERMINATION: the date, how it was communicated, the stated reason, what was offered, and the circumstances the approved issues make relevant (manner of dismissal facts only where a moral damages issue is approved).
+5. THE EMPLOYMENT AGREEMENT: whether a written agreement exists and the termination clause verbatim where the record contains it, referring to it as an exhibit placeholder ([EXHIBIT A]).
+6. MITIGATION: the job search efforts, applications, interviews, and any new employment with dates and compensation, referring to the mitigation log as an exhibit placeholder.
+7. DAMAGES: the plaintiff's losses in plain factual terms (lost salary, benefits, bonus), without legal argument.
+8. The jurat block: "SWORN (or AFFIRMED) before me at ... on [DATE]" with signature lines for the commissioner and the affiant.
+
+RULES:
+- Facts only; no argument, no law, no conclusions ("I was wrongfully dismissed" is argument; "my employment was terminated on [date] without notice" is fact).
+- Mark every exhibit as a lettered placeholder and every fact the intake does not establish as [TO BE CONFIRMED WITH THE CLIENT].
+- Never put words in the affiant's mouth that the intake does not support.`,
+
+    sj_factum: `You are a senior Ontario employment litigation lawyer drafting the PLAINTIFF'S FACTUM for a motion for summary judgment under Rule 20 in a wrongful dismissal action.
+
+STRUCTURE (numbered paragraphs throughout):
+PART I: OVERVIEW. Two or three paragraphs: what the motion seeks and why there is no genuine issue requiring a trial.
+PART II: THE FACTS. Concise statement of the material facts with references to the plaintiff's affidavit ([Affidavit, para X] placeholders).
+PART III: THE ISSUES AND THE LAW. Organised by issue, drawn from the APPROVED ISSUES ONLY:
+1. Summary judgment is appropriate: Rule 20.04 and Hryniak v Mauldin, 2014 SCC 7 (the culture shift; a trial is not required where the motion record permits a fair and just adjudication). Wrongful dismissal actions turning on notice period are repeatedly held suitable for summary judgment.
+2. Where the termination clause issue is approved: the clause is unenforceable (Waksdale v Swegon North America Inc, 2020 ONCA 391; Machtinger v HOJ Industries Ltd, [1992] 1 SCR 986), so common law reasonable notice applies.
+3. Reasonable notice: the Bardal factors (Bardal v Globe & Mail) applied to this plaintiff's age, tenure, character of employment, and the availability of comparable employment, supporting the range in the damages analysis.
+4. Where a cause allegation is approved as an issue: the employer bears the onus and McKinley v BC Tel, 2001 SCC 38 requires a contextual and proportionate analysis.
+5. Where moral or Code damages are approved: Honda Canada Inc v Keays, 2008 SCC 39 for the manner-of-dismissal framework; the Code analysis where discrimination is an approved issue.
+6. Mitigation: the plaintiff's efforts were reasonable; the employer bears the onus of proving failure to mitigate.
+PART IV: THE ORDER REQUESTED. Numbered.
+SCHEDULE A: LIST OF AUTHORITIES (only the cases actually cited).
+
+RULES:
+- Cite ONLY the authorities named above plus authorities the intake or approved issues specifically raise; never invent additional citations.
+- Where a factual reference is needed, use [Affidavit, para X] placeholders for counsel to complete.
+- Persuasive, measured, and short: the best factums in this class are under twenty pages.`,
+
+    affidavit_of_service: 'DETERMINISTIC; never sent to the model.',
+    rule49_withdrawal: 'DETERMINISTIC; never sent to the model.',
+    rule49_acceptance: 'DETERMINISTIC; never sent to the model.',
+    costs_outline: 'DETERMINISTIC; never sent to the model.',
   };
 
   return prompts[docType] + `
@@ -438,6 +519,27 @@ export async function generateLitigationDocument(
     };
   }
 
+  // Court forms are deterministic: their content is data, and a wrong
+  // figure or date has consequences. Builders validate their own fields
+  // and throw a plain message the route returns as a 400.
+  const COURT_FORM_TYPES: LitigationDocumentType[] = ['affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline'];
+  if (COURT_FORM_TYPES.includes(req.documentType)) {
+    const fields = req.formFields ?? {};
+    const built =
+      req.documentType === 'affidavit_of_service' ? buildAffidavitOfService(req.intake, fields, req.courtLocation)
+        : req.documentType === 'rule49_withdrawal' ? buildOfferWithdrawal(req.intake, fields, req.lawyerName, req.firmName, req.courtLocation)
+          : req.documentType === 'rule49_acceptance' ? buildOfferAcceptance(req.intake, fields, req.lawyerName, req.firmName, req.courtLocation)
+            : buildCostsOutline(req.intake, fields, req.lawyerName, req.firmName, req.courtLocation);
+    return {
+      html: built.html,
+      documentType: req.documentType,
+      documentTitle: built.documentTitle,
+      lawyerReviewFlags: built.lawyerReviewFlags,
+      citations: [],
+      costUsd: 0,
+    };
+  }
+
   const systemPrompt = buildSystemPrompt(req.documentType);
   const userPrompt = buildUserPrompt(req);
 
@@ -522,6 +624,14 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'mitigation_log': return 'Mitigation Log (Client Job-Search Record)';
     case 'settlement_conference_brief': return 'Settlement Conference / Pre-Trial Brief';
     case 'hrto_schedule_a': return 'HRTO Schedule "A" (Narrative of Allegations)';
+    case 'notice_of_action': return 'Notice of Action (Form 14C)';
+    case 'sj_notice_of_motion': return 'Notice of Motion for Summary Judgment (Form 37A)';
+    case 'sj_affidavit': return "Plaintiff's Affidavit for Summary Judgment (Form 4D)";
+    case 'sj_factum': return "Plaintiff's Factum (Summary Judgment)";
+    case 'affidavit_of_service': return 'Affidavit of Service (Form 16B)';
+    case 'rule49_withdrawal': return 'Notice of Withdrawal of Offer (Form 49B)';
+    case 'rule49_acceptance': return 'Acceptance of Offer (Form 49C)';
+    case 'costs_outline': return 'Costs Outline (Form 57B)';
   }
 }
 
@@ -551,6 +661,20 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
       return ['forum_and_rule_confirmed', 'settlement_position_authorized', 'without_prejudice_disclosure_check', 'witness_list'];
     case 'hrto_schedule_a':
       return ['last_incident_date_within_limitation', 'grounds_match_form_selections', 'respondents_named_deliberately', 'dignity_quantum_range'];
+    case 'notice_of_action':
+      return ['limitation_date_confirmed', 'relief_broad_enough_for_the_claim', 'statement_of_claim_due_30_days_after_issuance', 'court_file_number'];
+    case 'sj_notice_of_motion':
+      return ['relief_matches_factum_and_affidavit', 'hearing_details_placeholders', 'grounds_track_approved_issues'];
+    case 'sj_affidavit':
+      return ['every_paragraph_verified_with_the_client_before_swearing', 'exhibits_assembled_and_lettered', 'no_argument_in_the_affidavit', 'commissioner_for_swearing'];
+    case 'sj_factum':
+      return ['affidavit_paragraph_references_completed', 'authorities_verified_and_scheduled', 'quantum_matches_damages_analysis', 'length_and_court_requirements'];
+    // Deterministic court forms carry their own flags from the builder.
+    case 'affidavit_of_service':
+    case 'rule49_withdrawal':
+    case 'rule49_acceptance':
+    case 'costs_outline':
+      return [];
   }
 }
 

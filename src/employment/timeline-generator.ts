@@ -150,17 +150,48 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
     });
   }
 
-  // ── Limitation period ──────────────────────────────────────────────────
+  // ── Limitation period and statutory filing deadlines ──────────────────
 
   if (intake.termination_date) {
     const termDate = new Date(intake.termination_date);
     if (!isNaN(termDate.getTime())) {
-      const limitationDate = new Date(termDate);
-      limitationDate.setFullYear(limitationDate.getFullYear() + 2);
+      const plusYears = (years: number): string => {
+        const d = new Date(termDate);
+        d.setFullYear(d.getFullYear() + years);
+        return d.toISOString().split('T')[0];
+      };
+
       events.push({
-        date: limitationDate.toISOString().split('T')[0],
+        date: plusYears(2),
         label: 'Limitation period expires',
         description: 'The two-year limitation period under the Limitations Act, 2002 (s. 4) expires. An action must be commenced before this date.',
+        category: 'legal',
+        source: 'system',
+      });
+
+      // HRTO one-year deadline (Code s. 34(1)), docketed where the intake
+      // discloses a discrimination dimension. The clock runs from the last
+      // incident; termination is the conservative anchor available here.
+      const hrDimension = Boolean(intake.believes_discriminatory_termination)
+        || (intake.discrimination_grounds?.length ?? 0) > 0
+        || Boolean(intake.accommodation_denied);
+      if (hrDimension) {
+        events.push({
+          date: plusYears(1),
+          label: 'HRTO application deadline (Code s. 34(1))',
+          description: 'One year from the last incident of discrimination to file the HRTO application. The date shown assumes the termination is the last incident; confirm the actual last incident in the series.',
+          category: 'legal',
+          source: 'system',
+        });
+      }
+
+      // ESA claim window (two years). Filing an ESA claim for termination
+      // or severance pay can bar a civil action for the same amounts
+      // (ESA ss. 97 and 98), so the election matters more than the date.
+      events.push({
+        date: plusYears(2),
+        label: 'ESA claim filing deadline',
+        description: 'Two years to file an employment standards claim. Election caution: filing an ESA claim for termination or severance pay generally bars a civil action for the same entitlements (ESA ss. 97 and 98); choose the forum deliberately.',
         category: 'legal',
         source: 'system',
       });

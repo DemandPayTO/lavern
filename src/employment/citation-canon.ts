@@ -32,6 +32,7 @@ export const CITATION_CANON: CanonEntry[] = [
   { keyword: 'waksdale', name: 'Waksdale v Swegon North America Inc', citations: ['2020 onca 391'] },
   { keyword: 'machtinger', name: 'Machtinger v HOJ Industries Ltd', citations: ['[1992] 1 scr 986', '1992 canlii 102'] },
   { keyword: 'mckinley', name: 'McKinley v BC Tel', citations: ['2001 scc 38'] },
+  { keyword: 'hryniak', name: 'Hryniak v Mauldin', citations: ['2014 scc 7'] },
   { keyword: 'potter', name: 'Potter v New Brunswick Legal Aid', citations: ['2015 scc 10'] },
   { keyword: 'keays', name: 'Honda Canada Inc v Keays', citations: ['2008 scc 39'] },
   { keyword: 'honda', name: 'Honda Canada Inc v Keays', citations: ['2008 scc 39'] },

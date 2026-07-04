@@ -725,7 +725,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // ── POST /api/employment/:matterId/litigation-document ──────────────────
   // Generate a discovery plan, affidavit of documents, or mediation brief.
 
-  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a'] as const;
+  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline'] as const;
 
   const litigationDocBodySchema = z.object({
     documentType: z.enum(LITIGATION_DOC_TYPES),
@@ -735,6 +735,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     firmAddress: z.string().trim().max(500).optional(),
     courtLocation: z.string().trim().max(200).optional(),
     additionalContext: z.string().trim().max(5000).optional(),
+    /** Structured inputs for the deterministic court forms. */
+    formFields: z.record(z.string().max(60), z.union([z.string().max(3000), z.number()])).optional(),
   });
 
   fastify.post('/api/employment/:matterId/litigation-document', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -760,18 +762,30 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
     if (employment.intake.employer_legal_name) definedTerms.push(employment.intake.employer_legal_name);
 
-    const result = await generateLitigationDocument({
-      intake: employment.intake,
-      approvedIssues: employment.approvedIssues,
-      analysis: employment.analysis,
-      documentType: parsed.data.documentType as LitigationDocumentType,
-      claimAmount: parsed.data.claimAmount,
-      lawyerName: parsed.data.lawyerName,
-      firmName: parsed.data.firmName,
-      firmAddress: parsed.data.firmAddress,
-      courtLocation: parsed.data.courtLocation,
-      additionalContext: parsed.data.additionalContext,
-    }, definedTerms);
+    const COURT_FORM_TYPES = ['affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline'];
+    let result;
+    try {
+      result = await generateLitigationDocument({
+        intake: employment.intake,
+        approvedIssues: employment.approvedIssues,
+        analysis: employment.analysis,
+        documentType: parsed.data.documentType as LitigationDocumentType,
+        claimAmount: parsed.data.claimAmount,
+        lawyerName: parsed.data.lawyerName,
+        firmName: parsed.data.firmName,
+        firmAddress: parsed.data.firmAddress,
+        courtLocation: parsed.data.courtLocation,
+        additionalContext: parsed.data.additionalContext,
+        formFields: parsed.data.formFields,
+      }, definedTerms);
+    } catch (err) {
+      // Deterministic court forms validate their inputs and fail with a
+      // plain message the lawyer can act on.
+      if (COURT_FORM_TYPES.includes(parsed.data.documentType)) {
+        return reply.status(400).send({ ok: false, error: err instanceof Error ? err.message : 'Form inputs are incomplete.' });
+      }
+      throw err;
+    }
 
     // Store on the matter
     recordDraftHistory(matter as Record<string, unknown>, {
@@ -842,7 +856,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet', 'notice-of-action', 'sj-notice-of-motion', 'sj-affidavit', 'sj-factum', 'affidavit-of-service', 'rule49-withdrawal', 'rule49-acceptance', 'costs-outline', 'particulars', 'production-request', 'settlement-memorandum', 'ohsa-reprisal-complaint'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -876,6 +890,18 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'decline-letter': 'decline_letter',
       'member-update': 'member_update',
       'remedy-worksheet': 'remedy_worksheet',
+      'notice-of-action': 'notice_of_action',
+      'sj-notice-of-motion': 'sj_notice_of_motion',
+      'sj-affidavit': 'sj_affidavit',
+      'sj-factum': 'sj_factum',
+      'affidavit-of-service': 'affidavit_of_service',
+      'rule49-withdrawal': 'rule49_withdrawal',
+      'rule49-acceptance': 'rule49_acceptance',
+      'costs-outline': 'costs_outline',
+      'particulars': 'particulars',
+      'production-request': 'production_request',
+      'settlement-memorandum': 'settlement_memorandum',
+      'ohsa-reprisal-complaint': 'ohsa_reprisal_complaint',
     };
 
     const buffer = await htmlToDocx(html, {

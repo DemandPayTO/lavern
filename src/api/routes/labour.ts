@@ -56,6 +56,7 @@ async function saveLabourData(
 const GRIEVANCE_DOC_TYPES = [
   'grievance_filing', 'referral_to_arbitration', 'arbitration_brief', 'dfr_response',
   'merits_assessment', 'decline_letter', 'member_update', 'remedy_worksheet',
+  'particulars', 'production_request', 'settlement_memorandum', 'ohsa_reprisal_complaint',
 ] as const;
 
 export function registerLabourRoutes(fastify: FastifyInstance): void {

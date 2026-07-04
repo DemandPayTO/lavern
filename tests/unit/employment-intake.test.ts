@@ -317,6 +317,29 @@ describe('buildTimelineFromIntake', () => {
     const timeline = buildTimelineFromIntake({} as EmploymentIntakeData);
     expect(timeline).toEqual([]);
   });
+
+  it('dockets the ESA claim deadline with the ss. 97/98 election caution', () => {
+    const timeline = buildTimelineFromIntake(makeIntake({ termination_date: '2026-06-01' }));
+    const esa = timeline.find(e => e.label.includes('ESA claim'));
+    expect(esa).toBeDefined();
+    expect(esa!.date).toBe('2028-06-01');
+    expect(esa!.source).toBe('system');
+    expect(esa!.description).toContain('97');
+  });
+
+  it('dockets the HRTO one-year deadline only where a discrimination dimension exists', () => {
+    const withHr = buildTimelineFromIntake(makeIntake({
+      termination_date: '2026-06-01',
+      believes_discriminatory_termination: true,
+    }));
+    const hrto = withHr.find(e => e.label.includes('HRTO'));
+    expect(hrto).toBeDefined();
+    expect(hrto!.date).toBe('2027-06-01');
+    expect(hrto!.description).toContain('last incident');
+
+    const without = buildTimelineFromIntake(makeIntake({ termination_date: '2026-06-01' }));
+    expect(without.find(e => e.label.includes('HRTO'))).toBeUndefined();
+  });
 });
 
 describe('addTimelineEvent', () => {
