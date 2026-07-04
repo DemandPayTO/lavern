@@ -101,7 +101,7 @@ export function buildRemedyWorksheet(intake: GrievanceIntakeData, asOf?: Date): 
 
   const html = `
 <h1>Remedy Worksheet</h1>
-<p><strong>Grievor:</strong> ${esc(grievor)}${intake.grievance_number ? ` &nbsp;·&nbsp; <strong>Grievance:</strong> #${esc(String(intake.grievance_number))}` : ''}</p>
+<p><strong>Grievor:</strong> ${esc(grievor)}${intake.employer_name ? ` &nbsp;·&nbsp; <strong>Employer:</strong> ${esc(String(intake.employer_name))}` : ''}${intake.union_name ? ` &nbsp;·&nbsp; <strong>Union:</strong> ${esc(String(intake.union_name))}` : ''}${intake.grievance_number ? ` &nbsp;·&nbsp; <strong>Grievance:</strong> #${esc(String(intake.grievance_number))}` : ''}</p>
 <p><strong>Loss period:</strong> ${esc(lossStart)} to ${esc(asOfIso)} (${weeks} weeks). The period runs to the date of this worksheet; it continues to accrue until reinstatement or other resolution.</p>
 <p><strong>Wage rate:</strong> ${esc(rateLine)}</p>
 

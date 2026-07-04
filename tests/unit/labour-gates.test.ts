@@ -13,9 +13,11 @@ import { evaluateLabourGates, computeGrievanceDeadlines, buildGrievanceTimeline 
 import type { GrievanceIntakeData } from '../../src/types/labour-intake.js';
 
 function iso(daysFromNow: number): string {
+  // Local-date ISO string: toISOString() is UTC and drifts a day ahead of
+  // the docket's local-midnight arithmetic during the evening (UTC-5/4).
   const d = new Date();
   d.setDate(d.getDate() + daysFromNow);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 const gate = (results: ReturnType<typeof evaluateLabourGates>, id: string) =>
