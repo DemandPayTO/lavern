@@ -353,8 +353,8 @@ Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
 
 STRUCTURE:
 1. General heading: court, court file number placeholder, parties (plaintiff and defendant with full legal names).
-2. The notice text: "TO THE DEFENDANT: A LEGAL PROCEEDING HAS BEEN COMMENCED AGAINST YOU by the plaintiff. The claim made against you is set out in the following pages." followed by the standard Form 14C warnings about filing a defence and the applicable time limits.
-3. A SHORT AND CONCISE statement of the nature of the claim: two or three numbered paragraphs identifying the parties, the employment, the termination, and the relief claimed (damages for wrongful dismissal, Human Rights Code damages where approved, aggravated or punitive damages where approved, interest, and costs). Include the amounts from the damages analysis. This is a summary, not the pleading; the full claim follows in the Statement of Claim.
+2. A single placeholder for the form's printed notice text: "[STANDARD FORM 14C NOTICE AND WARNINGS TO THE DEFENDANT, PER THE OFFICIAL FORM]". Do not compose or reproduce the official warning text; counsel prepares this document on the official form, which carries it.
+3. The section this document exists for, headed "STATEMENT OF THE NATURE OF THE CLAIM": a SHORT AND CONCISE statement in two or three numbered paragraphs identifying the parties, the employment, the termination, and the relief claimed (damages for wrongful dismissal, Human Rights Code damages where approved, aggravated or punitive damages where approved, interest, and costs). Include the amounts from the damages analysis. This is a summary, not the pleading; the full claim follows in the Statement of Claim (Form 14D) within thirty days.
 4. Date, court address placeholder, and the plaintiff's lawyer's name, firm, and contact block.
 
 RULES:
