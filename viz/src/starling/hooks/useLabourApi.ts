@@ -98,6 +98,8 @@ export interface UseLabourDataResult {
   data: LabourData | null;
   /** Lifecycle stage derived from the matter's state. */
   stage: MatterStage | null;
+  /** What should happen next, derived from the stage and the record. */
+  nextSteps: Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>;
   /** True until the first fetch resolves — callers should wait before deciding the matter type. */
   loading: boolean;
   refresh: () => void;
@@ -118,6 +120,7 @@ export interface UseLabourDataResult {
 export function useLabourData(matterId: string | null): UseLabourDataResult {
   const [data, setData] = useState<LabourData | null>(null);
   const [stage, setStage] = useState<MatterStage | null>(null);
+  const [nextSteps, setNextSteps] = useState<Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>>([]);
   const [loading, setLoading] = useState(Boolean(matterId));
 
   const refresh = useCallback(async () => {
@@ -128,6 +131,7 @@ export function useLabourData(matterId: string | null): UseLabourDataResult {
       const json = await res.json();
       setData((json.data as LabourData) ?? null);
       setStage(json.stage && typeof json.stage === 'object' ? json.stage as MatterStage : null);
+      setNextSteps(Array.isArray(json.nextSteps) ? json.nextSteps : []);
     } catch {
       setData(null);
     } finally {
@@ -252,7 +256,7 @@ export function useLabourData(matterId: string | null): UseLabourDataResult {
     }
   }, [matterId, refresh]);
 
-  return { data, stage, loading, refresh, approveIssues, generateDocument, extractDocument, recordStepEvent, saveIntake };
+  return { data, stage, nextSteps, loading, refresh, approveIssues, generateDocument, extractDocument, recordStepEvent, saveIntake };
 }
 
 // ── CA library ──────────────────────────────────────────────────────────

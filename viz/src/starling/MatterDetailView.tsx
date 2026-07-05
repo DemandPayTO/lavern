@@ -17,7 +17,7 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -1053,6 +1053,8 @@ export default function MatterDetailView() {
             {matter!.dates.limitation && <FactItem label="Limitation" value={matter!.dates.limitation} isLast />}
             {!matter!.dates.limitation && !matter!.dates.start && <FactItem label="" value="" isLast />}
           </div>
+
+          <NextStepsPanel steps={employment.nextSteps} onGoTo={(tab) => setActiveTab(tab as TabKey)} />
 
           {/* ── Tabs ─────────────────────────────────────────────── */}
           <div

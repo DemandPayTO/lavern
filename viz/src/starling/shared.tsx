@@ -577,3 +577,47 @@ export function GeneratedDocsPanel({ docs, onSetStatus }: GeneratedDocsPanelProp
     </div>
   );
 }
+
+// ── Next steps panel ────────────────────────────────────────────────────
+
+export interface NextStepItem {
+  action: string;
+  reason: string;
+  urgency: 'urgent' | 'now' | 'soon';
+  goTo?: string;
+}
+
+const NEXT_URGENCY: Record<NextStepItem['urgency'], { fg: string; label: string }> = {
+  urgent: { fg: red, label: 'URGENT' },
+  now: { fg: amber, label: 'NOW' },
+  soon: { fg: muted, label: 'SOON' },
+};
+
+export function NextStepsPanel({ steps, onGoTo }: { steps: NextStepItem[]; onGoTo?: (tab: string) => void }) {
+  if (steps.length === 0) return null;
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${border}`, borderLeft: `4px solid ${steps.some(s => s.urgency === 'urgent') ? red : navy}`, padding: '14px 18px', marginTop: 16 }}>
+      <div style={{ fontFamily: serif, fontSize: 14, fontWeight: 600, color: navy, marginBottom: 6 }}>
+        Next steps
+      </div>
+      {steps.map((s, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '5px 0', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: NEXT_URGENCY[s.urgency].fg, minWidth: 48 }}>
+            {NEXT_URGENCY[s.urgency].label}
+          </span>
+          {s.goTo && onGoTo ? (
+            <button
+              onClick={() => onGoTo(s.goTo!)}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: sans, fontSize: 13.5, fontWeight: 600, color: ink, textAlign: 'left' as const, textDecoration: 'underline', textDecorationColor: border }}
+            >
+              {s.action}
+            </button>
+          ) : (
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>{s.action}</span>
+          )}
+          <span style={{ fontSize: 12.5, color: muted }}>{s.reason}</span>
+        </div>
+      ))}
+    </div>
+  );
+}

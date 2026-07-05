@@ -69,6 +69,10 @@ async function main() {
   check('ESA clock present', data.timeline.some(e => e.label.includes('ESA claim')));
   const empStage = g1.json.stage as { stage?: string; evidence?: string[] } | undefined;
   check('stage derives to assessment after analysis', empStage?.stage === 'assessment', JSON.stringify(empStage));
+  const empNext = (g1.json.nextSteps ?? []) as Array<{ action: string; urgency: string }>;
+  check('next steps recommend assessing the pending severance offer',
+    empNext.some(n => n.action.includes('Assess the severance offer') && n.urgency === 'urgent'),
+    JSON.stringify(empNext.map(n => n.action)));
 
   // ── Lifecycle: generate two $0 documents, advance statuses ─────────────
   const L = { lawyerName: 'Feature Test', firmName: 'Test Firm', courtLocation: 'Toronto' };
@@ -127,6 +131,10 @@ async function main() {
   check('labour approvals preserved', JSON.stringify((lg.json.data as { approvedIssues: string[] }).approvedIssues) === JSON.stringify(lCodes));
   const labStage = lg.json.stage as { stage?: string } | undefined;
   check('labour stage derives to assessment', labStage?.stage === 'assessment', JSON.stringify(labStage));
+  const labNext = (lg.json.nextSteps ?? []) as Array<{ action: string }>;
+  check('labour next steps recommend filing the grievance',
+    labNext.some(n => n.action.includes('File the grievance')),
+    JSON.stringify(labNext.map(n => n.action)));
 
   // ── Calendar feed ──────────────────────────────────────────────────────
   const icsRes = await fetch(`${BASE}/api/employment/deadlines.ics`);

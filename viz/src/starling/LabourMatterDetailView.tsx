@@ -16,7 +16,7 @@ import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import {
   navy, orange, cream, frame, green, amber, red, border, ink, muted, serif, sans,
   StatusDot, FactItem, ActionButton, StarlingTopBar, GateApprovalPanel, DraftPreview,
-  IntakeEditorPanel, GeneratedDocsPanel,
+  IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel,
 } from './shared.js';
 import type { IntakeFieldDef, GeneratedDocSummary } from './shared.js';
 
@@ -523,6 +523,8 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
               isLast
             />
           </div>
+
+          <NextStepsPanel steps={labour.nextSteps} onGoTo={(tab) => setActiveTab(tab as TabKey)} />
 
           {/* ── Tabs ─────────────────────────────────────────────── */}
           <div style={{ display: 'flex', gap: 2, marginTop: 18, borderBottom: `1px solid ${border}` }} role="tablist">

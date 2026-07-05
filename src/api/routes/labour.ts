@@ -315,7 +315,14 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
     const labour = matter.labourData as LabourMatterData | undefined;
     if (!labour) return reply.status(404).send({ ok: false, error: 'No labour data on this matter' });
     const { deriveLabourStage } = await import('../../employment/stage-model.js');
-    return reply.send({ ok: true, data: labour, stage: deriveLabourStage(matter, labour) });
+    const { recommendLabourNextSteps } = await import('../../employment/next-steps.js');
+    const stage = deriveLabourStage(matter, labour);
+    return reply.send({
+      ok: true,
+      data: labour,
+      stage,
+      nextSteps: recommendLabourNextSteps(matter, labour, stage),
+    });
   });
 
   // ── POST /api/labour/:matterId/issues ──────────────────────────────────

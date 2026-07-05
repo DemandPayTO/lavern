@@ -1472,6 +1472,8 @@ export interface UseEmploymentDataResult {
   error: string | null;
   /** Lifecycle stage derived from the matter's state. */
   stage: MatterStage | null;
+  /** What should happen next, derived from the stage and the record. */
+  nextSteps: Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>;
   /** Every generated document on the matter with its lifecycle status. */
   generatedDocuments: GeneratedDocSummary[];
   /** Advance a generated document's lifecycle status. */
@@ -1510,6 +1512,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [lawyerNotes, setLawyerNotes] = useState<string | null>(null);
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocSummary[]>([]);
   const [stage, setStage] = useState<MatterStage | null>(null);
+  const [nextSteps, setNextSteps] = useState<Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>>([]);
 
   const refresh = useCallback(async () => {
     if (!matterId) return;
@@ -1533,6 +1536,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setLawyerNotes(typeof json.lawyerNotes === 'string' ? json.lawyerNotes : '');
       setGeneratedDocuments(Array.isArray(json.generatedDocuments) ? json.generatedDocuments : []);
       setStage(json.stage && typeof json.stage === 'object' ? json.stage as MatterStage : null);
+      setNextSteps(Array.isArray(json.nextSteps) ? json.nextSteps : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load employment data');
     } finally {
@@ -1721,7 +1725,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, stage, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
+  return { data, loading, error, lawyerNotes, generatedDocuments, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────
