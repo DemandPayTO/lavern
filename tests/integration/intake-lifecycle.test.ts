@@ -177,6 +177,38 @@ describe('document lifecycle', () => {
     expect(res.body).toContain('DTSTART;VALUE=DATE:20260715');
   });
 
+  it('records an outcome with a calibration snapshot, resolves the stage, and reopens cleanly', async () => {
+    makeMatter('m-outcome', {
+      employmentData: {
+        intake: { client_first_name: 'Rae', client_last_name: 'Sung' },
+        gates: [], approvedIssues: [], dismissedIssues: [], documentExtractions: [],
+        timeline: [], analysis: { gates: [], damagesEstimate: { totalEstimateLow: 40000, totalEstimateHigh: 90000 } },
+        selectedTone: 'professional', selectedProcedure: null, selectedDocumentType: null, demandAmount: null,
+      },
+    });
+
+    const bad = await post('/api/employment/m-outcome/outcome', { resolution: 'shredded', date: '2026-07-05' });
+    expect(bad.status).toBe(400);
+
+    const r = await post('/api/employment/m-outcome/outcome', { resolution: 'settled', amount: 85000, date: '2026-07-05', notes: 'settled at mediation' });
+    expect(r.status).toBe(200);
+    const outcome = r.body.outcome as Record<string, unknown>;
+    expect(outcome.predictedLow).toBe(40000);
+    expect(outcome.predictedHigh).toBe(90000);
+
+    const after = await get('/api/employment/m-outcome');
+    expect((after.body.stage as { stage: string }).stage).toBe('resolution');
+    const timeline = (after.body.data as { timeline: Array<{ label: string; description?: string }> }).timeline;
+    expect(timeline.some(e => e.label === 'Matter resolved' && (e.description ?? '').includes('$85,000'))).toBe(true);
+
+    const reopen = await app.inject({ method: 'DELETE', url: '/api/employment/m-outcome/outcome' });
+    expect(reopen.statusCode).toBe(200);
+    const reopened = await get('/api/employment/m-outcome');
+    expect((reopened.body.stage as { stage: string }).stage).not.toBe('resolution');
+    const reopenAgain = await app.inject({ method: 'DELETE', url: '/api/employment/m-outcome/outcome' });
+    expect(reopenAgain.statusCode).toBe(400);
+  });
+
   it('marking a demand letter sent moves the response tickler to the sent date', async () => {
     makeMatter('m-tickler', {
       generatedDemandLetter: {

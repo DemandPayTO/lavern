@@ -136,6 +136,16 @@ async function main() {
     labNext.some(n => n.action.includes('File the grievance')),
     JSON.stringify(labNext.map(n => n.action)));
 
+  // ── Outcome capture: close and reopen the labour matter ───────────────
+  const closeRes = await api('POST', `/api/employment/${lmid}/outcome`, { resolution: 'grievance_withdrawn', date: '2026-07-05' });
+  const closedStage = await api('GET', `/api/labour/${lmid}`);
+  check('outcome closes the matter and resolves the stage', closeRes.status === 200
+    && (closedStage.json.stage as { stage?: string })?.stage === 'resolution');
+  const reopenRes = await fetch(`${BASE}/api/employment/${lmid}/outcome`, { method: 'DELETE' });
+  const reopenedStage = await api('GET', `/api/labour/${lmid}`);
+  check('reopening restores the working stage', reopenRes.status === 200
+    && (reopenedStage.json.stage as { stage?: string })?.stage !== 'resolution');
+
   // ── Calendar feed ──────────────────────────────────────────────────────
   const icsRes = await fetch(`${BASE}/api/employment/deadlines.ics`);
   const ics = await icsRes.text();

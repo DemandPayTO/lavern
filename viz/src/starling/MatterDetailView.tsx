@@ -17,7 +17,7 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -1959,6 +1959,13 @@ export default function MatterDetailView() {
             label={clientUpdateLoading ? 'Drafting update...' : 'Draft Client Update'}
             onClick={handleClientUpdate}
           />
+          {sessionId && (
+            <CloseMatterPanel
+              matterId={sessionId}
+              resolved={employment.stage?.stage === 'resolution'}
+              onChanged={() => employment.refresh()}
+            />
+          )}
         </div>
 
         {/* Client update draft — plain-language status email for lawyer review */}

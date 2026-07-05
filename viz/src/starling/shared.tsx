@@ -621,3 +621,118 @@ export function NextStepsPanel({ steps, onGoTo }: { steps: NextStepItem[]; onGoT
     </div>
   );
 }
+
+// ── Close matter (outcome capture) ──────────────────────────────────────
+
+const RESOLUTION_OPTIONS: Array<[string, string]> = [
+  ['settled', 'Settled'],
+  ['judgment', 'Judgment'],
+  ['tribunal_decision', 'Tribunal decision'],
+  ['discontinued', 'Discontinued'],
+  ['abandoned', 'Abandoned'],
+  ['grievance_allowed', 'Grievance allowed'],
+  ['grievance_dismissed', 'Grievance dismissed'],
+  ['grievance_withdrawn', 'Grievance withdrawn'],
+  ['other', 'Other'],
+];
+
+export function CloseMatterPanel({ matterId, resolved, onChanged }: {
+  matterId: string;
+  resolved: boolean;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [resolution, setResolution] = useState('settled');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const close = async () => {
+    setBusy(true);
+    setMessage(null);
+    const body: Record<string, unknown> = { resolution, date: date || new Date().toISOString().slice(0, 10) };
+    const amt = parseFloat(amount.replace(/[^\d.]/g, ''));
+    if (Number.isFinite(amt) && amt >= 0 && amount.trim() !== '') body.amount = amt;
+    if (notes.trim()) body.notes = notes.trim();
+    try {
+      const res = await fetch(`/api/employment/${matterId}/outcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setMessage((json as { error?: string }).error ?? 'The outcome could not be recorded.'); }
+      else { setOpen(false); onChanged(); }
+    } catch {
+      setMessage('The outcome could not be recorded.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reopen = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/employment/${matterId}/outcome`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (resolved) {
+    return (
+      <button
+        onClick={reopen}
+        disabled={busy}
+        style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13.5, fontWeight: 600, padding: '11px 18px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+      >
+        {busy ? 'Reopening...' : 'Reopen matter'}
+      </button>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13.5, fontWeight: 600, padding: '11px 18px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+      >
+        Close matter with outcome
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap', background: cream, border: `1px solid ${border}`, borderRadius: 2, padding: '10px 12px' }}>
+      <div>
+        <div style={{ fontSize: 11.5, color: muted, marginBottom: 4, fontWeight: 600 }}>Resolution</div>
+        <select value={resolution} onChange={e => setResolution(e.target.value)} style={{ fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
+          {RESOLUTION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </div>
+      <div>
+        <div style={{ fontSize: 11.5, color: muted, marginBottom: 4, fontWeight: 600 }}>Amount (optional)</div>
+        <input type="text" inputMode="decimal" placeholder="e.g., 85000" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, ''))} style={{ width: 110, fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }} />
+      </div>
+      <div>
+        <div style={{ fontSize: 11.5, color: muted, marginBottom: 4, fontWeight: 600 }}>Date</div>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 160 }}>
+        <div style={{ fontSize: 11.5, color: muted, marginBottom: 4, fontWeight: 600 }}>Notes (optional)</div>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g., settled at mediation" style={{ width: '100%', fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+      </div>
+      <button onClick={close} disabled={busy} style={{ background: busy ? '#b0b0b0' : orange, color: '#fff', fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 2, border: 'none', cursor: busy ? 'not-allowed' : 'pointer', fontFamily: sans }}>
+        {busy ? 'Recording...' : 'Record and close'}
+      </button>
+      <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: muted, fontSize: 13, cursor: 'pointer', fontFamily: sans }}>
+        Cancel
+      </button>
+      {message && <span style={{ fontSize: 12.5, color: red }} role="alert">{message}</span>}
+    </div>
+  );
+}

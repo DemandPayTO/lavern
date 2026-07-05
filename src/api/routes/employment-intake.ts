@@ -1377,6 +1377,87 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     return reply.send({ ok: true, flags, clean: flags.length === 0 });
   });
 
+  // ── POST /api/employment/:matterId/outcome ──────────────────────────────
+  // Close the matter with its outcome. The record completes the lifecycle
+  // (the stage derives to resolution), takes a snapshot of the predicted
+  // range for calibration, and adds the resolution to the timeline.
+  // DELETE reopens the matter.
+
+  const OUTCOME_RESOLUTIONS = [
+    'settled', 'judgment', 'tribunal_decision', 'discontinued', 'abandoned',
+    'grievance_allowed', 'grievance_dismissed', 'grievance_withdrawn', 'other',
+  ] as const;
+
+  const outcomeSchema = z.object({
+    resolution: z.enum(OUTCOME_RESOLUTIONS),
+    amount: z.number().nonnegative().max(99_999_999).optional(),
+    date: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/),
+    notes: z.string().trim().max(3000).optional(),
+  });
+
+  fastify.post('/api/employment/:matterId/outcome', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = outcomeSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Provide the resolution type and the date.' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+
+    // Calibration snapshot: what was predicted when the matter closed
+    const damages = (employment.analysis as Record<string, unknown> | null)?.damagesEstimate as
+      | { totalEstimateLow?: number; totalEstimateHigh?: number } | undefined;
+
+    (matter as Record<string, unknown>).outcome = {
+      resolution: parsed.data.resolution,
+      amount: parsed.data.amount,
+      date: parsed.data.date,
+      notes: parsed.data.notes,
+      recordedAt: new Date().toISOString(),
+      predictedLow: damages?.totalEstimateLow,
+      predictedHigh: damages?.totalEstimateHigh,
+    };
+    (matter as Record<string, unknown>).status = 'closed';
+
+    const amountText = typeof parsed.data.amount === 'number'
+      ? ` (${parsed.data.amount.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })})`
+      : '';
+    employment.timeline = [
+      ...employment.timeline.filter(ev => ev.label !== 'Matter resolved'),
+      {
+        date: parsed.data.date,
+        label: 'Matter resolved',
+        description: `Resolution: ${parsed.data.resolution.replace(/_/g, ' ')}${amountText}.${parsed.data.notes ? ` ${parsed.data.notes}` : ''}`,
+        category: 'legal' as const,
+        source: 'lawyer_entry' as const,
+      },
+    ].sort((a, b) => a.date.localeCompare(b.date));
+
+    await saveEmploymentData(userId, matterId, matter, employment, 'closed');
+    logger.info('Outcome recorded', { userId, matterId, resolution: parsed.data.resolution, amount: parsed.data.amount });
+    return reply.send({ ok: true, outcome: (matter as Record<string, unknown>).outcome });
+  });
+
+  fastify.delete('/api/employment/:matterId/outcome', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!(matter as Record<string, unknown>).outcome) {
+      return reply.status(400).send({ ok: false, error: 'No outcome is recorded on this matter.' });
+    }
+    delete (matter as Record<string, unknown>).outcome;
+    (matter as Record<string, unknown>).status = 'active';
+    employment.timeline = employment.timeline.filter(ev => ev.label !== 'Matter resolved');
+    await saveEmploymentData(userId, matterId, matter, employment, 'active');
+    logger.info('Matter reopened', { userId, matterId });
+    return reply.send({ ok: true });
+  });
+
   // ── POST /api/employment/:matterId/notes ───────────────────────────────
   // Save lawyer notes on a matter.
 

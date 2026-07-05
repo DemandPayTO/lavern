@@ -16,7 +16,7 @@ import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import {
   navy, orange, cream, frame, green, amber, red, border, ink, muted, serif, sans,
   StatusDot, FactItem, ActionButton, StarlingTopBar, GateApprovalPanel, DraftPreview,
-  IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel,
+  IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel,
 } from './shared.js';
 import type { IntakeFieldDef, GeneratedDocSummary } from './shared.js';
 
@@ -1136,6 +1136,11 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
           </button>
           <ActionButton label="Upload the CA" onClick={() => { setActiveTab('docs'); window.scrollTo(0, 0); }} />
           <ActionButton label="Review Issues" onClick={() => { setActiveTab('issues'); window.scrollTo(0, 0); }} />
+          <CloseMatterPanel
+            matterId={sessionId}
+            resolved={labour.stage?.stage === 'resolution'}
+            onChanged={() => labour.refresh()}
+          />
         </div>
 
         <div style={{ fontSize: 12, color: muted, marginTop: 8 }}>
