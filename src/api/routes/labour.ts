@@ -254,6 +254,56 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
     });
   });
 
+  // ── GET /api/labour/:matterId/form/:formId ──────────────────────────────
+  // Datasets XML that pre-fills the official OLRB forms (A-30 DFR response,
+  // A-53 reprisal application). The representative opens the pristine
+  // official form and imports this file (Acrobat: Prepare Form → More →
+  // Import Data). Narrative questions are deliberately left blank; the
+  // generated documents are the substantive schedules.
+
+  fastify.get('/api/labour/:matterId/form/:formId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId, formId } = req.params as { matterId: string; formId: string };
+    if (formId !== 'a30-data' && formId !== 'a53-data') {
+      return reply.status(400).send({ ok: false, error: 'Unknown form. Available: a30-data, a53-data.' });
+    }
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { labour } = loadLabourData(row.data_json);
+    if (!labour.intake || Object.keys(labour.intake).length === 0) {
+      return reply.status(400).send({ ok: false, error: 'Complete grievance intake before generating the form data file.' });
+    }
+
+    // Representative details from the user profile where available
+    let rep: Record<string, string | undefined> = {};
+    try {
+      const { getUserById } = await import('../../db/database.js');
+      const user = getUserById(userId);
+      if (user?.profile_json) {
+        const profile = JSON.parse(user.profile_json) as Record<string, unknown>;
+        rep = {
+          representativeName: user.display_name ?? undefined,
+          organizationName: (profile.firmName as string) || undefined,
+          phone: (profile.firmPhone as string) || undefined,
+          email: (profile.firmEmail as string) || undefined,
+          address: (profile.firmAddress as string) || undefined,
+        };
+      }
+    } catch { /* profile is best-effort */ }
+
+    const { buildA30DatasetsXml, buildA53DatasetsXml, olrbDataFilename } = await import('../../labour/olrb-form-data.js');
+    const form = formId === 'a30-data' ? 'a30' as const : 'a53' as const;
+    const xml = form === 'a30' ? buildA30DatasetsXml(labour.intake, rep) : buildA53DatasetsXml(labour.intake, rep);
+
+    logger.info('OLRB form data file generated', { userId, matterId, form });
+    return reply
+      .header('Content-Type', 'application/xml; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${olrbDataFilename(form, labour.intake)}"`)
+      .send(xml);
+  });
+
   // ── GET /api/labour/:matterId ──────────────────────────────────────────
   fastify.get('/api/labour/:matterId', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';

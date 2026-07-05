@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EmploymentIntakeData } from '../types/employment-intake.js';
+import { sectionBounds, setFirstInRange, setInSection } from '../documents/xfa-datasets.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BLANK_DATASETS_PATH = path.resolve(__dirname, '../assets/forms/form1-datasets-blank.xml');
@@ -50,60 +51,6 @@ export interface Form1RepresentativeInfo {
   lawyerName?: string;
   firmName?: string;
   lsoNumber?: string;
-}
-
-// ── XML helpers (anchor-sliced replacement — the data model repeats node
-// names across sections, so every set is scoped to a named section) ─────
-
-function escapeXml(v: string): string {
-  return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-}
-
-/**
- * Section slice: from the first `<sectionName>` to its closing tag.
- * Name-boundary aware — `</sfrmRespondent` must NOT match
- * `</sfrmRespondentType` (they are prefixes of each other).
- */
-function sectionBounds(xml: string, sectionName: string, from = 0): { start: number; end: number } | null {
-  const openRe = new RegExp(`<${sectionName}(?=[\\s/>])`, 'g');
-  openRe.lastIndex = from;
-  const open = openRe.exec(xml);
-  if (!open) return null;
-  const closeRe = new RegExp(`</${sectionName}(?=[\\s>])`, 'g');
-  closeRe.lastIndex = open.index;
-  const close = closeRe.exec(xml);
-  if (!close) return null;
-  return { start: open.index, end: close.index };
-}
-
-/**
- * Set the FIRST occurrence of `<tag ... />` or `<tag>...</tag>` within
- * [start, end) to the given value. Returns updated xml (bounds shift!).
- */
-function setFirstInRange(xml: string, start: number, end: number, tag: string, value: string): string {
-  const slice = xml.slice(start, end);
-  const escaped = escapeXml(value);
-
-  // Self-closing form: <tag\n/> or <tag/>
-  const selfClose = new RegExp(`<${tag}(\\s*\\n?)/>`);
-  if (selfClose.test(slice)) {
-    return xml.slice(0, start) + slice.replace(selfClose, `<${tag}\n>${escaped}</${tag}\n>`) + xml.slice(end);
-  }
-  // Value form: <tag\n>old</tag\n>
-  const valueForm = new RegExp(`(<${tag}\\s*\\n?>)[^<]*(</${tag})`);
-  if (valueForm.test(slice)) {
-    return xml.slice(0, start) + slice.replace(valueForm, `$1${escaped}$2`) + xml.slice(end);
-  }
-  return xml; // tag not present in this section — leave untouched
-}
-
-/** Convenience: set tag inside the first `sectionName` section. */
-function setInSection(xml: string, sectionName: string, tag: string, value: string | undefined | null): string {
-  if (value == null || value === '') return xml;
-  const bounds = sectionBounds(xml, sectionName);
-  if (!bounds) return xml;
-  return setFirstInRange(xml, bounds.start, bounds.end, tag, String(value));
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────

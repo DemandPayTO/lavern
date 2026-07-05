@@ -840,6 +840,40 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                 </div>
               ))}
 
+              {/* OLRB data files: pre-fill the official Board forms */}
+              {(selectedDraft === 'dfr_response' || selectedDraft === 'ohsa_reprisal_complaint') && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16, marginTop: 8 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>
+                    {selectedDraft === 'dfr_response'
+                      ? 'Form A-30 itself: download the pre-filled data file'
+                      : 'Form A-53 itself: download the pre-filled data file'}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                    The Board's forms are locked dynamic PDFs and cannot be filled directly. Starling
+                    generates a data file from this matter (style of cause and contact details); open the
+                    official form in Acrobat, then <strong>Prepare Form → More → Import Data</strong> and
+                    select this file. The narrative questions are left for the generated document, which is
+                    filed as the schedule. Review every field.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <a
+                      href={`/api/labour/${sessionId}/form/${selectedDraft === 'dfr_response' ? 'a30-data' : 'a53-data'}`}
+                      download
+                      style={{ background: navy, color: '#fff', fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, textDecoration: 'none', fontFamily: sans }}
+                    >
+                      Download {selectedDraft === 'dfr_response' ? 'Form A-30' : 'Form A-53'} data file (.xml)
+                    </a>
+                    <a
+                      href="https://olrb.gov.on.ca/FormsByNumber-EN.asp"
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, textDecoration: 'none', fontFamily: sans }}
+                    >
+                      Get the official form ↗
+                    </a>
+                  </div>
+                </div>
+              )}
+
               {/* Remedy worksheet inputs — persisted to the intake so the
                   figures always match the file */}
               {selectedDraft === 'remedy_worksheet' && !generatedHtml && (

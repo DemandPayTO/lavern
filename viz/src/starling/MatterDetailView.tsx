@@ -316,6 +316,20 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     cost: 'no AI cost \u00B7 instant',
     section: 'Court forms and service (no AI cost)',
   },
+  {
+    id: 'esasheet',
+    title: 'ESA Claim Filing Sheet',
+    description: 'Every value the Ministry\u2019s online claim asks for, in one sheet, with the ss. 97/98 election caution.',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Court forms and service (no AI cost)',
+  },
+  {
+    id: 'sccsheet',
+    title: 'Small Claims Filing Sheet',
+    description: 'The data-entry values for the online Form 7A filing, with the $50,000 limit checked against the claim.',
+    cost: 'no AI cost \u00B7 instant',
+    section: 'Court forms and service (no AI cost)',
+  },
 ];
 
 const DEMO_TIMELINE: TimelineEvent[] = [
@@ -377,6 +391,8 @@ const DRAFT_TO_DOCTYPE: Record<string, string> = {
   rule49withdrawal: 'rule49_withdrawal',
   rule49acceptance: 'rule49_acceptance',
   costsoutline: 'costs_outline',
+  esasheet: 'esa_filing_sheet',
+  sccsheet: 'scc_filing_sheet',
 };
 
 /** Structured inputs for the deterministic court forms. */
@@ -443,6 +459,8 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   rule49withdrawal: 'rule49-withdrawal',
   rule49acceptance: 'rule49-acceptance',
   costsoutline: 'costs-outline',
+  esasheet: 'esa-filing-sheet',
+  sccsheet: 'scc-filing-sheet',
 };
 
 /** Cards that need a dollar amount before Generate makes sense. */

@@ -794,7 +794,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // ── POST /api/employment/:matterId/litigation-document ──────────────────
   // Generate a discovery plan, affidavit of documents, or mediation brief.
 
-  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline'] as const;
+  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'] as const;
 
   const litigationDocBodySchema = z.object({
     documentType: z.enum(LITIGATION_DOC_TYPES),
@@ -831,7 +831,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
     if (employment.intake.employer_legal_name) definedTerms.push(employment.intake.employer_legal_name);
 
-    const COURT_FORM_TYPES = ['affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline'];
+    const COURT_FORM_TYPES = ['affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'];
     let result;
     try {
       result = await generateLitigationDocument({
@@ -925,7 +925,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet', 'notice-of-action', 'sj-notice-of-motion', 'sj-affidavit', 'sj-factum', 'affidavit-of-service', 'rule49-withdrawal', 'rule49-acceptance', 'costs-outline', 'particulars', 'production-request', 'settlement-memorandum', 'ohsa-reprisal-complaint'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet', 'notice-of-action', 'sj-notice-of-motion', 'sj-affidavit', 'sj-factum', 'affidavit-of-service', 'rule49-withdrawal', 'rule49-acceptance', 'costs-outline', 'esa-filing-sheet', 'scc-filing-sheet', 'particulars', 'production-request', 'settlement-memorandum', 'ohsa-reprisal-complaint'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -967,6 +967,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'rule49-withdrawal': 'rule49_withdrawal',
       'rule49-acceptance': 'rule49_acceptance',
       'costs-outline': 'costs_outline',
+      'esa-filing-sheet': 'esa_filing_sheet',
+      'scc-filing-sheet': 'scc_filing_sheet',
       'particulars': 'particulars',
       'production-request': 'production_request',
       'settlement-memorandum': 'settlement_memorandum',

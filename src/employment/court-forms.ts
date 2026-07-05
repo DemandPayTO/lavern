@@ -231,3 +231,111 @@ ${disbRows
     ],
   };
 }
+
+// ── Portal filing sheets ─────────────────────────────────────────────────
+// The ESA claim and the Small Claims Court's online filing are data entry
+// into government portals, which no document can bypass. These sheets put
+// every value the portal asks for in one place so the transcription is
+// mechanical. Portal screens change without notice; the sheet mirrors the
+// information the filing requires, not the exact screen order.
+
+interface SheetRow { label: string; value: string | undefined | null }
+
+function sheetTable(rows: SheetRow[]): string {
+  const body = rows.map(r => `
+    <tr><td style="width:40%">${esc(r.label)}</td><td>${r.value ? esc(String(r.value)) : '[NOT ON FILE]'}</td></tr>`).join('');
+  return `<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tbody>${body}</tbody></table>`;
+}
+
+/** ESA claim filing sheet: what the Ministry's online claim asks for. */
+export function buildEsaFilingSheet(
+  intake: EmploymentIntakeData,
+  analysis?: { damagesEstimate?: { esaNoticeWeeks: number; esaNoticePay: number; esaSeverancePay: number } },
+): CourtFormResult {
+  const d = analysis?.damagesEstimate;
+  const html = `
+<h1>ESA Claim Filing Sheet</h1>
+<p>Transcription sheet for the Ministry of Labour's online employment standards claim. Every value the
+claim requires is set out below from the matter file. Complete the filing at ontario.ca (file an
+employment standards claim); the portal's screens change without notice, so match each value to the
+current screen rather than assuming the order below.</p>
+<h2>Election caution (ESA ss. 97 and 98)</h2>
+<p>Filing an employment standards claim for termination or severance pay generally bars a civil action
+for the same entitlements. Confirm the forum election with the client in writing before filing.</p>
+<h2>Claimant</h2>
+${sheetTable([
+    { label: 'First name', value: intake.client_first_name },
+    { label: 'Last name', value: intake.client_last_name },
+    { label: 'Address', value: intake.client_address },
+    { label: 'Email', value: (intake as Record<string, unknown>).client_email as string },
+    { label: 'Phone', value: (intake as Record<string, unknown>).client_phone as string },
+  ])}
+<h2>Employer</h2>
+${sheetTable([
+    { label: 'Legal name', value: intake.employer_legal_name },
+    { label: 'Operating name (if different)', value: intake.employer_operating_name },
+    { label: 'Address', value: intake.employer_address },
+  ])}
+<h2>Employment</h2>
+${sheetTable([
+    { label: 'Job title', value: intake.job_title },
+    { label: 'First day of work', value: intake.hire_date ?? intake.first_day_of_work },
+    { label: 'Last day of work / termination date', value: intake.termination_date ?? intake.last_day_worked },
+    { label: 'Rate of pay', value: intake.annual_salary ? `${money(intake.annual_salary)} per year` : undefined },
+    { label: 'Reason employment ended', value: intake.termination_reasons },
+  ])}
+<h2>Amounts claimed</h2>
+${sheetTable([
+    { label: 'Termination pay (ESA s. 57)', value: d ? `${d.esaNoticeWeeks} weeks, ${money(d.esaNoticePay)}` : undefined },
+    { label: 'Severance pay (ESA s. 64), where eligible', value: d ? money(d.esaSeverancePay) : undefined },
+    { label: 'Unpaid wages, vacation pay, or other amounts', value: undefined },
+  ])}
+<p>The two-year claim window runs from the contravention. The docket carries the deadline.</p>`;
+
+  return {
+    html: html.trim(),
+    documentTitle: 'ESA Claim Filing Sheet',
+    lawyerReviewFlags: [
+      'Confirm the forum election (ESA ss. 97 and 98) with the client in writing before filing.',
+      'Verify the amounts against the analysis and payroll records; the portal requires figures, not ranges.',
+      'Portal screens change without notice; match each value to the current screen.',
+    ],
+  };
+}
+
+/** Small Claims Court Form 7A filing sheet for the online filing portal. */
+export function buildSccFilingSheet(intake: EmploymentIntakeData, claimAmount?: number): CourtFormResult {
+  const overCap = typeof claimAmount === 'number' && claimAmount > 50000;
+  const html = `
+<h1>Small Claims Court Filing Sheet (Plaintiff's Claim, Form 7A)</h1>
+<p>Transcription sheet for filing the Plaintiff's Claim through the Small Claims Court online filing
+service. The generated Form 7A document contains the reasons for the claim; this sheet carries the
+data-entry values.</p>
+${overCap ? '<p><strong>The amount on file exceeds the $50,000 Small Claims limit (O. Reg. 42/25, in force October 1, 2025). Abandon the excess expressly, or proceed in the Superior Court.</strong></p>' : ''}
+<h2>Plaintiff</h2>
+${sheetTable([
+    { label: 'Name', value: [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ') },
+    { label: 'Address', value: intake.client_address },
+  ])}
+<h2>Defendant</h2>
+${sheetTable([
+    { label: 'Name', value: intake.employer_legal_name ?? intake.employer_operating_name },
+    { label: 'Address', value: intake.employer_address },
+  ])}
+<h2>Claim</h2>
+${sheetTable([
+    { label: 'Amount claimed', value: typeof claimAmount === 'number' ? money(Math.min(claimAmount, 50000)) : undefined },
+    { label: 'Pre-judgment interest', value: 'Courts of Justice Act rate, from the date of termination' },
+    { label: 'Reasons for claim', value: 'As set out in the attached Plaintiff’s Claim (Form 7A)' },
+  ])}`;
+
+  return {
+    html: html.trim(),
+    documentTitle: "Small Claims Filing Sheet (Form 7A)",
+    lawyerReviewFlags: [
+      'Confirm the defendant’s exact legal name and address for service; a misnamed defendant defeats enforcement.',
+      'Where the claim exceeds $50,000, abandon the excess expressly or elect the Superior Court.',
+      'Attach the generated Form 7A document as the reasons for the claim.',
+    ],
+  };
+}

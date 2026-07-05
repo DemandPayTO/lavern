@@ -11,6 +11,9 @@
  * 3. Mediation Brief — case summary, issues, positions, settlement range
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
@@ -18,7 +21,7 @@ import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
-import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline } from './court-forms.js';
+import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
 
 const logger = createLogger('LITIGATION-DOCS');
@@ -45,7 +48,9 @@ export type LitigationDocumentType =
   | 'affidavit_of_service'
   | 'rule49_withdrawal'
   | 'rule49_acceptance'
-  | 'costs_outline';
+  | 'costs_outline'
+  | 'esa_filing_sheet'
+  | 'scc_filing_sheet';
 
 export interface LitigationDocumentRequest {
   intake: EmploymentIntakeData;
@@ -417,6 +422,8 @@ RULES:
     rule49_withdrawal: 'DETERMINISTIC; never sent to the model.',
     rule49_acceptance: 'DETERMINISTIC; never sent to the model.',
     costs_outline: 'DETERMINISTIC; never sent to the model.',
+    esa_filing_sheet: 'DETERMINISTIC; never sent to the model.',
+    scc_filing_sheet: 'DETERMINISTIC; never sent to the model.',
   };
 
   return prompts[docType] + `
@@ -523,14 +530,16 @@ export async function generateLitigationDocument(
   // Court forms are deterministic: their content is data, and a wrong
   // figure or date has consequences. Builders validate their own fields
   // and throw a plain message the route returns as a 400.
-  const COURT_FORM_TYPES: LitigationDocumentType[] = ['affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline'];
+  const COURT_FORM_TYPES: LitigationDocumentType[] = ['affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'];
   if (COURT_FORM_TYPES.includes(req.documentType)) {
     const fields = req.formFields ?? {};
     const built =
       req.documentType === 'affidavit_of_service' ? buildAffidavitOfService(req.intake, fields, req.courtLocation)
         : req.documentType === 'rule49_withdrawal' ? buildOfferWithdrawal(req.intake, fields, req.lawyerName, req.firmName, req.courtLocation)
           : req.documentType === 'rule49_acceptance' ? buildOfferAcceptance(req.intake, fields, req.lawyerName, req.firmName, req.courtLocation)
-            : buildCostsOutline(req.intake, fields, req.lawyerName, req.firmName, req.courtLocation);
+            : req.documentType === 'esa_filing_sheet' ? buildEsaFilingSheet(req.intake, req.analysis)
+              : req.documentType === 'scc_filing_sheet' ? buildSccFilingSheet(req.intake, req.claimAmount)
+                : buildCostsOutline(req.intake, fields, req.lawyerName, req.firmName, req.courtLocation);
     return {
       html: built.html,
       documentType: req.documentType,
@@ -570,6 +579,13 @@ export async function generateLitigationDocument(
   let html = text.trim();
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
+
+  // Notice of Action: replace the placeholder with the pinned official
+  // notice text (RCP-E 14C, June 9, 2014; src/assets/forms). The official
+  // wording is injected deterministically, never composed by the model.
+  if (req.documentType === 'notice_of_action') {
+    html = injectForm14cNotice(html);
+  }
 
   // Citation tracking
   let citations: SourceCitation[] = [];
@@ -634,6 +650,8 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'rule49_withdrawal': return 'Notice of Withdrawal of Offer (Form 49B)';
     case 'rule49_acceptance': return 'Acceptance of Offer (Form 49C)';
     case 'costs_outline': return 'Costs Outline (Form 57B)';
+    case 'esa_filing_sheet': return 'ESA Claim Filing Sheet';
+    case 'scc_filing_sheet': return "Small Claims Filing Sheet (Form 7A)";
   }
 }
 
@@ -676,7 +694,27 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
     case 'rule49_withdrawal':
     case 'rule49_acceptance':
     case 'costs_outline':
+    case 'esa_filing_sheet':
+    case 'scc_filing_sheet':
       return [];
+  }
+}
+
+/** Inject the pinned official Form 14C notice text in place of the
+ *  model's placeholder. Falls back to leaving the placeholder (which the
+ *  fill-in check flags) if the asset cannot be read. */
+export function injectForm14cNotice(html: string): string {
+  const placeholderRe = /(?:<p>\s*)?\[STANDARD FORM 14C[^\]]*\](?:\s*<\/p>)?/i;
+  if (!placeholderRe.test(html)) return html;
+  try {
+    const dir = path.dirname(fileURLToPath(import.meta.url));
+    const raw = fs.readFileSync(path.resolve(dir, '../assets/forms/form-14c-notice.txt'), 'utf8');
+    const noticeHtml = raw.trim().split(/\n\s*\n/)
+      .map(p => `<p>${p.replace(/\n/g, ' ').trim()}</p>`)
+      .join('\n');
+    return html.replace(placeholderRe, noticeHtml);
+  } catch {
+    return html;
   }
 }
 

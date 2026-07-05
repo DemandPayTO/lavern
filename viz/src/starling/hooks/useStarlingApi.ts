@@ -1551,7 +1551,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const generateDocument = useCallback(async (docType: string, options: Record<string, unknown>) => {
     if (!matterId) return { ok: false, error: 'No matter ID' };
     try {
-      const LITIGATION_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline'];
+      const LITIGATION_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'];
       const endpoint = docType === 'demand_letter'
         ? `/api/employment/${matterId}/demand-letter`
         : docType === 'statement_of_claim'
