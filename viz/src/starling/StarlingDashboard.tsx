@@ -393,13 +393,21 @@ export default function StarlingDashboard() {
         {/* ── Deadlines docket ─────────────────────────────────── */}
         {deadlines.length > 0 && (
           <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
               Deadlines
               {deadlines.some(d => d.urgency === 'overdue' || d.urgency === 'critical') && (
                 <span style={{ marginLeft: 8, color: '#dc2626' }}>
                   · {deadlines.filter(d => d.urgency === 'overdue' || d.urgency === 'critical').length} need attention
                 </span>
               )}
+              <a
+                href="/api/employment/deadlines.ics"
+                download
+                style={{ marginLeft: 'auto', color: orange, textDecoration: 'none', fontWeight: 600, textTransform: 'none' as const, letterSpacing: 0 }}
+                aria-label="Download the docket as a calendar file"
+              >
+                Calendar feed (.ics)
+              </a>
             </div>
             <div style={{ background: '#fff', border: `1px solid ${border}` }} role="list" aria-label="Upcoming deadlines">
               {deadlines.slice(0, 6).map((d, i) => (

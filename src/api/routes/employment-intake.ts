@@ -324,6 +324,22 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
   });
 
+  // ── GET /api/employment/deadlines.ics ────────────────────────────────────
+  // The docket as an iCalendar file: download it, or subscribe to the URL
+  // so every Starling deadline lands in the firm calendar as an all-day
+  // event. Stable UIDs mean updates replace events rather than duplicate.
+
+  fastify.get('/api/employment/deadlines.ics', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const rows = getMattersByUser(userId);
+    const { buildDocketIcs } = await import('../../employment/docket-ics.js');
+    const ics = buildDocketIcs(collectDeadlines(rows));
+    return reply
+      .header('Content-Type', 'text/calendar; charset=utf-8')
+      .header('Content-Disposition', 'attachment; filename="starling-docket.ics"')
+      .send(ics);
+  });
+
   // ── GET /api/employment/:matterId ──────────────────────────────────────
   // Get the full employment data for a matter, with a summary of every
   // generated document and its lifecycle status.
@@ -1240,23 +1256,41 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     history.push({ status: parsed.data.status, date: statusDate, recordedAt: new Date().toISOString() });
     doc.statusHistory = history.slice(-20);
 
+    // Litigation event chains: a real-world date on one document starts
+    // the clock on the next step. Each tickler replaces any earlier
+    // system-set event of the same label; the docket, the calendar feed,
+    // and the digest carry it automatically.
+    const setTickler = (label: string, days: number, description: string) => {
+      const due = new Date(`${statusDate}T00:00:00`);
+      due.setDate(due.getDate() + days);
+      const dueIso = due.toISOString().slice(0, 10);
+      employment.timeline = [
+        ...employment.timeline.filter(ev => ev.label !== label),
+        { date: dueIso, label, description, category: 'legal' as const, source: 'system' as const },
+      ].sort((a, b) => a.date.localeCompare(b.date));
+    };
+
     // A demand letter marked sent starts the response clock from the date
     // of sending; the generation-time tickler was a conservative default.
     if (parsed.data.docType === 'demand_letter' && parsed.data.status === 'sent') {
       const deadlineDays = typeof doc.responseDeadlineDays === 'number' ? doc.responseDeadlineDays : 14;
-      const due = new Date(`${statusDate}T00:00:00`);
-      due.setDate(due.getDate() + deadlineDays);
-      const dueIso = due.toISOString().slice(0, 10);
-      employment.timeline = [
-        ...employment.timeline.filter(ev => ev.label !== 'Demand letter response due'),
-        {
-          date: dueIso,
-          label: 'Demand letter response due',
-          description: `${deadlineDays}-day response deadline from the demand letter sent on ${statusDate}. Follow up if no response.`,
-          category: 'legal' as const,
-          source: 'system' as const,
-        },
-      ].sort((a, b) => a.date.localeCompare(b.date));
+      setTickler('Demand letter response due', deadlineDays,
+        `${deadlineDays}-day response deadline from the demand letter sent on ${statusDate}. Follow up if no response.`);
+    }
+
+    // A Statement of Claim marked sent (served) starts the defence clock:
+    // twenty days for a defendant served in Ontario (rule 18.01; forty
+    // days elsewhere in Canada or the United States, sixty days beyond).
+    if (parsed.data.docType === 'statement_of_claim' && parsed.data.status === 'sent') {
+      setTickler('Statement of Defence due', 20,
+        `Twenty days from service of the Statement of Claim on ${statusDate}, for a defendant served in Ontario (forty days elsewhere in Canada or the United States; sixty days beyond; a Notice of Intent to Defend adds ten). Consider noting default if nothing is delivered.`);
+    }
+
+    // A Notice of Action marked filed (issued) starts the thirty-day
+    // clock to file the Statement of Claim (Form 14D).
+    if (parsed.data.docType === 'notice_of_action' && parsed.data.status === 'filed') {
+      setTickler('Statement of Claim (Form 14D) due', 30,
+        `Thirty days from the issuance of the Notice of Action on ${statusDate} to file the Statement of Claim (Form 14D).`);
     }
 
     await saveEmploymentData(userId, matterId, matter, employment);

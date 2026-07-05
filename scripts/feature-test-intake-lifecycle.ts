@@ -38,11 +38,15 @@ async function main() {
   const mid = m.json.matterId as string;
   check('matter created', (m.status === 200 || m.status === 201) && Boolean(mid));
 
+  const soon = new Date();
+  soon.setDate(soon.getDate() + 10);
+  const soonIso = `${soon.getFullYear()}-${String(soon.getMonth() + 1).padStart(2, '0')}-${String(soon.getDate()).padStart(2, '0')}`;
   const intakeV1 = {
     client_first_name: 'Iris', client_last_name: 'Valdez', client_age: 44,
     employer_legal_name: 'Test Employer Corp', job_title: 'Coordinator',
     hire_date: '2018-02-05', termination_date: '2026-06-15',
     annual_salary: 90000, was_terminated: true,
+    received_severance_offer: true, severance_deadline: soonIso,
   };
   await api('POST', '/api/employment/intake', { matterId: mid, intake: intakeV1 });
   const a1 = await api('POST', '/api/employment/analyze', { matterId: mid });
@@ -119,6 +123,15 @@ async function main() {
   check('labour edit recomputes clocks', li2.status === 200 && lDeadlines.some(d => d.label.includes('25 calendar days')));
   const lg = await api('GET', `/api/labour/${lmid}`);
   check('labour approvals preserved', JSON.stringify((lg.json.data as { approvedIssues: string[] }).approvedIssues) === JSON.stringify(lCodes));
+
+  // ── Calendar feed ──────────────────────────────────────────────────────
+  const icsRes = await fetch(`${BASE}/api/employment/deadlines.ics`);
+  const ics = await icsRes.text();
+  check('docket exports as an iCalendar feed', icsRes.status === 200
+    && (icsRes.headers.get('content-type') ?? '').includes('text/calendar')
+    && ics.includes('BEGIN:VCALENDAR')
+    && ics.includes('Iris Valdez v Test Employer Corp')
+    && ics.includes(`DTSTART;VALUE=DATE:${soonIso.replace(/-/g, '')}`));
 
   // ── Cleanup ────────────────────────────────────────────────────────────
   for (const id of [mid, lmid]) {

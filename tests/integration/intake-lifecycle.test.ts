@@ -137,6 +137,46 @@ describe('document lifecycle', () => {
     expect(invalid.status).toBe(400);
   });
 
+  it('serving the Statement of Claim starts the defence clock; issuing a Notice of Action starts the Form 14D clock', async () => {
+    makeMatter('m-chain', {
+      generatedSOC: { html: '<p>x</p>', generatedAt: '2026-07-01T10:00:00Z', costUsd: 0.5, status: 'reviewed' },
+      generated_notice_of_action: { html: '<p>y</p>', generatedAt: '2026-07-01T09:00:00Z', costUsd: 0.1, status: 'reviewed' },
+      employmentData: {
+        intake: { client_first_name: 'Rae', client_last_name: 'Sung' },
+        gates: [], approvedIssues: [], dismissedIssues: [], documentExtractions: [],
+        timeline: [], analysis: null,
+        selectedTone: 'professional', selectedProcedure: null, selectedDocumentType: null, demandAmount: null,
+      },
+    });
+
+    await post('/api/employment/m-chain/document-status', { docType: 'statement_of_claim', status: 'sent', date: '2026-07-10' });
+    await post('/api/employment/m-chain/document-status', { docType: 'notice_of_action', status: 'filed', date: '2026-07-05' });
+
+    const after = await get('/api/employment/m-chain');
+    const timeline = (after.body.data as { timeline: Array<{ date: string; label: string }> }).timeline;
+    const defence = timeline.find(e => e.label === 'Statement of Defence due');
+    expect(defence?.date).toBe('2026-07-30'); // served 07-10 + 20 days
+    const form14d = timeline.find(e => e.label.includes('Form 14D'));
+    expect(form14d?.date).toBe('2026-08-04'); // issued 07-05 + 30 days
+  });
+
+  it('exports the docket as an iCalendar file', async () => {
+    makeMatter('m-ics', {
+      employmentData: {
+        intake: { client_first_name: 'Cal', client_last_name: 'Ito', employer_legal_name: 'Ito Employer Ltd', received_severance_offer: true, severance_deadline: '2026-07-15' },
+        gates: [], approvedIssues: [], dismissedIssues: [], documentExtractions: [],
+        timeline: [], analysis: null,
+        selectedTone: 'professional', selectedProcedure: null, selectedDocumentType: null, demandAmount: null,
+      },
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/employment/deadlines.ics' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/calendar');
+    expect(res.body).toContain('BEGIN:VCALENDAR');
+    expect(res.body).toContain('Cal Ito v Ito Employer Ltd');
+    expect(res.body).toContain('DTSTART;VALUE=DATE:20260715');
+  });
+
   it('marking a demand letter sent moves the response tickler to the sent date', async () => {
     makeMatter('m-tickler', {
       generatedDemandLetter: {
