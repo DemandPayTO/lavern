@@ -39,7 +39,7 @@ motion package the highest-value gap in this table.
 |---|---|---|---|---|
 | Form 14A, Statement of Claim | The pleading | **Shipped** (generated content in 14A format) | done | 1 |
 | Form 14E, Notice of Application | Application route | **Shipped** (generated content) | done | 1 |
-| Form 14C, Notice of Action | Limitation-saving start when time is short | **Shipped** 2026-07-04 (generated; the official form's printed warnings are a placeholder by design) | done | 1 |
+| Form 14C, Notice of Action | Limitation-saving start when time is short | **Shipped**; file-ready as of 2026-07-05: the official notice text (RCP-E 14C, June 9, 2014) is pinned as an asset and injected deterministically | done | 1 |
 | Form 25A, Reply | Answer to new matters in the Defence | **Shipped** | done | 1 |
 | Form 49A, Offer to Settle | Rule 49 offer with cost consequences | **Shipped** | done | 1 |
 | Form 49B (withdrawal), Form 49C (acceptance) | The rest of the Rule 49 lifecycle | **Shipped** 2026-07-04 (deterministic, validated inputs). 49D (offer to contribute) and 49E (partial settlement) remain on demand | done / P3 | 4 |
@@ -61,7 +61,7 @@ claim).
 
 | Form / document | What it is | Status | Priority | Path |
 |---|---|---|---|---|
-| Form 7A, Plaintiff's Claim | The claim | **Shipped** (generated content in 7A format); consider also filling the fillable court form for e-filing | P1 (form fill) | 1 → 3 |
+| Form 7A, Plaintiff's Claim | The claim | **Shipped** (generated content in 7A format); **filing sheet shipped** 2026-07-05 for the online filing service, with the $50,000 limit check | done | 1 + 4 |
 | Form 8A, Affidavit of Service *(confirm)* | Proof of service | Missing; deterministic | P1 | 4 |
 | Form 9A, Defence | Employer side; deliberately out of scope | skip | – | – |
 | Form 13A, List of Proposed Witnesses | Required before the settlement conference | Missing; deterministic from a witness input; pairs with the shipped Rule 13 brief | P2 | 4 |
@@ -91,7 +91,7 @@ the path for every one of these.
 
 | Form / document | What it is | Status | Priority | Path |
 |---|---|---|---|---|
-| ESA Claim | The employment standards claim (online filing; narrative and particulars matter more than the form) | Content generator **shipped** (esa_complaint); the two-year filing deadline with the ss. 97/98 election caution now dockets automatically (2026-07-04). Field mapping to the online claim form remains | P2 (mapping) | 1 → 2/3 |
+| ESA Claim | The employment standards claim (online filing; narrative and particulars matter more than the form) | Content generator **shipped**; deadline dockets automatically; **filing sheet shipped** 2026-07-05 (every portal value in one sheet, with the ss. 97/98 election caution) | done | 1 + 4 |
 | Application for Review of an ESA order/refusal | Goes to the **OLRB** (see below); strict 30-day limit worth a docket clock | Missing | P2 | 1 + clock |
 | OHSA s. 50 reprisal complaint (OLRB) | Alternative forum to grievance arbitration; LG10 already flags the election | Missing (see OLRB) | P2 | 2/3 |
 
@@ -104,9 +104,9 @@ responding form, which should be re-verified at the same time).
 
 | Form / document | What it is | Status | Priority | Path |
 |---|---|---|---|---|
-| DFR application response (s. 74) | The union's responding position | Narrative **shipped**; form numbers verified 2026-07-04 against olrb.gov.on.ca: application is Form A-29, response is **Form A-30** (the prompt now cites A-30). PDF fill of A-30 remains | P2 (form fill) | 1 → 3 |
+| DFR application response (s. 74) | The union's responding position | Narrative **shipped**; Form A-30 is dynamic XFA (not fillable), so the HRTO data-file pattern **shipped** 2026-07-05: pre-filled datasets XML downloadable from the matter, imported in Acrobat | done | 1 → 2 |
 | ULP complaint / response (ss. 70, 72, 76, 86 freeze) | Interference, intimidation, freeze breaches | Missing; a bargaining-season staple | P2 | 1 + 3 |
-| OHSA s. 50 reprisal complaint | Reverse-onus reprisal forum | Narrative **shipped** 2026-07-04 (Form A-53 verified; response is A-54); built to trigger the s. 50(5) reverse onus, with the forum-election flag | done (narrative) | 1 + 3 |
+| OHSA s. 50 reprisal complaint | Reverse-onus reprisal forum | Narrative **shipped**; Form A-53 data file **shipped** 2026-07-05 (XFA datasets import, worker and employer blocks pre-filled) | done | 1 + 2 |
 | Certification application / response | Organizing drives | Missing; decide whether organizing support is in scope at all | P3 | 3 |
 | Termination of bargaining rights (response) | Defending decertification | Missing | P3 | 3 |
 | ESA Application for Review | See MOL section; filed at the Board | Missing | P2 | 1 + 3 |
