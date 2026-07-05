@@ -80,6 +80,72 @@ function recordDraftHistory(
   matter.draftHistory = history.slice(0, DRAFT_HISTORY_CAP);
 }
 
+// ── Generated-document lifecycle ─────────────────────────────────────────
+// Generated documents live on the matter under legacy camel-case keys
+// (generatedDemandLetter, generatedSOC, generatedApplication) and the
+// generated_<type> pattern shared by the litigation and labour routes.
+// Each carries a lifecycle status: draft → reviewed → sent or filed.
+
+export const DOCUMENT_STATUSES = ['draft', 'reviewed', 'sent', 'filed'] as const;
+export type DocumentStatus = typeof DOCUMENT_STATUSES[number];
+
+const LEGACY_DOC_KEYS: Record<string, string> = {
+  generatedDemandLetter: 'demand_letter',
+  generatedSOC: 'statement_of_claim',
+  generatedApplication: 'application',
+};
+
+export interface GeneratedDocumentSummary {
+  docType: string;
+  title: string;
+  status: DocumentStatus;
+  generatedAt: string | null;
+  statusDate: string | null;
+  costUsd: number;
+}
+
+/** Locate the matter key holding a generated document of the given type. */
+function findGeneratedDocKey(matter: Record<string, unknown>, docType: string): string | null {
+  const legacy = Object.entries(LEGACY_DOC_KEYS).find(([, t]) => t === docType);
+  if (legacy && matter[legacy[0]]) return legacy[0];
+  const key = `generated_${docType}`;
+  return matter[key] ? key : null;
+}
+
+function titleForDoc(docType: string, doc: Record<string, unknown>): string {
+  if (typeof doc.documentTitle === 'string' && doc.documentTitle) return doc.documentTitle;
+  if (typeof doc.formName === 'string' && doc.formName) return doc.formName;
+  if (docType === 'demand_letter') return 'Demand Letter';
+  if (docType === 'statement_of_claim') return 'Statement of Claim';
+  return docType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+export function collectGeneratedDocuments(matter: Record<string, unknown>): GeneratedDocumentSummary[] {
+  const out: GeneratedDocumentSummary[] = [];
+  const push = (docType: string, doc: Record<string, unknown>) => {
+    const status = DOCUMENT_STATUSES.includes(doc.status as DocumentStatus) ? doc.status as DocumentStatus : 'draft';
+    out.push({
+      docType,
+      title: titleForDoc(docType, doc),
+      status,
+      generatedAt: typeof doc.generatedAt === 'string' ? doc.generatedAt : null,
+      statusDate: typeof doc.statusDate === 'string' ? doc.statusDate : null,
+      costUsd: typeof doc.costUsd === 'number' ? doc.costUsd : 0,
+    });
+  };
+  for (const [key, docType] of Object.entries(LEGACY_DOC_KEYS)) {
+    const doc = matter[key];
+    if (doc && typeof doc === 'object') push(docType, doc as Record<string, unknown>);
+  }
+  for (const key of Object.keys(matter)) {
+    if (!key.startsWith('generated_')) continue;
+    const doc = matter[key];
+    if (doc && typeof doc === 'object') push(key.slice('generated_'.length), doc as Record<string, unknown>);
+  }
+  out.sort((a, b) => String(b.generatedAt ?? '').localeCompare(String(a.generatedAt ?? '')));
+  return out;
+}
+
 // ── Route registration ───────────────────────────────────────────────────
 
 export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
@@ -259,7 +325,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   });
 
   // ── GET /api/employment/:matterId ──────────────────────────────────────
-  // Get the full employment data for a matter.
+  // Get the full employment data for a matter, with a summary of every
+  // generated document and its lifecycle status.
 
   fastify.get('/api/employment/:matterId', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string; firmId?: string }).userId ?? 'local-user';
@@ -275,6 +342,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       ok: true,
       data: employment,
       lawyerNotes: ((matter as Record<string, unknown>).lawyerNotes as string) ?? '',
+      generatedDocuments: collectGeneratedDocuments(matter as Record<string, unknown>),
     });
   });
 
@@ -521,6 +589,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       citations: result.citations,
       tone: parsed.data.tone,
       demandAmount: parsed.data.demandAmount,
+      responseDeadlineDays: parsed.data.responseDeadlineDays,
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,
       status: 'draft', // lawyer must review before finalising
@@ -1132,6 +1201,72 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
       logger.error('Client update generation failed', { matterId, error: err instanceof Error ? err.message : String(err) });
       return reply.status(500).send({ ok: false, error: 'Draft generation failed. Please try again.' });
     }
+  });
+
+  // ── POST /api/employment/:matterId/document-status ──────────────────────
+  // Advance a generated document through its lifecycle: draft → reviewed →
+  // sent or filed. The docket reacts where the status carries a real-world
+  // date: marking a demand letter sent recomputes the response tickler from
+  // the date of sending rather than the date of generation.
+
+  const documentStatusSchema = z.object({
+    docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    status: z.enum(DOCUMENT_STATUSES),
+    /** The real-world date of the event (date sent, date filed). Defaults to today. */
+    date: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/).optional(),
+  });
+
+  fastify.post('/api/employment/:matterId/document-status', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+
+    const parsed = documentStatusSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid status update' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const key = findGeneratedDocKey(matter as Record<string, unknown>, parsed.data.docType);
+    if (!key) return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
+
+    const doc = (matter as Record<string, unknown>)[key] as Record<string, unknown>;
+    const statusDate = parsed.data.date ?? new Date().toISOString().slice(0, 10);
+    doc.status = parsed.data.status;
+    doc.statusDate = statusDate;
+    const history = Array.isArray(doc.statusHistory) ? doc.statusHistory as Array<Record<string, unknown>> : [];
+    history.push({ status: parsed.data.status, date: statusDate, recordedAt: new Date().toISOString() });
+    doc.statusHistory = history.slice(-20);
+
+    // A demand letter marked sent starts the response clock from the date
+    // of sending; the generation-time tickler was a conservative default.
+    if (parsed.data.docType === 'demand_letter' && parsed.data.status === 'sent') {
+      const deadlineDays = typeof doc.responseDeadlineDays === 'number' ? doc.responseDeadlineDays : 14;
+      const due = new Date(`${statusDate}T00:00:00`);
+      due.setDate(due.getDate() + deadlineDays);
+      const dueIso = due.toISOString().slice(0, 10);
+      employment.timeline = [
+        ...employment.timeline.filter(ev => ev.label !== 'Demand letter response due'),
+        {
+          date: dueIso,
+          label: 'Demand letter response due',
+          description: `${deadlineDays}-day response deadline from the demand letter sent on ${statusDate}. Follow up if no response.`,
+          category: 'legal' as const,
+          source: 'system' as const,
+        },
+      ].sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    await saveEmploymentData(userId, matterId, matter, employment);
+
+    logger.info('Document status updated', { userId, matterId, docType: parsed.data.docType, status: parsed.data.status, statusDate });
+    return reply.send({
+      ok: true,
+      docType: parsed.data.docType,
+      status: parsed.data.status,
+      statusDate,
+      generatedDocuments: collectGeneratedDocuments(matter as Record<string, unknown>),
+    });
   });
 
   // ── POST /api/employment/:matterId/notes ───────────────────────────────

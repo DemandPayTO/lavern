@@ -17,7 +17,8 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel } from './shared.js';
+import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
 // ── Design Tokens ───────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ const sans = "system-ui, -apple-system, sans-serif";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'notes';
+type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'notes';
 
 interface Issue {
   id: string;
@@ -447,6 +448,29 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
 /** Cards that need a dollar amount before Generate makes sense. */
 const DRAFTS_NEEDING_AMOUNT = new Set(['demand', 'soc', 'counter', 'rule49']);
 
+// ── Intake editor fields ────────────────────────────────────────────────
+// The core analysis-driving fields. The editor merges into the existing
+// intake, so fields it does not show are preserved.
+
+const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
+  { key: 'client_first_name', label: 'Client first name' },
+  { key: 'client_last_name', label: 'Client last name' },
+  { key: 'client_age', label: 'Client age', type: 'number' },
+  { key: 'employer_legal_name', label: 'Employer legal name' },
+  { key: 'job_title', label: 'Job title' },
+  { key: 'annual_salary', label: 'Annual salary (CAD)', type: 'number' },
+  { key: 'hire_date', label: 'Hire date', type: 'date' },
+  { key: 'termination_date', label: 'Termination date', type: 'date' },
+  { key: 'termination_reasons', label: 'Stated reason for termination' },
+  { key: 'was_terminated', label: 'Terminated by the employer', type: 'checkbox' },
+  { key: 'is_constructive_dismissal', label: 'Constructive dismissal', type: 'checkbox' },
+  { key: 'employer_alleged_just_cause', label: 'Employer alleged just cause', type: 'checkbox' },
+  { key: 'believes_discriminatory_termination', label: 'Discrimination dimension (starts the HRTO clock)', type: 'checkbox' },
+  { key: 'received_severance_offer', label: 'Severance offer received', type: 'checkbox' },
+  { key: 'severance_weeks_offered', label: 'Severance weeks offered', type: 'number' },
+  { key: 'severance_deadline', label: 'Severance offer deadline', type: 'date' },
+];
+
 // ── Tab definitions ─────────────────────────────────────────────────────
 
 const TABS: { key: TabKey; label: string; badge?: number }[] = [
@@ -820,6 +844,7 @@ export default function MatterDetailView() {
     { key: 'docs', label: 'Documents', badge: docCount || undefined },
     { key: 'draft', label: 'Draft' },
     { key: 'timeline', label: 'Timeline' },
+    { key: 'intake', label: 'Intake' },
     { key: 'notes', label: 'Notes' },
   ];
 
@@ -1158,6 +1183,9 @@ export default function MatterDetailView() {
           {/* Documents */}
           {activeTab === 'docs' && (
             <div id="panel-docs" role="tabpanel" style={{ paddingTop: 22 }}>
+              {/* Generated documents and their lifecycle */}
+              <GeneratedDocsPanel docs={employment.generatedDocuments} onSetStatus={employment.setDocumentStatus} />
+
               {/* Uploaded */}
               {matter!.documents.filter(d => d.group === 'uploaded').length > 0 && (
                 <>
@@ -1755,6 +1783,24 @@ export default function MatterDetailView() {
                 ))}
               </div>
               )}
+            </div>
+          )}
+
+          {/* Intake editor */}
+          {activeTab === 'intake' && (
+            <div id="panel-intake" role="tabpanel" style={{ paddingTop: 22 }}>
+              <IntakeEditorPanel
+                fields={EMPLOYMENT_INTAKE_FIELDS}
+                values={(employment.data?.intake ?? {}) as Record<string, unknown>}
+                onSave={async (edited) => {
+                  const merged: Record<string, unknown> = { ...((employment.data?.intake ?? {}) as Record<string, unknown>) };
+                  for (const [k, v] of Object.entries(edited)) {
+                    if (v === undefined) delete merged[k];
+                    else merged[k] = v;
+                  }
+                  return employment.saveIntake(merged);
+                }}
+              />
             </div>
           )}
 

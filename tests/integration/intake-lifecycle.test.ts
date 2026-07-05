@@ -1,0 +1,167 @@
+/**
+ * Integration Tests — intake editing and document lifecycle states,
+ * via Fastify inject() over an in-memory database.
+ *
+ * Pins the two behaviours that make the docket honest:
+ *   1. Editing the intake recomputes figures and clocks while preserving
+ *      the lawyer's issue approvals.
+ *   2. Lifecycle transitions (draft → reviewed → sent/filed) persist with
+ *      history, and marking a demand letter sent moves the response
+ *      tickler to run from the date of sending.
+ */
+
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import Fastify from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import { initDatabase, saveMatter, getMatterById } from '../../src/db/database.js';
+import { registerEmploymentIntakeRoutes } from '../../src/api/routes/employment-intake.js';
+import { registerLabourRoutes } from '../../src/api/routes/labour.js';
+
+let app: FastifyInstance;
+const USER = 'local-user';
+
+async function post(url: string, payload: unknown) {
+  const res = await app.inject({ method: 'POST', url, payload: payload as Record<string, unknown> });
+  return { status: res.statusCode, body: res.json() as Record<string, unknown> };
+}
+async function get(url: string) {
+  const res = await app.inject({ method: 'GET', url });
+  return { status: res.statusCode, body: res.json() as Record<string, unknown> };
+}
+
+function makeMatter(id: string, extra: Record<string, unknown> = {}) {
+  saveMatter(USER, id, JSON.stringify({ title: id, ...extra }), 'active');
+}
+
+beforeAll(async () => {
+  initDatabase(':memory:');
+  app = Fastify({ logger: false });
+  registerEmploymentIntakeRoutes(app);
+  registerLabourRoutes(app);
+  await app.ready();
+});
+
+afterAll(async () => {
+  await app.close();
+});
+
+describe('intake editing', () => {
+  it('recomputes figures and clocks on edit while preserving approvals', async () => {
+    makeMatter('m-edit');
+    const intakeV1 = {
+      client_first_name: 'Rae', client_last_name: 'Sung', client_age: 50,
+      employer_legal_name: 'Vantage Logistics Inc', job_title: 'Manager',
+      hire_date: '2015-01-05', termination_date: '2026-06-01',
+      annual_salary: 100000, was_terminated: true,
+    };
+    await post('/api/employment/intake', { matterId: 'm-edit', intake: intakeV1 });
+    const a1 = await post('/api/employment/analyze', { matterId: 'm-edit' });
+    const codes = (a1.body.analysis as Record<string, unknown>).gates as Array<{ triggered: boolean; issueCodes: string[] }>;
+    const approved = [...new Set(codes.filter(g => g.triggered).flatMap(g => g.issueCodes))];
+    await post('/api/employment/m-edit/issues', { approved, dismissed: [] });
+
+    // Edit: salary correction and a discrimination dimension
+    const intakeV2 = { ...intakeV1, annual_salary: 150000, believes_discriminatory_termination: true };
+    const save = await post('/api/employment/intake', { matterId: 'm-edit', intake: intakeV2 });
+    expect(save.status).toBe(200);
+    const a2 = await post('/api/employment/analyze', { matterId: 'm-edit' });
+
+    const d1 = (a1.body.analysis as Record<string, { esaNoticePay: number }>).damagesEstimate;
+    const d2 = (a2.body.analysis as Record<string, { esaNoticePay: number }>).damagesEstimate;
+    expect(d2.esaNoticePay).toBeGreaterThan(d1.esaNoticePay);
+
+    const after = await get('/api/employment/m-edit');
+    const data = after.body.data as { approvedIssues: string[]; timeline: Array<{ label: string }> };
+    expect(data.approvedIssues).toEqual(approved);
+    expect(data.timeline.some(e => e.label.includes('HRTO'))).toBe(true);
+  });
+
+  it('labour intake edits preserve approvals and recompute the clocks', async () => {
+    makeMatter('m-lab');
+    const intake = {
+      grievor_first_name: 'Tess', grievor_last_name: 'Okoye',
+      employer_name: 'Harbour Foods', union_name: 'UFCW 175',
+      grievance_type: 'discharge', discipline_imposed: 'discharge',
+      incident_date: '2026-07-01', filing_deadline_days: 10, filing_deadline_kind: 'calendar',
+      grievance_filed: false,
+    };
+    const r1 = await post('/api/labour/intake', { matterId: 'm-lab', intake });
+    const codes = [...new Set((r1.body.gates as Array<{ triggered: boolean; issueCodes: string[] }>).filter(g => g.triggered).flatMap(g => g.issueCodes))];
+    await post('/api/labour/m-lab/issues', { approved: codes, dismissed: [] });
+
+    const r2 = await post('/api/labour/intake', { matterId: 'm-lab', intake: { ...intake, filing_deadline_days: 20 } });
+    expect(r2.status).toBe(200);
+    const deadlines = r2.body.deadlines as Array<{ label: string }>;
+    expect(deadlines[0].label).toContain('20 calendar days');
+
+    const after = await get('/api/labour/m-lab');
+    expect((after.body.data as { approvedIssues: string[] }).approvedIssues).toEqual(codes);
+  });
+});
+
+describe('document lifecycle', () => {
+  it('summarises generated documents across legacy and pattern keys', async () => {
+    makeMatter('m-docs', {
+      generatedDemandLetter: { html: '<p>x</p>', generatedAt: '2026-07-01T10:00:00Z', costUsd: 0.4, status: 'draft' },
+      generated_mitigation_log: { html: '<p>y</p>', documentTitle: 'Mitigation Log (Client Job-Search Record)', generatedAt: '2026-07-02T10:00:00Z', costUsd: 0, status: 'draft' },
+    });
+    const res = await get('/api/employment/m-docs');
+    const docs = res.body.generatedDocuments as Array<{ docType: string; title: string; status: string }>;
+    expect(docs).toHaveLength(2);
+    expect(docs[0].docType).toBe('mitigation_log'); // newest first
+    expect(docs[1].docType).toBe('demand_letter');
+    expect(docs[1].title).toBe('Demand Letter');
+    expect(docs.every(d => d.status === 'draft')).toBe(true);
+  });
+
+  it('advances status with history and rejects unknown documents', async () => {
+    makeMatter('m-status', {
+      generated_mitigation_log: { html: '<p>y</p>', generatedAt: '2026-07-02T10:00:00Z', costUsd: 0, status: 'draft' },
+    });
+    const r1 = await post('/api/employment/m-status/document-status', { docType: 'mitigation_log', status: 'reviewed' });
+    expect(r1.status).toBe(200);
+    const r2 = await post('/api/employment/m-status/document-status', { docType: 'mitigation_log', status: 'sent', date: '2026-07-04' });
+    expect(r2.status).toBe(200);
+    const docs = r2.body.generatedDocuments as Array<{ docType: string; status: string; statusDate: string | null }>;
+    expect(docs[0].status).toBe('sent');
+    expect(docs[0].statusDate).toBe('2026-07-04');
+
+    const row = await getMatterById('m-status', USER);
+    const matter = JSON.parse(row!.data_json) as Record<string, Record<string, unknown>>;
+    const history = matter.generated_mitigation_log.statusHistory as Array<{ status: string; date: string }>;
+    expect(history.map(h => h.status)).toEqual(['reviewed', 'sent']);
+
+    const missing = await post('/api/employment/m-status/document-status', { docType: 'sj_factum', status: 'reviewed' });
+    expect(missing.status).toBe(404);
+    const invalid = await post('/api/employment/m-status/document-status', { docType: 'mitigation_log', status: 'shredded' });
+    expect(invalid.status).toBe(400);
+  });
+
+  it('marking a demand letter sent moves the response tickler to the sent date', async () => {
+    makeMatter('m-tickler', {
+      generatedDemandLetter: {
+        html: '<p>x</p>', generatedAt: '2026-07-01T10:00:00Z', costUsd: 0.4,
+        status: 'draft', responseDeadlineDays: 14,
+      },
+      employmentData: {
+        intake: { client_first_name: 'Rae', client_last_name: 'Sung' },
+        gates: [], approvedIssues: [], dismissedIssues: [],
+        documentExtractions: [],
+        timeline: [
+          { date: '2026-07-15', label: 'Demand letter response due', description: 'from generation', category: 'legal', source: 'system' },
+        ],
+        analysis: null,
+        selectedTone: 'professional', selectedProcedure: null, selectedDocumentType: null, demandAmount: null,
+      },
+    });
+
+    const res = await post('/api/employment/m-tickler/document-status', { docType: 'demand_letter', status: 'sent', date: '2026-07-10' });
+    expect(res.status).toBe(200);
+
+    const after = await get('/api/employment/m-tickler');
+    const timeline = (after.body.data as { timeline: Array<{ date: string; label: string }> }).timeline;
+    const ticklers = timeline.filter(e => e.label === 'Demand letter response due');
+    expect(ticklers).toHaveLength(1);
+    expect(ticklers[0].date).toBe('2026-07-24'); // sent 2026-07-10 + 14 days
+  });
+});

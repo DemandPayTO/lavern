@@ -6,6 +6,8 @@
  * gate-approval and draft-preview UI instead of forking it.
  */
 
+import { useState, useEffect } from 'react';
+
 // ── Design Tokens ───────────────────────────────────────────────────────
 export const navy = '#0f1a2e';
 export const orange = '#ea580c';
@@ -331,6 +333,247 @@ export function DraftPreview({ html, reviewFlags, citations = [], downloadHref, 
           </div>
         </details>
       )}
+    </div>
+  );
+}
+
+// ── Intake editor ───────────────────────────────────────────────────────
+// A matter's intake must be correctable after creation: a wrong salary or
+// date silently poisons every figure and deadline downstream. The editor
+// merges into the existing intake; fields it does not show are preserved,
+// and clearing a field removes it.
+
+export interface IntakeFieldDef {
+  key: string;
+  label: string;
+  type?: 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'textarea';
+  options?: Array<[string, string]>;
+  placeholder?: string;
+}
+
+export interface IntakeEditorPanelProps {
+  fields: IntakeFieldDef[];
+  /** Current intake values (only the listed keys are read). */
+  values: Record<string, unknown>;
+  /**
+   * Receives the edited fields, converted per type: numbers parsed,
+   * checkboxes boolean, cleared fields as undefined (caller deletes the
+   * key from the merged intake).
+   */
+  onSave: (edited: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
+  heading?: string;
+  subheading?: string;
+}
+
+export function IntakeEditorPanel({
+  fields, values, onSave,
+  heading = 'Intake',
+  subheading = 'Correcting a field recomputes the analysis, the entitlement figures, and the deadline clocks. Issue approvals are preserved.',
+}: IntakeEditorPanelProps) {
+  const [draft, setDraft] = useState<Record<string, string | boolean>>({});
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  // Seed from the intake whenever it changes on the server
+  useEffect(() => {
+    const seeded: Record<string, string | boolean> = {};
+    for (const f of fields) {
+      const v = values[f.key];
+      if (f.type === 'checkbox') seeded[f.key] = Boolean(v);
+      else seeded[f.key] = v === null || v === undefined ? '' : String(v);
+    }
+    setDraft(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(fields.map(f => values[f.key]))]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setStatus(null);
+    const edited: Record<string, unknown> = {};
+    for (const f of fields) {
+      const raw = draft[f.key];
+      if (f.type === 'checkbox') { edited[f.key] = Boolean(raw); continue; }
+      const s = String(raw ?? '').trim();
+      if (s === '') { edited[f.key] = undefined; continue; }
+      if (f.type === 'number') {
+        const n = parseFloat(s.replace(/[^\d.-]/g, ''));
+        edited[f.key] = Number.isFinite(n) ? n : undefined;
+        continue;
+      }
+      edited[f.key] = s;
+    }
+    const result = await onSave(edited);
+    setSaving(false);
+    setStatus(result.ok ? 'Saved. Analysis and clocks recomputed.' : result.error ?? 'The intake could not be saved.');
+  };
+
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px' }}>
+      <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>{heading}</div>
+      <div style={{ fontSize: 12.5, color: muted, marginBottom: 14 }}>{subheading}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        {fields.map(f => (
+          <div key={f.key} style={f.type === 'textarea' ? { gridColumn: '1 / -1' } : f.type === 'checkbox' ? { display: 'flex', alignItems: 'flex-end' } : undefined}>
+            {f.type === 'checkbox' ? (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: ink, cursor: 'pointer', paddingBottom: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft[f.key])}
+                  onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.checked }))}
+                  style={{ accentColor: orange }}
+                />
+                {f.label}
+              </label>
+            ) : (
+              <>
+                <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>{f.label}</div>
+                {f.type === 'select' ? (
+                  <select
+                    value={String(draft[f.key] ?? '')}
+                    onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                  >
+                    <option value="">Not set</option>
+                    {(f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                ) : f.type === 'textarea' ? (
+                  <textarea
+                    value={String(draft[f.key] ?? '')}
+                    placeholder={f.placeholder}
+                    onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    rows={3}
+                    style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box', resize: 'vertical' }}
+                  />
+                ) : (
+                  <input
+                    type={f.type === 'date' ? 'date' : 'text'}
+                    inputMode={f.type === 'number' ? 'decimal' : undefined}
+                    value={String(draft[f.key] ?? '')}
+                    placeholder={f.placeholder}
+                    onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            background: saving ? '#b0b0b0' : orange, color: '#fff', fontSize: 13.5, fontWeight: 600,
+            padding: '11px 18px', borderRadius: 2, border: 'none',
+            cursor: saving ? 'not-allowed' : 'pointer', fontFamily: sans,
+          }}
+        >
+          {saving ? 'Saving...' : 'Save and recompute'}
+        </button>
+        {status && (
+          <span style={{ fontSize: 13, color: status.startsWith('Saved') ? green : red, fontWeight: 600 }} role="status">
+            {status}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Generated documents with lifecycle status ───────────────────────────
+
+export interface GeneratedDocSummary {
+  docType: string;
+  title: string;
+  status: 'draft' | 'reviewed' | 'sent' | 'filed';
+  generatedAt: string | null;
+  statusDate: string | null;
+  costUsd: number;
+}
+
+const STATUS_COLOURS: Record<GeneratedDocSummary['status'], { fg: string; bg: string }> = {
+  draft: { fg: muted, bg: '#f4f1ec' },
+  reviewed: { fg: navy, bg: '#eef1f6' },
+  sent: { fg: green, bg: '#e7f6ec' },
+  filed: { fg: green, bg: '#e7f6ec' },
+};
+
+export interface GeneratedDocsPanelProps {
+  docs: GeneratedDocSummary[];
+  onSetStatus: (docType: string, status: GeneratedDocSummary['status'], date?: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
+export function GeneratedDocsPanel({ docs, onSetStatus }: GeneratedDocsPanelProps) {
+  const [eventDate, setEventDate] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (docs.length === 0) return null;
+
+  const advance = async (docType: string, status: GeneratedDocSummary['status']) => {
+    setBusy(docType);
+    setMessage(null);
+    const result = await onSetStatus(docType, status, (status === 'sent' || status === 'filed') && eventDate ? eventDate : undefined);
+    setBusy(null);
+    setMessage(result.ok ? null : result.error ?? 'The status could not be updated.');
+  };
+
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginBottom: 16 }}>
+      <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+        Generated documents
+      </div>
+      <div style={{ fontSize: 12.5, color: muted, marginBottom: 6 }}>
+        Track each document from draft to reviewed to sent or filed. Marking a demand letter sent
+        starts the response clock from the date of sending.
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: muted }}>Date for sent/filed:</span>
+        <input
+          type="date" value={eventDate} onChange={e => setEventDate(e.target.value)}
+          aria-label="Date sent or filed"
+          style={{ fontFamily: sans, fontSize: 12.5, padding: '5px 8px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+        />
+        <span style={{ fontSize: 12, color: muted }}>(blank = today)</span>
+      </div>
+      {docs.map(doc => {
+        const colours = STATUS_COLOURS[doc.status];
+        return (
+          <div key={doc.docType} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderTop: `1px solid ${border}`, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>{doc.title}</span>
+              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 2, color: colours.fg, background: colours.bg, textTransform: 'uppercase' as const }}>
+                {doc.status}{doc.statusDate && doc.status !== 'draft' ? ` · ${doc.statusDate}` : ''}
+              </span>
+              {doc.generatedAt && (
+                <div style={{ fontSize: 11.5, color: muted }}>
+                  Generated {new Date(doc.generatedAt).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['reviewed', 'sent', 'filed'] as const).map(next => (
+                <button
+                  key={next}
+                  onClick={() => advance(doc.docType, next)}
+                  disabled={busy === doc.docType || doc.status === next}
+                  style={{
+                    fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans,
+                    background: doc.status === next ? navy : '#fff',
+                    color: doc.status === next ? '#fff' : navy,
+                    border: `1px solid ${doc.status === next ? navy : border}`,
+                    cursor: busy === doc.docType || doc.status === next ? 'default' : 'pointer',
+                  }}
+                >
+                  {next.charAt(0).toUpperCase() + next.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {message && <div style={{ fontSize: 12.5, color: red, marginTop: 8 }} role="alert">{message}</div>}
     </div>
   );
 }

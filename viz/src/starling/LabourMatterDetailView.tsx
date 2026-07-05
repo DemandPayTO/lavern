@@ -16,7 +16,9 @@ import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import {
   navy, orange, cream, frame, green, amber, red, border, ink, muted, serif, sans,
   StatusDot, FactItem, ActionButton, StarlingTopBar, GateApprovalPanel, DraftPreview,
+  IntakeEditorPanel, GeneratedDocsPanel,
 } from './shared.js';
+import type { IntakeFieldDef, GeneratedDocSummary } from './shared.js';
 
 // ── Draft catalogue ─────────────────────────────────────────────────────
 
@@ -141,7 +143,38 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   ohsa_reprisal_complaint: 'ohsa-reprisal-complaint',
 };
 
-type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'notes';
+type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'notes';
+
+// ── Intake editor fields ────────────────────────────────────────────────
+
+const GRIEVANCE_INTAKE_FIELDS: IntakeFieldDef[] = [
+  { key: 'grievor_first_name', label: 'Grievor first name' },
+  { key: 'grievor_last_name', label: 'Grievor last name' },
+  { key: 'grievor_classification', label: 'Classification / position' },
+  { key: 'grievor_seniority_date', label: 'Seniority date', type: 'date' },
+  { key: 'union_name', label: 'Union and local' },
+  { key: 'employer_name', label: 'Employer' },
+  {
+    key: 'grievance_type', label: 'Grievance type', type: 'select',
+    options: [['discharge', 'Discharge'], ['discipline', 'Discipline'], ['policy', 'Policy'], ['interpretation', 'Interpretation'], ['group', 'Group'], ['human_rights', 'Human rights'], ['health_safety', 'Health and safety'], ['other', 'Other']],
+  },
+  {
+    key: 'discipline_imposed', label: 'Discipline imposed', type: 'select',
+    options: [['none', 'None'], ['verbal_warning', 'Verbal warning'], ['written_warning', 'Written warning'], ['suspension_unpaid', 'Suspension (unpaid)'], ['suspension_paid', 'Suspension (paid)'], ['demotion', 'Demotion'], ['transfer', 'Transfer'], ['discharge', 'Discharge'], ['last_chance_agreement', 'Last chance agreement'], ['other', 'Other']],
+  },
+  { key: 'incident_date', label: 'Incident date', type: 'date' },
+  { key: 'knowledge_date', label: 'Union/grievor aware (if different)', type: 'date' },
+  { key: 'grievance_filed', label: 'Grievance filed', type: 'checkbox' },
+  { key: 'grievance_filed_date', label: 'Filed date', type: 'date' },
+  { key: 'grievance_number', label: 'Grievance number' },
+  { key: 'last_step_response_date', label: 'Final step response date', type: 'date' },
+  { key: 'filing_deadline_days', label: 'Days to file (CA)', type: 'number' },
+  { key: 'filing_deadline_kind', label: 'Filing day kind', type: 'select', options: [['calendar', 'Calendar days'], ['working', 'Working days']] },
+  { key: 'referral_deadline_days', label: 'Days to refer to arbitration (CA)', type: 'number' },
+  { key: 'referral_deadline_kind', label: 'Referral day kind', type: 'select', options: [['calendar', 'Calendar days'], ['working', 'Working days']] },
+  { key: 'remedy_sought', label: 'Remedy sought' },
+  { key: 'incident_description', label: 'What happened', type: 'textarea' },
+];
 
 // ── Component ───────────────────────────────────────────────────────────
 
@@ -202,12 +235,36 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
   }, [sessionId]);
   useEffect(() => { refreshDraftHistory(); }, [refreshDraftHistory]);
 
-  // Load notes once
-  useEffect(() => {
+  // Matter-level extras: lawyer notes + generated-document lifecycle
+  const [generatedDocs, setGeneratedDocs] = useState<GeneratedDocSummary[]>([]);
+  const refreshMatterExtras = useCallback(() => {
     fetch(`/api/employment/${sessionId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (typeof d?.lawyerNotes === 'string' && d.lawyerNotes) setNotes(d.lawyerNotes); })
-      .catch(() => { /* notes are best-effort */ });
+      .then(d => {
+        if (typeof d?.lawyerNotes === 'string' && d.lawyerNotes) setNotes(prev => prev || d.lawyerNotes);
+        if (Array.isArray(d?.generatedDocuments)) setGeneratedDocs(d.generatedDocuments);
+      })
+      .catch(() => { /* best-effort */ });
+  }, [sessionId]);
+  useEffect(() => { refreshMatterExtras(); }, [refreshMatterExtras]);
+
+  const setDocumentStatus = useCallback(async (docType: string, status: GeneratedDocSummary['status'], date?: string) => {
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/document-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ docType, status, date }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: (json as { error?: string }).error ?? 'The status could not be updated' };
+      if (Array.isArray((json as { generatedDocuments?: GeneratedDocSummary[] }).generatedDocuments)) {
+        setGeneratedDocs((json as { generatedDocuments: GeneratedDocSummary[] }).generatedDocuments);
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'The status could not be updated' };
+    }
   }, [sessionId]);
 
   const handleNav = useCallback((hash: string) => { window.location.hash = hash; }, []);
@@ -408,6 +465,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
     { key: 'docs', label: 'Documents' },
     { key: 'draft', label: 'Draft' },
     { key: 'timeline', label: 'Timeline', badge: labour.data.timeline.length || undefined },
+    { key: 'intake', label: 'Intake' },
     { key: 'notes', label: 'Notes' },
   ];
 
@@ -609,6 +667,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
           {/* ── Documents ─────────────────────────────────────────── */}
           {activeTab === 'docs' && (
             <div id="panel-docs" role="tabpanel" style={{ paddingTop: 22 }}>
+              <GeneratedDocsPanel docs={generatedDocs} onSetStatus={setDocumentStatus} />
               <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px' }}>
                 <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
                   Upload the collective agreement and Starling fills the clocks
@@ -947,6 +1006,25 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Intake editor ─────────────────────────────────────── */}
+          {activeTab === 'intake' && (
+            <div id="panel-intake" role="tabpanel" style={{ paddingTop: 22 }}>
+              <IntakeEditorPanel
+                fields={GRIEVANCE_INTAKE_FIELDS}
+                values={intake}
+                subheading="Correcting a field recomputes the gates, the timeline, and the CA clocks. Issue approvals, procedure steps, and step events are preserved."
+                onSave={async (edited) => {
+                  const merged: Record<string, unknown> = { ...intake };
+                  for (const [k, v] of Object.entries(edited)) {
+                    if (v === undefined) delete merged[k];
+                    else merged[k] = v;
+                  }
+                  return labour.saveIntake(merged);
+                }}
+              />
             </div>
           )}
 

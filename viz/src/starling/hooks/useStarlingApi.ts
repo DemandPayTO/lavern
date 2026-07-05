@@ -1451,10 +1451,25 @@ export interface GenerateDocumentResult {
   reviewFlags?: string[];
 }
 
+export interface GeneratedDocSummary {
+  docType: string;
+  title: string;
+  status: 'draft' | 'reviewed' | 'sent' | 'filed';
+  generatedAt: string | null;
+  statusDate: string | null;
+  costUsd: number;
+}
+
 export interface UseEmploymentDataResult {
   data: EmploymentData | null;
   loading: boolean;
   error: string | null;
+  /** Every generated document on the matter with its lifecycle status. */
+  generatedDocuments: GeneratedDocSummary[];
+  /** Advance a generated document's lifecycle status. */
+  setDocumentStatus: (docType: string, status: GeneratedDocSummary['status'], date?: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Merge-save the intake and re-run the analysis (edits preserve approvals). */
+  saveIntake: (intake: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
   /** Lawyer's private notes — null until the first fetch completes. */
   lawyerNotes: string | null;
   refresh: () => void;
@@ -1485,6 +1500,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lawyerNotes, setLawyerNotes] = useState<string | null>(null);
+  const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocSummary[]>([]);
 
   const refresh = useCallback(async () => {
     if (!matterId) return;
@@ -1506,6 +1522,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       const json = await res.json();
       setData(json.data ?? null);
       setLawyerNotes(typeof json.lawyerNotes === 'string' ? json.lawyerNotes : '');
+      setGeneratedDocuments(Array.isArray(json.generatedDocuments) ? json.generatedDocuments : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load employment data');
     } finally {
@@ -1647,7 +1664,54 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
-  return { data, loading, error, lawyerNotes, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
+  const setDocumentStatus = useCallback(async (docType: string, status: GeneratedDocSummary['status'], date?: string) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/document-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ docType, status, date }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: (json as { error?: string }).error ?? 'The status could not be updated' };
+      setGeneratedDocuments(Array.isArray((json as { generatedDocuments?: GeneratedDocSummary[] }).generatedDocuments) ? (json as { generatedDocuments: GeneratedDocSummary[] }).generatedDocuments : []);
+      refresh();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'The status could not be updated' };
+    }
+  }, [matterId, refresh]);
+
+  const saveIntake = useCallback(async (intake: Record<string, unknown>) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch('/api/employment/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ matterId, intake }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        return { ok: false, error: (json as { error?: string }).error ?? 'The intake could not be saved' };
+      }
+      // Recompute the analysis so figures and clocks match the corrected facts
+      const analyzeRes = await fetch('/api/employment/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ matterId }),
+      });
+      refresh();
+      if (!analyzeRes.ok) return { ok: false, error: 'The intake saved, but the analysis could not be recomputed. Use Run Analysis on the Issues tab.' };
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'The intake could not be saved' };
+    }
+  }, [matterId, refresh]);
+
+  return { data, loading, error, lawyerNotes, generatedDocuments, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────
