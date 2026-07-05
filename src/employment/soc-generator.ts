@@ -19,6 +19,7 @@ import { PROCEDURE_TYPES } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
+import { checkCanonTextIntegrity } from './canon-verifier.js';
 
 const logger = createLogger('SOC-GEN');
 
@@ -295,6 +296,7 @@ export async function generateStatementOfClaim(
     'damages_particulars',
     'prayer_for_relief',
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkCanonTextIntegrity(html),
     ...checkFillInPlaceholders(html),
   ];
 

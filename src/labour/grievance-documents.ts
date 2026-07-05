@@ -13,6 +13,7 @@
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from '../employment/citation-canon.js';
+import { checkCanonTextIntegrity } from '../employment/canon-verifier.js';
 import { computeGrievanceDeadlines } from './gate-evaluator.js';
 import type { GrievanceIntakeData } from '../types/labour-intake.js';
 
@@ -344,6 +345,7 @@ export async function generateGrievanceDocument(
   const reviewerFlags = [
     ...getReviewerFlags(req.documentType),
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkCanonTextIntegrity(html),
     ...checkFillInPlaceholders(html),
   ];
 

@@ -20,6 +20,7 @@ import { TONE_OPTIONS } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
+import { checkCanonTextIntegrity } from './canon-verifier.js';
 
 const logger = createLogger('DEMAND-LETTER');
 
@@ -334,6 +335,7 @@ export async function generateDemandLetter(
   const lawyerReviewFlags = [
     ...computeReviewFlags(req.approvedIssues),
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkCanonTextIntegrity(html),
     ...checkFillInPlaceholders(html),
   ];
   // Every AI draft carries at least one review reminder — Rule 26 posture

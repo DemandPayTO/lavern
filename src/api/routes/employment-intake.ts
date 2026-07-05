@@ -1269,6 +1269,73 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     });
   });
 
+  // ── Canon library ────────────────────────────────────────────────────────
+  // Full texts of the citation-canon decisions, with provenance. Once a
+  // case's text is on file, quotations and pinpoint references in every
+  // generated document are verified against the actual words of the case.
+
+  fastify.get('/api/employment/canon-texts', async (_req: FastifyRequest, reply: FastifyReply) => {
+    const { listCanonTexts } = await import('../../employment/canon-store.js');
+    const { CITATION_CANON } = await import('../../employment/citation-canon.js');
+    const stored = listCanonTexts();
+    const storedKeys = new Set(stored.map(t => t.keyword));
+    // De-duplicate canon aliases (honda/keays point at the same case)
+    const seenNames = new Set<string>();
+    const canon = CITATION_CANON.filter(c => {
+      if (seenNames.has(c.name)) return false;
+      seenNames.add(c.name);
+      return true;
+    }).map(c => ({
+      keyword: c.keyword,
+      name: c.name,
+      citation: c.citations[0].toUpperCase(),
+      textOnFile: storedKeys.has(c.keyword),
+    }));
+    return reply.send({ ok: true, canon, texts: stored });
+  });
+
+  const canonUploadSchema = z.object({
+    keyword: z.string().trim().min(2).max(60),
+    text: z.string().min(500).max(3_000_000),
+    source: z.string().trim().max(500).optional(),
+  });
+
+  fastify.post('/api/employment/canon-texts', async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = canonUploadSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Provide the canon keyword and the full text of the decision (minimum 500 characters).' });
+    try {
+      const { saveCanonText } = await import('../../employment/canon-store.js');
+      const meta = saveCanonText(parsed.data.keyword, parsed.data.text, parsed.data.source ?? 'manual upload');
+      logger.info('Canon text imported', { keyword: meta.keyword, chars: meta.chars, source: meta.source });
+      return reply.send({ ok: true, meta });
+    } catch (err) {
+      return reply.status(400).send({ ok: false, error: err instanceof Error ? err.message : 'The text could not be saved.' });
+    }
+  });
+
+  // ── POST /api/employment/verify-citations ────────────────────────────────
+  // Deterministic citation, quotation, and pinpoint check over any draft.
+  // Paste a document (from Starling or anywhere else) and get the flags,
+  // at no model cost.
+
+  const verifyCitationsSchema = z.object({
+    html: z.string().min(1).max(2_000_000),
+    excludeParties: z.array(z.string().max(200)).max(10).optional(),
+  });
+
+  fastify.post('/api/employment/verify-citations', async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = verifyCitationsSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Provide the document HTML or text.' });
+    const { checkCitationIntegrity, checkFillInPlaceholders } = await import('../../employment/citation-canon.js');
+    const { checkCanonTextIntegrity } = await import('../../employment/canon-verifier.js');
+    const flags = [
+      ...checkCitationIntegrity(parsed.data.html, parsed.data.excludeParties ?? []),
+      ...checkCanonTextIntegrity(parsed.data.html),
+      ...checkFillInPlaceholders(parsed.data.html),
+    ];
+    return reply.send({ ok: true, flags, clean: flags.length === 0 });
+  });
+
   // ── POST /api/employment/:matterId/notes ───────────────────────────────
   // Save lawyer notes on a matter.
 

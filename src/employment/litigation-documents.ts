@@ -16,6 +16,7 @@ import { createLogger } from '../utils/logger.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
+import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
@@ -588,6 +589,7 @@ export async function generateLitigationDocument(
   const lawyerReviewFlags = [
     ...getLawyerReviewFlags(req.documentType),
     ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkCanonTextIntegrity(html),
     ...checkFillInPlaceholders(html),
   ];
 
