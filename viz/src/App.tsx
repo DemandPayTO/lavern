@@ -74,11 +74,12 @@ const ShowcaseView = lazy(() => import('./showcase/ShowcaseView.js'));
 const StarlingDashboard = lazy(() => import('./starling/StarlingDashboard.js'));
 const NewMatterView = lazy(() => import('./starling/NewMatterView.js'));
 const MatterDetailView = lazy(() => import('./starling/MatterDetailView.js'));
+const ClientIntakeView = lazy(() => import('./starling/ClientIntakeView.js'));
 const ProcessingView = lazy(() => import('./starling/ProcessingView.js'));
 const ResultsView = lazy(() => import('./starling/ResultsView.js'));
 const BillingView = lazy(() => import('./billing/BillingView.js'));
 
-type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results' | 'billing';
+type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results' | 'billing' | 'client-intake';
 
 function getViewFromHash(): AppView {
   const hash = window.location.hash;
@@ -103,6 +104,7 @@ function getViewFromHash(): AppView {
   if (hash.startsWith('#/my-page')) return 'my-page';
   if (hash.startsWith('#/terms')) return 'terms';
   if (hash.startsWith('#/privacy')) return 'privacy';
+  if (hash.startsWith('#/client-intake')) return 'client-intake';
   if (hash.startsWith('#/new-matter')) return 'new-matter';
   if (hash.startsWith('#/matter-detail')) return 'matter-detail';
   if (hash.startsWith('#/processing')) return 'starling-processing';
@@ -597,7 +599,7 @@ export function App() {
   // ── View rendering ────────────────────────────────────────────────────
 
   // ── Global M mark — hide on landing (custom cursor) & working (tight header) ──
-  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard' && view !== 'new-matter' && view !== 'matter-detail' && view !== 'starling-processing' && view !== 'starling-results' && view !== 'billing';
+  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard' && view !== 'new-matter' && view !== 'matter-detail' && view !== 'starling-processing' && view !== 'starling-results' && view !== 'billing' && view !== 'client-intake';
 
   // ── Global API error handler (listens for shem:api-error events) ────
   useEffect(() => {
@@ -1217,6 +1219,14 @@ export function App() {
   }
 
   // ── New Matter — Starling new matter intake form ─────────────────────
+  if (view === 'client-intake') {
+    return (
+      <Suspense fallback={<ViewFallback text="Loading the intake form..." />}>
+        <ViewTransition><ClientIntakeView /></ViewTransition>
+      </Suspense>
+    );
+  }
+
   if (view === 'new-matter') {
     return (
       <ErrorBoundary>

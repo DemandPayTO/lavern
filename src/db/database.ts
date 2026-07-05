@@ -113,6 +113,16 @@ function runMigrations(db: Database.Database): void {
       UNIQUE(firm_id, document_type)
     );
 
+    -- Client intake portal tokens: hashed, expiring, one active per matter
+    CREATE TABLE IF NOT EXISTS portal_tokens (
+      token_hash     TEXT PRIMARY KEY,
+      matter_id      TEXT NOT NULL,
+      user_id        TEXT NOT NULL,
+      expires_at     TEXT NOT NULL,
+      created_at     TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_portal_tokens_matter ON portal_tokens(matter_id);
+
     -- CA library: one collective agreement profile per bargaining unit,
     -- copied onto each grievance at intake (labour vertical)
     CREATE TABLE IF NOT EXISTS ca_profiles (
@@ -1359,6 +1369,27 @@ export function getFirmTemplate(firmId: string, documentType: string): {
 
 export function deleteFirmTemplate(firmId: string, documentType: string): void {
   getDb().prepare(`DELETE FROM firm_templates WHERE firm_id = ? AND document_type = ?`).run(firmId, documentType);
+}
+
+// ── Client Intake Portal Tokens ──────────────────────────────────────────
+
+export function savePortalToken(tokenHash: string, matterId: string, userId: string, expiresAt: string): void {
+  const db = getDb();
+  // One active link per matter: replace any earlier token
+  db.prepare('DELETE FROM portal_tokens WHERE matter_id = ?').run(matterId);
+  db.prepare(`
+    INSERT INTO portal_tokens (token_hash, matter_id, user_id, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(tokenHash, matterId, userId, expiresAt, new Date().toISOString());
+}
+
+export function getPortalToken(tokenHash: string): { token_hash: string; matter_id: string; user_id: string; expires_at: string } | undefined {
+  return getDb().prepare('SELECT token_hash, matter_id, user_id, expires_at FROM portal_tokens WHERE token_hash = ?')
+    .get(tokenHash) as { token_hash: string; matter_id: string; user_id: string; expires_at: string } | undefined;
+}
+
+export function deletePortalTokensForMatter(matterId: string): void {
+  getDb().prepare('DELETE FROM portal_tokens WHERE matter_id = ?').run(matterId);
 }
 
 // ── CA Profile Queries (labour CA library) ──────────────────────────────

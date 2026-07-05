@@ -588,6 +588,20 @@ export default function MatterDetailView() {
   const [genProcedure, setGenProcedure] = useState('simplified');
   // Structured inputs for the deterministic court forms
   const [courtFields, setCourtFields] = useState<Record<string, string>>({});
+  // Client intake portal (lawyer side)
+  const [intakeLink, setIntakeLink] = useState<string | null>(null);
+  const [intakeLinkCopied, setIntakeLinkCopied] = useState(false);
+  const [pendingClient, setPendingClient] = useState<{ data?: Record<string, unknown>; submittedAt?: string; appliedAt?: string } | null>(null);
+  const [portalMessage, setPortalMessage] = useState<string | null>(null);
+  const refreshPendingClient = useCallback(() => {
+    const sid = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1]?.replace(/\s+/g, '');
+    if (!sid) return;
+    fetch(`/api/employment/${sid}/client-intake`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setPendingClient(d.pending ?? null); })
+      .catch(() => { /* best-effort */ });
+  }, []);
+  useEffect(() => { refreshPendingClient(); }, [refreshPendingClient]);
   // Docs tab: upload & extract
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [uploadKind, setUploadKind] = useState('employment_agreement');
@@ -1810,6 +1824,89 @@ export default function MatterDetailView() {
           {/* Intake editor */}
           {activeTab === 'intake' && (
             <div id="panel-intake" role="tabpanel" style={{ paddingTop: 22 }}>
+              {/* Client intake portal */}
+              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginBottom: 16 }}>
+                <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+                  Client intake link
+                </div>
+                <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
+                  Send the client a link to answer the intake questions themselves. Their answers arrive
+                  here for your review; nothing changes on the matter until you apply them, and your own
+                  entries are never overwritten.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={async () => {
+                      setPortalMessage(null);
+                      try {
+                        const res = await fetch(`/api/employment/${sessionId}/intake-link`, { method: 'POST', credentials: 'include' });
+                        const json = await res.json();
+                        if (!res.ok) { setPortalMessage(json.error ?? 'The link could not be generated.'); return; }
+                        const url = `${window.location.origin}${json.path}`;
+                        setIntakeLink(url);
+                        try { await navigator.clipboard.writeText(url); setIntakeLinkCopied(true); setTimeout(() => setIntakeLinkCopied(false), 2500); } catch { /* clipboard optional */ }
+                      } catch {
+                        setPortalMessage('The link could not be generated.');
+                      }
+                    }}
+                    style={{ background: navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 2, border: 'none', cursor: 'pointer', fontFamily: sans }}
+                  >
+                    Generate client link
+                  </button>
+                  {intakeLink && (
+                    <span style={{ fontSize: 12.5, color: ink, wordBreak: 'break-all' as const }}>
+                      {intakeLink} {intakeLinkCopied && <b style={{ color: green }}>Copied</b>}
+                    </span>
+                  )}
+                  {portalMessage && <span style={{ fontSize: 12.5, color: red }} role="alert">{portalMessage}</span>}
+                </div>
+                {pendingClient?.data && !pendingClient.appliedAt && (
+                  <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                      Client submission received{pendingClient.submittedAt ? ` ${new Date(pendingClient.submittedAt).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                      {Object.entries(pendingClient.data).filter(([k, v]) => k !== 'client_narrative' && v !== '' && v != null).map(([k, v]) => (
+                        <div key={k} style={{ padding: '2px 0' }}>
+                          <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}:</span> <span style={{ color: ink }}>{String(v)}</span>
+                        </div>
+                      ))}
+                      {typeof pendingClient.data.client_narrative === 'string' && pendingClient.data.client_narrative && (
+                        <div style={{ marginTop: 6 }}>
+                          <span style={{ fontWeight: 600 }}>In their words:</span>{' '}
+                          <span style={{ color: ink }}>{String(pendingClient.data.client_narrative)}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={async () => {
+                          const res = await fetch(`/api/employment/${sessionId}/apply-client-intake`, { method: 'POST', credentials: 'include' });
+                          const json = await res.json().catch(() => ({}));
+                          setPortalMessage(res.ok
+                            ? `Applied ${(json.appliedFields ?? []).length} field(s); blank fields only. Review the intake below and re-run the analysis.`
+                            : json.error ?? 'The submission could not be applied.');
+                          refreshPendingClient();
+                          employment.refresh();
+                        }}
+                        style={{ background: orange, color: '#fff', fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', cursor: 'pointer', fontFamily: sans }}
+                      >
+                        Apply to the intake
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await fetch(`/api/employment/${sessionId}/client-intake`, { method: 'DELETE', credentials: 'include' });
+                          refreshPendingClient();
+                        }}
+                        style={{ background: '#fff', color: muted, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <IntakeEditorPanel
                 fields={EMPLOYMENT_INTAKE_FIELDS}
                 values={(employment.data?.intake ?? {}) as Record<string, unknown>}

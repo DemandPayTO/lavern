@@ -60,6 +60,7 @@ import { registerReferralRoutes } from './routes/referral.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerEmploymentIntakeRoutes } from './routes/employment-intake.js';
 import { registerLabourRoutes } from './routes/labour.js';
+import { registerIntakePortalRoutes } from './routes/intake-portal.js';
 import { ClientRegistry, createAuthMiddleware, registerAuthRoutes } from './middleware/auth.js';
 import { createPerUserRateLimitHook } from './middleware/rate-limit.js';
 import { registerUserAuthRoutes } from './routes/auth-routes.js';
@@ -283,6 +284,10 @@ export async function startApiServer(port: number): Promise<void> {
     'GET /llms.txt',          // AI crawler guidance
     'GET /api/pricing',       // Deterministic cost estimates
     'GET /api/reputation',    // Machine-readable trust signal
+    // Client intake portal — the token IS the capability; routes validate
+    // it (hashed, expiring) and reveal only the firm name to the client.
+    'GET /api/intake-portal/*',
+    'POST /api/intake-portal/*',
     // Session creation requires auth — all users must log in before starting sessions.
     // Briefing — intake flow before login
     'POST /api/briefing/interview',
@@ -697,6 +702,7 @@ export async function startApiServer(port: number): Promise<void> {
   registerEmploymentIntakeRoutes(fastify);
   // Labour vertical — union-side grievance matters
   registerLabourRoutes(fastify);
+  registerIntakePortalRoutes(fastify);
 
   // ── Frontend Static Files ──────────────────────────────────────────
 

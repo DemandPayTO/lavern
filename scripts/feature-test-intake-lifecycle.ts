@@ -21,7 +21,7 @@ function check(name: string, ok: boolean, detail?: string) {
 async function api(method: string, url: string, body?: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
   const res = await fetch(`${BASE}${url}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return { status: res.status, json: await res.json().catch(() => ({})) as Record<string, unknown> };
@@ -154,6 +154,28 @@ async function main() {
     && ics.includes('BEGIN:VCALENDAR')
     && ics.includes('Iris Valdez v Test Employer Corp')
     && ics.includes(`DTSTART;VALUE=DATE:${soonIso.replace(/-/g, '')}`));
+
+  // ── Client intake portal ───────────────────────────────────────────────
+  const linkRes = await api('POST', `/api/employment/${mid}/intake-link`);
+  const portalToken = String(linkRes.json.path ?? '').match(/client-intake\/([A-Za-z0-9_-]+)/)?.[1];
+  check('client intake link generated', linkRes.status === 200 && Boolean(portalToken));
+  const pubGet = await api('GET', `/api/intake-portal/${portalToken}`);
+  check('public form reveals only the first name and firm', pubGet.status === 200
+    && pubGet.json.clientFirstName === 'Iris'
+    && Object.keys(pubGet.json).sort().join(',') === 'clientFirstName,firmName,ok');
+  const pubPost = await api('POST', `/api/intake-portal/${portalToken}`, {
+    client_phone: '416-555-0100', client_narrative: 'Functional test narrative.',
+    employer_legal_name: 'Client Typed Corp',
+  });
+  const applied = await api('POST', `/api/employment/${mid}/apply-client-intake`);
+  const afterApply = await api('GET', `/api/employment/${mid}`);
+  const appliedIntake = (afterApply.json.data as { intake: Record<string, unknown> }).intake;
+  check('client submission applies blanks only', pubPost.status === 200 && applied.status === 200
+    && appliedIntake.client_phone === '416-555-0100'
+    && appliedIntake.employer_legal_name === 'Test Employer Corp',
+    JSON.stringify({ phone: appliedIntake.client_phone, employer: appliedIntake.employer_legal_name }));
+  const deadToken = await api('GET', `/api/intake-portal/${portalToken}`);
+  check('token consumed on apply', deadToken.status === 404);
 
   // ── Cleanup ────────────────────────────────────────────────────────────
   for (const id of [mid, lmid]) {
