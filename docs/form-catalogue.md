@@ -39,16 +39,16 @@ motion package the highest-value gap in this table.
 |---|---|---|---|---|
 | Form 14A, Statement of Claim | The pleading | **Shipped** (generated content in 14A format) | done | 1 |
 | Form 14E, Notice of Application | Application route | **Shipped** (generated content) | done | 1 |
-| Form 14C, Notice of Action | Limitation-saving start when time is short | Missing. Small but limitation-critical: it is the document you file when the clock leaves no time to plead | P1 | 1 |
+| Form 14C, Notice of Action | Limitation-saving start when time is short | **Shipped** 2026-07-04 (generated; the official form's printed warnings are a placeholder by design) | done | 1 |
 | Form 25A, Reply | Answer to new matters in the Defence | **Shipped** | done | 1 |
 | Form 49A, Offer to Settle | Rule 49 offer with cost consequences | **Shipped** | done | 1 |
-| Forms 49B–49D *(confirm)*, offer acceptance / withdrawal / notice | The rest of the Rule 49 lifecycle | Missing; short deterministic documents | P2 | 4 |
+| Form 49B (withdrawal), Form 49C (acceptance) | The rest of the Rule 49 lifecycle | **Shipped** 2026-07-04 (deterministic, validated inputs). 49D (offer to contribute) and 49E (partial settlement) remain on demand | done / P3 | 4 |
 | Form 30A / 30B, Affidavit of Documents (individual / corporation) | Rule 30 disclosure | Content generator **shipped** (affidavit_of_documents); not yet mapped onto the court form | P2 | 1 or 3 |
-| Form 37A, Notice of Motion + Form 4D, Affidavit | The Rule 20 **summary judgment package**, with a factum | Missing. This is how wrongful dismissals are actually won; a motion-record generator (notice, client affidavit from intake facts, factum arguing Bardal/Waksdale from approved issues) is the single highest-value litigation addition | P1–P2 | 1 |
-| Factum (summary judgment / motions) | Argument with authorities | Missing (see above; citation canon already guards authorities) | P1–P2 | 1 |
-| Form 16B, Affidavit of Service | Proof of service | Missing; deterministic from matter data + service details | P1 | 4 |
+| Form 37A, Notice of Motion + Form 4D, Affidavit | The Rule 20 **summary judgment package**, with a factum | **Shipped** 2026-07-04: notice of motion, plaintiff's affidavit from intake facts (sworn-evidence discipline), and factum with the settled authorities (Hryniak, Bardal, Waksdale, Machtinger, McKinley, Honda) | done | 1 |
+| Factum (summary judgment / motions) | Argument with authorities | **Shipped** 2026-07-04 (see above); Hryniak added to the citation canon | done | 1 |
+| Form 16B, Affidavit of Service | Proof of service | **Shipped** 2026-07-04 (deterministic from service details entered in the UI) | done | 4 |
 | Form 53, Acknowledgment of Expert's Duty | Attaches to any expert report | Missing; trivial fill | P3 | 3 |
-| Form 57B, Costs Outline | Costs submissions after motions/trial | Missing; deterministic from a time/disbursement input | P2 | 4 |
+| Form 57B, Costs Outline | Costs submissions after motions/trial | **Shipped** 2026-07-04 (deterministic; rates, hours, and disbursements entered in the UI, arithmetic shown) | done | 4 |
 | Pre-trial conference report *(confirm number)* | Rule 50 | **Shipped** as the settlement conference brief (forum-adaptive); confirm whether the court's fillable report form should also be populated | P2 | 1 |
 | Trial record, requisitions, notices of examination | Later-stage litigation mechanics | Missing | P3 | 3/4 |
 
@@ -91,7 +91,7 @@ the path for every one of these.
 
 | Form / document | What it is | Status | Priority | Path |
 |---|---|---|---|---|
-| ESA Claim | The employment standards claim (online filing; narrative and particulars matter more than the form) | Content generator **shipped** (esa_complaint); map to the current claim form fields | P1 | 1 → 2/3 |
+| ESA Claim | The employment standards claim (online filing; narrative and particulars matter more than the form) | Content generator **shipped** (esa_complaint); the two-year filing deadline with the ss. 97/98 election caution now dockets automatically (2026-07-04). Field mapping to the online claim form remains | P2 (mapping) | 1 → 2/3 |
 | Application for Review of an ESA order/refusal | Goes to the **OLRB** (see below); strict 30-day limit worth a docket clock | Missing | P2 | 1 + clock |
 | OHSA s. 50 reprisal complaint (OLRB) | Alternative forum to grievance arbitration; LG10 already flags the election | Missing (see OLRB) | P2 | 2/3 |
 
@@ -104,9 +104,9 @@ responding form, which should be re-verified at the same time).
 
 | Form / document | What it is | Status | Priority | Path |
 |---|---|---|---|---|
-| DFR application response (s. 74) | The union's responding position | Narrative **shipped** (dfr_response); map onto the current OLRB responding form | P1 (mapping) | 1 → 3 |
+| DFR application response (s. 74) | The union's responding position | Narrative **shipped**; form numbers verified 2026-07-04 against olrb.gov.on.ca: application is Form A-29, response is **Form A-30** (the prompt now cites A-30). PDF fill of A-30 remains | P2 (form fill) | 1 → 3 |
 | ULP complaint / response (ss. 70, 72, 76, 86 freeze) | Interference, intimidation, freeze breaches | Missing; a bargaining-season staple | P2 | 1 + 3 |
-| OHSA s. 50 reprisal complaint | Reverse-onus reprisal forum | Missing; pairs with the LG10 forum-election gate | P2 | 1 + 3 |
+| OHSA s. 50 reprisal complaint | Reverse-onus reprisal forum | Narrative **shipped** 2026-07-04 (Form A-53 verified; response is A-54); built to trigger the s. 50(5) reverse onus, with the forum-election flag | done (narrative) | 1 + 3 |
 | Certification application / response | Organizing drives | Missing; decide whether organizing support is in scope at all | P3 | 3 |
 | Termination of bargaining rights (response) | Defending decertification | Missing | P3 | 3 |
 | ESA Application for Review | See MOL section; filed at the Board | Missing | P2 | 1 + 3 |
@@ -118,9 +118,9 @@ Mostly documents, not government forms.
 | Document | Status | Priority | Path |
 |---|---|---|---|
 | Grievance, referral, arbitration brief, DFR response, merits assessment, decline letter, grievor update, remedy worksheet | **Shipped** (8 types) | done | 1/4 |
-| Particulars of grievance | Missing; routinely demanded before arbitration | P1 | 1 |
-| Production / disclosure request letter | Missing | P1 | 1 |
-| Memorandum of Settlement (grievance) | Missing; without-prejudice/without-precedent language, HR carve-outs | P1 | 1 |
+| Particulars of grievance | **Shipped** 2026-07-04 | done | 1 |
+| Production / disclosure request letter | **Shipped** 2026-07-04 (categories tailored to the approved issues) | done | 1 |
+| Memorandum of Settlement (grievance) | **Shipped** 2026-07-04 (discipline-record disposition and Code contracting-out cautions built in) | done | 1 |
 | Last chance agreement (review and draft) | Missing; flag accommodation carve-out traps | P2 | 1 |
 | Grievance withdrawal letter | Missing; deterministic | P2 | 4 |
 | Will-say statements / witness outlines | Missing | P2 | 1 |
