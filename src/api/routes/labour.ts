@@ -314,7 +314,8 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
     const { matter } = loadLabourData(row.data_json);
     const labour = matter.labourData as LabourMatterData | undefined;
     if (!labour) return reply.status(404).send({ ok: false, error: 'No labour data on this matter' });
-    return reply.send({ ok: true, data: labour });
+    const { deriveLabourStage } = await import('../../employment/stage-model.js');
+    return reply.send({ ok: true, data: labour, stage: deriveLabourStage(matter, labour) });
   });
 
   // ── POST /api/labour/:matterId/issues ──────────────────────────────────

@@ -1045,6 +1045,7 @@ export default function MatterDetailView() {
               paddingTop: 16,
             }}
           >
+            {employment.stage && <FactItem label="Stage" value={employment.stage.label} valueColour={navy} />}
             <FactItem label="Client" value={matter!.client} />
             <FactItem label="Employer" value={matter!.employer} />
             {matter!.dates.termination && <FactItem label="Terminated" value={matter!.dates.termination} />}

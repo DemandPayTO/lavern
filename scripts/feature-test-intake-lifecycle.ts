@@ -67,6 +67,8 @@ async function main() {
   check('approvals preserved through edit', JSON.stringify(data.approvedIssues) === JSON.stringify(approved));
   check('HRTO clock appears after discrimination flagged', data.timeline.some(e => e.label.includes('HRTO')));
   check('ESA clock present', data.timeline.some(e => e.label.includes('ESA claim')));
+  const empStage = g1.json.stage as { stage?: string; evidence?: string[] } | undefined;
+  check('stage derives to assessment after analysis', empStage?.stage === 'assessment', JSON.stringify(empStage));
 
   // ── Lifecycle: generate two $0 documents, advance statuses ─────────────
   const L = { lawyerName: 'Feature Test', firmName: 'Test Firm', courtLocation: 'Toronto' };
@@ -123,6 +125,8 @@ async function main() {
   check('labour edit recomputes clocks', li2.status === 200 && lDeadlines.some(d => d.label.includes('25 calendar days')));
   const lg = await api('GET', `/api/labour/${lmid}`);
   check('labour approvals preserved', JSON.stringify((lg.json.data as { approvedIssues: string[] }).approvedIssues) === JSON.stringify(lCodes));
+  const labStage = lg.json.stage as { stage?: string } | undefined;
+  check('labour stage derives to assessment', labStage?.stage === 'assessment', JSON.stringify(labStage));
 
   // ── Calendar feed ──────────────────────────────────────────────────────
   const icsRes = await fetch(`${BASE}/api/employment/deadlines.ics`);

@@ -508,6 +508,7 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
 
           {/* Facts row */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0, marginTop: 18, borderTop: `1px solid ${border}`, paddingTop: 16 }}>
+            {labour.stage && <FactItem label="Stage" value={labour.stage.label} valueColour={navy} />}
             <FactItem label="Grievor" value={grievor} />
             {union && <FactItem label="Union" value={union} />}
             <FactItem label="Employer" value={employer} />

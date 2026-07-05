@@ -354,11 +354,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
 
     const { matter, employment } = loadEmploymentData(row.data_json);
+    const { deriveEmploymentStage } = await import('../../employment/stage-model.js');
     return reply.send({
       ok: true,
       data: employment,
       lawyerNotes: ((matter as Record<string, unknown>).lawyerNotes as string) ?? '',
       generatedDocuments: collectGeneratedDocuments(matter as Record<string, unknown>),
+      stage: deriveEmploymentStage(matter as Record<string, unknown>, employment),
     });
   });
 

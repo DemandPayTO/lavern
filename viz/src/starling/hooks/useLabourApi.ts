@@ -87,9 +87,17 @@ export interface CaExtractionOutcome {
 
 // ── useLabourData ───────────────────────────────────────────────────────
 
+export interface MatterStage {
+  stage: string;
+  label: string;
+  evidence: string[];
+}
+
 export interface UseLabourDataResult {
   /** Grievance data, or null when this matter is not a labour matter. */
   data: LabourData | null;
+  /** Lifecycle stage derived from the matter's state. */
+  stage: MatterStage | null;
   /** True until the first fetch resolves — callers should wait before deciding the matter type. */
   loading: boolean;
   refresh: () => void;
@@ -109,6 +117,7 @@ export interface UseLabourDataResult {
 
 export function useLabourData(matterId: string | null): UseLabourDataResult {
   const [data, setData] = useState<LabourData | null>(null);
+  const [stage, setStage] = useState<MatterStage | null>(null);
   const [loading, setLoading] = useState(Boolean(matterId));
 
   const refresh = useCallback(async () => {
@@ -118,6 +127,7 @@ export function useLabourData(matterId: string | null): UseLabourDataResult {
       if (!res.ok) { setData(null); return; }
       const json = await res.json();
       setData((json.data as LabourData) ?? null);
+      setStage(json.stage && typeof json.stage === 'object' ? json.stage as MatterStage : null);
     } catch {
       setData(null);
     } finally {
@@ -242,7 +252,7 @@ export function useLabourData(matterId: string | null): UseLabourDataResult {
     }
   }, [matterId, refresh]);
 
-  return { data, loading, refresh, approveIssues, generateDocument, extractDocument, recordStepEvent, saveIntake };
+  return { data, stage, loading, refresh, approveIssues, generateDocument, extractDocument, recordStepEvent, saveIntake };
 }
 
 // ── CA library ──────────────────────────────────────────────────────────

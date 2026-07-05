@@ -1460,10 +1460,18 @@ export interface GeneratedDocSummary {
   costUsd: number;
 }
 
+export interface MatterStage {
+  stage: string;
+  label: string;
+  evidence: string[];
+}
+
 export interface UseEmploymentDataResult {
   data: EmploymentData | null;
   loading: boolean;
   error: string | null;
+  /** Lifecycle stage derived from the matter's state. */
+  stage: MatterStage | null;
   /** Every generated document on the matter with its lifecycle status. */
   generatedDocuments: GeneratedDocSummary[];
   /** Advance a generated document's lifecycle status. */
@@ -1501,6 +1509,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [error, setError] = useState<string | null>(null);
   const [lawyerNotes, setLawyerNotes] = useState<string | null>(null);
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocSummary[]>([]);
+  const [stage, setStage] = useState<MatterStage | null>(null);
 
   const refresh = useCallback(async () => {
     if (!matterId) return;
@@ -1523,6 +1532,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setData(json.data ?? null);
       setLawyerNotes(typeof json.lawyerNotes === 'string' ? json.lawyerNotes : '');
       setGeneratedDocuments(Array.isArray(json.generatedDocuments) ? json.generatedDocuments : []);
+      setStage(json.stage && typeof json.stage === 'object' ? json.stage as MatterStage : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load employment data');
     } finally {
@@ -1711,7 +1721,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
+  return { data, loading, error, lawyerNotes, generatedDocuments, stage, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────
