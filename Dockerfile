@@ -6,6 +6,12 @@ COPY viz/package*.json ./
 RUN npm ci --ignore-scripts
 COPY viz/ ./
 ENV VITE_BASE_PATH=/dashboard/
+# Frontend error monitoring. Pass at deploy time to bake the DSN into the
+# build:  fly deploy --build-arg VITE_SENTRY_DSN=https://...@sentry.io/...
+# Empty (the default) leaves Sentry a no-op — main.tsx only initializes when
+# the DSN is present.
+ARG VITE_SENTRY_DSN=""
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
 RUN npm run build
 
 # ── Stage 2: Build API ──────────────────────────────────────────────────

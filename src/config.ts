@@ -166,6 +166,16 @@ export const config = {
     appUrl: process.env.LAVERN_APP_URL ?? 'http://localhost:5173',
   },
 
+  // ── Starling ───────────────────────────────────────────────────────────
+  starling: {
+    /**
+     * Recipient for the weekly digest email (firm principal). When set, the
+     * server sends the digest every Monday at 08:00 America/Toronto. Empty
+     * disables the in-app scheduler (the admin HTTP route still works).
+     */
+    digestEmail: process.env.STARLING_DIGEST_EMAIL ?? '',
+  },
+
   // ── Auth Tokens & Recovery ────────────────────────────────────────────
   auth: {
     /** Password reset token TTL in ms (default: 1 hour) */
