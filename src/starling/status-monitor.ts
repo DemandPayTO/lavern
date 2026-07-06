@@ -51,14 +51,24 @@ const STALE_THRESHOLD_DAYS = 14;
 /**
  * Infer the status of all matters from session_archive data.
  * Pure logic — no LLM, no external calls.
+ *
+ * Scoping is mandatory and explicit: pass a userId to return only that
+ * user's matters (the per-user status endpoint), or ALL_USERS to span
+ * every user (the admin weekly digest, which runs behind X-Admin-Key and
+ * reports to the firm principal). A session title carries matter and
+ * client context and a session id is a capability token, so an unscoped
+ * read would leak both across tenants.
  */
-export function inferMatterStatuses(): MatterStatus[] {
+export const ALL_USERS = Symbol('all-users');
+
+export function inferMatterStatuses(scope: string | typeof ALL_USERS): MatterStatus[] {
   const db = getDb();
   const now = Date.now();
 
   // Get all sessions grouped by their effective matter ID.
   // In Starling, the session title contains the matter context.
   // We use the session_archive data to build per-matter status.
+  const scoped = scope !== ALL_USERS;
   const sessions = db.prepare(`
     SELECT
       id,
@@ -70,8 +80,9 @@ export function inferMatterStatuses(): MatterStatus[] {
       completed_at,
       assembled_document
     FROM session_archive
+    ${scoped ? 'WHERE user_id = ?' : ''}
     ORDER BY COALESCE(completed_at, created_at) DESC
-  `).all() as Array<{
+  `).all(...(scoped ? [scope as string] : [])) as Array<{
     id: string;
     title: string;
     status: string;
@@ -225,8 +236,8 @@ export function aggregateWeeklyDigest(): WeeklyDigest {
     }
   }
 
-  // Get matter statuses for summary
-  const matterStatuses = inferMatterStatuses();
+  // Get matter statuses for summary (admin digest spans all users)
+  const matterStatuses = inferMatterStatuses(ALL_USERS);
 
   // Format period label
   const endDate = new Date();

@@ -23,12 +23,16 @@ export function registerStarlingDigestRoutes(fastify: FastifyInstance): void {
 
   /**
    * GET /api/starling/status
-   * Returns inferred status for all matters based on session archive data.
-   * No auth required in LOCAL MODE (matches existing route pattern).
+   * Returns inferred status for the caller's own matters. The route is not
+   * public: the auth middleware sets req.userId (the synthetic local-user in
+   * LOCAL MODE, the logged-in user when auth is enabled). Scoping is enforced
+   * so one tenant cannot read another tenant's matter titles or session ids.
    */
-  fastify.get('/api/starling/status', async (_request, reply) => {
+  fastify.get('/api/starling/status', async (request, reply) => {
+    const userId = (request as { userId?: string }).userId;
+    if (!userId) return reply.status(401).send({ ok: false, error: 'Unauthorized' });
     try {
-      const statuses = inferMatterStatuses();
+      const statuses = inferMatterStatuses(userId);
       return reply.send({
         ok: true,
         matters: statuses,
