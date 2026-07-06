@@ -435,4 +435,17 @@ export function registerWellKnownRoutes(fastify: FastifyInstance): void {
       .header('Cache-Control', 'public, max-age=3600')
       .send(buildLlmsTxt());
   });
+
+  // ── GET /robots.txt — keep the app subdomain out of search indexes ──
+  // This host serves the application, not marketing content. The public
+  // site (www.demandpay.ca) carries the indexable pages; letting crawlers
+  // index the app shell here would only split signals and surface login
+  // screens in search results. Agent discovery is unaffected: the agent
+  // card, OpenAPI spec, and llms.txt are fetched directly, not crawled.
+  fastify.get('/robots.txt', async (_request, reply) => {
+    return reply
+      .header('Content-Type', 'text/plain; charset=utf-8')
+      .header('Cache-Control', 'public, max-age=3600')
+      .send('User-agent: *\nDisallow: /\n');
+  });
 }

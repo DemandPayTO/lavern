@@ -301,6 +301,7 @@ export async function startApiServer(port: number): Promise<void> {
     'GET /.well-known/*',     // A2A agent card + OpenAI plugin manifest
     'GET /openapi.json',      // OpenAPI 3.0 spec
     'GET /llms.txt',          // AI crawler guidance
+    'GET /robots.txt',        // Disallow-all: the app host is not indexable content
     'GET /api/pricing',       // Deterministic cost estimates
     'GET /api/reputation',    // Machine-readable trust signal
     // Client intake portal — the token IS the capability; routes validate
@@ -557,9 +558,9 @@ export async function startApiServer(port: number): Promise<void> {
 
   // API info
   fastify.get('/', async () => ({
-    name: 'The Shem API',
+    name: 'DemandPay Starling API',
     version: config.version,
-    description: 'Multi-agent legal design system — API & WebSocket server',
+    description: 'Ontario employment and labour law workflow platform — API & WebSocket server',
     endpoints: {
       sessions: {
         create: 'POST /api/sessions',
