@@ -357,6 +357,10 @@ export async function startApiServer(port: number): Promise<void> {
     // Admin endpoints verify X-Admin-Key internally; bypass user auth.
     'GET /api/admin/spend-status',
     'GET /api/admin/user-spend',
+    // Weekly digest trigger — verifies X-Admin-Key internally; meant to be
+    // hit by an external cron or manually. (The in-app scheduler sends the
+    // real weekly digest in-process and does not depend on this route.)
+    'POST /api/starling/digest',
     // Remote MCP bridge authenticates via its own shared-secret Bearer header
     // + X-Lavern-Session-Id; it must bypass the global cookie/Bearer middleware.
     'POST /api/mcp/bridge',
