@@ -19,7 +19,7 @@ import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
 import { buildTimelineFromIntake, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
-import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate } from '../../db/database.js';
+import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, recordUsageEvent } from '../../db/database.js';
 import { collectDeadlines } from '../../employment/deadlines.js';
 import { createLogger } from '../../utils/logger.js';
 import { extractEmploymentDocument } from '../briefing/employment-extractor.js';
@@ -74,10 +74,17 @@ const DRAFT_HISTORY_CAP = 10;
 function recordDraftHistory(
   matter: Record<string, unknown>,
   entry: { docType: string; title: string; html: string; costUsd: number; meta?: Record<string, unknown> },
+  usage?: { userId: string; matterId: string },
 ): void {
   const history = Array.isArray(matter.draftHistory) ? matter.draftHistory as Array<Record<string, unknown>> : [];
   history.unshift({ ...entry, generatedAt: new Date().toISOString() });
   matter.draftHistory = history.slice(0, DRAFT_HISTORY_CAP);
+  // Durable usage ledger for usage-based pricing (draftHistory caps at 10).
+  if (usage) {
+    try {
+      recordUsageEvent(usage.userId, usage.matterId, 'generation', entry.docType, entry.costUsd);
+    } catch { /* metering must never fail a generation */ }
+  }
 }
 
 // ── Generated-document lifecycle ─────────────────────────────────────────
@@ -603,7 +610,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     recordDraftHistory(matter as Record<string, unknown>, {
       docType: 'demand_letter', title: 'Demand Letter', html: sanitiseHtml(result.html),
       costUsd: result.costUsd, meta: { tone: parsed.data.tone, demandAmount: parsed.data.demandAmount },
-    });
+    }, { userId, matterId });
     (matter as Record<string, unknown>).generatedDemandLetter = {
       html: sanitiseHtml(result.html),
       lawyerReviewFlags: result.lawyerReviewFlags,
@@ -704,7 +711,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     recordDraftHistory(matter as Record<string, unknown>, {
       docType: 'statement_of_claim', title: 'Statement of Claim', html: sanitiseHtml(result.html),
       costUsd: result.costUsd, meta: { procedureType: result.procedureType, claimAmount: parsed.data.claimAmount },
-    });
+    }, { userId, matterId });
     (matter as Record<string, unknown>).generatedSOC = {
       html: sanitiseHtml(result.html),
       procedureType: result.procedureType,
@@ -782,7 +789,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     recordDraftHistory(matter as Record<string, unknown>, {
       docType: parsed.data.applicationType, title: result.formName, html: sanitiseHtml(result.html),
       costUsd: result.costUsd,
-    });
+    }, { userId, matterId });
     (matter as Record<string, unknown>).generatedApplication = {
       html: sanitiseHtml(result.html),
       applicationType: result.applicationType,
@@ -881,7 +888,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     recordDraftHistory(matter as Record<string, unknown>, {
       docType: parsed.data.documentType, title: result.documentTitle, html: sanitiseHtml(result.html),
       costUsd: result.costUsd,
-    });
+    }, { userId, matterId });
     const docKey = `generated_${parsed.data.documentType}`;
     (matter as Record<string, unknown>)[docKey] = {
       html: sanitiseHtml(result.html),

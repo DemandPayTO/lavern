@@ -25,7 +25,7 @@ import { evaluateLabourGates, buildGrievanceTimeline, computeGrievanceDeadlines 
 import { generateGrievanceDocument } from '../../labour/grievance-documents.js';
 import type { GrievanceDocumentType } from '../../labour/grievance-documents.js';
 import { buildRemedyWorksheet } from '../../labour/remedy-worksheet.js';
-import { saveMatter, getMatterById, getMattersByUser, saveCaProfile, getCaProfiles, getCaProfile, deleteCaProfile } from '../../db/database.js';
+import { saveMatter, getMatterById, getMattersByUser, saveCaProfile, getCaProfiles, getCaProfile, deleteCaProfile , recordUsageEvent } from '../../db/database.js';
 import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('LABOUR');
@@ -406,6 +406,10 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
       generatedAt: new Date().toISOString(),
     });
     matter.draftHistory = history.slice(0, 10);
+    // Durable usage ledger for usage-based pricing (draftHistory caps at 10).
+    try {
+      recordUsageEvent(userId, matterId, 'generation', parsed.data.documentType, result.costUsd);
+    } catch { /* metering must never fail a generation */ }
     (matter as Record<string, unknown>)[`generated_${parsed.data.documentType}`] = {
       html: sanitiseHtml(result.html),
       documentTitle: result.documentTitle,

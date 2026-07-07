@@ -178,6 +178,15 @@ async function main() {
   check('token consumed on apply', deadToken.status === 404);
 
   // ── Cleanup ────────────────────────────────────────────────────────────
+  // ── Usage ledger: the mitigation-log generation above must be metered ──
+  const month = new Date().toISOString().slice(0, 7);
+  const usage = await api('GET', `/api/usage/summary?month=${month}`);
+  const byMatter = (usage.json.byMatter ?? []) as Array<{ matterId: string; generations: number }>;
+  const mine = byMatter.find(u => u.matterId === mid);
+  check('usage ledger metered the generation', usage.status === 200 && Boolean(mine) && (mine?.generations ?? 0) >= 1, JSON.stringify(byMatter.slice(0, 3)));
+  const csv = await fetch(`${BASE}/api/usage/summary?month=${month}&format=csv`);
+  check('usage CSV exports', csv.status === 200 && (await csv.text()).startsWith('matter,generations'));
+
   for (const id of [mid, lmid]) {
     await fetch(`${BASE}/api/matters/${id}`, { method: 'DELETE' }).catch(() => undefined);
   }

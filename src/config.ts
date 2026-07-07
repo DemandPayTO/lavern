@@ -174,6 +174,17 @@ export const config = {
      * disables the in-app scheduler (the admin HTTP route still works).
      */
     digestEmail: process.env.STARLING_DIGEST_EMAIL ?? '',
+    /**
+     * Usage-based pricing knobs. Zero means "not priced" and the usage
+     * summary reports raw counts and LLM cost only. Both can apply at once
+     * (hybrid): a monthly per-active-matter platform fee plus a
+     * per-generation charge. Values in CAD; Jordan sets them, the ledger
+     * makes them billable.
+     */
+    pricing: {
+      perGenerationCad: safeFloat(process.env.STARLING_PRICE_PER_GENERATION_CAD, 0),
+      perActiveMatterMonthlyCad: safeFloat(process.env.STARLING_PRICE_PER_MATTER_MONTHLY_CAD, 0),
+    },
   },
 
   // ── Auth Tokens & Recovery ────────────────────────────────────────────

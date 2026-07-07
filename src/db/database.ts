@@ -123,6 +123,21 @@ function runMigrations(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_portal_tokens_matter ON portal_tokens(matter_id);
 
+    -- Usage ledger: one row per billable event (generation, analysis).
+    -- Durable, unlike matter.draftHistory which caps at 10 entries. Feeds
+    -- usage-based pricing: monthly rollups per matter and per firm.
+    CREATE TABLE IF NOT EXISTS usage_events (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        TEXT NOT NULL,
+      matter_id      TEXT NOT NULL,
+      kind           TEXT NOT NULL,
+      doc_type       TEXT,
+      cost_usd       REAL NOT NULL DEFAULT 0,
+      created_at     TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_events_user_time ON usage_events(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_usage_events_matter ON usage_events(matter_id);
+
     -- CA library: one collective agreement profile per bargaining unit,
     -- copied onto each grievance at intake (labour vertical)
     CREATE TABLE IF NOT EXISTS ca_profiles (
@@ -1372,6 +1387,42 @@ export function deleteFirmTemplate(firmId: string, documentType: string): void {
 }
 
 // ── Client Intake Portal Tokens ──────────────────────────────────────────
+
+// ── Usage ledger ─────────────────────────────────────────────────────────
+
+export interface UsageSummaryRow {
+  matter_id: string;
+  kind: string;
+  doc_type: string | null;
+  events: number;
+  cost_usd: number;
+}
+
+export function recordUsageEvent(
+  userId: string,
+  matterId: string,
+  kind: 'generation' | 'analysis' | 'extraction',
+  docType: string | null,
+  costUsd: number,
+): void {
+  getDb().prepare(`
+    INSERT INTO usage_events (user_id, matter_id, kind, doc_type, cost_usd, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(userId, matterId, kind, docType, costUsd, new Date().toISOString());
+}
+
+/** Rollup for one user and one month (YYYY-MM). */
+export function getUsageSummary(userId: string, month: string): UsageSummaryRow[] {
+  return getDb().prepare(`
+    SELECT matter_id, kind, doc_type,
+           COUNT(*) AS events,
+           COALESCE(SUM(cost_usd), 0) AS cost_usd
+    FROM usage_events
+    WHERE user_id = ? AND created_at LIKE ?
+    GROUP BY matter_id, kind, doc_type
+    ORDER BY matter_id, kind, doc_type
+  `).all(userId, `${month}%`) as UsageSummaryRow[];
+}
 
 export function savePortalToken(tokenHash: string, matterId: string, userId: string, expiresAt: string): void {
   const db = getDb();
