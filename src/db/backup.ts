@@ -48,6 +48,12 @@ export async function runDbBackup(): Promise<string | null> {
     logger.info('Database backup written', { dest, sizeKb });
 
     pruneOldBackups(dir);
+
+    // Layer 3: replicate off-site (no-op when unconfigured; failures are
+    // logged inside and never break the local backup).
+    const { uploadBackupOffsite } = await import('./offsite-backup.js');
+    await uploadBackupOffsite(dest);
+
     return dest;
   } catch (err) {
     logger.error('Database backup FAILED', {

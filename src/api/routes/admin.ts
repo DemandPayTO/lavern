@@ -35,6 +35,26 @@ function verifyAdminKey(
 }
 
 export function registerAdminRoutes(fastify: FastifyInstance): void {
+  // ── POST /api/admin/backup-now ───────────────────────────────────────
+  //
+  // Runs the layer-2 SQLite backup immediately and replicates it off-site
+  // (layer 3, Tigris) when configured. Exists so a fresh deploy's backup
+  // path can be verified live instead of waiting for the nightly run.
+  fastify.post('/api/admin/backup-now', async (request, reply) => {
+    const auth = verifyAdminKey(request);
+    if (!auth.ok) {
+      return reply.status(auth.status).send({ error: auth.error });
+    }
+    const { runDbBackup } = await import('../../db/backup.js');
+    const { offsiteConfigured } = await import('../../db/offsite-backup.js');
+    const localPath = await runDbBackup();
+    return reply.send({
+      ok: Boolean(localPath),
+      localPath,
+      offsiteConfigured: offsiteConfigured(),
+    });
+  });
+
   // ── GET /api/admin/spend-status ──────────────────────────────────────
   //
   // Returns current daily spend trajectory for operator dashboards / cron
