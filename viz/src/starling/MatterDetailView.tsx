@@ -17,7 +17,7 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -37,7 +37,7 @@ const sans = "system-ui, -apple-system, sans-serif";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'notes';
+type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'notes';
 
 interface Issue {
   id: string;
@@ -877,6 +877,7 @@ export default function MatterDetailView() {
     { key: 'draft', label: 'Draft' },
     { key: 'timeline', label: 'Timeline' },
     { key: 'intake', label: 'Intake' },
+    { key: 'client', label: 'Client' },
     { key: 'notes', label: 'Notes' },
   ];
 
@@ -1923,6 +1924,15 @@ export default function MatterDetailView() {
           )}
 
           {/* Notes */}
+          {activeTab === 'client' && (
+            <div id="panel-client" role="tabpanel" style={{ paddingTop: 22 }}>
+              <CorrespondencePanel
+                matterId={sessionId!}
+                clientEmail={String((employment.data?.intake as Record<string, unknown> | undefined)?.client_email ?? '') || undefined}
+              />
+            </div>
+          )}
+
           {activeTab === 'notes' && (
             <div id="panel-notes" role="tabpanel" style={{ paddingTop: 22 }}>
               <div

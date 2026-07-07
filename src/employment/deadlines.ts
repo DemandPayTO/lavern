@@ -30,7 +30,7 @@ export interface DeadlineItem {
   /** 'critical' <= 14 days, 'soon' <= 45, 'upcoming' otherwise. */
   urgency: 'overdue' | 'critical' | 'soon' | 'upcoming';
   kind: 'limitation' | 'demand_response' | 'severance_offer' | 'timeline'
-    | 'grievance_filing' | 'grievance_referral' | 'grievance_step';
+    | 'grievance_filing' | 'grievance_referral' | 'grievance_step' | 'client_email';
 }
 
 function daysFromToday(isoDate: string): number {
@@ -105,6 +105,24 @@ export function collectDeadlines(
         const kind: DeadlineItem['kind'] = /response due/i.test(ev.label) ? 'demand_response' : 'timeline';
         if (kind === 'timeline' && ev.source !== 'lawyer_entry' && ev.source !== 'system') continue;
         push(matterLabel, ev.date, ev.label, kind);
+      }
+    }
+
+    // Scheduled client correspondence (mitigation series etc.): a due email
+    // the lawyer has not sent is a deadline like any other. Collected outside
+    // the employment guard so it surfaces even before intake is filled.
+    {
+      const intake = (matter.employmentData as EmploymentMatterData | undefined)?.intake as Record<string, unknown> | undefined;
+      const client = [intake?.client_first_name, intake?.client_last_name].filter(Boolean).join(' ');
+      const employer = (intake?.employer_legal_name ?? intake?.employer_operating_name ?? '') as string;
+      const label = client && employer ? `${client} v ${employer}` : client || employer || row.id;
+      const correspondence = (matter.correspondence ?? []) as Array<{
+        dueDate?: string; title?: string; status?: string;
+      }>;
+      for (const c of correspondence) {
+        if (c.status !== 'scheduled' && c.status !== 'drafted') continue;
+        if (!c.dueDate || !c.title) continue;
+        push(label, c.dueDate, `Client email due: ${c.title}`, 'client_email');
       }
     }
 

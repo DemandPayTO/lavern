@@ -43,6 +43,7 @@ const KIND_LABELS: Record<DeadlineItem['kind'], string> = {
   demand_response: 'Demand response',
   severance_offer: 'Severance offer',
   timeline: 'Deadline',
+  client_email: 'Client email',
   grievance_filing: 'Grievance filing',
   grievance_referral: 'Referral to arbitration',
   grievance_step: 'Grievance step',

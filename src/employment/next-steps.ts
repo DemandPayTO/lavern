@@ -19,7 +19,7 @@ export interface NextStep {
   reason: string;
   urgency: 'urgent' | 'now' | 'soon';
   /** Matter-view tab the action lives on. */
-  goTo?: 'issues' | 'docs' | 'draft' | 'intake';
+  goTo?: 'issues' | 'docs' | 'draft' | 'intake' | 'client';
 }
 
 const URGENCY_ORDER: Record<NextStep['urgency'], number> = { urgent: 0, now: 1, soon: 2 };
@@ -77,6 +77,27 @@ export function recommendEmploymentNextSteps(
   const analysis = employment?.analysis as Record<string, unknown> | null | undefined;
   const intake = (employment?.intake ?? {}) as Record<string, unknown>;
   const timeline = employment?.timeline ?? [];
+
+  // Scheduled client correspondence that has come due: the lawyer drafts,
+  // reviews, and sends; Starling's job is to make sure it is not missed.
+  const correspondence = (matter.correspondence ?? []) as Array<{
+    title?: string; dueDate?: string; status?: string;
+  }>;
+  for (const c of correspondence) {
+    if (c.status !== 'scheduled' && c.status !== 'drafted') continue;
+    const days = daysUntil(c.dueDate, today);
+    if (days === null || days > 3) continue;
+    steps.push({
+      action: c.status === 'drafted'
+        ? `Review and send the client email: ${c.title}`
+        : `Draft and send the client email: ${c.title}`,
+      reason: days < 0
+        ? `This client email is ${-days} day${days === -1 ? '' : 's'} overdue.`
+        : 'This client email is due; the client is waiting on the firm\'s guidance.',
+      urgency: days < 0 ? 'urgent' : 'now',
+      goTo: 'client',
+    });
+  }
 
   // Limitation jeopardy overrides everything.
   const lim = analysis?.limitationDeadline as { date?: string } | undefined;

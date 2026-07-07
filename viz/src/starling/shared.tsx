@@ -736,3 +736,199 @@ export function CloseMatterPanel({ matterId, resolved, onChanged }: {
     </div>
   );
 }
+
+// ── Client correspondence (scheduled emails, lawyer sends) ──────────────
+
+export interface CorrespondenceItemShape {
+  id: string;
+  sequence: string;
+  step: number;
+  title: string;
+  dueDate: string;
+  status: 'scheduled' | 'drafted' | 'sent' | 'skipped';
+  draft?: { subject: string; body: string; attachmentHint?: string };
+}
+
+const CORR_STATUS: Record<string, { label: string; fg: string; bg: string }> = {
+  scheduled: { label: 'SCHEDULED', fg: navy, bg: '#eef1f6' },
+  drafted: { label: 'DRAFT READY', fg: '#8a5a00', bg: '#fdf0dd' },
+  sent: { label: 'SENT', fg: green, bg: '#e7f6ec' },
+  skipped: { label: 'SKIPPED', fg: muted, bg: '#f4f1ec' },
+};
+
+/**
+ * CorrespondencePanel — the scheduled client-email series on a matter.
+ * Starling drafts and alerts; the lawyer reviews, copies into their own
+ * email client (or uses the mailto link), and marks the item sent. Nothing
+ * here transmits mail.
+ */
+export function CorrespondencePanel({ matterId, clientEmail }: {
+  matterId: string;
+  clientEmail?: string;
+}) {
+  const [items, setItems] = useState<CorrespondenceItemShape[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [weeks, setWeeks] = useState(6);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editSubject, setEditSubject] = useState('');
+  const [editBody, setEditBody] = useState('');
+
+  const refresh = async () => {
+    try {
+      const res = await fetch(`/api/employment/${matterId}/correspondence`);
+      const json = await res.json();
+      if (json.ok) {
+        setItems(json.correspondence ?? []);
+        if (json.config?.followUpWeeks) setWeeks(json.config.followUpWeeks);
+      }
+    } catch { /* transient */ }
+    setLoaded(true);
+  };
+
+  useEffect(() => { void refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [matterId]);
+
+  const call = async (path: string, options?: RequestInit) => {
+    setBusy(true); setMessage('');
+    try {
+      const res = await fetch(path, options);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) setMessage(json.error ?? 'The request failed.');
+      await refresh();
+    } catch {
+      setMessage('The request failed. Check the connection and retry.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const start = () => call(`/api/employment/${matterId}/correspondence/start`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sequence: 'mitigation', followUpWeeks: weeks }),
+  });
+
+  const buildDraft = (id: string) => call(`/api/employment/${matterId}/correspondence/${id}/draft`, { method: 'POST' });
+
+  const saveDraft = async (id: string) => {
+    await call(`/api/employment/${matterId}/correspondence/${id}/draft`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: editSubject, body: editBody }),
+    });
+    setEditing(null);
+  };
+
+  const setStatus = (id: string, status: 'sent' | 'skipped') =>
+    call(`/api/employment/${matterId}/correspondence/${id}/status`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+
+  const copyDraft = async (item: CorrespondenceItemShape) => {
+    if (!item.draft) return;
+    try {
+      await navigator.clipboard.writeText(`Subject: ${item.draft.subject}\n\n${item.draft.body}`);
+      setMessage('Draft copied to the clipboard.');
+    } catch {
+      setMessage('Copy failed; select the text manually.');
+    }
+  };
+
+  const mailtoHref = (item: CorrespondenceItemShape) => {
+    if (!item.draft) return undefined;
+    const to = clientEmail ? encodeURIComponent(clientEmail) : '';
+    return `mailto:${to}?subject=${encodeURIComponent(item.draft.subject)}&body=${encodeURIComponent(item.draft.body)}`;
+  };
+
+  if (!loaded) return <p style={{ color: muted, fontSize: 13 }}>Loading correspondence…</p>;
+
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px' }}>
+      <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+        Client correspondence
+      </div>
+      <p style={{ fontSize: 12.5, color: muted, margin: '0 0 12px' }}>
+        Starling drafts and tracks the schedule; every email is reviewed and sent by the lawyer.
+        Due items appear on the docket, in the weekly digest, and under next steps.
+      </p>
+
+      {items.length === 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 13, color: ink }}>
+            Follow-up window{' '}
+            <select value={weeks} onChange={e => setWeeks(Number(e.target.value))} style={{ fontFamily: sans, fontSize: 13, padding: '4px 6px' }}>
+              <option value={6}>6 weeks</option>
+              <option value={7}>7 weeks</option>
+              <option value={8}>8 weeks</option>
+            </select>
+          </label>
+          <ActionButton label={busy ? 'Starting…' : 'Start the mitigation email series'} onClick={busy ? undefined : start} />
+        </div>
+      )}
+
+      {items.map(item => (
+        <div key={item.id} style={{ border: `1px solid ${border}`, padding: '12px 14px', marginTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 3, color: CORR_STATUS[item.status].fg, background: CORR_STATUS[item.status].bg }}>
+              {CORR_STATUS[item.status].label}
+            </span>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>{item.title}</span>
+            <span style={{ fontSize: 12.5, color: muted }}>due {item.dueDate}</span>
+          </div>
+
+          {editing === item.id ? (
+            <div style={{ marginTop: 10 }}>
+              <input
+                value={editSubject}
+                onChange={e => setEditSubject(e.target.value)}
+                style={{ width: '100%', fontFamily: sans, fontSize: 13, padding: '6px 8px', border: `1px solid ${border}`, boxSizing: 'border-box', marginBottom: 6 }}
+                aria-label="Email subject"
+              />
+              <textarea
+                value={editBody}
+                onChange={e => setEditBody(e.target.value)}
+                style={{ width: '100%', minHeight: 220, fontFamily: sans, fontSize: 13, lineHeight: 1.5, padding: '8px 10px', border: `1px solid ${border}`, boxSizing: 'border-box' }}
+                aria-label="Email body"
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <ActionButton label="Save draft" onClick={() => void saveDraft(item.id)} />
+                <ActionButton label="Cancel" onClick={() => setEditing(null)} />
+              </div>
+            </div>
+          ) : item.draft ? (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: navy }}>Subject: {item.draft.subject}</div>
+              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: sans, fontSize: 13, lineHeight: 1.55, color: ink, background: '#faf9f7', border: `1px solid ${border}`, padding: '10px 12px', marginTop: 6, maxHeight: 260, overflowY: 'auto' }}>
+                {item.draft.body}
+              </pre>
+              {item.draft.attachmentHint && (
+                <p style={{ fontSize: 12.5, color: '#8a5a00', background: '#fdf0dd', padding: '6px 10px', margin: '6px 0 0' }}>
+                  Attachment: {item.draft.attachmentHint}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {item.status !== 'sent' && item.status !== 'skipped' && editing !== item.id && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              {!item.draft && <ActionButton label={busy ? 'Working…' : 'Draft this email'} onClick={busy ? undefined : () => void buildDraft(item.id)} />}
+              {item.draft && (
+                <>
+                  <ActionButton label="Copy" onClick={() => void copyDraft(item)} />
+                  <a href={mailtoHref(item)} style={{ fontSize: 12.5, fontWeight: 600, color: navy, textDecoration: 'underline', alignSelf: 'center' }}>
+                    Open in email client
+                  </a>
+                  <ActionButton label="Edit" onClick={() => { setEditing(item.id); setEditSubject(item.draft!.subject); setEditBody(item.draft!.body); }} />
+                  <ActionButton label="Mark sent" onClick={() => void setStatus(item.id, 'sent')} />
+                </>
+              )}
+              <ActionButton label="Skip" onClick={() => void setStatus(item.id, 'skipped')} />
+            </div>
+          )}
+        </div>
+      ))}
+
+      {message && <p style={{ fontSize: 12.5, color: muted, marginTop: 8 }} role="status">{message}</p>}
+    </div>
+  );
+}

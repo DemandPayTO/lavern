@@ -61,6 +61,7 @@ import { registerTemplateRoutes } from './routes/templates.js';
 import { registerEmploymentIntakeRoutes } from './routes/employment-intake.js';
 import { registerLabourRoutes } from './routes/labour.js';
 import { registerIntakePortalRoutes } from './routes/intake-portal.js';
+import { registerCorrespondenceRoutes } from './routes/correspondence.js';
 import { ClientRegistry, createAuthMiddleware, registerAuthRoutes } from './middleware/auth.js';
 import { createPerUserRateLimitHook } from './middleware/rate-limit.js';
 import { registerUserAuthRoutes } from './routes/auth-routes.js';
@@ -727,6 +728,7 @@ export async function startApiServer(port: number): Promise<void> {
   // Labour vertical — union-side grievance matters
   registerLabourRoutes(fastify);
   registerIntakePortalRoutes(fastify);
+  registerCorrespondenceRoutes(fastify);
 
   // ── Frontend Static Files ──────────────────────────────────────────
 
