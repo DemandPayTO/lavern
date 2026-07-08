@@ -98,8 +98,20 @@ lens_8() { # XSS sinks: no NEW dangerouslySetInnerHTML beyond the accepted basel
   count=$(grep -rn "dangerouslySetInnerHTML" viz/src | wc -l | tr -d ' ')
   [ "$count" -le 11 ]
 }
-lens_9() { # SQL: no template-literal interpolation of user values into prepare()
-  ! grep -rn 'prepare(`' src/ 2>/dev/null | grep '\${' | grep -vE "sets\.join|columns\.join|placeholders" | grep -q .
+lens_9() { # SQL: no template-literal interpolation inside the prepare() SQL itself
+  node -e '
+    const { execSync } = require("child_process");
+    const hits = execSync("grep -rn \"prepare(\\`\" src/ || true").toString().trim().split("\n").filter(Boolean);
+    let bad = 0;
+    for (const hit of hits) {
+      const text = hit.slice(hit.indexOf("prepare(`") + 9);
+      const sql = text.slice(0, text.indexOf("`") === -1 ? undefined : text.indexOf("`"));
+      if (sql.includes("${") && !/sets\.join|columns\.join|placeholders/.test(sql)) {
+        console.error(hit.slice(0, 200)); bad++;
+      }
+    }
+    process.exit(bad ? 1 : 0);
+  ' >> "$LOG" 2>&1
 }
 lens_10() { # path traversal: no fs read/write on raw request params in routes
   ! grep -rn "readFileSync\|writeFileSync\|createReadStream" src/api/routes/ 2>/dev/null | grep -E "req\.(params|query|body)" | grep -q .
@@ -116,9 +128,9 @@ lens_13() { # auth surface: public-path identity tests + new routes not public
 lens_14() { # logger discipline: no bare console.log in route/domain modules
   node scripts/scan-noncomment.mjs 'console\.log\(' src/api/routes src/employment src/labour >> "$LOG" 2>&1
 }
-lens_15() { # end-to-end smoke: API lifecycle script against the live server
+lens_15() { # end-to-end LOCAL-MODE smoke against the live server ($0, no dispatch)
   start_server || { stop_server; return 1; }
-  SHEM_DB_PATH="$SCRATCH/loop.db" bash scripts/smoke-test.sh "http://localhost:$PORT" >> "$LOG" 2>&1
+  bash scripts/smoke-local.sh "http://localhost:$PORT" >> "$LOG" 2>&1
   local rc=$?
   stop_server
   return $rc
