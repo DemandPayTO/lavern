@@ -17,7 +17,7 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -1126,6 +1126,8 @@ export default function MatterDetailView() {
           {/* Issues Found */}
           {activeTab === 'issues' && (
             <div id="panel-issues" role="tabpanel" style={{ paddingTop: 22 }}>
+              {/* Comparable decisions — internal research from the shared case library */}
+              {employment.data?.analysis != null && <ComparablesPanel matterId={sessionId!} />}
               {/* Run Analysis empty state — employment data exists but analysis hasn't run */}
               {employment.data && !employment.data.analysis && (
                 <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '22px 24px', marginBottom: 16, textAlign: 'center' }}>

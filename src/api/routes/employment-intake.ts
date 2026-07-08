@@ -351,6 +351,40 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // Get the full employment data for a matter, with a summary of every
   // generated document and its lifecycle status.
 
+  // ── GET /api/employment/:matterId/comparables ────────────────────────
+  // The internal-research view: the closest decided Ontario cases to this
+  // matter's Bardal profile, plus the case-based reasonable-notice range,
+  // drawn from the shared DemandPay case library. Returns configured:false
+  // (not an error) when the library is not wired up.
+  fastify.get('/api/employment/:matterId/comparables', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { employment } = loadEmploymentData(row.data_json);
+    const intake = employment?.intake;
+    if (!intake) return reply.send({ ok: true, configured: false, reason: 'No intake on this matter yet.' });
+
+    const { computeBardalFactors } = await import('../../employment/timeline-generator.js');
+    const { findComparables, caselawConfigured } = await import('../../employment/case-comparables.js');
+    if (!caselawConfigured()) {
+      return reply.send({ ok: true, configured: false, reason: 'The case library is not configured on this server.' });
+    }
+    const bardal = computeBardalFactors(intake);
+    if (bardal.tenureYears == null) {
+      return reply.send({ ok: true, configured: true, comparables: [], range: null, reason: 'Tenure is required for matching: fill hire and termination dates on the Intake tab.' });
+    }
+
+    const result = await findComparables({
+      years: bardal.tenureYears,
+      age: bardal.age,
+      seniority: null,
+    });
+    if (!result) return reply.send({ ok: true, configured: true, comparables: [], range: null, reason: 'The case library is temporarily unavailable.' });
+    return reply.send({ ok: true, configured: true, profile: { years: bardal.tenureYears, age: bardal.age }, ...result });
+  });
+
   fastify.get('/api/employment/:matterId', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string; firmId?: string }).userId ?? 'local-user';
     const { matterId } = req.params as { matterId: string };

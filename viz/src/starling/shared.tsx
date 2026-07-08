@@ -932,3 +932,86 @@ export function CorrespondencePanel({ matterId, clientEmail }: {
     </div>
   );
 }
+
+// ── Case comparables (internal research: closest decided cases) ─────────
+
+interface ComparableCaseShape {
+  id: string;
+  caseName: string;
+  citation: string;
+  court: string | null;
+  year: number | null;
+  yearsOfService: number | null;
+  age: number | null;
+  monthsAwarded: number | null;
+}
+
+/**
+ * ComparablesPanel — the closest decided Ontario cases to this matter's
+ * Bardal profile plus the case-based notice range, from the shared
+ * DemandPay case library. Renders nothing when the library is not
+ * configured; renders guidance when intake lacks tenure.
+ */
+export function ComparablesPanel({ matterId }: { matterId: string }) {
+  const [data, setData] = useState<{
+    configured: boolean;
+    reason?: string;
+    profile?: { years: number; age: number | null };
+    range?: { lowMonths: number; midMonths: number; highMonths: number; basedOnCases: number } | null;
+    comparables?: ComparableCaseShape[];
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/employment/${matterId}/comparables`)
+      .then(r => r.json())
+      .then(json => { if (!cancelled && json.ok) setData(json); })
+      .catch(() => { /* silent: research view is best-effort */ });
+    return () => { cancelled = true; };
+  }, [matterId]);
+
+  if (!data || !data.configured) return null;
+
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginTop: 16 }}>
+      <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+        Comparable decisions
+      </div>
+      <p style={{ fontSize: 12.5, color: muted, margin: '0 0 10px' }}>
+        The closest decided cases in the firm's library to this matter's profile
+        {data.profile ? ` (${data.profile.years} years${data.profile.age ? `, age ${data.profile.age}` : ''})` : ''}.
+        Research aid only; every case should be read before it is relied on.
+      </p>
+
+      {data.range && (
+        <div style={{ background: '#eef1f6', borderLeft: `3px solid ${navy}`, padding: '10px 14px', marginBottom: 12 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: navy }}>
+            Case-based range: {data.range.lowMonths}{'–'}{data.range.highMonths} months
+          </span>
+          <span style={{ fontSize: 12.5, color: muted }}>
+            {' '}(median {data.range.midMonths}; middle band of the {data.range.basedOnCases} nearest outcomes)
+          </span>
+        </div>
+      )}
+
+      {(data.comparables ?? []).length === 0 && (
+        <p style={{ fontSize: 12.5, color: muted }}>{data.reason ?? 'No sufficiently similar cases in the library yet.'}</p>
+      )}
+
+      {(data.comparables ?? []).map(c => (
+        <div key={c.id} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 0', borderTop: `1px solid ${border}`, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{c.caseName}</span>
+          <span style={{ fontSize: 12, color: muted }}>{c.citation}{c.year ? ` (${c.year})` : ''}</span>
+          <span style={{ fontSize: 12, color: muted }}>
+            {c.yearsOfService != null ? `${c.yearsOfService} yrs` : ''}{c.age != null ? `, age ${c.age}` : ''}
+          </span>
+          {c.monthsAwarded != null && (
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: navy, marginLeft: 'auto' }}>
+              {c.monthsAwarded} months
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
