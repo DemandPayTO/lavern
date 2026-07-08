@@ -1377,7 +1377,7 @@ export default function MatterDetailView() {
                     Form 1 itself: download the pre-filled data file
                   </div>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                    The HRTO SmartForm can't be filled directly (it's a locked dynamic form), but Starling
+                    The HRTO SmartForm cannot be filled directly (it is a locked dynamic form), but Starling
                     generates a data file from this matter (applicant, respondent, grounds, date of last
                     incident, representative). Open the official Form 1 in Acrobat, then{' '}
                     <strong>Prepare Form → More → Import Data</strong> and select this file. Review every

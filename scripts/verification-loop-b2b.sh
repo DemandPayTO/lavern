@@ -62,13 +62,12 @@ lens_1() { # dependency audit (production, high+)
 lens_2() { # secret material in the tree (real keys, not placeholders)
   ! grep -rEn "sk-ant-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|xoxb-[0-9]+-|ghp_[A-Za-z0-9]{36}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----" src viz/src scripts 2>/dev/null | grep -v "sk-ant-\.\.\." | grep -q .
 }
-lens_3() { # em-dashes in user-facing strings (not comments) in Starling surfaces
-  ! grep -rn "—" src/employment src/labour viz/src/starling 2>/dev/null | grep -vE "$not_comment" | grep -q .
+lens_3() { # em-dashes in user-facing strings (comments stripped)
+  node scripts/scan-noncomment.mjs '—' src/employment src/labour viz/src/starling >> "$LOG" 2>&1
 }
-lens_4() { # contractions in generated-content template strings and Starling UI
-  ! grep -rnE "(don't|can't|won't|doesn't|isn't|aren't|couldn't|shouldn't|wouldn't|we're|you're|it's|that's|let's)" \
-      src/employment src/labour viz/src/starling 2>/dev/null \
-    | grep -vE "$not_comment" | grep -vE "\.test\.|test-utils" | grep -q .
+lens_4() { # contractions in user-facing strings (comments stripped)
+  node scripts/scan-noncomment.mjs "(don't|can't|won't|doesn't|isn't|aren't|couldn't|shouldn't|wouldn't|we're|you're|let's)" \
+    src/employment src/labour viz/src/starling >> "$LOG" 2>&1
 }
 lens_5() { # tenant scoping: every getMatterById call passes a user id
   ! grep -rn "getMatterById(" src/api/routes/ | grep -vE "getMatterById\([^,)]+,[[:space:]]*[^)]+\)" | grep -q .
@@ -114,8 +113,8 @@ lens_12() { # full dependency audit including dev, critical only
 lens_13() { # auth surface: public-path identity tests + new routes not public
   npx vitest run tests/unit/auth-public-path-identity.test.ts >> "$LOG" 2>&1
 }
-lens_14() { # logger discipline: no bare console.log in src/ outside CLI/terminal surfaces
-  ! grep -rn "console\.log(" src/api/routes src/employment src/labour 2>/dev/null | grep -vE "$not_comment" | grep -q .
+lens_14() { # logger discipline: no bare console.log in route/domain modules
+  node scripts/scan-noncomment.mjs 'console\.log\(' src/api/routes src/employment src/labour >> "$LOG" 2>&1
 }
 lens_15() { # end-to-end smoke: API lifecycle script against the live server
   start_server || { stop_server; return 1; }

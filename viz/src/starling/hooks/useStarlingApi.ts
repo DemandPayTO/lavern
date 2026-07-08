@@ -257,7 +257,7 @@ const DEMO_PROCESSING_FINDINGS: ProcessingFinding[] = [
 
 const DEMO_RESULTS_DOCUMENT = `## Without Prejudice
 
-**Re: Jane Smith — Termination of Employment**
+**Re: Jane Smith, Termination of Employment**
 
 Dear Ms. Bell,
 
