@@ -31,6 +31,8 @@ import path from 'node:path';
 const BASE = process.env.EVAL_BASE_URL ?? 'http://localhost:3000';
 const budgetArg = process.argv.indexOf('--budget');
 const BUDGET_USD = budgetArg > -1 ? parseFloat(process.argv[budgetArg + 1]) : 4;
+const patternArg = process.argv.indexOf('--pattern');
+const ONLY_PATTERN = patternArg > -1 ? process.argv[patternArg + 1] : null;
 /** Reserve per generation: briefs/DFR are the expensive ones. */
 const RESERVE: Record<string, number> = {
   grievance_filing: 0.15,
@@ -45,6 +47,10 @@ const RESERVE: Record<string, number> = {
   production_request: 0.15,
   settlement_memorandum: 1.0,
   ohsa_reprisal_complaint: 1.0,
+  will_say: 0.15,
+  agreed_facts: 0.15,
+  closing_argument: 1.0,
+  hearing_bundle: 0,
 };
 /** Filings and referrals are deliberately one page; briefs are not. */
 const MIN_LENGTH: Record<string, number> = {
@@ -60,6 +66,10 @@ const MIN_LENGTH: Record<string, number> = {
   production_request: 1200,
   settlement_memorandum: 2000,
   ohsa_reprisal_complaint: 2000,
+  will_say: 1500,
+  agreed_facts: 1200,
+  closing_argument: 3000,
+  hearing_bundle: 500,
 };
 
 let spentUsd = 0;
@@ -110,8 +120,13 @@ const PATTERNS: Pattern[] = [
       wage_rate: 42.5, wage_rate_period: 'hour', hours_per_week: 40,
       vacation_pay_percent: 6, benefits_load_percent: 12, pension_contrib_percent: 7,
       interim_earnings: 8000,
+      witnesses: [
+        { name: 'Claude Boisvert', role: 'Grievor', topics: 'The incident, the investigation meeting, and his record' },
+        { name: 'Devon Price', role: 'Steward', topics: 'The disciplinary meeting and what the supervisor said' },
+        { name: 'Alia Rahman', role: 'Coworker', topics: 'What she observed on the floor before the incident' },
+      ],
     },
-    documents: ['grievance_filing', 'particulars', 'production_request', 'merits_assessment', 'remedy_worksheet', 'arbitration_brief'],
+    documents: ['grievance_filing', 'particulars', 'production_request', 'merits_assessment', 'remedy_worksheet', 'arbitration_brief', 'will_say', 'agreed_facts', 'closing_argument', 'hearing_bundle'],
   },
   {
     key: 'g2-hr-suspension',
@@ -248,6 +263,7 @@ async function main() {
   console.log(`Grievance eval battery — budget cap $${BUDGET_USD.toFixed(2)}, output ${outDir}\n`);
 
   for (const pattern of PATTERNS) {
+    if (ONLY_PATTERN && pattern.key !== ONLY_PATTERN) continue;
     console.log(`── ${pattern.key}: ${pattern.title}`);
 
     // 1. Create matter

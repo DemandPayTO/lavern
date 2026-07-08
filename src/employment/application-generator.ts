@@ -10,6 +10,7 @@
  */
 
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
+import { enforceHouseStyle } from '../utils/house-style.js';
 import { createLogger } from '../utils/logger.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
@@ -231,7 +232,7 @@ export async function generateApplication(
     throw new Error('Document generation failed. Please try again.');
   }
 
-  let html = text.trim();
+  let html = enforceHouseStyle(text.trim());
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
 

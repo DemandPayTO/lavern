@@ -11,6 +11,7 @@
  */
 
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
+import { enforceHouseStyle } from '../utils/house-style.js';
 import { createLogger } from '../utils/logger.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from '../employment/citation-canon.js';
 import { checkCanonTextIntegrity } from '../employment/canon-verifier.js';
@@ -32,7 +33,10 @@ export type GrievanceDocumentType =
   | 'particulars'
   | 'production_request'
   | 'settlement_memorandum'
-  | 'ohsa_reprisal_complaint';
+  | 'ohsa_reprisal_complaint'
+  | 'will_say'
+  | 'agreed_facts'
+  | 'closing_argument';
 
 export interface GrievanceDocumentRequest {
   intake: GrievanceIntakeData;
@@ -243,6 +247,53 @@ STRUCTURE (numbered paragraphs):
 RULES:
 - Facts with dates; the reverse onus does the arguing.
 - Do not plead the grievance arbitration route in parallel; state the election where the file addresses it, and flag it for the reviewer where it does not.`,
+
+    will_say: `You are an Ontario union-side labour relations professional preparing WILL-SAY STATEMENTS for the union's witnesses at a grievance arbitration.
+
+A will-say is a factual summary of what a witness is expected to say. It is disclosure and preparation, not advocacy.
+
+RULES:
+- One will-say per witness. Use the witnesses listed in the intake or the additional context; if none are named, prepare the grievor's will-say and one template headed [WITNESS NAME] for the representative to complete.
+- FACTS ONLY, in the first person, in the order the witness experienced them: who they are, their role and years of service, what they saw or heard, dates, and documents they can speak to.
+- No argument, no characterization, no legal conclusions. "I saw the supervisor raise his voice" and never "the supervisor acted unreasonably."
+- Where the intake does not state a fact the witness would need to cover, leave a bracketed [CONFIRM WITH WITNESS: ...] marker rather than inventing it.
+- Anticipate cross-examination: end each will-say with a short "Areas to prepare" list of the topics the employer is likely to test.
+- Do not use em dashes or contractions anywhere in the drafted text.
+
+STRUCTURE per witness: heading with name and role; numbered factual paragraphs; documents the witness can identify; areas to prepare.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    agreed_facts: `You are an Ontario union-side labour relations professional drafting a proposed AGREED STATEMENT OF FACTS for a grievance arbitration.
+
+PURPOSE: narrow the hearing to what is genuinely in dispute. Facts the employer cannot seriously contest go here so witness time is spent only where credibility matters.
+
+RULES:
+- Include ONLY facts that are objectively verifiable or come from the employer's own documents: employment dates, classification, seniority, the CA and its relevant articles, the discipline imposed and its date, the grievance and its procedural history, wage rates.
+- NEVER concede a contested fact. Anything the union disputes (the incident narrative, the employer's stated grounds, prior-discipline characterizations) is excluded and listed separately under "Facts remaining in dispute" so the representative sees the boundary explicitly.
+- Number every paragraph. One fact per paragraph. Neutral wording that both sides could sign.
+- Reference documents by tab number placeholders: (Tab [x]).
+- Where a fact is likely agreed but the intake does not confirm it, mark it [CONFIRM: ...].
+- Do not use em dashes or contractions anywhere in the drafted text.
+
+STRUCTURE: title with style of cause; numbered agreed facts grouped under headings (The parties; The employment; The discipline; The grievance and its procedure); then "Facts remaining in dispute" as a plain list.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
+    closing_argument: `You are experienced Ontario union-side arbitration counsel preparing a CLOSING ARGUMENT SKELETON for a grievance arbitration.
+
+This is the working skeleton the representative argues from, structured for the arbitrator, with evidence slots left open because it is prepared before the hearing ends.
+
+FRAMEWORK:
+- Discharge and discipline cases follow Wm. Scott: (1) was there just and reasonable cause for some discipline; (2) was the discipline imposed an excessive response; (3) if so, what alternative measure is just and equitable. Argue in that order.
+- Policy grievances follow KVP reasonableness. Human rights dimensions run through the Code and Parry Sound. Argue ONLY from the approved issues.
+- For each issue: the proposition, the CA article or statutory anchor, the supporting facts with [EVIDENCE: ...] slots for what the hearing established, and the anticipated employer position with the union's answer.
+- Mitigating factors (seniority, record, provocation, procedural defects in the investigation, no union representation at the meeting) argued specifically, not as a list.
+- Remedy last: the order sought, stated precisely (reinstatement and make-whole with interest; substitution of a lesser penalty in the alternative).
+- Never fabricate case citations. Cite only decisions you are certain exist, and leave [AUTHORITY: ...] slots where the representative should insert additional authorities.
+- Do not use em dashes or contractions anywhere in the drafted text.
+
+Output as HTML with h1, h2, h3, p, ol, li, strong. No inline styles.`,
   };
 
   return prompts[docType] + `
@@ -297,6 +348,7 @@ ${i.last_step_response_date ? `- Last step response: ${i.last_step_response_date
 ${deadlines.length > 0 ? `- Deadlines: ${deadlines.map(d => `${d.label} → ${d.date}${d.overdue && d.kind !== 'step_response' ? ' (OVERDUE; address s. 48(16))' : d.overdue ? ' (employer response overdue)' : ''}`).join('; ')}` : ''}
 ${i.dfr_concern ? `- DFR exposure noted: ${i.dfr_details || 'the grievor has raised or threatened a s. 74 complaint'}` : ''}
 
+${(i.witnesses ?? []).length > 0 ? `WITNESSES (union):\n${(i.witnesses ?? []).map(w => `- ${w.name}${w.role ? ` (${w.role})` : ''}${w.topics ? `: ${w.topics}` : ''}`).join('\n')}\n` : ''}
 APPROVED ISSUES (argue ONLY these):
 ${req.approvedIssues.map((code, n) => `${n + 1}. ${code}`).join('\n') || '(none approved yet; draft conservatively)'}
 
@@ -341,6 +393,7 @@ export async function generateGrievanceDocument(
   let html = text.trim();
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
+  html = enforceHouseStyle(html);
 
   const reviewerFlags = [
     ...getReviewerFlags(req.documentType),
@@ -379,6 +432,9 @@ export function getGrievanceDocumentTitle(docType: GrievanceDocumentType): strin
     case 'production_request': return 'Pre-Arbitration Production Request';
     case 'settlement_memorandum': return 'Memorandum of Settlement (Grievance)';
     case 'ohsa_reprisal_complaint': return 'OHSA s. 50 Reprisal Application (OLRB Form A-53 narrative)';
+    case 'will_say': return 'Will-Say Statements';
+    case 'agreed_facts': return 'Agreed Statement of Facts (Proposed)';
+    case 'closing_argument': return 'Closing Argument Skeleton';
   }
 }
 
@@ -406,6 +462,12 @@ function getReviewerFlags(docType: GrievanceDocumentType): string[] {
       return ['terms_confirmed_with_client_and_grievor', 'discipline_record_disposition_addressed', 'no_code_contracting_out', 'grievor_signature_required', 'arbitrator_seized_clause'];
     case 'ohsa_reprisal_complaint':
       return ['forum_election_confirmed_board_not_arbitration', 'protected_activity_dates_verified', 'current_olrb_form_confirmed', 'filing_delivered_to_board_and_responding_parties'];
+    case 'will_say':
+      return ['facts_confirmed_with_each_witness', 'confirm_markers_resolved', 'no_argument_or_characterization', 'disclosure_obligations_checked'];
+    case 'agreed_facts':
+      return ['no_contested_fact_conceded', 'disputed_list_reviewed', 'tab_references_match_bundle', 'employer_counterpart_review'];
+    case 'closing_argument':
+      return ['evidence_slots_filled_from_hearing', 'authorities_verified', 'wm_scott_structure_confirmed', 'remedy_stated_precisely'];
   }
 }
 
@@ -419,12 +481,15 @@ function getGrievanceModelTier(docType: GrievanceDocumentType): 'opus' | 'sonnet
     case 'member_update':
     case 'particulars':
     case 'production_request':
+    case 'will_say':
+    case 'agreed_facts':
       return 'sonnet';
     case 'arbitration_brief':
     case 'dfr_response':
     case 'merits_assessment':
     case 'settlement_memorandum':
     case 'ohsa_reprisal_complaint':
+    case 'closing_argument':
       return 'opus';
   }
 }

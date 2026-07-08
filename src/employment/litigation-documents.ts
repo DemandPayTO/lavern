@@ -12,6 +12,7 @@
  */
 
 import fs from 'node:fs';
+import { enforceHouseStyle } from '../utils/house-style.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
@@ -576,7 +577,7 @@ export async function generateLitigationDocument(
     throw new Error('Document generation failed. Please try again.');
   }
 
-  let html = text.trim();
+  let html = enforceHouseStyle(text.trim());
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
 

@@ -13,6 +13,7 @@
  */
 
 import { z } from 'zod';
+import { enforceHouseStyle } from '../utils/house-style.js';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import type { EmploymentIntakeData, GateResult, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
@@ -326,7 +327,7 @@ export async function generateDemandLetter(
   }
 
   // Extract HTML — Claude may wrap in markdown fences
-  let html = text.trim();
+  let html = enforceHouseStyle(text.trim());
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
 
