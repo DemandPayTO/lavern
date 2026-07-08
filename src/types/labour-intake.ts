@@ -149,6 +149,14 @@ export const grievanceIntakeSchema = z.object({
   off_duty_conduct: optBool,
   off_duty_details: optString,
 
+  // ── Hearing preparation ────────────────────────────────────────────────
+  /** Union witnesses for arbitration: who they are and what they speak to. */
+  witnesses: z.array(z.object({
+    name: z.string().trim().min(1).max(120),
+    role: z.string().trim().max(120).optional().nullable(),
+    topics: z.string().trim().max(500).optional().nullable(),
+  }).strict()).max(20).optional().nullable(),
+
   // ── Remedy ─────────────────────────────────────────────────────────────
   remedy_sought: optString,              // reinstatement, make-whole, rescind policy...
   back_pay_estimate: optNumber,

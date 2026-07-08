@@ -82,6 +82,34 @@ const DRAFT_TYPES: GrievanceDraftType[] = [
     cost: '~$0.30\u20130.60 \u00B7 2\u20135 minutes',
     section: 'Hearing and assessment',
   },
+  {
+    id: 'will_say',
+    title: 'Will-Say Statements',
+    description: 'One factual will-say per witness from the intake witness list, first person, no argument, with confirm-with-witness markers and cross-examination preparation notes.',
+    cost: '~$0.05 \u00B7 under 1 minute',
+    section: 'Hearing and assessment',
+  },
+  {
+    id: 'agreed_facts',
+    title: 'Agreed Statement of Facts',
+    description: 'The proposed agreed facts that narrow the hearing: objectively verifiable matters only, with the contested facts listed separately so nothing is conceded by accident.',
+    cost: '~$0.05 \u00B7 under 1 minute',
+    section: 'Hearing and assessment',
+  },
+  {
+    id: 'closing_argument',
+    title: 'Closing Argument Skeleton',
+    description: 'The Wm. Scott argument structure with evidence and authority slots left open for what the hearing establishes. Remedy stated precisely, alternatives included.',
+    cost: '~$0.30\u20130.60 \u00B7 2\u20135 minutes',
+    section: 'Hearing and assessment',
+  },
+  {
+    id: 'hearing_bundle',
+    title: 'Hearing Bundle Skeleton',
+    description: 'The binder plan at no cost: tab index in hearing order, witness list, hearing-day checklist, and an explicit list of everything still missing.',
+    cost: '$0 \u00B7 instant',
+    section: 'Hearing and assessment',
+  },
   // ── Resolution and the member ──────────────────────────────────────────
   {
     id: 'settlement_memorandum',

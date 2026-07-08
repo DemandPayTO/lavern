@@ -57,6 +57,7 @@ const GRIEVANCE_DOC_TYPES = [
   'grievance_filing', 'referral_to_arbitration', 'arbitration_brief', 'dfr_response',
   'merits_assessment', 'decline_letter', 'member_update', 'remedy_worksheet',
   'particulars', 'production_request', 'settlement_memorandum', 'ohsa_reprisal_complaint',
+  'will_say', 'agreed_facts', 'closing_argument', 'hearing_bundle',
 ] as const;
 
 export function registerLabourRoutes(fastify: FastifyInstance): void {
@@ -380,6 +381,14 @@ export function registerLabourRoutes(fastify: FastifyInstance): void {
       } catch (err) {
         return reply.status(400).send({ ok: false, error: err instanceof Error ? err.message : 'Remedy worksheet inputs are incomplete.' });
       }
+    } else if (parsed.data.documentType === 'hearing_bundle') {
+      // Deterministic: the binder skeleton assembled from the intake and the
+      // matter's generated documents. No model call, no cost.
+      const { buildHearingBundle } = await import('../../labour/hearing-bundle.js');
+      const generatedDocTypes = Object.keys(matter as Record<string, unknown>)
+        .filter((key) => key.startsWith('generated_'))
+        .map((key) => key.replace('generated_', ''));
+      result = { ...buildHearingBundle(labour.intake, generatedDocTypes), costUsd: 0 };
     } else {
       // Anonymisation terms: grievor + employer + union names
       const definedTerms: string[] = [];
