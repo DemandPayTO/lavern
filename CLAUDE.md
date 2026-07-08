@@ -35,6 +35,23 @@ This system assists with document design and accessibility.
 It does not provide legal advice. Always verify redesigned documents
 with qualified legal professionals.
 
+## DemandPay Starling (the deployed product)
+
+This repo now ships **DemandPay Starling** (branch `demandpay-config`, Fly app
+`demandpay-starling`, https://starling.demandpay.ca): a plaintiff-side Ontario
+employment law + union-side labour workflow platform built on the engine
+described below. **Before changing Starling, read:**
+
+- [docs/STARLING-FEATURES.md](./docs/STARLING-FEATURES.md) — every feature: purpose, files, routes, UI, how to change it
+- [docs/STARLING-WORKFLOWS.md](./docs/STARLING-WORKFLOWS.md) — how matters flow through the system + the change/testing discipline
+- [docs/STARLING-ROADMAP.md](./docs/STARLING-ROADMAP.md) — proposed next builds per vertical
+- [docs/form-catalogue.md](./docs/form-catalogue.md) — court/tribunal form inventory
+
+Non-negotiables: deterministic-first, the lawyer decides (Starling never
+sends or files), no em-dashes or contractions in prompts/UI/generated
+content, per-user tenant scoping on every query, and the 3-consecutive-
+clean-passes testing discipline before any deploy.
+
 ## Project Structure
 
 ### Core Engine
