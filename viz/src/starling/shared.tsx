@@ -1166,3 +1166,190 @@ export function NegotiationPanel({ matterId }: { matterId: string }) {
     </div>
   );
 }
+
+// ── Net-settlement calculator ───────────────────────────────────────────
+
+interface NetSettlementLineShape {
+  key: string;
+  label: string;
+  grossCad: number;
+  withholdingCad: number | null;
+  netCad: number | null;
+  treatment: string;
+}
+
+interface NetSettlementResultShape {
+  lines: NetSettlementLineShape[];
+  totals: {
+    grossSettlementCad: number;
+    eligibleRrspRoomCad: number;
+    appliedRrspTransferCad: number;
+    withholdingCad: number;
+    cashBeforeFeesCad: number;
+    feeCad: number;
+    feeHstCad: number;
+    clientPaysFeesCad: number;
+    netCashCad: number;
+    netValueCad: number;
+  };
+  lumpSumWithholdingRatePct: number | null;
+  flags: string[];
+  notes: string[];
+}
+
+const numOrZero = (s: string): number => {
+  const n = parseFloat(s.replace(/[^\d.]/g, ''));
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+};
+
+export function NetSettlementPanel({ matterId }: { matterId: string }) {
+  const [result, setResult] = useState<NetSettlementResultShape | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [message, setMessage] = useState('');
+  const [form, setForm] = useState({
+    retiringAllowance: '', salaryContinuance: '', generalDamages: '',
+    legalFeeContribution: '', rrspTransfer: '', yearsBefore1996: '',
+    effectiveTaxRate: '', feePct: '',
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/employment/${matterId}/net-settlement`);
+        const json = await res.json();
+        if (!cancelled && json.ok) {
+          if (json.result) setResult(json.result);
+          if (json.inputs) {
+            const i = json.inputs;
+            setForm({
+              retiringAllowance: i.allocation?.retiringAllowanceCad ? String(i.allocation.retiringAllowanceCad) : '',
+              salaryContinuance: i.allocation?.salaryContinuanceCad ? String(i.allocation.salaryContinuanceCad) : '',
+              generalDamages: i.allocation?.generalDamagesCad ? String(i.allocation.generalDamagesCad) : '',
+              legalFeeContribution: i.allocation?.legalFeeContributionCad ? String(i.allocation.legalFeeContributionCad) : '',
+              rrspTransfer: i.allocation?.rrspTransferCad ? String(i.allocation.rrspTransferCad) : '',
+              yearsBefore1996: i.yearsBefore1996 ? String(i.yearsBefore1996) : '',
+              effectiveTaxRate: i.effectiveTaxRatePct != null ? String(i.effectiveTaxRatePct) : '',
+              feePct: i.feePct != null ? String(i.feePct) : '',
+            });
+          }
+        }
+      } catch { /* transient */ }
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [matterId]);
+
+  const calculate = async () => {
+    setMessage('');
+    const body: Record<string, unknown> = {
+      allocation: {
+        retiringAllowanceCad: numOrZero(form.retiringAllowance),
+        salaryContinuanceCad: numOrZero(form.salaryContinuance),
+        generalDamagesCad: numOrZero(form.generalDamages),
+        legalFeeContributionCad: numOrZero(form.legalFeeContribution),
+        ...(form.rrspTransfer.trim() ? { rrspTransferCad: numOrZero(form.rrspTransfer) } : {}),
+      },
+      ...(form.yearsBefore1996.trim() ? { yearsBefore1996: numOrZero(form.yearsBefore1996) } : {}),
+      ...(form.effectiveTaxRate.trim() ? { effectiveTaxRatePct: numOrZero(form.effectiveTaxRate) } : {}),
+      ...(form.feePct.trim() ? { feePct: numOrZero(form.feePct) } : {}),
+    };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/net-settlement`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) { setMessage(json.error ?? 'The calculation could not be saved.'); return; }
+      setResult(json.result);
+    } catch { setMessage('The calculation could not be saved.'); }
+  };
+
+  if (!loaded) return <p style={{ color: muted, fontSize: 13 }}>Loading net settlement…</p>;
+
+  const fieldStyle = { fontFamily: sans, fontSize: 12.5, padding: '6px', width: 130 } as const;
+  const t = result?.totals;
+
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginTop: 16 }}>
+      <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+        Net settlement to the client
+      </div>
+      <p style={{ fontSize: 12.5, color: muted, margin: '0 0 12px' }}>
+        Withholding at source, RRSP transfer room, and fees. A cash-flow estimate for negotiation planning, not tax advice.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
+        {([
+          ['retiringAllowance', 'Lump-sum severance (CAD)'],
+          ['salaryContinuance', 'Salary continuance (CAD)'],
+          ['generalDamages', 'General damages (CAD)'],
+          ['legalFeeContribution', 'Employer pays legal fees (CAD)'],
+          ['rrspTransfer', 'RRSP transfer (CAD)'],
+          ['yearsBefore1996', 'Years before 1996'],
+          ['effectiveTaxRate', 'Effective tax rate %'],
+          ['feePct', 'Fee %'],
+        ] as Array<[keyof typeof form, string]>).map(([key, label]) => (
+          <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, color: muted }}>
+            {label}
+            <input
+              inputMode="decimal"
+              value={form[key]}
+              onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+              style={fieldStyle}
+            />
+          </label>
+        ))}
+        <ActionButton label="Calculate" onClick={() => void calculate()} />
+      </div>
+
+      {message && <p style={{ fontSize: 12.5, color: red, marginTop: 6 }} role="alert">{message}</p>}
+
+      {result && t && (
+        <>
+          <div style={{ background: '#eef1f6', borderLeft: `3px solid ${navy}`, padding: '10px 14px', marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: navy }}>
+              Net cash to client: {cad(t.netCashCad)}
+              {t.appliedRrspTransferCad > 0 && <> · plus {cad(t.appliedRrspTransferCad)} to RRSP = {cad(t.netValueCad)} total value</>}
+            </div>
+            <div style={{ fontSize: 12.5, color: ink, marginTop: 4 }}>
+              Gross {cad(t.grossSettlementCad)} · withholding {cad(t.withholdingCad)}
+              {t.clientPaysFeesCad > 0 && <> · client pays the firm {cad(t.clientPaysFeesCad)} (fee {cad(t.feeCad)} + HST {cad(t.feeHstCad)})</>}
+            </div>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: muted }}>
+                <th style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Component</th>
+                <th style={{ padding: '4px 8px', fontWeight: 600 }}>Gross</th>
+                <th style={{ padding: '4px 8px', fontWeight: 600 }}>Withholding</th>
+                <th style={{ padding: '4px 8px', fontWeight: 600 }}>Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.lines.map(line => (
+                <tr key={line.key} style={{ borderTop: `1px solid ${border}` }} title={line.treatment}>
+                  <td style={{ padding: '6px 8px 6px 0', color: ink }}>{line.label}</td>
+                  <td style={{ padding: '6px 8px' }}>{cad(line.grossCad)}</td>
+                  <td style={{ padding: '6px 8px' }}>{line.withholdingCad != null ? cad(line.withholdingCad) : 'payroll'}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{line.netCad != null ? cad(line.netCad) : 'depends on payroll'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {result.flags.map((flag, i) => (
+            <p key={`flag-${i}`} style={{ fontSize: 12.5, color: '#8a5a00', background: '#fdf6e7', padding: '8px 12px', margin: '10px 0 0' }}>
+              {flag}
+            </p>
+          ))}
+          {result.notes.map((note, i) => (
+            <p key={`note-${i}`} style={{ fontSize: 12, color: muted, margin: '8px 0 0' }}>
+              {note}
+            </p>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}

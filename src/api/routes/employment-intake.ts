@@ -430,6 +430,70 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     return reply.send({ ok: true });
   });
 
+  // ── Net-settlement calculator ─────────────────────────────────────────
+  // What the client actually takes home: rule-certain withholding at
+  // source, RRSP-eligible transfer room, HST on fees, and the character of
+  // each settlement component. Inputs persist on the matter so the numbers
+  // survive between sessions; the computation itself is pure.
+  fastify.get('/api/employment/:matterId/net-settlement', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter } = loadEmploymentData(row.data_json);
+    const saved = (matter as Record<string, unknown>).netSettlement as Record<string, unknown> | undefined;
+    if (!saved) return reply.send({ ok: true, inputs: null, result: null });
+    const { computeNetSettlement } = await import('../../employment/net-settlement.js');
+    return reply.send({
+      ok: true,
+      inputs: saved,
+      result: computeNetSettlement(saved as unknown as import('../../employment/net-settlement.js').NetSettlementInputs),
+    });
+  });
+
+  fastify.post('/api/employment/:matterId/net-settlement', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const allocationSchema = z.object({
+      retiringAllowanceCad: z.number().min(0).max(100_000_000).default(0),
+      salaryContinuanceCad: z.number().min(0).max(100_000_000).default(0),
+      generalDamagesCad: z.number().min(0).max(100_000_000).default(0),
+      legalFeeContributionCad: z.number().min(0).max(100_000_000).default(0),
+      rrspTransferCad: z.number().min(0).max(100_000_000).optional(),
+    }).strict();
+    const schema = z.object({
+      allocation: allocationSchema,
+      yearsBefore1996: z.number().min(0).max(60).optional(),
+      yearsBefore1989NoPension: z.number().min(0).max(60).optional(),
+      effectiveTaxRatePct: z.number().min(0).max(60).nullable().optional(),
+      feePct: z.number().min(0).max(50).nullable().optional(),
+      feeOnGross: z.boolean().optional(),
+    }).strict();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid inputs', details: parsed.error.issues.map(i => i.message) });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter } = loadEmploymentData(row.data_json);
+    const m = matter as Record<string, unknown>;
+    m.netSettlement = parsed.data;
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+    const { computeNetSettlement } = await import('../../employment/net-settlement.js');
+    return reply.send({ ok: true, inputs: parsed.data, result: computeNetSettlement(parsed.data) });
+  });
+
+  fastify.delete('/api/employment/:matterId/net-settlement', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter } = loadEmploymentData(row.data_json);
+    const m = matter as Record<string, unknown>;
+    delete m.netSettlement;
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+    return reply.send({ ok: true });
+  });
+
   // ── GET /api/employment/:matterId/comparables ────────────────────────
   // The internal-research view: the closest decided Ontario cases to this
   // matter's Bardal profile, plus the case-based reasonable-notice range,
