@@ -1015,3 +1015,154 @@ export function ComparablesPanel({ matterId }: { matterId: string }) {
     </div>
   );
 }
+
+// ── Negotiation ledger ───────────────────────────────────────────────────
+
+interface NegotiationEntryShape {
+  id: string;
+  date: string;
+  party: 'employer' | 'client';
+  kind: string;
+  amountCad: number | null;
+  terms?: string;
+  note?: string;
+}
+
+interface NegotiationSummaryShape {
+  latestEmployerOffer: { amountCad: number; date: string } | null;
+  offerVsRange: {
+    esaFloorCad: number | null;
+    assessedLowCad: number | null;
+    assessedHighCad: number | null;
+    gapToLowCad: number | null;
+    positionInRange: number | null;
+  } | null;
+  employerMovementCad: number | null;
+  awaitingResponseFrom: 'employer' | 'client' | null;
+}
+
+const cad = (n: number) => `$${Math.round(n).toLocaleString('en-CA')}`;
+
+/**
+ * NegotiationPanel — every offer and counter on the matter, tracked against
+ * the assessed entitlement range. Facts only; strategy stays with the lawyer.
+ */
+export function NegotiationPanel({ matterId }: { matterId: string }) {
+  const [entries, setEntries] = useState<NegotiationEntryShape[]>([]);
+  const [summary, setSummary] = useState<NegotiationSummaryShape | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [message, setMessage] = useState('');
+  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), party: 'employer', kind: 'offer', amount: '', terms: '' });
+
+  const refresh = async () => {
+    try {
+      const res = await fetch(`/api/employment/${matterId}/negotiation`);
+      const json = await res.json();
+      if (json.ok) { setEntries(json.entries ?? []); setSummary(json.summary ?? null); }
+    } catch { /* transient */ }
+    setLoaded(true);
+  };
+  useEffect(() => { void refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [matterId]);
+
+  const add = async () => {
+    setMessage('');
+    const amountNum = parseFloat(form.amount.replace(/[^\d.]/g, ''));
+    try {
+      const res = await fetch(`/api/employment/${matterId}/negotiation`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: form.date, party: form.party, kind: form.kind,
+          amountCad: Number.isFinite(amountNum) ? amountNum : null,
+          ...(form.terms.trim() ? { terms: form.terms.trim() } : {}),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setMessage(json.error ?? 'The entry could not be saved.'); return; }
+      setForm(f => ({ ...f, amount: '', terms: '' }));
+      await refresh();
+    } catch { setMessage('The entry could not be saved.'); }
+  };
+
+  const remove = async (id: string) => {
+    await fetch(`/api/employment/${matterId}/negotiation/${id}`, { method: 'DELETE' }).catch(() => undefined);
+    await refresh();
+  };
+
+  if (!loaded) return <p style={{ color: muted, fontSize: 13 }}>Loading negotiation…</p>;
+
+  const r = summary?.offerVsRange;
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px' }}>
+      <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+        Negotiation ledger
+      </div>
+      <p style={{ fontSize: 12.5, color: muted, margin: '0 0 12px' }}>
+        Every offer and counter, against the assessed entitlement. Entries also appear on the timeline.
+      </p>
+
+      {summary?.latestEmployerOffer && (
+        <div style={{ background: '#eef1f6', borderLeft: `3px solid ${navy}`, padding: '10px 14px', marginBottom: 12 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: navy }}>
+            Latest employer offer: {cad(summary.latestEmployerOffer.amountCad)} ({summary.latestEmployerOffer.date})
+          </div>
+          {r && (
+            <div style={{ fontSize: 12.5, color: ink, marginTop: 4 }}>
+              {r.esaFloorCad != null && <>ESA floor {cad(r.esaFloorCad)} · </>}
+              {r.assessedLowCad != null && r.assessedHighCad != null && (
+                <>assessed range {cad(r.assessedLowCad)}{'–'}{cad(r.assessedHighCad)}
+                {r.gapToLowCad != null && r.gapToLowCad > 0 && <> · <b style={{ color: red }}>{cad(r.gapToLowCad)} below the low end</b></>}
+                {r.positionInRange != null && r.positionInRange >= 0 && <> · at {Math.round(r.positionInRange * 100)}% of the range</>}
+                </>
+              )}
+            </div>
+          )}
+          {summary.employerMovementCad != null && (
+            <div style={{ fontSize: 12.5, color: muted, marginTop: 2 }}>
+              Employer movement to date: {summary.employerMovementCad >= 0 ? '+' : ''}{cad(summary.employerMovementCad)}
+            </div>
+          )}
+          {summary.awaitingResponseFrom && (
+            <div style={{ fontSize: 12.5, color: '#8a5a00', marginTop: 2 }}>
+              Awaiting a move from the {summary.awaitingResponseFrom === 'client' ? 'client side' : 'employer'}.
+            </div>
+          )}
+        </div>
+      )}
+
+      {entries.map(e => (
+        <div key={e.id} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 0', borderTop: `1px solid ${border}`, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: muted, minWidth: 78 }}>{e.date}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: e.party === 'employer' ? red : green, minWidth: 70 }}>
+            {e.party.toUpperCase()}
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>
+            {e.kind}{e.amountCad != null ? `: ${cad(e.amountCad)}` : ''}
+          </span>
+          {e.terms && <span style={{ fontSize: 12.5, color: muted }}>{e.terms}</span>}
+          <button onClick={() => void remove(e.id)} aria-label={`Delete entry ${e.date}`} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 12 }}>
+            remove
+          </button>
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+        <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} aria-label="Entry date" style={{ fontFamily: sans, fontSize: 12.5, padding: '6px' }} />
+        <select value={form.party} onChange={e => setForm(f => ({ ...f, party: e.target.value }))} aria-label="Party" style={{ fontFamily: sans, fontSize: 12.5, padding: '6px' }}>
+          <option value="employer">Employer</option>
+          <option value="client">Client</option>
+        </select>
+        <select value={form.kind} onChange={e => setForm(f => ({ ...f, kind: e.target.value }))} aria-label="Kind" style={{ fontFamily: sans, fontSize: 12.5, padding: '6px' }}>
+          <option value="offer">Offer</option>
+          <option value="counter">Counter</option>
+          <option value="demand">Demand</option>
+          <option value="acceptance">Acceptance</option>
+          <option value="rejection">Rejection</option>
+        </select>
+        <input placeholder="Amount (CAD)" inputMode="decimal" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} aria-label="Amount" style={{ fontFamily: sans, fontSize: 12.5, padding: '6px', width: 110 }} />
+        <input placeholder="Terms (optional)" value={form.terms} onChange={e => setForm(f => ({ ...f, terms: e.target.value }))} aria-label="Terms" style={{ fontFamily: sans, fontSize: 12.5, padding: '6px', flex: 1, minWidth: 140 }} />
+        <ActionButton label="Record" onClick={() => void add()} />
+      </div>
+      {message && <p style={{ fontSize: 12.5, color: red, marginTop: 6 }} role="alert">{message}</p>}
+    </div>
+  );
+}

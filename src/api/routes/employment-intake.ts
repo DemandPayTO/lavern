@@ -351,6 +351,85 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // Get the full employment data for a matter, with a summary of every
   // generated document and its lifecycle status.
 
+  // ── Negotiation ledger ────────────────────────────────────────────────
+  // Every offer and counter, tracked against the assessed entitlement.
+  fastify.get('/api/employment/:matterId/negotiation', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const { summarizeNegotiation, amountsFromAnalysis } = await import('../../employment/negotiation.js');
+    const entries = ((matter as Record<string, unknown>).negotiation ?? []) as import('../../employment/negotiation.js').NegotiationEntry[];
+    return reply.send({
+      ok: true,
+      entries,
+      summary: summarizeNegotiation(entries, amountsFromAnalysis(employment?.analysis as Record<string, unknown> | null)),
+    });
+  });
+
+  fastify.post('/api/employment/:matterId/negotiation', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const schema = z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      party: z.enum(['employer', 'client']),
+      kind: z.enum(['offer', 'counter', 'demand', 'acceptance', 'rejection']),
+      amountCad: z.number().nonnegative().max(100_000_000).nullable().optional(),
+      terms: z.string().trim().max(2000).optional(),
+      note: z.string().trim().max(2000).optional(),
+    }).strict();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid entry', details: parsed.error.issues.map(i => i.message) });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const m = matter as Record<string, unknown>;
+    const entries = (m.negotiation ?? []) as Array<Record<string, unknown>>;
+    const entry = {
+      id: `neg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ...parsed.data,
+      amountCad: parsed.data.amountCad ?? null,
+      recordedAt: new Date().toISOString(),
+    };
+    entries.push(entry);
+    m.negotiation = entries;
+
+    // Negotiation moves are matter events.
+    if (employment) {
+      const label = `${parsed.data.party === 'employer' ? 'Employer' : 'Client'} ${parsed.data.kind}${parsed.data.amountCad != null ? `: $${Number(parsed.data.amountCad).toLocaleString('en-CA')}` : ''} recorded`;
+      employment.timeline = [
+        ...(employment.timeline ?? []),
+        { date: parsed.data.date, label, source: 'system' } as (typeof employment.timeline)[number],
+      ];
+      m.employmentData = employment;
+    }
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+    const { summarizeNegotiation, amountsFromAnalysis } = await import('../../employment/negotiation.js');
+    return reply.send({
+      ok: true,
+      entry,
+      summary: summarizeNegotiation(m.negotiation as import('../../employment/negotiation.js').NegotiationEntry[], amountsFromAnalysis(employment?.analysis as Record<string, unknown> | null)),
+    });
+  });
+
+  fastify.delete('/api/employment/:matterId/negotiation/:entryId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId, entryId } = req.params as { matterId: string; entryId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter } = loadEmploymentData(row.data_json);
+    const m = matter as Record<string, unknown>;
+    const entries = (m.negotiation ?? []) as Array<{ id: string }>;
+    const idx = entries.findIndex(e => e.id === entryId);
+    if (idx === -1) return reply.status(404).send({ ok: false, error: 'Entry not found' });
+    entries.splice(idx, 1);
+    m.negotiation = entries;
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+    return reply.send({ ok: true });
+  });
+
   // ── GET /api/employment/:matterId/comparables ────────────────────────
   // The internal-research view: the closest decided Ontario cases to this
   // matter's Bardal profile, plus the case-based reasonable-notice range,

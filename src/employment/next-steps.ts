@@ -19,7 +19,7 @@ export interface NextStep {
   reason: string;
   urgency: 'urgent' | 'now' | 'soon';
   /** Matter-view tab the action lives on. */
-  goTo?: 'issues' | 'docs' | 'draft' | 'intake' | 'client';
+  goTo?: 'issues' | 'docs' | 'draft' | 'intake' | 'client' | 'negotiation';
 }
 
 const URGENCY_ORDER: Record<NextStep['urgency'], number> = { urgent: 0, now: 1, soon: 2 };
@@ -77,6 +77,25 @@ export function recommendEmploymentNextSteps(
   const analysis = employment?.analysis as Record<string, unknown> | null | undefined;
   const intake = (employment?.intake ?? {}) as Record<string, unknown>;
   const timeline = employment?.timeline ?? [];
+
+  // An employer offer awaiting the client side's move: the negotiation is
+  // the matter's core moment; a stale unanswered offer is lost leverage.
+  const negotiation = (matter.negotiation ?? []) as Array<{
+    date?: string; party?: string; kind?: string; amountCad?: number | null;
+  }>;
+  const lastMove = [...negotiation].sort((a, b) => String(a.date).localeCompare(String(b.date))).at(-1);
+  const negotiationClosed = negotiation.some(e => e.kind === 'acceptance');
+  if (lastMove && !negotiationClosed && lastMove.party === 'employer' && (lastMove.kind === 'offer' || lastMove.kind === 'counter')) {
+    const days = daysUntil(lastMove.date, today);
+    if (days !== null && days <= -5) {
+      steps.push({
+        action: 'Respond to the employer\'s outstanding offer',
+        reason: `The employer's ${lastMove.kind} of ${lastMove.amountCad != null ? '$' + Number(lastMove.amountCad).toLocaleString('en-CA') : 'unspecified amount'} has sat unanswered for ${-days} days.`,
+        urgency: 'now',
+        goTo: 'negotiation',
+      });
+    }
+  }
 
   // Scheduled client correspondence that has come due: the lawyer drafts,
   // reviews, and sends; Starling's job is to make sure it is not missed.

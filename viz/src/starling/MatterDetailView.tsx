@@ -17,7 +17,7 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel, NegotiationPanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -37,7 +37,7 @@ const sans = "system-ui, -apple-system, sans-serif";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'notes';
+type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'negotiation' | 'notes';
 
 interface Issue {
   id: string;
@@ -878,6 +878,7 @@ export default function MatterDetailView() {
     { key: 'timeline', label: 'Timeline' },
     { key: 'intake', label: 'Intake' },
     { key: 'client', label: 'Client' },
+    { key: 'negotiation', label: 'Negotiation' },
     { key: 'notes', label: 'Notes' },
   ];
 
@@ -1932,6 +1933,12 @@ export default function MatterDetailView() {
                 matterId={sessionId!}
                 clientEmail={String((employment.data?.intake as Record<string, unknown> | undefined)?.client_email ?? '') || undefined}
               />
+            </div>
+          )}
+
+          {activeTab === 'negotiation' && (
+            <div id="panel-negotiation" role="tabpanel" style={{ paddingTop: 22 }}>
+              <NegotiationPanel matterId={sessionId!} />
             </div>
           )}
 
