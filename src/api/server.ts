@@ -22,7 +22,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { timingSafeEqual } from 'node:crypto';
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -559,8 +559,18 @@ export async function startApiServer(port: number): Promise<void> {
     };
   });
 
+  // Root: a browser lands in the dashboard; agent and API clients get the
+  // machine-readable manifest they have always had.
+  fastify.get('/', async (req: FastifyRequest, reply: FastifyReply) => {
+    const accept = req.headers.accept ?? '';
+    if (accept.includes('text/html')) {
+      return reply.redirect('/dashboard/', 302);
+    }
+    return apiManifest();
+  });
+
   // API info
-  fastify.get('/', async () => ({
+  const apiManifest = () => ({
     name: 'DemandPay Starling API',
     version: config.version,
     description: 'Ontario employment and labour law workflow platform — API & WebSocket server',
@@ -640,7 +650,7 @@ export async function startApiServer(port: number): Promise<void> {
       },
       health: 'GET /health',
     },
-  }));
+  });
 
   // /api/capabilities is registered by registerCapabilitiesRoutes() below —
   // it serves both the dashboard runtime flags and the agent-facing rich
