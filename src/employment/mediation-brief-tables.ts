@@ -182,6 +182,24 @@ export function buildNegotiationTable(entries: NegotiationEntry[] | null | undef
   };
 }
 
+// ── Paragraph numbering (factum convention) ──────────────────────────────
+
+/**
+ * Number the narrative paragraphs consecutively ("1. ", "2. ", ...), the
+ * factum convention counsel and mediators use to reference the brief.
+ * Applied deterministically after generation so the numbering can never
+ * skip, repeat, or drift; the model is never asked to count. Only <p>
+ * elements are numbered; headings, tables, and list items keep their own
+ * structure.
+ */
+export function numberNarrativeParagraphs(html: string): string {
+  let n = 0;
+  return html.replace(/<p(\s[^>]*)?>/g, (match) => {
+    n += 1;
+    return `${match}${n}.&nbsp;&nbsp;`;
+  });
+}
+
 // ── Composition ──────────────────────────────────────────────────────────
 
 export function buildMediationFrontMatter(input: MediationFrontMatterInput): MediationFrontMatter {

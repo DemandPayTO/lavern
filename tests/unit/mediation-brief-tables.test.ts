@@ -14,6 +14,7 @@ import {
   buildComparablesTable,
   buildNegotiationTable,
   buildMediationFrontMatter,
+  numberNarrativeParagraphs,
 } from '../../src/employment/mediation-brief-tables.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult } from '../../src/types/employment-intake.js';
 import type { ComparableCase, CaseBasedRange } from '../../src/employment/case-comparables.js';
@@ -147,6 +148,29 @@ describe('buildNegotiationTable', () => {
     const { html, flags } = buildNegotiationTable([]);
     expect(html).toContain('no substantive negotiations');
     expect(flags.some((f) => f.includes('ledger records no offers'))).toBe(true);
+  });
+});
+
+describe('numberNarrativeParagraphs', () => {
+  it('numbers paragraphs consecutively across sections (factum convention)', () => {
+    const html = '<h2>Overview</h2>\n<p>First.</p>\n<p>Second.</p>\n<h2>Facts</h2>\n<p>Third.</p>';
+    const out = numberNarrativeParagraphs(html);
+    expect(out).toContain('<p>1.&nbsp;&nbsp;First.</p>');
+    expect(out).toContain('<p>2.&nbsp;&nbsp;Second.</p>');
+    expect(out).toContain('<p>3.&nbsp;&nbsp;Third.</p>');
+  });
+
+  it('leaves headings and list items unnumbered', () => {
+    const html = '<h2>Issues</h2>\n<ol><li>One issue</li><li>Another</li></ol>\n<p>Wrap up.</p>';
+    const out = numberNarrativeParagraphs(html);
+    expect(out).toContain('<li>One issue</li>');
+    expect(out).toContain('<h2>Issues</h2>');
+    expect(out).toContain('<p>1.&nbsp;&nbsp;Wrap up.</p>');
+  });
+
+  it('handles paragraphs with attributes and empty input', () => {
+    expect(numberNarrativeParagraphs('<p class="x">A.</p>')).toContain('<p class="x">1.&nbsp;&nbsp;A.</p>');
+    expect(numberNarrativeParagraphs('')).toBe('');
   });
 });
 

@@ -101,6 +101,14 @@ async function main() {
   check('narrative has an Overview section', /<h2[^>]*>\s*Overview/i.test(html));
   check('narrative has a Settlement Position section', /<h2[^>]*>[^<]*Settlement Position/i.test(html));
 
+  // Factum convention: narrative paragraphs numbered consecutively,
+  // starting at 1, with no gaps.
+  const paraNumbers = [...html.matchAll(/<p[^>]*>(\d+)\.&nbsp;/g)].map((m) => Number(m[1]));
+  check('narrative paragraphs are numbered', paraNumbers.length >= 5, `found ${paraNumbers.length}`);
+  check('numbering starts at 1 and is consecutive',
+    paraNumbers.length > 0 && paraNumbers[0] === 1 && paraNumbers.every((v, idx) => v === idx + 1),
+    paraNumbers.slice(0, 10).join(','));
+
   // House style.
   check('no em-dashes in the brief', !html.includes('—'));
 

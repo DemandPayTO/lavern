@@ -24,7 +24,7 @@ import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
-import { buildMediationFrontMatter } from './mediation-brief-tables.js';
+import { buildMediationFrontMatter, numberNarrativeParagraphs } from './mediation-brief-tables.js';
 import type { ComparableCase, CaseBasedRange } from './case-comparables.js';
 import type { NegotiationEntry } from './negotiation.js';
 
@@ -618,7 +618,9 @@ export async function generateLitigationDocument(
   if (frontMatter) {
     const plaintiff = [req.intake.client_first_name, req.intake.client_last_name].filter(Boolean).join(' ');
     const titleBlock = `<h1>Mediation Brief of the Plaintiff${plaintiff ? `, ${plaintiff}` : ''}</h1>`;
-    html = [titleBlock, frontMatter.html, html].filter(Boolean).join('\n\n');
+    // Factum convention: narrative paragraphs numbered consecutively,
+    // deterministically (the tables and title are not numbered).
+    html = [titleBlock, frontMatter.html, numberNarrativeParagraphs(html)].filter(Boolean).join('\n\n');
   }
 
   // Citation tracking
