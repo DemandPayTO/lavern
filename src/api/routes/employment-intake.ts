@@ -1037,6 +1037,32 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (employment.intake.employer_legal_name) definedTerms.push(employment.intake.employer_legal_name);
 
     const COURT_FORM_TYPES = ['affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'];
+
+    // Mediation brief: load the deterministic table inputs from the matter
+    // record (comparables from the case library; offers from the negotiation
+    // ledger). Both are best-effort; the generator omits a table and flags
+    // it when the data is missing.
+    let comparables: import('../../employment/case-comparables.js').ComparableCase[] | null = null;
+    let comparableRange: import('../../employment/case-comparables.js').CaseBasedRange | null = null;
+    let negotiationEntries: import('../../employment/negotiation.js').NegotiationEntry[] | null = null;
+    if (parsed.data.documentType === 'mediation_brief') {
+      negotiationEntries = ((matter as Record<string, unknown>).negotiation ?? null) as import('../../employment/negotiation.js').NegotiationEntry[] | null;
+      try {
+        const { computeBardalFactors } = await import('../../employment/timeline-generator.js');
+        const { findComparables } = await import('../../employment/case-comparables.js');
+        const bardal = computeBardalFactors(employment.intake);
+        if (bardal.tenureYears != null) {
+          const found = await findComparables({ years: bardal.tenureYears, age: bardal.age, seniority: null });
+          if (found) {
+            comparables = found.comparables;
+            comparableRange = found.range;
+          }
+        }
+      } catch {
+        // Comparables are additive; the brief generates without them.
+      }
+    }
+
     let result;
     try {
       result = await generateLitigationDocument({
@@ -1051,6 +1077,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         courtLocation: parsed.data.courtLocation,
         additionalContext: parsed.data.additionalContext,
         formFields: parsed.data.formFields,
+        comparables,
+        comparableRange,
+        negotiationEntries,
       }, definedTerms);
     } catch (err) {
       // Deterministic court forms validate their inputs and fail with a

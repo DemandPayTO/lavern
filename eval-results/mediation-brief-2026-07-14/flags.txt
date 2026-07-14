@@ -1,0 +1,7 @@
+factual_accuracy
+settlement_range
+weakness_assessment
+objectives
+Damages table: confirm ESA amounts actually paid and any mitigation earnings, and net them before service (Fisher: deduct monies paid and mitigation income to a net figure).
+Comparable-case table: verify each case against the source decision before service.
+Negotiation history: attach copies of any Rule 49 offers served, whether or not still open.

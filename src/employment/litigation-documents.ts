@@ -24,6 +24,9 @@ import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
+import { buildMediationFrontMatter } from './mediation-brief-tables.js';
+import type { ComparableCase, CaseBasedRange } from './case-comparables.js';
+import type { NegotiationEntry } from './negotiation.js';
 
 const logger = createLogger('LITIGATION-DOCS');
 
@@ -71,6 +74,12 @@ export interface LitigationDocumentRequest {
   /** Structured inputs for the deterministic court forms (service details,
    *  offer dates, costs figures). Each builder validates its own fields. */
   formFields?: CourtFormFields;
+  /** Mediation brief only: comparables from the case library and the matter's
+   *  negotiation ledger, loaded by the route. Rendered into deterministic
+   *  front-matter tables; the model never touches these numbers. */
+  comparables?: ComparableCase[] | null;
+  comparableRange?: CaseBasedRange | null;
+  negotiationEntries?: NegotiationEntry[] | null;
 }
 
 export interface LitigationDocumentResult {
@@ -157,39 +166,36 @@ RULES:
 
 Output as HTML with h1, h2, tables, and structured lists. No inline styles.`,
 
-    mediation_brief: `You are a senior Ontario employment lawyer preparing a mediation brief for mandatory mediation under Rule 24.1.
+    mediation_brief: `You are a senior Ontario employment lawyer preparing a plaintiff's mediation brief for mandatory mediation under Rule 24.1. You are writing a persuasive narrative, not filling out Form 24.1C, and not reciting a pleading. The true audience is the opposing party and its counsel; the mediator is being educated. This design follows the published guidance of Ontario's leading employment mediators (Fisher, Rudner, Rose).
 
-The mediation brief should contain:
+IMPORTANT: The document already begins with deterministic tables prepared from the matter record (plaintiff profile with the Bardal facts, itemized damages calculation, comparable cases, and negotiation history, as available). Do NOT reproduce those tables, do NOT restate their numbers in detail, and do NOT output an h1 title. Refer to them naturally (for example "as set out in the damages table above"). Begin directly with the first h2 section.
 
-1. NATURE OF THE ACTION: Brief description of the claim and parties
+Write these sections, each as an h2:
 
-2. FACTUAL BACKGROUND: Chronological narrative of the employment relationship, termination, and post-termination events. State facts, not arguments.
+1. OVERVIEW: Two or three sentences: who the plaintiff is, what happened, and what this case is really about. A mediator should understand the case from this paragraph alone.
 
-3. ISSUES IN DISPUTE: List each legal issue, stating the plaintiff's position and the anticipated defence position
+2. FACTUAL BACKGROUND: Chronological narrative of the employment relationship, the dismissal, and post-termination events. State facts, not arguments. Keep it tight; facts that do not move the assessment do not belong.
 
-4. ATTEMPTS TO RESOLVE: Any settlement offers exchanged, without-prejudice communications
+3. ISSUES IN DISPUTE: Each live issue with the plaintiff's position AND the anticipated defence position, stated fairly. Do not argue settled law: no Bardal quotation, no recitation of principles every employment lawyer knows. The comparable cases above carry the notice-range argument. Spend legal analysis only on genuinely contested questions (for example an enforceability challenge to a termination clause).
 
-5. LEGAL ISSUES: Brief statement of the applicable legal principles for each issue (Bardal, Waksdale, Honda, etc.)
+4. RESPONSE TO ANTICIPATED DEFENCES: Address the real weaknesses head-on and first. If just cause is alleged, put the plaintiff's version on the table squarely; ignoring it costs credibility when the defence brief raises it. Where a position is weak, be candid; where a defence position is weak, say why calmly.
 
-6. DAMAGES PARTICULARS: Itemised breakdown of the plaintiff's claim with supporting calculations
+5. MITIGATION: Summarize the plaintiff's mitigation efforts and any earnings to date. If a mitigation log or chart exists, refer to it as an attachment. Never overstate.
 
-7. SETTLEMENT RANGE: The plaintiff's realistic assessment of the range of outcomes:
-   - Best case (if every issue is resolved in the plaintiff's favour)
-   - Likely range (most probable outcome range)
-   - Floor (minimum acceptable; ESA entitlements as the baseline)
+6. SETTLEMENT POSITION: Tie the numbers to the litigation alternative: where the action stands, what steps and costs lie ahead for both sides, and why resolving now beats that alternative. Present the plaintiff's realistic range grounded in the damages table and comparable cases, with statutory entitlements as the floor. Realistic, not aspirational. If the negotiation history above shows no real negotiations, acknowledge that honestly.
 
-8. MEDIATION OBJECTIVES: What the plaintiff hopes to achieve (monetary settlement, reference letter, benefits continuation, non-disparagement, etc.)
+7. MEDIATION OBJECTIVES: What the plaintiff seeks, monetary and non-monetary (reference letter, benefits continuation, non-disparagement, tax structuring of the settlement).
 
-9. PRACTICAL CONSIDERATIONS: Factors relevant to settlement (upcoming limitation dates, cost exposure, emotional toll on the client, desire for closure)
+8. PRACTICAL CONSIDERATIONS: Anything that genuinely bears on settlement (limitation or scheduling pressure, cost exposure, the client's circumstances and desire for closure).
 
 RULES:
-- Be candid about weaknesses; mediators appreciate honest assessments
-- Show you understand the other side's likely arguments
-- Settlement ranges should be realistic, not aspirational
-- Reference specific damages calculations (not just ranges)
-- Canadian English spelling throughout
+- CONCISE. The narrative must not exceed roughly 2,000 words; mediators say they stop absorbing long briefs. Every sentence earns its place.
+- Candid about weaknesses; mediators reward honest assessments and discount inflated ones.
+- Credible, measured register. Inflammatory language impedes settlement.
+- Do not fabricate facts, offers, or mitigation details not provided. If something material is unknown, note it for counsel in square brackets [LAWYER: ...].
+- Canadian English spelling throughout.
 
-Output as HTML with h1, h2, p, ol, li, strong, tables. No inline styles.`,
+Output as HTML with h2, p, ol, li, strong only. No h1, no tables, no inline styles.`,
 
     severance_assessment: `You are a senior Ontario employment lawyer preparing a SEVERANCE OFFER ASSESSMENT: an internal advice memo comparing the employer's severance offer against the client's statutory and common law entitlements.
 
@@ -551,8 +557,24 @@ export async function generateLitigationDocument(
     };
   }
 
+  // Mediation brief: deterministic front matter (profile/Bardal, damages,
+  // comparables, negotiation history) built from the matter record. The
+  // model writes the narrative around these tables and never composes them.
+  const frontMatter = req.documentType === 'mediation_brief'
+    ? buildMediationFrontMatter({
+        intake: req.intake,
+        analysis: req.analysis,
+        comparables: req.comparables,
+        comparableRange: req.comparableRange,
+        negotiationEntries: req.negotiationEntries,
+      })
+    : null;
+
   const systemPrompt = buildSystemPrompt(req.documentType);
-  const userPrompt = buildUserPrompt(req);
+  let userPrompt = buildUserPrompt(req);
+  if (frontMatter) {
+    userPrompt += `\n\nTABLES ALREADY IN THE DOCUMENT (do not reproduce): ${frontMatter.included.join(', ') || 'none'}.`;
+  }
 
   logger.info('Generating litigation document', {
     documentType: req.documentType,
@@ -588,6 +610,17 @@ export async function generateLitigationDocument(
     html = injectForm14cNotice(html);
   }
 
+  // Mediation brief: prepend the deterministic title block and tables.
+  // Integrity checks below run on the model narrative only: the tables are
+  // deterministic and the comparable cases come from the verified library,
+  // so canon-checking them would produce false "unknown case" flags.
+  const narrativeHtml = html;
+  if (frontMatter) {
+    const plaintiff = [req.intake.client_first_name, req.intake.client_last_name].filter(Boolean).join(' ');
+    const titleBlock = `<h1>Mediation Brief of the Plaintiff${plaintiff ? `, ${plaintiff}` : ''}</h1>`;
+    html = [titleBlock, frontMatter.html, html].filter(Boolean).join('\n\n');
+  }
+
   // Citation tracking
   let citations: SourceCitation[] = [];
   let totalCost = cost;
@@ -605,9 +638,10 @@ export async function generateLitigationDocument(
 
   const lawyerReviewFlags = [
     ...getLawyerReviewFlags(req.documentType),
-    ...checkCitationIntegrity(html, definedTerms ?? []),
-    ...checkCanonTextIntegrity(html),
-    ...checkFillInPlaceholders(html),
+    ...(frontMatter?.flags ?? []),
+    ...checkCitationIntegrity(narrativeHtml, definedTerms ?? []),
+    ...checkCanonTextIntegrity(narrativeHtml),
+    ...checkFillInPlaceholders(narrativeHtml),
   ];
 
   logger.info('Litigation document generated', {
