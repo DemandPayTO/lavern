@@ -39,7 +39,7 @@ export interface MediationFrontMatter {
   flags: string[];
 }
 
-const esc = (s: unknown): string =>
+export const esc = (s: unknown): string =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const cad = (n: number): string =>

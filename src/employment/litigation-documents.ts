@@ -24,7 +24,7 @@ import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
-import { buildMediationFrontMatter, numberNarrativeParagraphs } from './mediation-brief-tables.js';
+import { buildMediationFrontMatter, numberNarrativeParagraphs, esc } from './mediation-brief-tables.js';
 import type { ComparableCase, CaseBasedRange } from './case-comparables.js';
 import type { NegotiationEntry } from './negotiation.js';
 
@@ -616,7 +616,10 @@ export async function generateLitigationDocument(
   // so canon-checking them would produce false "unknown case" flags.
   const narrativeHtml = html;
   if (frontMatter) {
-    const plaintiff = [req.intake.client_first_name, req.intake.client_last_name].filter(Boolean).join(' ');
+    // Escape the name: it can originate from the public intake portal
+    // (client-controlled), and the assembled HTML is rendered in the
+    // dashboard via dangerouslySetInnerHTML.
+    const plaintiff = esc([req.intake.client_first_name, req.intake.client_last_name].filter(Boolean).join(' '));
     const titleBlock = `<h1>Mediation Brief of the Plaintiff${plaintiff ? `, ${plaintiff}` : ''}</h1>`;
     // Factum convention: narrative paragraphs numbered consecutively,
     // deterministically (the tables and title are not numbered).
@@ -779,7 +782,7 @@ ${row.repeat(15)}
 <tr><th>Date</th><th>Activity</th><th>Details</th></tr>
 ${row.repeat(6)}
 </table>
-<p>Prepared for ${clientFirstName || 'the client'}. If anything is unclear, contact the firm; do not guess.</p>`;
+<p>Prepared for ${esc(clientFirstName) || 'the client'}. If anything is unclear, contact the firm; do not guess.</p>`;
 }
 
 /** Model tier per document type — internal memos and plain-language

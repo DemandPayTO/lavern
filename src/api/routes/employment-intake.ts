@@ -37,12 +37,21 @@ import type { FirmTemplate } from '../../employment/firm-templates.js';
 const logger = createLogger('EMPLOYMENT');
 
 /** Strip script tags and event handlers from generated HTML before storing. */
-function sanitiseHtml(html: string): string {
+// Shared last-line-of-defense sanitiser for generated-document HTML rendered
+// in the dashboard via dangerouslySetInnerHTML. Generators already escape
+// user-controlled values at the source; this strips active-content vectors
+// that must never survive regardless. Covers quoted AND unquoted event
+// handlers, script/iframe/object/embed tags, and javascript:/data: URIs.
+export function sanitiseHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<script[^>]*>/gi, '')
-    .replace(/\bon\w+\s*=\s*"[^"]*"/gi, '')
-    .replace(/\bon\w+\s*=\s*'[^']*'/gi, '');
+    .replace(/<(script|iframe|object|embed|link|meta|base)[^>]*>/gi, '')
+    // Event handlers: quoted, single-quoted, and unquoted (onerror=alert(1)).
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    // Dangerous URI schemes in href/src/etc.
+    .replace(/\s(href|src|xlink:href|formaction)\s*=\s*(["']?)\s*(?:javascript|data|vbscript):[^"'>\s]*\2/gi, ' $1=$2#$2');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
