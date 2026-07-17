@@ -576,6 +576,8 @@ export default function MatterDetailView() {
   const [activeTab, setActiveTab] = useState<TabKey>('issues');
   const [editingFileNumber, setEditingFileNumber] = useState(false);
   const [fileNumberDraft, setFileNumberDraft] = useState('');
+  const [keyDate, setKeyDate] = useState({ date: '', label: '', category: 'legal', courtDeadline: true });
+  const [keyDateSaving, setKeyDateSaving] = useState(false);
   const [notes, setNotes] = useState(DEMO_NOTES);
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
@@ -645,7 +647,7 @@ export default function MatterDetailView() {
   const sessionId = rawSid?.replace(/\s+/g, '') ?? null;
 
   // Wire hook data
-  const { matter, loading, error } = useMatterDetail(sessionId);
+  const { matter, loading, error, refresh: refreshMatter } = useMatterDetail(sessionId);
   const employment = useEmploymentData(sessionId);
   // Labour (grievance) matters render the labour view instead — detected
   // by the presence of grievance data on the matter
@@ -1808,6 +1810,43 @@ export default function MatterDetailView() {
           {/* Timeline */}
           {activeTab === 'timeline' && (
             <div id="panel-timeline" role="tabpanel" style={{ paddingTop: 22 }}>
+              {/* Add a key date. Court/statutory deadlines drive the red band. */}
+              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: 16, marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: navy, letterSpacing: 0.3, marginBottom: 10 }}>ADD A KEY DATE</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input type="date" value={keyDate.date} onChange={e => setKeyDate(k => ({ ...k, date: e.target.value }))}
+                    style={{ fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans }} />
+                  <input value={keyDate.label} onChange={e => setKeyDate(k => ({ ...k, label: e.target.value }))}
+                    placeholder="e.g. Settlement conference, trial date, motion return"
+                    style={{ flex: 1, minWidth: 220, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans }} />
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: ink, whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={keyDate.courtDeadline} onChange={e => setKeyDate(k => ({ ...k, courtDeadline: e.target.checked }))} />
+                    Court / statutory deadline
+                  </label>
+                  <button
+                    disabled={keyDateSaving || !keyDate.date || keyDate.label.trim().length === 0}
+                    onClick={async () => {
+                      setKeyDateSaving(true);
+                      try {
+                        await fetch(`/api/employment/${sessionId}/timeline`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                          body: JSON.stringify({ date: keyDate.date, label: keyDate.label.trim(), category: keyDate.category, courtDeadline: keyDate.courtDeadline }),
+                        });
+                        setKeyDate({ date: '', label: '', category: 'legal', courtDeadline: true });
+                        await refreshMatter();
+                        void employment.refresh();
+                      } catch { /* transient */ }
+                      setKeyDateSaving(false);
+                    }}
+                    style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', background: navy, color: '#fff', cursor: 'pointer', opacity: (!keyDate.date || !keyDate.label.trim()) ? 0.5 : 1 }}
+                  >
+                    {keyDateSaving ? 'Adding...' : 'Add'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11.5, color: muted, marginTop: 8 }}>
+                  Court and statutory deadlines show in red on the docket when they are overdue or within a business week. Untick for a non-court date (a reminder, a call).
+                </div>
+              </div>
               {matter!.timeline.length === 0 && (
                 <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No timeline events yet.</div>
               )}
@@ -1843,7 +1882,12 @@ export default function MatterDetailView() {
                       aria-hidden="true"
                     />
                     <div style={{ fontSize: 12, color: muted, marginBottom: 2 }}>{ev.date}</div>
-                    <div style={{ fontSize: 14, color: ink, fontWeight: 600 }}>{ev.title}</div>
+                    <div style={{ fontSize: 14, color: ink, fontWeight: 600 }}>
+                      {ev.title}
+                      {ev.courtDeadline && (
+                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#fce8e6', padding: '2px 7px', borderRadius: 2, verticalAlign: 'middle' }}>COURT DEADLINE</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 13, color: muted }}>{ev.subtitle}</div>
                   </div>
                 ))}

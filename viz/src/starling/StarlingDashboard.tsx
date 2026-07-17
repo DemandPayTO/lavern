@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useMatterList } from './hooks/useStarlingApi.js';
+import { useMatterList, usePracticeMode } from './hooks/useStarlingApi.js';
 
 // ── Design Tokens (CSS variable references) ─────────────────────────────
 const navy = '#0f1a2e';
@@ -227,9 +227,15 @@ export default function StarlingDashboard() {
     }
   };
 
-  // Separate active and completed matters
-  const activeMatters = matters.filter(m => m.status !== 'complete');
-  const completedMatters = matters.filter(m => m.status === 'complete');
+  // Practice mode: hide the vertical the firm does not use. 'both' shows all.
+  const practiceMode = usePracticeMode();
+  const inPractice = (m: { isLabour?: boolean }) =>
+    practiceMode === 'both' ? true : practiceMode === 'labour' ? Boolean(m.isLabour) : !m.isLabour;
+
+  // Separate active and completed matters (within the active practice mode)
+  const scopedMatters = matters.filter(inPractice);
+  const activeMatters = scopedMatters.filter(m => m.status !== 'complete');
+  const completedMatters = scopedMatters.filter(m => m.status === 'complete');
 
   // Filter active matters
   const filteredMatters = activeFilter === 'all'

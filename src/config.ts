@@ -169,6 +169,15 @@ export const config = {
   // ── Starling ───────────────────────────────────────────────────────────
   starling: {
     /**
+     * Practice mode: which vertical(s) the firm uses. Most lawyers do
+     * employment OR labour, not both, so the dashboard and New Matter hide
+     * the vertical the firm does not use. 'employment' (default) | 'labour' |
+     * 'both'. Display-only gate; the labour code and routes stay in place.
+     */
+    practiceMode: (['employment', 'labour', 'both'].includes(process.env.STARLING_PRACTICE_MODE ?? '')
+      ? process.env.STARLING_PRACTICE_MODE
+      : 'employment') as 'employment' | 'labour' | 'both',
+    /**
      * Recipient for the weekly digest email (firm principal). When set, the
      * server sends the digest every Monday at 08:00 America/Toronto. Empty
      * disables the in-app scheduler (the admin HTTP route still works).
