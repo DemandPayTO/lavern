@@ -1727,6 +1727,41 @@ export default function MatterDetailView() {
                       </a>
                     </div>
                   </div>
+                  {/* Lifecycle status, right where the draft is generated (also
+                      manageable on the Documents tab). Sent/Filed start the
+                      downstream ticklers (e.g. SOC sent -> Defence due). */}
+                  {(() => {
+                    const dt = DRAFT_TO_DOCTYPE[selectedDraft ?? ''] ?? '';
+                    const cur = employment.generatedDocuments.find(d => d.docType === dt);
+                    const today = new Date().toISOString().slice(0, 10);
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: muted }}>Status:</span>
+                        {(['reviewed', 'sent', 'filed'] as const).map(next => (
+                          <button
+                            key={next}
+                            onClick={() => void employment.setDocumentStatus(dt, next, (next === 'sent' || next === 'filed') ? today : undefined)}
+                            disabled={cur?.status === next}
+                            style={{
+                              fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans,
+                              background: cur?.status === next ? navy : '#fff',
+                              color: cur?.status === next ? '#fff' : navy,
+                              border: `1px solid ${cur?.status === next ? navy : border}`,
+                              cursor: cur?.status === next ? 'default' : 'pointer',
+                              textTransform: 'capitalize' as const,
+                            }}
+                          >
+                            {cur?.status === next ? `✓ ${next}` : `Mark ${next}`}
+                          </button>
+                        ))}
+                        {cur?.status && cur.status !== 'draft' && (
+                          <span style={{ fontSize: 11.5, color: green, fontWeight: 600 }}>
+                            {cur.status}{cur.statusDate ? ` · ${cur.statusDate}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div
                     className="starling-doc"
                     style={{
