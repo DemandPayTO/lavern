@@ -1728,6 +1728,7 @@ export default function MatterDetailView() {
                     </div>
                   </div>
                   <div
+                    className="starling-doc"
                     style={{
                       background: '#fff', border: `1px solid ${border}`, padding: '28px 32px',
                       fontFamily: serif, fontSize: 14, lineHeight: 1.7, color: ink,
