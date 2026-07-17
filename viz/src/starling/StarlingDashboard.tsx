@@ -185,6 +185,8 @@ export default function StarlingDashboard() {
   interface DeadlineItem {
     matterId: string; matterLabel: string; date: string; label: string;
     daysRemaining: number; urgency: 'overdue' | 'critical' | 'soon' | 'upcoming'; kind: string;
+    /** Triage band: red only for court/statutory deadlines (critical). */
+    band?: 'critical' | 'attention' | 'planned'; isCourt?: boolean;
   }
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
   useEffect(() => {
@@ -196,9 +198,18 @@ export default function StarlingDashboard() {
     return () => { cancelled = true; };
   }, [matters.length]);
 
-  const URGENCY_COLOURS: Record<string, string> = {
-    overdue: '#dc2626', critical: '#dc2626', soon: '#d97706', upcoming: muted,
+  // Red is reserved for the critical band (court/statutory deadlines within a
+  // business week or overdue); attention is amber; planned is quiet.
+  const BAND_COLOURS: Record<string, string> = {
+    critical: '#dc2626', attention: '#d97706', planned: muted,
   };
+  const bandOf = (d: DeadlineItem): 'critical' | 'attention' | 'planned' => d.band ?? 'planned';
+  const BAND_RANK: Record<string, number> = { critical: 0, attention: 1, planned: 2 };
+  // Sort so genuine emergencies surface first, then by date within a band.
+  const sortedDeadlines = [...deadlines].sort(
+    (a, b) => (BAND_RANK[bandOf(a)] - BAND_RANK[bandOf(b)]) || a.date.localeCompare(b.date),
+  );
+  const criticalCount = deadlines.filter(d => bandOf(d) === 'critical').length;
 
   const handleDeleteMatter = async (matterId: string) => {
     setDeleting(true);
@@ -395,9 +406,9 @@ export default function StarlingDashboard() {
           <div style={{ marginBottom: 28 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
               Deadlines
-              {deadlines.some(d => d.urgency === 'overdue' || d.urgency === 'critical') && (
+              {criticalCount > 0 && (
                 <span style={{ marginLeft: 8, color: '#dc2626' }}>
-                  · {deadlines.filter(d => d.urgency === 'overdue' || d.urgency === 'critical').length} need attention
+                  · {criticalCount} need{criticalCount === 1 ? 's' : ''} you now
                 </span>
               )}
               <a
@@ -410,7 +421,7 @@ export default function StarlingDashboard() {
               </a>
             </div>
             <div style={{ background: '#fff', border: `1px solid ${border}` }} role="list" aria-label="Upcoming deadlines">
-              {deadlines.slice(0, 6).map((d, i) => (
+              {sortedDeadlines.slice(0, 6).map((d, i) => (
                 <div
                   key={`${d.matterId}-${d.date}-${d.kind}`}
                   role="listitem"
@@ -422,8 +433,8 @@ export default function StarlingDashboard() {
                     borderBottom: i < Math.min(deadlines.length, 6) - 1 ? `1px solid ${border}` : 'none',
                   }}
                 >
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: URGENCY_COLOURS[d.urgency], flexShrink: 0 }} aria-hidden="true" />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: URGENCY_COLOURS[d.urgency], minWidth: 92 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: BAND_COLOURS[bandOf(d)], flexShrink: 0 }} aria-hidden="true" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: BAND_COLOURS[bandOf(d)], minWidth: 92 }}>
                     {d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`}
                   </span>
                   <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{d.label}</span>

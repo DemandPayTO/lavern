@@ -785,6 +785,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     label: z.string().trim().min(1).max(200),
     description: z.string().trim().max(2000).optional(),
     category: z.enum(['employment', 'termination', 'legal', 'mitigation', 'other']),
+    /** Lawyer marks this as a court-imposed / statutory deadline (red-eligible). */
+    courtDeadline: z.boolean().optional(),
   });
 
   fastify.post('/api/employment/:matterId/timeline', async (req: FastifyRequest, reply: FastifyReply) => {
