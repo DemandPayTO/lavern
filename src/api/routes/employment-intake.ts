@@ -709,9 +709,33 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       lawyerNotes: ((matter as Record<string, unknown>).lawyerNotes as string) ?? '',
       generatedDocuments: collectGeneratedDocuments(matter as Record<string, unknown>),
       debriefs: ((matter as Record<string, unknown>).debriefs ?? []),
+      firmFileNumber: ((matter as Record<string, unknown>).firmFileNumber as string) ?? '',
+      matterNumber: ((matter as Record<string, unknown>).matterNumber as string) ?? '',
       stage,
       nextSteps: recommendEmploymentNextSteps(matter as Record<string, unknown>, employment, stage),
     });
+  });
+
+  // ── Firm file number ──────────────────────────────────────────────────
+  // The lawyer's own file/matter number for this matter. When set, the UI
+  // shows it in place of the auto-generated number. Fresh DB read/write so
+  // it never clobbers concurrent employment edits.
+  fastify.post('/api/employment/:matterId/file-number', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const schema = z.object({ firmFileNumber: z.string().trim().max(60) }).strict();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid file number' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter } = loadEmploymentData(row.data_json);
+    const m = matter as Record<string, unknown>;
+    // Empty string clears it (falls back to the auto number).
+    if (parsed.data.firmFileNumber) m.firmFileNumber = parsed.data.firmFileNumber;
+    else delete m.firmFileNumber;
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+    return reply.send({ ok: true, firmFileNumber: parsed.data.firmFileNumber });
   });
 
   // ── POST /api/employment/:matterId/issues ──────────────────────────────

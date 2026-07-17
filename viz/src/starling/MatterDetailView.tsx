@@ -574,6 +574,8 @@ export default function MatterDetailView() {
   // Lawyer/firm details from the Starling Profile — flow into generated documents
   const { profile } = useUserProfile();
   const [activeTab, setActiveTab] = useState<TabKey>('issues');
+  const [editingFileNumber, setEditingFileNumber] = useState(false);
+  const [fileNumberDraft, setFileNumberDraft] = useState('');
   const [notes, setNotes] = useState(DEMO_NOTES);
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
@@ -1025,9 +1027,33 @@ export default function MatterDetailView() {
             <div>
               <h1 style={{ fontFamily: serif, fontSize: 24, fontWeight: 600, color: navy, margin: 0 }}>
                 {matter!.name}{' '}
-                <span style={{ fontSize: 12.5, color: muted, marginLeft: 4, fontFamily: sans, fontWeight: 400 }}>
-                  Matter {matter!.number}
-                </span>
+                {editingFileNumber ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+                    <input
+                      autoFocus
+                      value={fileNumberDraft}
+                      onChange={(e) => setFileNumberDraft(e.target.value)}
+                      placeholder="Your file number"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { void employment.saveFileNumber(fileNumberDraft.trim()).then(() => setEditingFileNumber(false)); } if (e.key === 'Escape') setEditingFileNumber(false); }}
+                      style={{ fontSize: 12.5, fontFamily: sans, padding: '3px 7px', border: `1px solid ${border}`, borderRadius: 2, width: 150 }}
+                    />
+                    <button onClick={() => { void employment.saveFileNumber(fileNumberDraft.trim()).then(() => setEditingFileNumber(false)); }}
+                      style={{ fontSize: 11, fontFamily: sans, border: 'none', background: navy, color: '#fff', padding: '4px 9px', borderRadius: 2, cursor: 'pointer' }}>Save</button>
+                    <button onClick={() => setEditingFileNumber(false)}
+                      style={{ fontSize: 11, fontFamily: sans, border: 'none', background: 'none', color: muted, cursor: 'pointer' }}>Cancel</button>
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: muted, marginLeft: 4, fontFamily: sans, fontWeight: 400 }}>
+                    {employment.firmFileNumber ? `File ${employment.firmFileNumber}` : `Matter ${matter!.number}`}
+                    <button
+                      onClick={() => { setFileNumberDraft(employment.firmFileNumber ?? ''); setEditingFileNumber(true); }}
+                      title="Set your firm's file number"
+                      style={{ fontSize: 11, fontFamily: sans, border: 'none', background: 'none', color: orange, cursor: 'pointer', marginLeft: 6, padding: 0 }}
+                    >
+                      {employment.firmFileNumber ? 'edit' : 'add file number'}
+                    </button>
+                  </span>
+                )}
               </h1>
             </div>
             <span

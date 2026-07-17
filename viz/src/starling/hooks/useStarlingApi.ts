@@ -1476,6 +1476,10 @@ export interface UseEmploymentDataResult {
   nextSteps: Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>;
   /** Every generated document on the matter with its lifecycle status. */
   generatedDocuments: GeneratedDocSummary[];
+  /** The firm's own file number for this matter (empty when unset). */
+  firmFileNumber: string;
+  /** Save (or clear, with '') the firm file number. */
+  saveFileNumber: (value: string) => Promise<{ ok: boolean; error?: string }>;
   /** Advance a generated document's lifecycle status. */
   setDocumentStatus: (docType: string, status: GeneratedDocSummary['status'], date?: string) => Promise<{ ok: boolean; error?: string }>;
   /** Merge-save the intake and re-run the analysis (edits preserve approvals). */
@@ -1513,6 +1517,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocSummary[]>([]);
   const [stage, setStage] = useState<MatterStage | null>(null);
   const [nextSteps, setNextSteps] = useState<Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>>([]);
+  const [firmFileNumber, setFirmFileNumber] = useState('');
 
   const refresh = useCallback(async () => {
     if (!matterId) return;
@@ -1537,10 +1542,27 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setGeneratedDocuments(Array.isArray(json.generatedDocuments) ? json.generatedDocuments : []);
       setStage(json.stage && typeof json.stage === 'object' ? json.stage as MatterStage : null);
       setNextSteps(Array.isArray(json.nextSteps) ? json.nextSteps : []);
+      setFirmFileNumber(typeof json.firmFileNumber === 'string' ? json.firmFileNumber : '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load employment data');
     } finally {
       setLoading(false);
+    }
+  }, [matterId]);
+
+  const saveFileNumber = useCallback(async (value: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!matterId) return { ok: false, error: 'No matter' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/file-number`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ firmFileNumber: value }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) return { ok: false, error: json.error ?? 'Could not save' };
+      setFirmFileNumber(value);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Could not save' };
     }
   }, [matterId]);
 
@@ -1725,7 +1747,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────
