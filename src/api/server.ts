@@ -255,7 +255,7 @@ export async function startApiServer(port: number): Promise<void> {
   // Sends the digest every Monday 08:00 America/Toronto when
   // STARLING_DIGEST_EMAIL is set. Ticks hourly and dedups via a marker file
   // on the data volume so a redeploy inside the window does not double-send.
-  if (config.starling.digestEmail) {
+  if (config.starling.digestEnabled && config.starling.digestEmail) {
     const { maybeSendWeeklyDigest } = await import('../starling/digest-runner.js');
     const digestMarkerPath = path.join(path.dirname(config.dbPath), '.last-weekly-digest');
     const digestEmail = config.starling.digestEmail;
@@ -267,7 +267,7 @@ export async function startApiServer(port: number): Promise<void> {
     digestInterval.unref();
     console.log(`[DIGEST] Weekly digest scheduled for ${digestEmail} (Mondays 08:00 America/Toronto)`);
   } else {
-    console.log('[DIGEST] Weekly digest disabled (STARLING_DIGEST_EMAIL unset)');
+    console.log(`[DIGEST] Weekly digest disabled (${config.starling.digestEnabled ? 'STARLING_DIGEST_EMAIL unset' : 'STARLING_DIGEST_ENABLED not true'})`);
   }
 
   // ── Shared State ─────────────────────────────────────────────────────

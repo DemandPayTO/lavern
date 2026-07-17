@@ -169,9 +169,16 @@ export const config = {
   // ── Starling ───────────────────────────────────────────────────────────
   starling: {
     /**
-     * Recipient for the weekly digest email (firm principal). When set, the
-     * server sends the digest every Monday at 08:00 America/Toronto. Empty
-     * disables the in-app scheduler (the admin HTTP route still works).
+     * Master switch for the weekly digest email. Default OFF: the digest is
+     * disabled for the pilot (it emails a firm-wide docket containing client
+     * matter labels, which is more risk than value at this stage). When
+     * false, BOTH the in-app scheduler and the admin HTTP send route are
+     * inert. Set STARLING_DIGEST_ENABLED=true to re-enable deliberately.
+     */
+    digestEnabled: process.env.STARLING_DIGEST_ENABLED === 'true',
+    /**
+     * Recipient for the weekly digest email (firm principal). Only used when
+     * digestEnabled is true. Empty also disables the in-app scheduler.
      */
     digestEmail: process.env.STARLING_DIGEST_EMAIL ?? '',
     /**
