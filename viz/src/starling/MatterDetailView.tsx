@@ -17,7 +17,7 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel, NegotiationPanel, NetSettlementPanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel, NegotiationPanel, NetSettlementPanel, DebriefPanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -37,7 +37,7 @@ const sans = "system-ui, -apple-system, sans-serif";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'negotiation' | 'notes';
+type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'negotiation' | 'debrief' | 'notes';
 
 interface Issue {
   id: string;
@@ -879,6 +879,7 @@ export default function MatterDetailView() {
     { key: 'intake', label: 'Intake' },
     { key: 'client', label: 'Client' },
     { key: 'negotiation', label: 'Negotiation' },
+    { key: 'debrief', label: 'Debrief' },
     { key: 'notes', label: 'Notes' },
   ];
 
@@ -1940,6 +1941,12 @@ export default function MatterDetailView() {
             <div id="panel-negotiation" role="tabpanel" style={{ paddingTop: 22 }}>
               <NegotiationPanel matterId={sessionId!} />
               <NetSettlementPanel matterId={sessionId!} />
+            </div>
+          )}
+
+          {activeTab === 'debrief' && (
+            <div id="panel-debrief" role="tabpanel" style={{ paddingTop: 22 }}>
+              <DebriefPanel matterId={sessionId!} clientEmail={String((employment.data?.intake as Record<string, unknown> | undefined)?.client_email ?? '') || undefined} />
             </div>
           )}
 

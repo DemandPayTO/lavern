@@ -30,7 +30,8 @@ export interface DeadlineItem {
   /** 'critical' <= 14 days, 'soon' <= 45, 'upcoming' otherwise. */
   urgency: 'overdue' | 'critical' | 'soon' | 'upcoming';
   kind: 'limitation' | 'demand_response' | 'severance_offer' | 'timeline'
-    | 'grievance_filing' | 'grievance_referral' | 'grievance_step' | 'client_email';
+    | 'grievance_filing' | 'grievance_referral' | 'grievance_step' | 'client_email'
+    | 'action_item';
 }
 
 function daysFromToday(isoDate: string): number {
@@ -123,6 +124,23 @@ export function collectDeadlines(
         if (c.status !== 'scheduled' && c.status !== 'drafted') continue;
         if (!c.dueDate || !c.title) continue;
         push(label, c.dueDate, `Client email due: ${c.title}`, 'client_email');
+      }
+    }
+
+    // Debrief action items: open, dated follow-ups from call notes. Collected
+    // outside the employment guard so they surface for any matter type.
+    {
+      const intake = (matter.employmentData as EmploymentMatterData | undefined)?.intake as Record<string, unknown> | undefined;
+      const client = [intake?.client_first_name, intake?.client_last_name].filter(Boolean).join(' ');
+      const employer = (intake?.employer_legal_name ?? intake?.employer_operating_name ?? '') as string;
+      const label = client && employer ? `${client} v ${employer}` : client || employer || row.id;
+      const debriefs = (matter.debriefs ?? []) as Array<{ actionItems?: Array<{ status?: string; dueDate?: string | null; task?: string }> }>;
+      for (const d of debriefs) {
+        for (const it of d.actionItems ?? []) {
+          if (it.status === 'open' && it.dueDate && it.task) {
+            push(label, it.dueDate, `Action: ${it.task}`, 'action_item');
+          }
+        }
       }
     }
 

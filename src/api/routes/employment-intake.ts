@@ -439,6 +439,159 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     return reply.send({ ok: true });
   });
 
+  // ── Matter Debrief ────────────────────────────────────────────────────
+  // Call notes → reviewed summary + dated, checkable action items. The LLM
+  // proposes; the lawyer reviews and approves; dated items become docket
+  // deadlines (and flow to the ICS feed) and email items carry a draft the
+  // lawyer sends manually. Starling never sends. See
+  // docs/specs/matter-debrief-2026-07.md.
+
+  // Analyze notes into a PROPOSED debrief. Does not persist anything.
+  fastify.post('/api/employment/:matterId/debrief/analyze', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const schema = z.object({
+      rawNotes: z.string().trim().min(1).max(20000),
+      callType: z.enum(['client', 'opposing', 'internal', 'other']).default('client'),
+      callDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }).strict();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { employment } = loadEmploymentData(row.data_json);
+
+    // Party names as defined terms so the anonymiser masks them before the
+    // notes leave for the model (defence in depth over the no-training/ZDR
+    // posture).
+    const definedTerms: string[] = [];
+    const intake = employment?.intake;
+    if (intake?.client_first_name && intake?.client_last_name) definedTerms.push(`${intake.client_first_name} ${intake.client_last_name}`);
+    if (intake?.employer_legal_name) definedTerms.push(intake.employer_legal_name);
+    if (intake?.employer_operating_name) definedTerms.push(intake.employer_operating_name);
+
+    const callDate = parsed.data.callDate ?? new Date().toISOString().slice(0, 10);
+    const { DEBRIEF_SYSTEM_PROMPT, buildDebriefUserPrompt, debriefAnalysisSchema } = await import('../../employment/debrief.js');
+    const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+
+    let text: string;
+    try {
+      const result = await crossProviderChat({
+        system: DEBRIEF_SYSTEM_PROMPT,
+        user: buildDebriefUserPrompt(parsed.data.rawNotes, parsed.data.callType, callDate),
+        tier: 'sonnet',
+        maxTokens: 4096,
+        maxRetries: 2,
+        definedTerms: definedTerms.length > 0 ? definedTerms : undefined,
+      });
+      text = result.text;
+    } catch (err) {
+      logger.error('Debrief analysis failed', { error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'Analysis failed. Please try again.' });
+    }
+
+    let jsonText = text.trim();
+    const fenced = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) jsonText = fenced[1].trim();
+    const braced = jsonText.match(/\{[\s\S]*\}/);
+    let proposed;
+    try {
+      proposed = debriefAnalysisSchema.parse(JSON.parse(braced ? braced[0] : jsonText));
+    } catch {
+      return reply.status(502).send({ ok: false, error: 'Could not structure the notes. Try rephrasing or shortening them.' });
+    }
+    return reply.send({ ok: true, proposed, callDate });
+  });
+
+  // Save a REVIEWED debrief: wire dated items into the docket, draft email
+  // items, record a timeline event.
+  fastify.post('/api/employment/:matterId/debrief', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const itemSchema = z.object({
+      task: z.string().trim().min(1).max(500),
+      owner: z.enum(['lawyer', 'client', 'other']).default('lawyer'),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+      kind: z.enum(['task', 'email', 'call', 'filing', 'document']).default('task'),
+      context: z.string().trim().max(1200).default(''),
+      emailSubject: z.string().trim().max(300).optional(),
+      emailBody: z.string().trim().max(4000).optional(),
+    });
+    const schema = z.object({
+      callType: z.enum(['client', 'opposing', 'internal', 'other']).default('client'),
+      summary: z.string().trim().min(1).max(4000),
+      actionItems: z.array(itemSchema).max(40).default([]),
+    }).strict();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid debrief', details: parsed.error.issues.map(i => i.message) });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const m = matter as Record<string, unknown>;
+
+    const { toStoredActionItems } = await import('../../employment/debrief.js');
+    const entry = {
+      id: `dbf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      callType: parsed.data.callType,
+      summary: parsed.data.summary,
+      actionItems: toStoredActionItems(parsed.data.actionItems),
+    };
+    const debriefs = (m.debriefs ?? []) as Array<Record<string, unknown>>;
+    debriefs.push(entry);
+    m.debriefs = debriefs;
+
+    // Record the debrief as a matter event.
+    if (employment) {
+      const dated = entry.actionItems.filter((it) => it.dueDate).length;
+      employment.timeline = [
+        ...(employment.timeline ?? []),
+        {
+          date: new Date().toISOString().slice(0, 10),
+          label: `Debrief captured: ${entry.actionItems.length} action item${entry.actionItems.length === 1 ? '' : 's'}${dated ? `, ${dated} dated` : ''}`,
+          source: 'system',
+        } as (typeof employment.timeline)[number],
+      ];
+      m.employmentData = employment;
+    }
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+
+    const emailDrafts = entry.actionItems.filter((it) => it.kind === 'email' && (it.emailSubject || it.emailBody)).length;
+    return reply.send({
+      ok: true,
+      debrief: entry,
+      scheduled: entry.actionItems.filter((it) => it.dueDate).length,
+      emailDrafts,
+    });
+  });
+
+  // Toggle an action item's status (check off / reopen).
+  fastify.post('/api/employment/:matterId/debrief/:itemId/status', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId, itemId } = req.params as { matterId: string; itemId: string };
+    const schema = z.object({ status: z.enum(['open', 'done']) }).strict();
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid status' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter } = loadEmploymentData(row.data_json);
+    const m = matter as Record<string, unknown>;
+    const debriefs = (m.debriefs ?? []) as Array<{ actionItems?: Array<{ id: string; status: string }> }>;
+    let found = false;
+    for (const d of debriefs) {
+      for (const it of d.actionItems ?? []) {
+        if (it.id === itemId) { it.status = parsed.data.status; found = true; }
+      }
+    }
+    if (!found) return reply.status(404).send({ ok: false, error: 'Action item not found' });
+    m.debriefs = debriefs;
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+    return reply.send({ ok: true });
+  });
+
   // ── Net-settlement calculator ─────────────────────────────────────────
   // What the client actually takes home: rule-certain withholding at
   // source, RRSP-eligible transfer room, HST on fees, and the character of
@@ -555,6 +708,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       data: employment,
       lawyerNotes: ((matter as Record<string, unknown>).lawyerNotes as string) ?? '',
       generatedDocuments: collectGeneratedDocuments(matter as Record<string, unknown>),
+      debriefs: ((matter as Record<string, unknown>).debriefs ?? []),
       stage,
       nextSteps: recommendEmploymentNextSteps(matter as Record<string, unknown>, employment, stage),
     });
