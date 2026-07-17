@@ -215,11 +215,15 @@ function collectLabelledMatches(text: string, re: RegExp, type: EntityType): Fou
 }
 
 /**
- * Build a case-insensitive regex that matches a literal term at word boundaries.
+ * Build a case-insensitive regex that matches a literal term, bounded by
+ * non-word lookarounds rather than \b. A term ending in punctuation
+ * ("Acme Widgets Inc.") has no \b after the "." + space, so a \b-anchored
+ * pattern would fail to match and leak the name; (?<!\w)...(?!\w) matches
+ * whether the term edge is a word char or punctuation.
  */
 function termRegex(term: string): RegExp {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`\\b${escaped}\\b`, 'gi');
+  const escaped = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<!\\w)${escaped}(?!\\w)`, 'gi');
 }
 
 /**
