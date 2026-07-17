@@ -171,6 +171,8 @@ function getFormattedDate(): string {
 
 export default function StarlingDashboard() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(25);
   const [showCompleted, setShowCompleted] = useState(false);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [hoveredMatter, setHoveredMatter] = useState<string | null>(null);
@@ -237,10 +239,21 @@ export default function StarlingDashboard() {
   const activeMatters = scopedMatters.filter(m => m.status !== 'complete');
   const completedMatters = scopedMatters.filter(m => m.status === 'complete');
 
-  // Filter active matters
+  // Filter active matters by status chip
   const filteredMatters = activeFilter === 'all'
     ? activeMatters
     : activeMatters.filter(m => m.status === activeFilter);
+
+  // Free-text search over client name, matter/file number, and the summary
+  // (which carries the employer). Then page the list so 200 matters stay
+  // usable — render up to visibleCount with a "show more" control.
+  const q = search.trim().toLowerCase();
+  const searchedMatters = q
+    ? filteredMatters.filter(m => `${m.name} ${m.number} ${m.description}`.toLowerCase().includes(q))
+    : filteredMatters;
+  const visibleMatters = searchedMatters.slice(0, visibleCount);
+  // Reset paging whenever the filter or search narrows the set.
+  useEffect(() => { setVisibleCount(25); }, [activeFilter, search]);
 
   // Stats
   const urgentCount = activeMatters.filter(m => m.status === 'urgent').length;
@@ -456,6 +469,14 @@ export default function StarlingDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 14px' }}>
           <h2 style={{ fontFamily: serif, fontSize: 19, fontWeight: 600, color: navy, margin: 0 }}>My Matters</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search client, employer, file number"
+              aria-label="Search matters"
+              style={{ fontSize: 12.5, padding: '6px 10px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans, width: 240 }}
+            />
             <div style={{ display: 'flex', gap: 6 }} role="group" aria-label="Filter matters">
               {FILTERS.map(f => (
                 <button
@@ -563,20 +584,25 @@ export default function StarlingDashboard() {
             </div>
           </div>
         )}
-        {!loading && filteredMatters.length > 0 && (
+        {!loading && searchedMatters.length === 0 && (matters.length > 0) && (
+          <div style={{ padding: '32px', textAlign: 'center', color: muted, fontSize: 13.5, background: '#fff', border: `1px solid ${border}` }}>
+            No matters match {q ? `"${search.trim()}"` : 'this filter'}.
+          </div>
+        )}
+        {!loading && visibleMatters.length > 0 && (
         <div
           style={{ background: '#fff', border: `1px solid ${border}` }}
           role="list"
           aria-label="Matters list"
         >
-          {filteredMatters.map((matter, idx) => (
+          {visibleMatters.map((matter, idx) => (
             <div
               key={matter.id}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '6px 1fr auto',
                 gap: 0,
-                borderBottom: idx < filteredMatters.length - 1 ? `1px solid ${border}` : 'none',
+                borderBottom: idx < visibleMatters.length - 1 ? `1px solid ${border}` : 'none',
                 alignItems: 'stretch',
               }}
               role="listitem"
@@ -681,9 +707,17 @@ export default function StarlingDashboard() {
 
         </div>
         )}
-        {!loading && matters.length > 0 && filteredMatters.length === 0 && (
-          <div style={{ padding: '24px 20px', textAlign: 'center', color: muted, fontSize: 14, background: '#fff', border: `1px solid ${border}` }}>
-            No matters match this filter.
+        {!loading && searchedMatters.length > visibleMatters.length && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '12px 0' }}>
+            <span style={{ fontSize: 12.5, color: muted }}>
+              Showing {visibleMatters.length} of {searchedMatters.length}
+            </span>
+            <button
+              onClick={() => setVisibleCount(c => c + 25)}
+              style={{ fontSize: 12.5, fontWeight: 600, padding: '6px 14px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: navy, cursor: 'pointer', fontFamily: sans }}
+            >
+              Show 25 more
+            </button>
           </div>
         )}
 

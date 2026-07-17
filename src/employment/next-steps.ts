@@ -118,6 +118,38 @@ export function recommendEmploymentNextSteps(
     });
   }
 
+  // Open action items from call debriefs. Near-term dated items surface as
+  // their own step; undated follow-ups roll up into one nudge to the Debrief
+  // tab so they are not lost there.
+  const debriefs = (matter.debriefs ?? []) as Array<{
+    actionItems?: Array<{ task?: string; dueDate?: string | null; status?: string }>;
+  }>;
+  const openActionItems = debriefs.flatMap(d => d.actionItems ?? []).filter(it => it.status === 'open');
+  for (const it of openActionItems) {
+    if (!it.dueDate || !it.task) continue;
+    const days = daysUntil(it.dueDate, today);
+    if (days === null || days > 3) continue; // future dated items live on the docket
+    steps.push({
+      action: `Action item: ${it.task}`,
+      reason: days < 0
+        ? `This action item is ${-days} day${days === -1 ? '' : 's'} overdue.`
+        : 'This action item is due.',
+      urgency: days < 0 ? 'urgent' : 'now',
+      goTo: 'debrief',
+    });
+  }
+  const undatedOpen = openActionItems.filter(it => !it.dueDate && it.task).length;
+  if (undatedOpen > 0) {
+    steps.push({
+      action: undatedOpen === 1
+        ? 'Work through the open action item from your last debrief'
+        : `Work through ${undatedOpen} open action items from your debriefs`,
+      reason: 'These follow-ups from a call have no date set and live on the Debrief tab.',
+      urgency: 'soon',
+      goTo: 'debrief',
+    });
+  }
+
   // Limitation jeopardy overrides everything.
   const lim = analysis?.limitationDeadline as { date?: string } | undefined;
   const limDays = daysUntil(lim?.date, today);
