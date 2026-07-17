@@ -52,6 +52,12 @@ export function registerStarlingDigestRoutes(fastify: FastifyInstance): void {
    *   dry_run — if "true", returns digest data without sending email
    */
   fastify.post('/api/starling/digest', async (request, reply) => {
+    // Master switch: when the digest feature is disabled the send route does
+    // not exist at all (404), so not even an admin-key holder can direct a
+    // firm-wide docket to an arbitrary recipient.
+    if (!config.starling.digestEnabled) {
+      return reply.status(404).send({ ok: false, error: 'Not found' });
+    }
     // Admin-key auth (same as admin routes)
     const adminKey = (request.headers as Record<string, string>)['x-admin-key'];
     const expectedKey = config.billableHours.adminKey;

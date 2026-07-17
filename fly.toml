@@ -26,8 +26,10 @@ primary_region = "yyz"
   LAVERN_AUTH_ENABLED = "true"
   LAVERN_WAITLIST_ENABLED = "false"
   LAVERN_BILLING_CURRENCY = "cad"
-  # Weekly digest recipient (firm principal). Sent Mondays 08:00 America/Toronto.
-  STARLING_DIGEST_EMAIL = "demandpayto@gmail.com"
+  # Weekly digest DISABLED for the pilot (emails a firm-wide docket with
+  # client matter labels; more risk than value at this stage). To re-enable:
+  # set STARLING_DIGEST_ENABLED = "true" and STARLING_DIGEST_EMAIL below.
+  # STARLING_DIGEST_EMAIL = "demandpayto@gmail.com"
   # 300/min per IP: the dashboard fans out ~30 requests per load (matter
   # list + per-matter employment enrichment); the default 100/min let an
   # active firm user rate-limit themselves (verified via local probe).
