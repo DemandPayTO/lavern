@@ -47,6 +47,7 @@ const KIND_LABELS: Record<DeadlineItem['kind'], string> = {
   grievance_filing: 'Grievance filing',
   grievance_referral: 'Referral to arbitration',
   grievance_step: 'Grievance step',
+  action_item: 'Action item',
 };
 
 /**

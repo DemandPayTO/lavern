@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 
 // ── Design Tokens ───────────────────────────────────────────────────────
 export const navy = '#0f1a2e';
@@ -1047,6 +1048,205 @@ const cad = (n: number) => `$${Math.round(n).toLocaleString('en-CA')}`;
  * NegotiationPanel — every offer and counter on the matter, tracked against
  * the assessed entitlement range. Facts only; strategy stays with the lawyer.
  */
+// ── Matter Debrief ────────────────────────────────────────────────────────
+
+interface DebriefActionItem {
+  id: string;
+  task: string;
+  owner: 'lawyer' | 'client' | 'other';
+  dueDate: string | null;
+  kind: 'task' | 'email' | 'call' | 'filing' | 'document';
+  context: string;
+  status: 'open' | 'done';
+  emailSubject?: string;
+  emailBody?: string;
+}
+interface DebriefEntryShape {
+  id: string;
+  createdAt: string;
+  callType: string;
+  summary: string;
+  actionItems: DebriefActionItem[];
+}
+// The reviewable proposal (no ids/status yet).
+type ProposedItem = Omit<DebriefActionItem, 'id' | 'status'>;
+
+const KIND_LABEL: Record<DebriefActionItem['kind'], string> = {
+  task: 'Task', email: 'Email', call: 'Call', filing: 'Filing', document: 'Document',
+};
+
+export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clientEmail?: string }) {
+  const [debriefs, setDebriefs] = useState<DebriefEntryShape[]>([]);
+  const [notes, setNotes] = useState('');
+  const [callType, setCallType] = useState('client');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [message, setMessage] = useState('');
+  // Review state: the proposed summary + items, editable before saving.
+  const [review, setReview] = useState<{ summary: string; items: ProposedItem[] } | null>(null);
+
+  const inputStyle: CSSProperties = { fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink };
+  const btn = (bg: string): CSSProperties => ({ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', background: bg, color: '#fff', cursor: 'pointer' });
+
+  const refresh = async () => {
+    try {
+      const res = await fetch(`/api/employment/${matterId}`);
+      const json = await res.json();
+      if (json.ok) setDebriefs(json.debriefs ?? []);
+    } catch { /* transient */ }
+  };
+  useEffect(() => { void refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [matterId]);
+
+  const analyze = async () => {
+    if (notes.trim().length === 0) return;
+    setAnalyzing(true); setMessage('');
+    try {
+      const res = await fetch(`/api/employment/${matterId}/debrief/analyze`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawNotes: notes, callType }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) { setMessage(json.error ?? 'Could not analyze the notes.'); setAnalyzing(false); return; }
+      setReview({
+        summary: json.proposed.summary,
+        items: json.proposed.actionItems.map((it: ProposedItem) => ({ ...it })),
+      });
+    } catch { setMessage('Could not analyze the notes.'); }
+    setAnalyzing(false);
+  };
+
+  const updateItem = (idx: number, patch: Partial<ProposedItem>) => {
+    setReview(r => r ? { ...r, items: r.items.map((it, i) => i === idx ? { ...it, ...patch } : it) } : r);
+  };
+  const removeItem = (idx: number) => setReview(r => r ? { ...r, items: r.items.filter((_, i) => i !== idx) } : r);
+  const addItem = () => setReview(r => r ? { ...r, items: [...r.items, { task: '', owner: 'lawyer', dueDate: null, kind: 'task', context: '' }] } : r);
+
+  const approve = async () => {
+    if (!review) return;
+    setMessage('');
+    const items = review.items.filter(it => it.task.trim().length > 0);
+    try {
+      const res = await fetch(`/api/employment/${matterId}/debrief`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callType, summary: review.summary, actionItems: items }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) { setMessage(json.error ?? 'Could not save the debrief.'); return; }
+      setReview(null); setNotes('');
+      setMessage(`Saved. ${json.scheduled} item${json.scheduled === 1 ? '' : 's'} on the docket${json.emailDrafts ? `, ${json.emailDrafts} email draft${json.emailDrafts === 1 ? '' : 's'}` : ''}.`);
+      await refresh();
+    } catch { setMessage('Could not save the debrief.'); }
+  };
+
+  const toggle = async (itemId: string, status: 'open' | 'done') => {
+    await fetch(`/api/employment/${matterId}/debrief/${itemId}/status`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+    }).catch(() => undefined);
+    await refresh();
+  };
+
+  const mailto = (subject?: string, body?: string) =>
+    `mailto:${clientEmail ?? ''}?subject=${encodeURIComponent(subject ?? '')}&body=${encodeURIComponent(body ?? '')}`;
+
+  return (
+    <div>
+      <p style={{ fontSize: 12.5, color: '#5b6472', marginBottom: 14 }}>
+        Paste your notes from a call. Starling proposes a summary and action items with dates for you to review. Nothing is scheduled or sent until you approve it.
+      </p>
+
+      {!review && (
+        <div style={{ background: '#fff', border: `1px solid ${border}`, padding: 16, marginBottom: 18 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <select value={callType} onChange={e => setCallType(e.target.value)} style={inputStyle}>
+              <option value="client">Client call</option>
+              <option value="opposing">Opposing counsel</option>
+              <option value="internal">Internal</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <textarea
+            value={notes} onChange={e => setNotes(e.target.value)} rows={7}
+            placeholder="e.g. Spoke with Dana. She wants to counter the 12-week offer. Employer alleged cause but has no warning letters. Send counter by next Friday. She will send her job-search log this week..."
+            style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+          />
+          <div style={{ marginTop: 10 }}>
+            <button onClick={analyze} disabled={analyzing || notes.trim().length === 0} style={{ ...btn(navy), opacity: analyzing || notes.trim().length === 0 ? 0.5 : 1 }}>
+              {analyzing ? 'Analyzing...' : 'Summarize and extract action items'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {review && (
+        <div style={{ background: '#fff', border: `1px solid ${orange}`, padding: 16, marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: orange, letterSpacing: 0.5, marginBottom: 10 }}>REVIEW BEFORE SAVING</div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: ink }}>Summary</label>
+          <textarea value={review.summary} onChange={e => setReview(r => r ? { ...r, summary: e.target.value } : r)} rows={3}
+            style={{ ...inputStyle, width: '100%', margin: '4px 0 16px', resize: 'vertical', fontFamily: 'inherit' }} />
+
+          <div style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8 }}>Action items</div>
+          {review.items.map((it, idx) => (
+            <div key={idx} style={{ border: `1px solid ${border}`, borderRadius: 2, padding: 12, marginBottom: 10 }}>
+              <input value={it.task} onChange={e => updateItem(idx, { task: e.target.value })} placeholder="Task" style={{ ...inputStyle, width: '100%', marginBottom: 8 }} />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                <select value={it.owner} onChange={e => updateItem(idx, { owner: e.target.value as ProposedItem['owner'] })} style={inputStyle}>
+                  <option value="lawyer">Lawyer</option><option value="client">Client</option><option value="other">Other</option>
+                </select>
+                <select value={it.kind} onChange={e => updateItem(idx, { kind: e.target.value as ProposedItem['kind'] })} style={inputStyle}>
+                  <option value="task">Task</option><option value="email">Email</option><option value="call">Call</option><option value="filing">Filing</option><option value="document">Document</option>
+                </select>
+                <input type="date" value={it.dueDate ?? ''} onChange={e => updateItem(idx, { dueDate: e.target.value || null })} style={inputStyle} />
+                <button onClick={() => removeItem(idx)} style={{ ...btn('#fff'), color: red, border: `1px solid ${border}` }}>Remove</button>
+              </div>
+              {it.context && <div style={{ fontSize: 12, color: '#5b6472', marginBottom: it.kind === 'email' ? 8 : 0 }}>{it.context}</div>}
+              {it.kind === 'email' && (
+                <div style={{ background: cream, padding: 10, borderRadius: 2 }}>
+                  <input value={it.emailSubject ?? ''} onChange={e => updateItem(idx, { emailSubject: e.target.value })} placeholder="Email subject" style={{ ...inputStyle, width: '100%', marginBottom: 6 }} />
+                  <textarea value={it.emailBody ?? ''} onChange={e => updateItem(idx, { emailBody: e.target.value })} rows={4} placeholder="Draft (you review and send)" style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+              )}
+            </div>
+          ))}
+          <button onClick={addItem} style={{ ...btn('#fff'), color: navy, border: `1px solid ${border}`, marginBottom: 12 }}>+ Add item</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={approve} style={btn(green)}>Approve and schedule</button>
+            <button onClick={() => setReview(null)} style={{ ...btn('#fff'), color: '#5b6472', border: `1px solid ${border}` }}>Discard</button>
+          </div>
+        </div>
+      )}
+
+      {message && <div style={{ fontSize: 12.5, color: '#5b6472', marginBottom: 14 }}>{message}</div>}
+
+      {debriefs.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: ink, letterSpacing: 0.4, margin: '4px 0 10px' }}>PAST DEBRIEFS</div>
+          {[...debriefs].reverse().map(d => (
+            <div key={d.id} style={{ background: '#fff', border: `1px solid ${border}`, padding: 16, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#8a929e', marginBottom: 6 }}>{new Date(d.createdAt).toLocaleDateString()} · {d.callType} call</div>
+              <div style={{ fontSize: 13, color: ink, marginBottom: 12 }}>{d.summary}</div>
+              {d.actionItems.map(it => (
+                <div key={it.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderTop: `1px solid ${border}` }}>
+                  <input type="checkbox" checked={it.status === 'done'} onChange={e => toggle(it.id, e.target.checked ? 'done' : 'open')} style={{ marginTop: 3 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, color: ink, textDecoration: it.status === 'done' ? 'line-through' : 'none', opacity: it.status === 'done' ? 0.55 : 1 }}>
+                      {it.task}
+                      <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#5b6472', background: cream, padding: '2px 6px', borderRadius: 2 }}>{KIND_LABEL[it.kind]}</span>
+                      {it.dueDate && <span style={{ marginLeft: 6, fontSize: 11, color: amber }}>due {it.dueDate}</span>}
+                      <span style={{ marginLeft: 6, fontSize: 11, color: '#8a929e' }}>· {it.owner}</span>
+                    </div>
+                    {it.kind === 'email' && it.emailBody && it.status !== 'done' && (
+                      <a href={mailto(it.emailSubject, it.emailBody)} style={{ fontSize: 11.5, color: orange, textDecoration: 'none' }}>Open email draft</a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function NegotiationPanel({ matterId }: { matterId: string }) {
   const [entries, setEntries] = useState<NegotiationEntryShape[]>([]);
   const [summary, setSummary] = useState<NegotiationSummaryShape | null>(null);

@@ -259,6 +259,13 @@ export interface TimelineEvent {
   category: 'employment' | 'termination' | 'legal' | 'mitigation' | 'other';
   /** Source: how this event was captured. */
   source: 'intake_form' | 'document_extraction' | 'lawyer_entry' | 'system';
+  /**
+   * True when this is a court-imposed or statutory deadline the lawyer must
+   * not miss (drives the red "Critical" band on the docket). Set explicitly
+   * by the lawyer on the add-event form; system litigation ticklers are
+   * classified by their label. See deadlines.ts isCourtDeadline().
+   */
+  courtDeadline?: boolean;
 }
 
 // ── Gate Result ──────────────────────────────────────────────────────────

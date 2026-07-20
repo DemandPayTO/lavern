@@ -9,8 +9,8 @@
  * Canadian spelling throughout (analyse, licenced).
  */
 
-import { useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { useMatterCreate } from './hooks/useStarlingApi.js';
+import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } from 'react';
+import { useMatterCreate, usePracticeMode } from './hooks/useStarlingApi.js';
 
 const GrievanceNewMatter = lazy(() => import('./GrievanceNewMatter.js'));
 
@@ -78,7 +78,14 @@ function getFileTypeLabel(name: string): string {
 // ── Component ───────────────────────────────────────────────────────────
 
 export default function NewMatterView() {
+  const practiceMode = usePracticeMode();
   const [practiceArea, setPracticeArea] = useState<'employment' | 'labour'>('employment');
+  // A single-vertical firm never sees the toggle; lock the practice area to
+  // its mode. Only 'both' firms choose per matter.
+  useEffect(() => {
+    if (practiceMode === 'employment') setPracticeArea('employment');
+    else if (practiceMode === 'labour') setPracticeArea('labour');
+  }, [practiceMode]);
   const [clientName, setClientName] = useState('');
   const [employerName, setEmployerName] = useState('');
   const [situation, setSituation] = useState('');
@@ -253,7 +260,8 @@ export default function NewMatterView() {
               : 'Capture the grievance. Starling runs the 11-gate labour analysis (Wm Scott, KVP, Weber, DFR) and puts the CA time limits on the docket instantly.'}
           </p>
 
-          {/* Practice area */}
+          {/* Practice area — shown only when the firm runs both verticals */}
+          {practiceMode === 'both' && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 26 }} role="radiogroup" aria-label="Practice area">
             {([
               ['employment', 'Employment', 'Plaintiff-side: wrongful dismissal, ESA, HRTO'],
@@ -276,6 +284,7 @@ export default function NewMatterView() {
               </button>
             ))}
           </div>
+          )}
 
           {practiceArea === 'labour' && (
             <Suspense fallback={<div style={{ padding: '40px 0', textAlign: 'center', color: muted, fontSize: 14 }}>Loading grievance intake...</div>}>

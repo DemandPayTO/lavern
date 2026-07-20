@@ -76,8 +76,14 @@ export interface MatterRecord {
   /** Client who engaged the firm */
   clientId: string;
 
-  /** Human-readable matter number (e.g., "SHEM-2026-001") */
+  /** Auto-generated matter number ("DP-2026-001"). Internal fallback. */
   matterNumber: string;
+
+  /**
+   * The firm's own file/matter number for this matter, entered by the lawyer.
+   * When set, it is displayed in place of the auto-generated matterNumber.
+   */
+  firmFileNumber?: string;
 
   /** Brief title describing the matter */
   title: string;
@@ -145,13 +151,17 @@ let matterSequence = 0;
 
 /**
  * Generate the next matter number in sequence.
- * Format: SHEM-{YEAR}-{NNN}
+ * Format: {PREFIX}-{YEAR}-{NNN}. The prefix is configurable via
+ * STARLING_MATTER_PREFIX (default "DP") so the firm's own code shows on the
+ * file instead of the engine codename. This is the auto-fallback; a matter's
+ * own firmFileNumber, when set, is displayed in its place.
  */
 export function generateMatterNumber(): string {
   matterSequence++;
   const year = new Date().getFullYear();
   const seq = String(matterSequence).padStart(3, '0');
-  return `SHEM-${year}-${seq}`;
+  const prefix = process.env.STARLING_MATTER_PREFIX?.trim() || 'DP';
+  return `${prefix}-${year}-${seq}`;
 }
 
 /**

@@ -17,7 +17,7 @@ import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
-import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel, NegotiationPanel, NetSettlementPanel } from './shared.js';
+import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel, NegotiationPanel, NetSettlementPanel, DebriefPanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
@@ -37,7 +37,7 @@ const sans = "system-ui, -apple-system, sans-serif";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'negotiation' | 'notes';
+type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'negotiation' | 'debrief' | 'notes';
 
 interface Issue {
   id: string;
@@ -574,6 +574,10 @@ export default function MatterDetailView() {
   // Lawyer/firm details from the Starling Profile — flow into generated documents
   const { profile } = useUserProfile();
   const [activeTab, setActiveTab] = useState<TabKey>('issues');
+  const [editingFileNumber, setEditingFileNumber] = useState(false);
+  const [fileNumberDraft, setFileNumberDraft] = useState('');
+  const [keyDate, setKeyDate] = useState({ date: '', label: '', category: 'legal', courtDeadline: true });
+  const [keyDateSaving, setKeyDateSaving] = useState(false);
   const [notes, setNotes] = useState(DEMO_NOTES);
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
@@ -643,7 +647,7 @@ export default function MatterDetailView() {
   const sessionId = rawSid?.replace(/\s+/g, '') ?? null;
 
   // Wire hook data
-  const { matter, loading, error } = useMatterDetail(sessionId);
+  const { matter, loading, error, refresh: refreshMatter } = useMatterDetail(sessionId);
   const employment = useEmploymentData(sessionId);
   // Labour (grievance) matters render the labour view instead — detected
   // by the presence of grievance data on the matter
@@ -879,6 +883,7 @@ export default function MatterDetailView() {
     { key: 'intake', label: 'Intake' },
     { key: 'client', label: 'Client' },
     { key: 'negotiation', label: 'Negotiation' },
+    { key: 'debrief', label: 'Debrief' },
     { key: 'notes', label: 'Notes' },
   ];
 
@@ -1024,9 +1029,33 @@ export default function MatterDetailView() {
             <div>
               <h1 style={{ fontFamily: serif, fontSize: 24, fontWeight: 600, color: navy, margin: 0 }}>
                 {matter!.name}{' '}
-                <span style={{ fontSize: 12.5, color: muted, marginLeft: 4, fontFamily: sans, fontWeight: 400 }}>
-                  Matter {matter!.number}
-                </span>
+                {editingFileNumber ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+                    <input
+                      autoFocus
+                      value={fileNumberDraft}
+                      onChange={(e) => setFileNumberDraft(e.target.value)}
+                      placeholder="Your file number"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { void employment.saveFileNumber(fileNumberDraft.trim()).then(() => setEditingFileNumber(false)); } if (e.key === 'Escape') setEditingFileNumber(false); }}
+                      style={{ fontSize: 12.5, fontFamily: sans, padding: '3px 7px', border: `1px solid ${border}`, borderRadius: 2, width: 150 }}
+                    />
+                    <button onClick={() => { void employment.saveFileNumber(fileNumberDraft.trim()).then(() => setEditingFileNumber(false)); }}
+                      style={{ fontSize: 11, fontFamily: sans, border: 'none', background: navy, color: '#fff', padding: '4px 9px', borderRadius: 2, cursor: 'pointer' }}>Save</button>
+                    <button onClick={() => setEditingFileNumber(false)}
+                      style={{ fontSize: 11, fontFamily: sans, border: 'none', background: 'none', color: muted, cursor: 'pointer' }}>Cancel</button>
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: muted, marginLeft: 4, fontFamily: sans, fontWeight: 400 }}>
+                    {employment.firmFileNumber ? `File ${employment.firmFileNumber}` : `Matter ${matter!.number}`}
+                    <button
+                      onClick={() => { setFileNumberDraft(employment.firmFileNumber ?? ''); setEditingFileNumber(true); }}
+                      title="Set your firm's file number"
+                      style={{ fontSize: 11, fontFamily: sans, border: 'none', background: 'none', color: orange, cursor: 'pointer', marginLeft: 6, padding: 0 }}
+                    >
+                      {employment.firmFileNumber ? 'edit' : 'add file number'}
+                    </button>
+                  </span>
+                )}
               </h1>
             </div>
             <span
@@ -1698,7 +1727,43 @@ export default function MatterDetailView() {
                       </a>
                     </div>
                   </div>
+                  {/* Lifecycle status, right where the draft is generated (also
+                      manageable on the Documents tab). Sent/Filed start the
+                      downstream ticklers (e.g. SOC sent -> Defence due). */}
+                  {(() => {
+                    const dt = DRAFT_TO_DOCTYPE[selectedDraft ?? ''] ?? '';
+                    const cur = employment.generatedDocuments.find(d => d.docType === dt);
+                    const today = new Date().toISOString().slice(0, 10);
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: muted }}>Status:</span>
+                        {(['reviewed', 'sent', 'filed'] as const).map(next => (
+                          <button
+                            key={next}
+                            onClick={() => void employment.setDocumentStatus(dt, next, (next === 'sent' || next === 'filed') ? today : undefined)}
+                            disabled={cur?.status === next}
+                            style={{
+                              fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans,
+                              background: cur?.status === next ? navy : '#fff',
+                              color: cur?.status === next ? '#fff' : navy,
+                              border: `1px solid ${cur?.status === next ? navy : border}`,
+                              cursor: cur?.status === next ? 'default' : 'pointer',
+                              textTransform: 'capitalize' as const,
+                            }}
+                          >
+                            {cur?.status === next ? `✓ ${next}` : `Mark ${next}`}
+                          </button>
+                        ))}
+                        {cur?.status && cur.status !== 'draft' && (
+                          <span style={{ fontSize: 11.5, color: green, fontWeight: 600 }}>
+                            {cur.status}{cur.statusDate ? ` · ${cur.statusDate}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div
+                    className="starling-doc"
                     style={{
                       background: '#fff', border: `1px solid ${border}`, padding: '28px 32px',
                       fontFamily: serif, fontSize: 14, lineHeight: 1.7, color: ink,
@@ -1781,6 +1846,43 @@ export default function MatterDetailView() {
           {/* Timeline */}
           {activeTab === 'timeline' && (
             <div id="panel-timeline" role="tabpanel" style={{ paddingTop: 22 }}>
+              {/* Add a key date. Court/statutory deadlines drive the red band. */}
+              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: 16, marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: navy, letterSpacing: 0.3, marginBottom: 10 }}>ADD A KEY DATE</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input type="date" value={keyDate.date} onChange={e => setKeyDate(k => ({ ...k, date: e.target.value }))}
+                    style={{ fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans }} />
+                  <input value={keyDate.label} onChange={e => setKeyDate(k => ({ ...k, label: e.target.value }))}
+                    placeholder="e.g. Settlement conference, trial date, motion return"
+                    style={{ flex: 1, minWidth: 220, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans }} />
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: ink, whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={keyDate.courtDeadline} onChange={e => setKeyDate(k => ({ ...k, courtDeadline: e.target.checked }))} />
+                    Court / statutory deadline
+                  </label>
+                  <button
+                    disabled={keyDateSaving || !keyDate.date || keyDate.label.trim().length === 0}
+                    onClick={async () => {
+                      setKeyDateSaving(true);
+                      try {
+                        await fetch(`/api/employment/${sessionId}/timeline`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                          body: JSON.stringify({ date: keyDate.date, label: keyDate.label.trim(), category: keyDate.category, courtDeadline: keyDate.courtDeadline }),
+                        });
+                        setKeyDate({ date: '', label: '', category: 'legal', courtDeadline: true });
+                        await refreshMatter();
+                        void employment.refresh();
+                      } catch { /* transient */ }
+                      setKeyDateSaving(false);
+                    }}
+                    style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', background: navy, color: '#fff', cursor: 'pointer', opacity: (!keyDate.date || !keyDate.label.trim()) ? 0.5 : 1 }}
+                  >
+                    {keyDateSaving ? 'Adding...' : 'Add'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11.5, color: muted, marginTop: 8 }}>
+                  Court and statutory deadlines show in red on the docket when they are overdue or within a business week. Untick for a non-court date (a reminder, a call).
+                </div>
+              </div>
               {matter!.timeline.length === 0 && (
                 <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No timeline events yet.</div>
               )}
@@ -1816,7 +1918,12 @@ export default function MatterDetailView() {
                       aria-hidden="true"
                     />
                     <div style={{ fontSize: 12, color: muted, marginBottom: 2 }}>{ev.date}</div>
-                    <div style={{ fontSize: 14, color: ink, fontWeight: 600 }}>{ev.title}</div>
+                    <div style={{ fontSize: 14, color: ink, fontWeight: 600 }}>
+                      {ev.title}
+                      {ev.courtDeadline && (
+                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#fce8e6', padding: '2px 7px', borderRadius: 2, verticalAlign: 'middle' }}>COURT DEADLINE</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 13, color: muted }}>{ev.subtitle}</div>
                   </div>
                 ))}
@@ -1940,6 +2047,12 @@ export default function MatterDetailView() {
             <div id="panel-negotiation" role="tabpanel" style={{ paddingTop: 22 }}>
               <NegotiationPanel matterId={sessionId!} />
               <NetSettlementPanel matterId={sessionId!} />
+            </div>
+          )}
+
+          {activeTab === 'debrief' && (
+            <div id="panel-debrief" role="tabpanel" style={{ paddingTop: 22 }}>
+              <DebriefPanel matterId={sessionId!} clientEmail={String((employment.data?.intake as Record<string, unknown> | undefined)?.client_email ?? '') || undefined} />
             </div>
           )}
 

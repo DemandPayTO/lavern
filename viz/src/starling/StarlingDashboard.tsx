@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useMatterList } from './hooks/useStarlingApi.js';
+import { useMatterList, usePracticeMode } from './hooks/useStarlingApi.js';
 
 // ── Design Tokens (CSS variable references) ─────────────────────────────
 const navy = '#0f1a2e';
@@ -171,6 +171,8 @@ function getFormattedDate(): string {
 
 export default function StarlingDashboard() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(25);
   const [showCompleted, setShowCompleted] = useState(false);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [hoveredMatter, setHoveredMatter] = useState<string | null>(null);
@@ -185,6 +187,8 @@ export default function StarlingDashboard() {
   interface DeadlineItem {
     matterId: string; matterLabel: string; date: string; label: string;
     daysRemaining: number; urgency: 'overdue' | 'critical' | 'soon' | 'upcoming'; kind: string;
+    /** Triage band: red only for court/statutory deadlines (critical). */
+    band?: 'critical' | 'attention' | 'planned'; isCourt?: boolean;
   }
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
   useEffect(() => {
@@ -196,9 +200,18 @@ export default function StarlingDashboard() {
     return () => { cancelled = true; };
   }, [matters.length]);
 
-  const URGENCY_COLOURS: Record<string, string> = {
-    overdue: '#dc2626', critical: '#dc2626', soon: '#d97706', upcoming: muted,
+  // Red is reserved for the critical band (court/statutory deadlines within a
+  // business week or overdue); attention is amber; planned is quiet.
+  const BAND_COLOURS: Record<string, string> = {
+    critical: '#dc2626', attention: '#d97706', planned: muted,
   };
+  const bandOf = (d: DeadlineItem): 'critical' | 'attention' | 'planned' => d.band ?? 'planned';
+  const BAND_RANK: Record<string, number> = { critical: 0, attention: 1, planned: 2 };
+  // Sort so genuine emergencies surface first, then by date within a band.
+  const sortedDeadlines = [...deadlines].sort(
+    (a, b) => (BAND_RANK[bandOf(a)] - BAND_RANK[bandOf(b)]) || a.date.localeCompare(b.date),
+  );
+  const criticalCount = deadlines.filter(d => bandOf(d) === 'critical').length;
 
   const handleDeleteMatter = async (matterId: string) => {
     setDeleting(true);
@@ -216,14 +229,39 @@ export default function StarlingDashboard() {
     }
   };
 
-  // Separate active and completed matters
-  const activeMatters = matters.filter(m => m.status !== 'complete');
-  const completedMatters = matters.filter(m => m.status === 'complete');
+  // Practice mode: hide the vertical the firm does not use. 'both' shows all.
+  const practiceMode = usePracticeMode();
+  const inPractice = (m: { isLabour?: boolean }) =>
+    practiceMode === 'both' ? true : practiceMode === 'labour' ? Boolean(m.isLabour) : !m.isLabour;
 
-  // Filter active matters
+  // Separate active and completed matters (within the active practice mode)
+  const scopedMatters = matters.filter(inPractice);
+  const activeMatters = scopedMatters.filter(m => m.status !== 'complete');
+  const completedMatters = scopedMatters.filter(m => m.status === 'complete');
+
+  // Filter active matters by status chip
   const filteredMatters = activeFilter === 'all'
     ? activeMatters
     : activeMatters.filter(m => m.status === activeFilter);
+
+  // Free-text search over client name, matter/file number, and the summary
+  // (which carries the employer). Then page the list so 200 matters stay
+  // usable — render up to visibleCount with a "show more" control.
+  const q = search.trim().toLowerCase();
+  const searchedMatters = q
+    ? filteredMatters.filter(m => `${m.name} ${m.number} ${m.description}`.toLowerCase().includes(q))
+    : filteredMatters;
+  const visibleMatters = searchedMatters.slice(0, visibleCount);
+  // Reset paging whenever the filter or search narrows the set.
+  useEffect(() => { setVisibleCount(25); }, [activeFilter, search]);
+
+  // "Needs you now": the triage worklist. Only genuine emergencies across the
+  // in-practice matters — court/statutory deadlines that are critical, plus
+  // anything overdue (any band). This is the first thing the lawyer sees.
+  const inPracticeIds = new Set(scopedMatters.map(m => m.id));
+  const needsNow = sortedDeadlines.filter(
+    d => inPracticeIds.has(d.matterId) && (bandOf(d) === 'critical' || d.daysRemaining < 0),
+  );
 
   // Stats
   const urgentCount = activeMatters.filter(m => m.status === 'urgent').length;
@@ -334,6 +372,48 @@ export default function StarlingDashboard() {
           <span style={{ color: amber, fontWeight: 600 }}>{staleCount} need attention</span>
         </p>
 
+        {/* ── Needs you now (triage worklist) ─────────────────── */}
+        {!loading && (
+          <div style={{ marginBottom: 26 }}>
+            <div style={{ fontFamily: serif, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: needsNow.length > 0 ? red : muted, margin: '0 0 10px' }}>
+              Needs you now
+            </div>
+            {needsNow.length === 0 ? (
+              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 18px', fontSize: 13.5, color: muted }}>
+                Nothing urgent right now. No court or statutory deadline is overdue or within a business week.
+              </div>
+            ) : (
+              <div style={{ background: '#fff', border: `1px solid ${red}` }} role="list" aria-label="Items needing attention now">
+                {needsNow.slice(0, 12).map((d, i) => (
+                  <div
+                    key={`${d.matterId}-${d.date}-${d.kind}`}
+                    role="listitem"
+                    onClick={() => handleNav(`#/matter-detail/${d.matterId}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleNav(`#/matter-detail/${d.matterId}`); }}
+                    tabIndex={0}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', cursor: 'pointer', borderBottom: i < Math.min(needsNow.length, 12) - 1 ? `1px solid ${border}` : 'none' }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: BAND_COLOURS[bandOf(d)], minWidth: 96 }}>
+                      {d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`}
+                    </span>
+                    <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{d.label}</span>
+                    {d.isCourt && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: red, background: '#fce8e6', padding: '2px 7px', borderRadius: 2 }}>COURT</span>
+                    )}
+                    <span style={{ fontSize: 13, color: muted, marginLeft: 'auto' }}>{d.matterLabel}</span>
+                    <span style={{ fontSize: 12, color: muted, minWidth: 84, textAlign: 'right' as const }}>{d.date}</span>
+                  </div>
+                ))}
+                {needsNow.length > 12 && (
+                  <div style={{ padding: '8px 16px', fontSize: 12, color: muted, borderTop: `1px solid ${border}` }}>
+                    and {needsNow.length - 12} more
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Quick Actions ───────────────────────────────────── */}
         <div
           style={{
@@ -395,9 +475,9 @@ export default function StarlingDashboard() {
           <div style={{ marginBottom: 28 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
               Deadlines
-              {deadlines.some(d => d.urgency === 'overdue' || d.urgency === 'critical') && (
+              {criticalCount > 0 && (
                 <span style={{ marginLeft: 8, color: '#dc2626' }}>
-                  · {deadlines.filter(d => d.urgency === 'overdue' || d.urgency === 'critical').length} need attention
+                  · {criticalCount} need{criticalCount === 1 ? 's' : ''} you now
                 </span>
               )}
               <a
@@ -410,7 +490,7 @@ export default function StarlingDashboard() {
               </a>
             </div>
             <div style={{ background: '#fff', border: `1px solid ${border}` }} role="list" aria-label="Upcoming deadlines">
-              {deadlines.slice(0, 6).map((d, i) => (
+              {sortedDeadlines.slice(0, 6).map((d, i) => (
                 <div
                   key={`${d.matterId}-${d.date}-${d.kind}`}
                   role="listitem"
@@ -422,8 +502,8 @@ export default function StarlingDashboard() {
                     borderBottom: i < Math.min(deadlines.length, 6) - 1 ? `1px solid ${border}` : 'none',
                   }}
                 >
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: URGENCY_COLOURS[d.urgency], flexShrink: 0 }} aria-hidden="true" />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: URGENCY_COLOURS[d.urgency], minWidth: 92 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: BAND_COLOURS[bandOf(d)], flexShrink: 0 }} aria-hidden="true" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: BAND_COLOURS[bandOf(d)], minWidth: 92 }}>
                     {d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`}
                   </span>
                   <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{d.label}</span>
@@ -439,6 +519,14 @@ export default function StarlingDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 14px' }}>
           <h2 style={{ fontFamily: serif, fontSize: 19, fontWeight: 600, color: navy, margin: 0 }}>My Matters</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search client, employer, file number"
+              aria-label="Search matters"
+              style={{ fontSize: 12.5, padding: '6px 10px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans, width: 240 }}
+            />
             <div style={{ display: 'flex', gap: 6 }} role="group" aria-label="Filter matters">
               {FILTERS.map(f => (
                 <button
@@ -546,20 +634,25 @@ export default function StarlingDashboard() {
             </div>
           </div>
         )}
-        {!loading && filteredMatters.length > 0 && (
+        {!loading && searchedMatters.length === 0 && (matters.length > 0) && (
+          <div style={{ padding: '32px', textAlign: 'center', color: muted, fontSize: 13.5, background: '#fff', border: `1px solid ${border}` }}>
+            No matters match {q ? `"${search.trim()}"` : 'this filter'}.
+          </div>
+        )}
+        {!loading && visibleMatters.length > 0 && (
         <div
           style={{ background: '#fff', border: `1px solid ${border}` }}
           role="list"
           aria-label="Matters list"
         >
-          {filteredMatters.map((matter, idx) => (
+          {visibleMatters.map((matter, idx) => (
             <div
               key={matter.id}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '6px 1fr auto',
                 gap: 0,
-                borderBottom: idx < filteredMatters.length - 1 ? `1px solid ${border}` : 'none',
+                borderBottom: idx < visibleMatters.length - 1 ? `1px solid ${border}` : 'none',
                 alignItems: 'stretch',
               }}
               role="listitem"
@@ -664,9 +757,17 @@ export default function StarlingDashboard() {
 
         </div>
         )}
-        {!loading && matters.length > 0 && filteredMatters.length === 0 && (
-          <div style={{ padding: '24px 20px', textAlign: 'center', color: muted, fontSize: 14, background: '#fff', border: `1px solid ${border}` }}>
-            No matters match this filter.
+        {!loading && searchedMatters.length > visibleMatters.length && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '12px 0' }}>
+            <span style={{ fontSize: 12.5, color: muted }}>
+              Showing {visibleMatters.length} of {searchedMatters.length}
+            </span>
+            <button
+              onClick={() => setVisibleCount(c => c + 25)}
+              style={{ fontSize: 12.5, fontWeight: 600, padding: '6px 14px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: navy, cursor: 'pointer', fontFamily: sans }}
+            >
+              Show 25 more
+            </button>
           </div>
         )}
 

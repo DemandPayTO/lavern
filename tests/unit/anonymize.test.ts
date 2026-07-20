@@ -22,6 +22,24 @@ describe('anonymize — party names', () => {
     expect(result.stats.parties).toBe(2);
   });
 
+  it('masks a party name that ends in punctuation (Inc.) — regression 2026-07-15', () => {
+    // The \b-anchored termRegex leaked corporate names ending in "Inc." /
+    // "Ltd." / "Corp." because \b fails after the "." before a space.
+    const text = 'Employment with Acme Widgets Inc. ended on June 15, 2026.';
+    const result = anonymize(text, ['Acme Widgets Inc.']);
+    expect(result.anonymizedText).not.toContain('Acme Widgets Inc');
+    expect(result.anonymizedText).toContain('[PARTY_1]');
+    // The preserved analytical data survives.
+    expect(result.anonymizedText).toContain('June 15, 2026');
+  });
+
+  it('masks Ltd. / Corp. suffixes too', () => {
+    const text = 'Globex Ltd. and Initech Corp. are the defendants.';
+    const result = anonymize(text, ['Globex Ltd.', 'Initech Corp.']);
+    expect(result.anonymizedText).not.toContain('Globex');
+    expect(result.anonymizedText).not.toContain('Initech');
+  });
+
   it('same entity gets same placeholder across multiple occurrences', () => {
     const text = 'Acme Corp shall pay. Acme Corp shall also deliver.';
     const result = anonymize(text, ['Acme Corp']);

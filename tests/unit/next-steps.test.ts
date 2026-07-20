@@ -32,6 +32,26 @@ describe('recommendEmploymentNextSteps', () => {
     expect(steps[0].action).toContain('Issue the claim');
   });
 
+  it('surfaces an overdue debrief action item as urgent', () => {
+    const steps = emp({}, { debriefs: [{ actionItems: [
+      { task: 'Send the counter-offer', dueDate: '2026-07-01', status: 'open' },
+    ] }] });
+    const ai = steps.find(s => s.action.includes('Send the counter-offer'));
+    expect(ai?.urgency).toBe('urgent');
+    expect(ai?.goTo).toBe('debrief');
+  });
+
+  it('rolls up undated open action items into one debrief nudge; ignores done ones', () => {
+    const steps = emp({}, { debriefs: [{ actionItems: [
+      { task: 'Pull comparable cases', dueDate: null, status: 'open' },
+      { task: 'Order the transcript', dueDate: null, status: 'open' },
+      { task: 'Already handled', dueDate: null, status: 'done' },
+    ] }] });
+    const roll = steps.find(s => s.action.includes('2 open action items'));
+    expect(roll?.goTo).toBe('debrief');
+    expect(roll?.urgency).toBe('soon');
+  });
+
   it('undecided gates demand a decision', () => {
     const steps = emp({
       gates: [{ gate: 'G4', triggered: true, reason: 'x', issueCodes: ['cause'], requiresLawyerReview: true }],

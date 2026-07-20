@@ -27,10 +27,68 @@ export interface DeadlineItem {
   label: string;
   /** Days from today (negative = overdue). */
   daysRemaining: number;
-  /** 'critical' <= 14 days, 'soon' <= 45, 'upcoming' otherwise. */
+  /** Raw time-based urgency (kept for sorting/back-compat). */
   urgency: 'overdue' | 'critical' | 'soon' | 'upcoming';
+  /**
+   * Triage band that drives colour. RED is reserved for court/statutory
+   * deadlines only (see isCourtDeadline); everything else is amber at most.
+   * critical = a court/statutory deadline overdue or due within 5 days;
+   * attention = a court/statutory deadline in 6-21 days, or any non-court
+   * item overdue or due within 7 days; planned = everything else.
+   */
+  band: 'critical' | 'attention' | 'planned';
+  /** True when this is a court-imposed / statutory deadline (red-eligible). */
+  isCourt: boolean;
   kind: 'limitation' | 'demand_response' | 'severance_offer' | 'timeline'
-    | 'grievance_filing' | 'grievance_referral' | 'grievance_step' | 'client_email';
+    | 'grievance_filing' | 'grievance_referral' | 'grievance_step' | 'client_email'
+    | 'action_item';
+}
+
+/**
+ * Kinds that are always court-imposed or statutory (a miss forecloses a right
+ * or prejudices the client): the limitation clock and the labour grievance /
+ * tribunal time limits.
+ */
+const COURT_KINDS: ReadonlySet<DeadlineItem['kind']> = new Set([
+  'limitation', 'grievance_filing', 'grievance_referral', 'grievance_step',
+]);
+
+/**
+ * Court litigation deadlines that are stored as generic timeline ticklers.
+ * System-generated ticklers carry known labels ("Statement of Defence due",
+ * "Statement of Claim (Form 14D) due"); lawyers may enter others. This
+ * curated set auto-classifies both. Lawyer-entered events can also be flagged
+ * explicitly via the courtDeadline field, which takes precedence.
+ */
+const COURT_DEADLINE_LABELS = /\b(statement of (claim|defence|defense)|\bSOC\b|\bSOD\b|reply \(form 25a\)|factum|affidavit of documents|examination for discovery|discovery plan|notice of motion|motion record|mediation brief|settlement conference|pre-?trial|trial record|trial date|status (notice|hearing)|form \d+[a-z]?( |,|\.|\)| due))/i;
+
+/**
+ * Is this a court-imposed / statutory deadline (red-eligible)? True when the
+ * kind is always-court, the event was explicitly flagged, or the label
+ * matches a known court deadline. Negotiation timing (offer expiries, demand
+ * responses, replies, client emails, debrief tasks) is never court.
+ */
+export function isCourtDeadline(kind: DeadlineItem['kind'], label: string, flag?: boolean): boolean {
+  if (flag) return true;
+  if (COURT_KINDS.has(kind)) return true;
+  // Only generic timeline events are pattern-matched; the negotiation kinds
+  // are deliberately excluded even if their text happens to match.
+  if (kind === 'timeline') return COURT_DEADLINE_LABELS.test(label);
+  return false;
+}
+
+/**
+ * The triage band for a deadline. Red (critical) only for court/statutory
+ * deadlines inside a business week or overdue.
+ */
+export function priorityBand(isCourt: boolean, days: number): DeadlineItem['band'] {
+  if (isCourt) {
+    if (days <= 5) return 'critical';   // overdue (days < 0) or within a business week
+    if (days <= 21) return 'attention';
+    return 'planned';
+  }
+  if (days <= 7) return 'attention';    // non-court overdue or imminent: amber, never red
+  return 'planned';
 }
 
 function daysFromToday(isoDate: string): number {
@@ -72,10 +130,14 @@ export function collectDeadlines(
       continue; // corrupt row — skip, never break the docket
     }
 
-    const push = (matterLabel: string, date: string, label: string, kind: DeadlineItem['kind']) => {
+    const push = (matterLabel: string, date: string, label: string, kind: DeadlineItem['kind'], courtFlag?: boolean) => {
       const days = daysFromToday(date);
       if (isNaN(days) || days > HORIZON_DAYS || days < OVERDUE_WINDOW_DAYS) return;
-      items.push({ matterId: row.id, matterLabel, date, label, daysRemaining: days, urgency: urgencyFor(days), kind });
+      const isCourt = isCourtDeadline(kind, label, courtFlag);
+      items.push({
+        matterId: row.id, matterLabel, date, label, daysRemaining: days,
+        urgency: urgencyFor(days), band: priorityBand(isCourt, days), isCourt, kind,
+      });
     };
 
     const employment = matter.employmentData as EmploymentMatterData | undefined;
@@ -104,7 +166,7 @@ export function collectDeadlines(
         if (isNaN(days) || days < 0) continue; // past timeline events are history, not deadlines
         const kind: DeadlineItem['kind'] = /response due/i.test(ev.label) ? 'demand_response' : 'timeline';
         if (kind === 'timeline' && ev.source !== 'lawyer_entry' && ev.source !== 'system') continue;
-        push(matterLabel, ev.date, ev.label, kind);
+        push(matterLabel, ev.date, ev.label, kind, (ev as { courtDeadline?: boolean }).courtDeadline);
       }
     }
 
@@ -123,6 +185,23 @@ export function collectDeadlines(
         if (c.status !== 'scheduled' && c.status !== 'drafted') continue;
         if (!c.dueDate || !c.title) continue;
         push(label, c.dueDate, `Client email due: ${c.title}`, 'client_email');
+      }
+    }
+
+    // Debrief action items: open, dated follow-ups from call notes. Collected
+    // outside the employment guard so they surface for any matter type.
+    {
+      const intake = (matter.employmentData as EmploymentMatterData | undefined)?.intake as Record<string, unknown> | undefined;
+      const client = [intake?.client_first_name, intake?.client_last_name].filter(Boolean).join(' ');
+      const employer = (intake?.employer_legal_name ?? intake?.employer_operating_name ?? '') as string;
+      const label = client && employer ? `${client} v ${employer}` : client || employer || row.id;
+      const debriefs = (matter.debriefs ?? []) as Array<{ actionItems?: Array<{ status?: string; dueDate?: string | null; task?: string }> }>;
+      for (const d of debriefs) {
+        for (const it of d.actionItems ?? []) {
+          if (it.status === 'open' && it.dueDate && it.task) {
+            push(label, it.dueDate, `Action: ${it.task}`, 'action_item');
+          }
+        }
       }
     }
 

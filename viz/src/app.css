@@ -795,3 +795,25 @@ input:focus-visible {
     box-shadow: 0 0 60px rgba(150, 135, 95, 0.18), 0 0 120px rgba(150, 135, 95, 0.08);
   }
 }
+
+/* ── Generated court-document preview ──────────────────────────────────────
+   The document generators emit court markup: <h1> title, <h2> sections,
+   <p class="numbered"> for numbered pleading paragraphs, <ol>/<li> for the
+   prayer for relief and damages particulars, and tables. The DOCX export
+   numbers paragraphs itself; this styles the on-screen preview to match so a
+   Statement of Claim reads like a court document, not a wall of text. */
+.starling-doc { counter-reset: para; }
+.starling-doc h1 { text-align: center; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; margin: 0 0 10px; }
+.starling-doc h2 { font-size: 13.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; margin: 20px 0 8px; }
+.starling-doc h3 { font-size: 13.5px; font-weight: 700; margin: 16px 0 6px; }
+.starling-doc p { margin: 9px 0; }
+.starling-doc p.numbered { counter-increment: para; position: relative; padding-left: 2.4em; }
+.starling-doc p.numbered::before { content: counter(para) "."; position: absolute; left: 0; top: 0; font-weight: 600; }
+.starling-doc ol { padding-left: 1.8em; margin: 9px 0; }
+.starling-doc ul { padding-left: 1.4em; margin: 9px 0; }
+.starling-doc li { margin: 5px 0; }
+.starling-doc table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+.starling-doc th, .starling-doc td { border: 1px solid rgba(15,26,46,0.2); padding: 6px 9px; text-align: left; vertical-align: top; }
+.starling-doc th { background: #f5f3ef; font-weight: 700; }
+.starling-doc strong { font-weight: 700; }
+.starling-doc hr { border: none; border-top: 1px solid rgba(15,26,46,0.15); margin: 16px 0; }

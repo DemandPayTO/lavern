@@ -40,6 +40,8 @@ export interface MatterListItem {
   statusColour: string;
   flagText: string;
   flagColour: 'red' | 'amber' | 'navy' | 'green';
+  /** True for labour (grievance) matters; used to filter by practice mode. */
+  isLabour?: boolean;
   description: string;
   metaLabel: string;
   metaValue: string;
@@ -71,6 +73,8 @@ export interface TimelineEvent {
   title: string;
   subtitle: string;
   isCurrent?: boolean;
+  /** Lawyer-marked court/statutory deadline (drives the red band). */
+  courtDeadline?: boolean;
 }
 
 /** The full detail of a matter. */
@@ -729,6 +733,7 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
     number,
     flagText,
     flagColour,
+    isLabour,
     description: requestText.split('\n').slice(-1)[0] || '',
     metaLabel: status === 'complete' ? 'Completed' : 'Last activity',
     metaValue: lastEvent ? new Date(lastEvent).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
@@ -746,6 +751,8 @@ export interface MatterDetailResult {
   loading: boolean;
   /** Error message, or null. */
   error: string | null;
+  /** Re-fetch the matter (after adding a timeline event, etc.). */
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -754,102 +761,112 @@ export interface MatterDetailResult {
  * Maps the API response to the shape expected by MatterDetailView:
  * issues (with source tags), documents, and timeline.
  */
+export type PracticeMode = 'employment' | 'labour' | 'both';
+
+/**
+ * The firm's practice mode from /api/capabilities. Defaults to 'employment'
+ * (and while loading) so labour surfaces stay hidden unless explicitly on.
+ */
+export function usePracticeMode(): PracticeMode {
+  const [mode, setMode] = useState<PracticeMode>('employment');
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/capabilities', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const m = d?.practiceMode;
+        if (!cancelled && (m === 'employment' || m === 'labour' || m === 'both')) setMode(m);
+      })
+      .catch(() => { /* default employment */ });
+    return () => { cancelled = true; };
+  }, []);
+  return mode;
+}
+
 export function useMatterDetail(sessionId: string | null): MatterDetailResult {
   const [matter, setMatter] = useState<MatterDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!sessionId) {
-      setMatter(null);
+  const load = useCallback(async () => {
+    if (!sessionId) { setMatter(null); return; }
+
+    if (USE_DEMO_DATA) {
+      setLoading(true);
+      setMatter(DEMO_MATTER_DETAIL);
+      setLoading(false);
       return;
     }
 
-    // Demo mode
-    if (USE_DEMO_DATA) {
-      setLoading(true);
-      const timer = setTimeout(() => {
-        setMatter(DEMO_MATTER_DETAIL);
-        setLoading(false);
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-
-    let cancelled = false;
     setLoading(true);
     setError(null);
+    try {
+      // Try /api/matters first (employment workflow creates matters, not sessions)
+      let res = await fetch(`/api/matters/${sessionId}`, { credentials: 'include' });
+      let source: 'matter' | 'session' = 'matter';
 
-    (async () => {
-      try {
-        // Try /api/matters first (employment workflow creates matters, not sessions)
-        let res = await fetch(`/api/matters/${sessionId}`, { credentials: 'include' });
-        let source: 'matter' | 'session' = 'matter';
-
+      if (res.status === 404) {
+        // Fall back to session (legacy Lavern flow)
+        res = await fetch(`/api/sessions/${sessionId}`, { credentials: 'include' });
+        source = 'session';
         if (res.status === 404) {
-          // Fall back to session (legacy Lavern flow)
-          res = await fetch(`/api/sessions/${sessionId}`, { credentials: 'include' });
-          source = 'session';
-          if (res.status === 404) {
-            res = await fetch(`/api/sessions/archive/${sessionId}`, { credentials: 'include' });
-          }
+          res = await fetch(`/api/sessions/archive/${sessionId}`, { credentials: 'include' });
         }
-
-        if (!res.ok) throw new Error('Matter not found');
-        if (cancelled) return;
-
-        const raw = await res.json();
-        if (source === 'matter') {
-          // Fetch employment data separately
-          const empRes = await fetch(`/api/employment/${sessionId}`, { credentials: 'include' });
-          const empData = empRes.ok ? await empRes.json() : { data: {} };
-          const employment = empData.data ?? {};
-          const intake = employment.intake ?? {};
-          const hireDate = intake.hire_date as string | undefined;
-          const termDate = intake.termination_date as string | undefined;
-          setMatter({
-            name: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim() || 'Employment Matter',
-            number: raw.matterNumber ?? `SHEM-${sessionId.slice(-6)}`,
-            client: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim(),
-            employer: intake.employer_legal_name as string ?? '',
-            dates: {
-              start: hireDate,
-              termination: termDate,
-            },
-            status: 'active',
-            issues: (employment.gates ?? [])
-              .filter((g: Record<string, unknown>) => g.triggered)
-              .map((g: Record<string, unknown>) => ({
-                id: `gate-${g.gate}`,
-                title: String(g.reason ?? g.gate),
-                strength: 'strong' as const,
-                description: String(g.reason ?? ''),
-                descriptionBold: (g.issueCodes as string[] ?? []),
-                sources: [{ label: `Gate ${g.gate}`, type: 'ai' as const }],
-              })),
-            documents: [],
-            timeline: (employment.timeline ?? []).map((e: Record<string, unknown>, i: number) => ({
-              id: `tl-${i}`,
-              date: String(e.date ?? ''),
-              title: String(e.label ?? ''),
-              subtitle: String(e.description ?? ''),
-            })),
-          });
-        } else {
-          setMatter(mapSessionToMatterDetail(sessionId, raw));
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load matter');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    })();
 
-    return () => { cancelled = true; };
+      if (!res.ok) throw new Error('Matter not found');
+
+      const raw = await res.json();
+      if (source === 'matter') {
+        // Fetch employment data separately
+        const empRes = await fetch(`/api/employment/${sessionId}`, { credentials: 'include' });
+        const empData = empRes.ok ? await empRes.json() : { data: {} };
+        const employment = empData.data ?? {};
+        const intake = employment.intake ?? {};
+        const hireDate = intake.hire_date as string | undefined;
+        const termDate = intake.termination_date as string | undefined;
+        setMatter({
+          name: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim() || 'Employment Matter',
+          number: raw.matterNumber ?? `DP-${sessionId.slice(-6)}`,
+          client: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim(),
+          employer: intake.employer_legal_name as string ?? '',
+          dates: {
+            start: hireDate,
+            termination: termDate,
+          },
+          status: 'active',
+          issues: (employment.gates ?? [])
+            .filter((g: Record<string, unknown>) => g.triggered)
+            .map((g: Record<string, unknown>) => ({
+              id: `gate-${g.gate}`,
+              title: String(g.reason ?? g.gate),
+              strength: 'strong' as const,
+              description: String(g.reason ?? ''),
+              descriptionBold: (g.issueCodes as string[] ?? []),
+              sources: [{ label: `Gate ${g.gate}`, type: 'ai' as const }],
+            })),
+          documents: [],
+          timeline: (employment.timeline ?? []).map((e: Record<string, unknown>, i: number) => ({
+            id: `tl-${i}`,
+            date: String(e.date ?? ''),
+            title: String(e.label ?? ''),
+            subtitle: String(e.description ?? ''),
+            courtDeadline: Boolean(e.courtDeadline),
+          })),
+        });
+      } else {
+        setMatter(mapSessionToMatterDetail(sessionId, raw));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load matter');
+    } finally {
+      setLoading(false);
+    }
   }, [sessionId]);
 
-  return { matter, loading, error };
+  useEffect(() => { void load(); }, [load]);
+
+  return { matter, loading, error, refresh: load };
 }
 
 /**
@@ -1476,6 +1493,10 @@ export interface UseEmploymentDataResult {
   nextSteps: Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>;
   /** Every generated document on the matter with its lifecycle status. */
   generatedDocuments: GeneratedDocSummary[];
+  /** The firm's own file number for this matter (empty when unset). */
+  firmFileNumber: string;
+  /** Save (or clear, with '') the firm file number. */
+  saveFileNumber: (value: string) => Promise<{ ok: boolean; error?: string }>;
   /** Advance a generated document's lifecycle status. */
   setDocumentStatus: (docType: string, status: GeneratedDocSummary['status'], date?: string) => Promise<{ ok: boolean; error?: string }>;
   /** Merge-save the intake and re-run the analysis (edits preserve approvals). */
@@ -1513,6 +1534,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocSummary[]>([]);
   const [stage, setStage] = useState<MatterStage | null>(null);
   const [nextSteps, setNextSteps] = useState<Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>>([]);
+  const [firmFileNumber, setFirmFileNumber] = useState('');
 
   const refresh = useCallback(async () => {
     if (!matterId) return;
@@ -1537,10 +1559,27 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setGeneratedDocuments(Array.isArray(json.generatedDocuments) ? json.generatedDocuments : []);
       setStage(json.stage && typeof json.stage === 'object' ? json.stage as MatterStage : null);
       setNextSteps(Array.isArray(json.nextSteps) ? json.nextSteps : []);
+      setFirmFileNumber(typeof json.firmFileNumber === 'string' ? json.firmFileNumber : '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load employment data');
     } finally {
       setLoading(false);
+    }
+  }, [matterId]);
+
+  const saveFileNumber = useCallback(async (value: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!matterId) return { ok: false, error: 'No matter' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/file-number`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ firmFileNumber: value }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) return { ok: false, error: json.error ?? 'Could not save' };
+      setFirmFileNumber(value);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Could not save' };
     }
   }, [matterId]);
 
@@ -1725,7 +1764,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────

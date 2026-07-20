@@ -169,6 +169,15 @@ export const config = {
   // ── Starling ───────────────────────────────────────────────────────────
   starling: {
     /**
+     * Practice mode: which vertical(s) the firm uses. Most lawyers do
+     * employment OR labour, not both, so the dashboard and New Matter hide
+     * the vertical the firm does not use. 'employment' (default) | 'labour' |
+     * 'both'. Display-only gate; the labour code and routes stay in place.
+     */
+    practiceMode: (['employment', 'labour', 'both'].includes(process.env.STARLING_PRACTICE_MODE ?? '')
+      ? process.env.STARLING_PRACTICE_MODE
+      : 'employment') as 'employment' | 'labour' | 'both',
+    /**
      * Master switch for the weekly digest email. Default OFF: the digest is
      * disabled for the pilot (it emails a firm-wide docket containing client
      * matter labels, which is more risk than value at this stage). When
