@@ -8,8 +8,9 @@
  * Canadian spelling throughout (analyse, licenced).
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useContext } from 'react';
 import { useMatterList, usePracticeMode } from './hooks/useStarlingApi.js';
+import { UserContext } from '../auth/UserContext.js';
 
 // ── Design Tokens (CSS variable references) ─────────────────────────────
 const navy = '#0f1a2e';
@@ -170,6 +171,9 @@ function getFormattedDate(): string {
 // ── Component ────────────────────────────────────────────────────────────
 
 export default function StarlingDashboard() {
+  // Nullable on purpose: no provider in LOCAL MODE, where there is no auth
+  // session to end, so the logout control simply does not render.
+  const userCtx = useContext(UserContext);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(25);
@@ -347,6 +351,42 @@ export default function StarlingDashboard() {
           >
             New Matter
           </a>
+          {userCtx?.user && (
+            <>
+              <span
+                style={{
+                  marginLeft: 6,
+                  paddingLeft: 14,
+                  borderLeft: '1px solid rgba(255,255,255,0.18)',
+                  fontSize: 13,
+                  color: '#cfd6e0',
+                  maxWidth: 220,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={`${userCtx.user.displayName} · ${userCtx.user.firmName}`}
+              >
+                {userCtx.user.displayName}
+              </span>
+              <button
+                type="button"
+                onClick={() => { void userCtx.logout(); }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 2,
+                  fontSize: 14,
+                  color: '#fff',
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  cursor: 'pointer',
+                }}
+                aria-label="Log out"
+              >
+                Log out
+              </button>
+            </>
+          )}
         </nav>
       </header>
 
