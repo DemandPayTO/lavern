@@ -44,6 +44,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Copy source (we run TypeScript via tsx — no compile step needed)
 COPY tsconfig.json ./
 COPY src/ src/
+# Operational scripts (firm-user provisioning, matter-number rename) run in
+# the container against the mounted volume via `fly ssh console`.
+COPY scripts/ scripts/
 COPY SOUL.md ./
 
 # Copy built frontend
