@@ -47,25 +47,48 @@ describe('usage ledger', () => {
     expect(m1.reduce((n, r) => n + r.events, 0)).toBe(2);
   });
 
-  it('summary route returns labelled rollup with pricing applied', async () => {
+  it('summary route bills usage: metered cost, CAD-converted, buffered, marked up', async () => {
+    // Default billing path (a multiplier is configured): the firm pays its
+    // metered LLM cost x FX x (1 + buffer) x multiplier. No floor, pure usage.
+    const { usdCadRate, costBufferPct, costMultiplier } = config.starling.billing;
+    const bill = (usd: number) => Math.round(usd * usdCadRate * (1 + costBufferPct) * costMultiplier * 100) / 100;
+
+    const res = await app.inject({ method: 'GET', url: `/api/usage/summary?month=${MONTH}` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      billing: { usdCadRate: number; costBufferPct: number; costMultiplier: number };
+      byMatter: Array<{ matterId: string; matterLabel: string; generations: number; llmCostUsd: number; billableCad: number }>;
+      totals: { generations: number; activeMatters: number; billableCad: number; llmCostUsd: number };
+    };
+    expect(body.billing).toEqual({ usdCadRate, costBufferPct, costMultiplier });
+
+    const m1 = body.byMatter.find(m => m.matterId === 'm-usage-1')!;
+    expect(m1.matterLabel).toBe('Ana Reyes v Beta Inc');
+    expect(m1.generations).toBe(2);
+    expect(m1.billableCad).toBe(bill(0.17 + 0.07)); // billed on real cost, not a per-doc flat
+    expect(body.totals.generations).toBe(3);
+    expect(body.totals.activeMatters).toBe(2);
+    expect(body.totals.llmCostUsd).toBeCloseTo(0.24, 2);
+    // m-usage-2's one zero-cost generation bills nothing: pure usage has no floor.
+    expect(body.totals.billableCad).toBe(bill(0.24));
+  });
+
+  it('falls back to flat per-generation/per-matter pricing when no multiplier is set', async () => {
+    const savedMultiplier = config.starling.billing.costMultiplier;
+    config.starling.billing.costMultiplier = 0;
     config.starling.pricing.perGenerationCad = 25;
     config.starling.pricing.perActiveMatterMonthlyCad = 50;
     try {
       const res = await app.inject({ method: 'GET', url: `/api/usage/summary?month=${MONTH}` });
-      expect(res.statusCode).toBe(200);
       const body = res.json() as {
-        byMatter: Array<{ matterId: string; matterLabel: string; generations: number; billableCad: number }>;
-        totals: { generations: number; activeMatters: number; billableCad: number; llmCostUsd: number };
+        byMatter: Array<{ matterId: string; billableCad: number }>;
+        totals: { billableCad: number };
       };
       const m1 = body.byMatter.find(m => m.matterId === 'm-usage-1')!;
-      expect(m1.matterLabel).toBe('Ana Reyes v Beta Inc');
-      expect(m1.generations).toBe(2);
       expect(m1.billableCad).toBe(2 * 25 + 50);
-      expect(body.totals.generations).toBe(3);
-      expect(body.totals.activeMatters).toBe(2);
-      expect(body.totals.billableCad).toBe(100 + 75);
-      expect(body.totals.llmCostUsd).toBeCloseTo(0.24, 2);
+      expect(body.totals.billableCad).toBe(100 + 75); // m2: 1 gen + active matter
     } finally {
+      config.starling.billing.costMultiplier = savedMultiplier;
       config.starling.pricing.perGenerationCad = 0;
       config.starling.pricing.perActiveMatterMonthlyCad = 0;
     }

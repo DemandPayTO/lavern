@@ -201,6 +201,17 @@ export const config = {
       perGenerationCad: safeFloat(process.env.STARLING_PRICE_PER_GENERATION_CAD, 0),
       perActiveMatterMonthlyCad: safeFloat(process.env.STARLING_PRICE_PER_MATTER_MONTHLY_CAD, 0),
     },
+    /**
+     * Usage-based billing: the firm is charged its metered LLM cost, buffered
+     * and marked up, in CAD. Billable = costUsd x usdCadRate x (1 + buffer) x
+     * multiplier. Pure usage, no floor. Set the multiplier > 0 to activate;
+     * 0 leaves billing to the flat pricing knobs above (decision-support mode).
+     */
+    billing: {
+      usdCadRate: safeFloat(process.env.STARLING_USD_CAD_RATE, 1.37),
+      costBufferPct: safeFloat(process.env.STARLING_COST_BUFFER, 0.5),
+      costMultiplier: safeFloat(process.env.STARLING_COST_MULTIPLIER, 32),
+    },
   },
 
   // ── Auth Tokens & Recovery ────────────────────────────────────────────

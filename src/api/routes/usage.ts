@@ -44,10 +44,22 @@ function matterLabelMap(userId: string): Map<string, string> {
 function buildRollup(userId: string, month: string): {
   month: string;
   pricing: { perGenerationCad: number; perActiveMatterMonthlyCad: number };
+  billing: { usdCadRate: number; costBufferPct: number; costMultiplier: number };
   byMatter: MatterRollup[];
   totals: { generations: number; activeMatters: number; llmCostUsd: number; billableCad: number };
 } {
   const pricing = config.starling.pricing;
+  const billing = config.starling.billing;
+  // Usage-based billing (preferred when a multiplier is set): the firm pays
+  // its metered LLM cost, converted to CAD, buffered, and marked up. Pure
+  // usage, no floor. Falls back to the flat per-generation/per-matter knobs
+  // when no multiplier is configured (decision-support mode).
+  const billableFor = (llmCostUsd: number, generations: number): number => {
+    const cad = billing.costMultiplier > 0
+      ? llmCostUsd * billing.usdCadRate * (1 + billing.costBufferPct) * billing.costMultiplier
+      : generations * pricing.perGenerationCad + pricing.perActiveMatterMonthlyCad;
+    return Math.round(cad * 100) / 100;
+  };
   const rows = getUsageSummary(userId, month);
   const labels = matterLabelMap(userId);
 
@@ -67,10 +79,8 @@ function buildRollup(userId: string, month: string): {
 
   const byMatter = [...byMatterMap.values()].map((m) => ({
     ...m,
+    billableCad: billableFor(m.llmCostUsd, m.generations),
     llmCostUsd: Math.round(m.llmCostUsd * 100) / 100,
-    billableCad: Math.round(
-      (m.generations * pricing.perGenerationCad + pricing.perActiveMatterMonthlyCad) * 100,
-    ) / 100,
   })).sort((a, b) => b.billableCad - a.billableCad || b.generations - a.generations);
 
   const totals = byMatter.reduce(
@@ -83,7 +93,7 @@ function buildRollup(userId: string, month: string): {
     { generations: 0, activeMatters: 0, llmCostUsd: 0, billableCad: 0 },
   );
 
-  return { month, pricing, byMatter, totals };
+  return { month, pricing, billing, byMatter, totals };
 }
 
 function csvEscape(v: string | number): string {
