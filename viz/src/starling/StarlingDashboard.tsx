@@ -255,6 +255,14 @@ export default function StarlingDashboard() {
   // Reset paging whenever the filter or search narrows the set.
   useEffect(() => { setVisibleCount(25); }, [activeFilter, search]);
 
+  // "Needs you now": the triage worklist. Only genuine emergencies across the
+  // in-practice matters — court/statutory deadlines that are critical, plus
+  // anything overdue (any band). This is the first thing the lawyer sees.
+  const inPracticeIds = new Set(scopedMatters.map(m => m.id));
+  const needsNow = sortedDeadlines.filter(
+    d => inPracticeIds.has(d.matterId) && (bandOf(d) === 'critical' || d.daysRemaining < 0),
+  );
+
   // Stats
   const urgentCount = activeMatters.filter(m => m.status === 'urgent').length;
   const staleCount = activeMatters.filter(m => m.status === 'stale').length;
@@ -363,6 +371,48 @@ export default function StarlingDashboard() {
           <span style={{ color: red, fontWeight: 600 }}>{urgentCount} urgent</span> &middot;{' '}
           <span style={{ color: amber, fontWeight: 600 }}>{staleCount} need attention</span>
         </p>
+
+        {/* ── Needs you now (triage worklist) ─────────────────── */}
+        {!loading && (
+          <div style={{ marginBottom: 26 }}>
+            <div style={{ fontFamily: serif, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: needsNow.length > 0 ? red : muted, margin: '0 0 10px' }}>
+              Needs you now
+            </div>
+            {needsNow.length === 0 ? (
+              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 18px', fontSize: 13.5, color: muted }}>
+                Nothing urgent right now. No court or statutory deadline is overdue or within a business week.
+              </div>
+            ) : (
+              <div style={{ background: '#fff', border: `1px solid ${red}` }} role="list" aria-label="Items needing attention now">
+                {needsNow.slice(0, 12).map((d, i) => (
+                  <div
+                    key={`${d.matterId}-${d.date}-${d.kind}`}
+                    role="listitem"
+                    onClick={() => handleNav(`#/matter-detail/${d.matterId}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleNav(`#/matter-detail/${d.matterId}`); }}
+                    tabIndex={0}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', cursor: 'pointer', borderBottom: i < Math.min(needsNow.length, 12) - 1 ? `1px solid ${border}` : 'none' }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: BAND_COLOURS[bandOf(d)], minWidth: 96 }}>
+                      {d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`}
+                    </span>
+                    <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{d.label}</span>
+                    {d.isCourt && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: red, background: '#fce8e6', padding: '2px 7px', borderRadius: 2 }}>COURT</span>
+                    )}
+                    <span style={{ fontSize: 13, color: muted, marginLeft: 'auto' }}>{d.matterLabel}</span>
+                    <span style={{ fontSize: 12, color: muted, minWidth: 84, textAlign: 'right' as const }}>{d.date}</span>
+                  </div>
+                ))}
+                {needsNow.length > 12 && (
+                  <div style={{ padding: '8px 16px', fontSize: 12, color: muted, borderTop: `1px solid ${border}` }}>
+                    and {needsNow.length - 12} more
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Quick Actions ───────────────────────────────────── */}
         <div
