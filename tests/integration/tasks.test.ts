@@ -140,6 +140,17 @@ describe('task inbox aggregation', () => {
     expect(m2.fileNumber).toBe('DP-2026-0002');
   });
 
+  it('returns a matter directory with file numbers and recency for the glance', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/tasks' });
+    const body = res.json() as { matters: Array<{ matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string }> };
+    const m1 = body.matters.find(m => m.matterId === 'm-task-1')!;
+    expect(m1.matterLabel).toBe('Ana Reyes v Beta Inc');
+    expect(m1.fileNumber).toBe('SL-441');
+    expect(m1.status).toBe('active');
+    expect(m1.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(body.matters.some(m => m.matterId === 'm-other')).toBe(false); // scoped
+  });
+
   it('quick-add round-trips into the inbox as a manual action item', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/tasks',

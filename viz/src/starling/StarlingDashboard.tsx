@@ -186,51 +186,34 @@ export default function StarlingDashboard() {
   // Wire hook data
   const { matters, loading, refresh } = useMatterList();
 
-  // Overdue badge for the Tasks nav link. Best-effort: demo mode and
-  // fetch failures just hide the badge.
+  // Task inbox glance — one fetch powers the Tasks nav badge, the Today
+  // widget, and Recent matters. Best-effort: demo mode and fetch failures
+  // leave the widgets empty and the badge hidden.
+  interface GlanceTask {
+    id: string; matterId: string; matterLabel: string; fileNumber: string;
+    title: string; source: 'action' | 'deadline'; kind: string;
+    dueDate: string | null; isCourt: boolean;
+    band: 'overdue' | 'today' | 'week' | 'later' | 'none';
+    status: 'open' | 'done';
+  }
+  interface GlanceMatter { matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string }
+  const [inboxTasks, setInboxTasks] = useState<GlanceTask[]>([]);
+  const [inboxMatters, setInboxMatters] = useState<GlanceMatter[]>([]);
   const [overdueCount, setOverdueCount] = useState(0);
   useEffect(() => {
     let cancelled = false;
     fetch('/api/tasks', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        const n = (d as { counts?: { overdue?: number } } | null)?.counts?.overdue;
-        if (!cancelled && typeof n === 'number') setOverdueCount(n);
+        if (cancelled || !d) return;
+        const body = d as { tasks?: GlanceTask[]; matters?: GlanceMatter[]; counts?: { overdue?: number } };
+        setInboxTasks(body.tasks ?? []);
+        setInboxMatters(body.matters ?? []);
+        if (typeof body.counts?.overdue === 'number') setOverdueCount(body.counts.overdue);
       })
-      .catch(() => { /* badge stays hidden */ });
-    return () => { cancelled = true; };
-  }, []);
-
-  // Deadline docket — consolidated limitations / response deadlines /
-  // severance deadlines across all matters
-  interface DeadlineItem {
-    matterId: string; matterLabel: string; date: string; label: string;
-    daysRemaining: number; urgency: 'overdue' | 'critical' | 'soon' | 'upcoming'; kind: string;
-    /** Triage band: red only for court/statutory deadlines (critical). */
-    band?: 'critical' | 'attention' | 'planned'; isCourt?: boolean;
-  }
-  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/employment/deadlines', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (!cancelled && d?.ok) setDeadlines(d.deadlines ?? []); })
-      .catch(() => { /* docket is best-effort */ });
+      .catch(() => { /* glance stays empty */ });
     return () => { cancelled = true; };
   }, [matters.length]);
-
-  // Red is reserved for the critical band (court/statutory deadlines within a
-  // business week or overdue); attention is amber; planned is quiet.
-  const BAND_COLOURS: Record<string, string> = {
-    critical: '#dc2626', attention: '#d97706', planned: muted,
-  };
-  const bandOf = (d: DeadlineItem): 'critical' | 'attention' | 'planned' => d.band ?? 'planned';
-  const BAND_RANK: Record<string, number> = { critical: 0, attention: 1, planned: 2 };
-  // Sort so genuine emergencies surface first, then by date within a band.
-  const sortedDeadlines = [...deadlines].sort(
-    (a, b) => (BAND_RANK[bandOf(a)] - BAND_RANK[bandOf(b)]) || a.date.localeCompare(b.date),
-  );
-  const criticalCount = deadlines.filter(d => bandOf(d) === 'critical').length;
 
   const handleDeleteMatter = async (matterId: string) => {
     setDeleting(true);
@@ -274,13 +257,34 @@ export default function StarlingDashboard() {
   // Reset paging whenever the filter or search narrows the set.
   useEffect(() => { setVisibleCount(25); }, [activeFilter, search]);
 
-  // "Needs you now": the triage worklist. Only genuine emergencies across the
-  // in-practice matters — court/statutory deadlines that are critical, plus
-  // anything overdue (any band). This is the first thing the lawyer sees.
+  // "Today": the daily glance. Up to 5 items due today or overdue (court
+  // first), and any court/statutory deadline within 5 days ALWAYS surfaces —
+  // the can't-miss safety net is never crowded out. Full management lives on
+  // the Tasks tab.
   const inPracticeIds = new Set(scopedMatters.map(m => m.id));
-  const needsNow = sortedDeadlines.filter(
-    d => inPracticeIds.has(d.matterId) && (bandOf(d) === 'critical' || d.daysRemaining < 0),
-  );
+  const daysTo = (iso: string): number => {
+    const t = new Date(`${iso}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((t.getTime() - today.getTime()) / 86400000);
+  };
+  const todayCandidates = inboxTasks
+    .filter(t => t.status === 'open' && inPracticeIds.has(t.matterId))
+    .filter(t => t.band === 'overdue' || t.band === 'today'
+      || (t.isCourt && t.dueDate !== null && daysTo(t.dueDate) <= 5))
+    .sort((a, b) => Number(b.isCourt) - Number(a.isCourt)
+      || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
+  const todayCourt = todayCandidates.filter(t => t.isCourt);
+  // Cap at 5, but never cut a court deadline to make room.
+  const todayItems = todayCourt.length >= 5 ? todayCourt : todayCandidates.slice(0, 5);
+  const todayOverflow = todayCandidates.length - todayItems.length;
+
+  // "Recent matters": the 5 most recently saved in-practice files, for fast
+  // re-entry. updatedAt is the DB write stamp — any save touches it.
+  const recentMatters = inboxMatters
+    .filter(m => inPracticeIds.has(m.matterId) && m.status !== 'complete')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 5);
 
   // Stats
   const urgentCount = activeMatters.filter(m => m.status === 'urgent').length;
@@ -444,45 +448,82 @@ export default function StarlingDashboard() {
           <span style={{ color: amber, fontWeight: 600 }}>{staleCount} need attention</span>
         </p>
 
-        {/* ── Needs you now (triage worklist) ─────────────────── */}
+        {/* ── Today (daily glance) + Recent matters ─────────────── */}
         {!loading && (
-          <div style={{ marginBottom: 26 }}>
-            <div style={{ fontFamily: serif, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: needsNow.length > 0 ? red : muted, margin: '0 0 10px' }}>
-              Needs you now
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 18, marginBottom: 26 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'baseline', fontFamily: serif, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: todayCourt.length > 0 ? red : muted, margin: '0 0 10px' }}>
+                Today
+                <a
+                  href="#/tasks"
+                  style={{ marginLeft: 'auto', color: orange, textDecoration: 'none', fontWeight: 600, textTransform: 'none' as const, letterSpacing: 0, fontFamily: sans, fontSize: 13 }}
+                >
+                  View all tasks →
+                </a>
+              </div>
+              {todayItems.length === 0 ? (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 18px', fontSize: 13.5, color: muted }}>
+                  Nothing due today and nothing overdue. The Tasks tab has the full list.
+                </div>
+              ) : (
+                <div style={{ background: '#fff', border: `1px solid ${todayCourt.length > 0 ? red : border}` }} role="list" aria-label="Due today or overdue">
+                  {todayItems.map((t, i) => {
+                    const days = t.dueDate === null ? 0 : daysTo(t.dueDate);
+                    const chipColour = t.isCourt ? red : days <= 0 ? amber : muted;
+                    return (
+                      <div
+                        key={`${t.matterId}-${t.id}`}
+                        role="listitem"
+                        onClick={() => handleNav(`#/matter-detail/${t.matterId}`)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleNav(`#/matter-detail/${t.matterId}`); }}
+                        tabIndex={0}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', cursor: 'pointer', borderBottom: i < todayItems.length - 1 ? `1px solid ${border}` : 'none' }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 700, color: chipColour, minWidth: 96 }}>
+                          {days < 0 ? `${-days}d overdue` : days === 0 ? 'TODAY' : `in ${days}d`}
+                        </span>
+                        <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{t.title}</span>
+                        {t.isCourt && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: red, background: '#fce8e6', padding: '2px 7px', borderRadius: 2 }}>COURT</span>
+                        )}
+                        <span style={{ fontSize: 13, color: muted, marginLeft: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>{t.matterLabel}</span>
+                      </div>
+                    );
+                  })}
+                  {todayOverflow > 0 && (
+                    <a href="#/tasks" style={{ display: 'block', padding: '8px 16px', fontSize: 12, color: muted, borderTop: `1px solid ${border}`, textDecoration: 'none' }}>
+                      and {todayOverflow} more on the Tasks tab
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
-            {needsNow.length === 0 ? (
-              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 18px', fontSize: 13.5, color: muted }}>
-                Nothing urgent right now. No court or statutory deadline is overdue or within a business week.
+            <div>
+              <div style={{ fontFamily: serif, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: muted, margin: '0 0 10px' }}>
+                Recent matters
               </div>
-            ) : (
-              <div style={{ background: '#fff', border: `1px solid ${red}` }} role="list" aria-label="Items needing attention now">
-                {needsNow.slice(0, 12).map((d, i) => (
-                  <div
-                    key={`${d.matterId}-${d.date}-${d.kind}`}
-                    role="listitem"
-                    onClick={() => handleNav(`#/matter-detail/${d.matterId}`)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleNav(`#/matter-detail/${d.matterId}`); }}
-                    tabIndex={0}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', cursor: 'pointer', borderBottom: i < Math.min(needsNow.length, 12) - 1 ? `1px solid ${border}` : 'none' }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 700, color: BAND_COLOURS[bandOf(d)], minWidth: 96 }}>
-                      {d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`}
-                    </span>
-                    <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{d.label}</span>
-                    {d.isCourt && (
-                      <span style={{ fontSize: 10, fontWeight: 700, color: red, background: '#fce8e6', padding: '2px 7px', borderRadius: 2 }}>COURT</span>
-                    )}
-                    <span style={{ fontSize: 13, color: muted, marginLeft: 'auto' }}>{d.matterLabel}</span>
-                    <span style={{ fontSize: 12, color: muted, minWidth: 84, textAlign: 'right' as const }}>{d.date}</span>
-                  </div>
-                ))}
-                {needsNow.length > 12 && (
-                  <div style={{ padding: '8px 16px', fontSize: 12, color: muted, borderTop: `1px solid ${border}` }}>
-                    and {needsNow.length - 12} more
-                  </div>
-                )}
-              </div>
-            )}
+              {recentMatters.length === 0 ? (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 18px', fontSize: 13.5, color: muted }}>
+                  No files yet.
+                </div>
+              ) : (
+                <div style={{ background: '#fff', border: `1px solid ${border}` }} role="list" aria-label="Recently updated matters">
+                  {recentMatters.map((m, i) => (
+                    <div
+                      key={m.matterId}
+                      role="listitem"
+                      onClick={() => handleNav(`#/matter-detail/${m.matterId}`)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleNav(`#/matter-detail/${m.matterId}`); }}
+                      tabIndex={0}
+                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: i < recentMatters.length - 1 ? `1px solid ${border}` : 'none' }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.matterLabel}</div>
+                      <div style={{ fontSize: 11.5, color: muted, marginTop: 1 }}>{m.fileNumber}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -541,52 +582,6 @@ export default function StarlingDashboard() {
             onClick={() => handleNav('#/matter-detail')}
           />
         </div>
-
-        {/* ── Deadlines docket ─────────────────────────────────── */}
-        {deadlines.length > 0 && (
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
-              Deadlines
-              {criticalCount > 0 && (
-                <span style={{ marginLeft: 8, color: '#dc2626' }}>
-                  · {criticalCount} need{criticalCount === 1 ? 's' : ''} you now
-                </span>
-              )}
-              <a
-                href="/api/employment/deadlines.ics"
-                download
-                style={{ marginLeft: 'auto', color: orange, textDecoration: 'none', fontWeight: 600, textTransform: 'none' as const, letterSpacing: 0 }}
-                aria-label="Download a one-time snapshot of the docket as a calendar file"
-                title="One-time download. For a live feed that stays current, use the subscribe link on the Tasks tab."
-              >
-                Download docket (.ics)
-              </a>
-            </div>
-            <div style={{ background: '#fff', border: `1px solid ${border}` }} role="list" aria-label="Upcoming deadlines">
-              {sortedDeadlines.slice(0, 6).map((d, i) => (
-                <div
-                  key={`${d.matterId}-${d.date}-${d.kind}`}
-                  role="listitem"
-                  onClick={() => handleNav(`#/matter-detail/${d.matterId}`)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleNav(`#/matter-detail/${d.matterId}`); }}
-                  tabIndex={0}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer',
-                    borderBottom: i < Math.min(deadlines.length, 6) - 1 ? `1px solid ${border}` : 'none',
-                  }}
-                >
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: BAND_COLOURS[bandOf(d)], flexShrink: 0 }} aria-hidden="true" />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: BAND_COLOURS[bandOf(d)], minWidth: 92 }}>
-                    {d.daysRemaining < 0 ? `${-d.daysRemaining}d overdue` : d.daysRemaining === 0 ? 'TODAY' : `in ${d.daysRemaining}d`}
-                  </span>
-                  <span style={{ fontSize: 13.5, color: ink, fontWeight: 600 }}>{d.label}</span>
-                  <span style={{ fontSize: 13, color: muted, marginLeft: 'auto' }}>{d.matterLabel}</span>
-                  <span style={{ fontSize: 12, color: muted, minWidth: 84, textAlign: 'right' as const }}>{d.date}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ── My Matters ──────────────────────────────────────── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 14px' }}>

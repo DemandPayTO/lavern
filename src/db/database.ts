@@ -1320,11 +1320,11 @@ export function saveMatter(userId: string, matterId: string, dataJson: string, s
   `).run(matterId, userId, dataJson, status, now, now);
 }
 
-export function getMattersByUser(userId: string): Array<{ id: string; data_json: string; status: string; created_at: string }> {
+export function getMattersByUser(userId: string): Array<{ id: string; data_json: string; status: string; created_at: string; updated_at: string }> {
   return getDb().prepare(`
-    SELECT id, data_json, status, created_at FROM matters
+    SELECT id, data_json, status, created_at, updated_at FROM matters
     WHERE user_id = ? ORDER BY created_at DESC
-  `).all(userId) as Array<{ id: string; data_json: string; status: string; created_at: string }>;
+  `).all(userId) as Array<{ id: string; data_json: string; status: string; created_at: string; updated_at: string }>;
 }
 
 export function getMatterById(matterId: string, userId: string): { id: string; data_json: string; status: string } | undefined {

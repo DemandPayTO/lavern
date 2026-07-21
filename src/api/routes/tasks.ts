@@ -123,8 +123,11 @@ function actionRows(matterId: string, parsed: ParsedMatter): TaskRow[] {
 
 const BAND_ORDER: Record<TaskBand, number> = { overdue: 0, today: 1, week: 2, later: 3, none: 4 };
 
-/** Compact matter directory for the quick-add picker and filters. */
-interface MatterOption { matterId: string; matterLabel: string; fileNumber: string }
+/**
+ * Compact matter directory for the quick-add picker, filters, and the
+ * dashboard's Recent matters glance (updatedAt = last save on the file).
+ */
+interface MatterOption { matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string }
 
 function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterOption[] } {
   const rows = getMattersByUser(userId);
@@ -135,7 +138,10 @@ function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterOption[]
     const parsed = parseMatterRow(row);
     if (!parsed) continue;
     parsedById.set(row.id, parsed);
-    matters.push({ matterId: row.id, matterLabel: parsed.matterLabel, fileNumber: parsed.fileNumber });
+    matters.push({
+      matterId: row.id, matterLabel: parsed.matterLabel, fileNumber: parsed.fileNumber,
+      status: row.status, updatedAt: row.updated_at,
+    });
     tasks.push(...actionRows(row.id, parsed));
   }
   // Deadlines from the shared collector; its action_item entries are skipped
