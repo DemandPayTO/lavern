@@ -186,6 +186,21 @@ export default function StarlingDashboard() {
   // Wire hook data
   const { matters, loading, refresh } = useMatterList();
 
+  // Overdue badge for the Tasks nav link. Best-effort: demo mode and
+  // fetch failures just hide the badge.
+  const [overdueCount, setOverdueCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/tasks', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const n = (d as { counts?: { overdue?: number } } | null)?.counts?.overdue;
+        if (!cancelled && typeof n === 'number') setOverdueCount(n);
+      })
+      .catch(() => { /* badge stays hidden */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // Deadline docket — consolidated limitations / response deadlines /
   // severance deadlines across all matters
   interface DeadlineItem {
@@ -337,6 +352,23 @@ export default function StarlingDashboard() {
             aria-current="page"
           >
             My Cases
+          </a>
+          <a
+            href="#/tasks"
+            style={{
+              padding: '8px 14px',
+              borderRadius: 2,
+              fontSize: 14,
+              color: '#cfd6e0',
+              border: '1px solid transparent',
+              textDecoration: 'none',
+            }}
+          >
+            Tasks{overdueCount > 0 && (
+              <span style={{ marginLeft: 6, background: red, color: '#fff', borderRadius: 8, padding: '0 6px', fontSize: 11.5, fontWeight: 700 }}>
+                {overdueCount}
+              </span>
+            )}
           </a>
           <a
             href="#/new-matter"

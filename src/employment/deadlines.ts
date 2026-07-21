@@ -162,6 +162,9 @@ export function collectDeadlines(
       //    Skip the limitation event — already captured above.
       for (const ev of employment.timeline ?? []) {
         if (/limitation/i.test(ev.label)) continue;
+        // System log entries (records of things that happened) are history,
+        // not deadlines — keep them off the docket and the task inbox.
+        if (/^(Debrief captured|Outcome recorded|Matter reopened)/i.test(ev.label)) continue;
         const days = daysFromToday(ev.date);
         if (isNaN(days) || days < 0) continue; // past timeline events are history, not deadlines
         const kind: DeadlineItem['kind'] = /response due/i.test(ev.label) ? 'demand_response' : 'timeline';

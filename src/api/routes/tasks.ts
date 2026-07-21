@@ -123,14 +123,19 @@ function actionRows(matterId: string, parsed: ParsedMatter): TaskRow[] {
 
 const BAND_ORDER: Record<TaskBand, number> = { overdue: 0, today: 1, week: 2, later: 3, none: 4 };
 
-function buildInbox(userId: string): TaskRow[] {
+/** Compact matter directory for the quick-add picker and filters. */
+interface MatterOption { matterId: string; matterLabel: string; fileNumber: string }
+
+function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterOption[] } {
   const rows = getMattersByUser(userId);
   const tasks: TaskRow[] = [];
+  const matters: MatterOption[] = [];
   const parsedById = new Map<string, ParsedMatter>();
   for (const row of rows) {
     const parsed = parseMatterRow(row);
     if (!parsed) continue;
     parsedById.set(row.id, parsed);
+    matters.push({ matterId: row.id, matterLabel: parsed.matterLabel, fileNumber: parsed.fileNumber });
     tasks.push(...actionRows(row.id, parsed));
   }
   // Deadlines from the shared collector; its action_item entries are skipped
@@ -158,7 +163,8 @@ function buildInbox(userId: string): TaskRow[] {
     || Number(b.isCourt) - Number(a.isCourt)
     || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999')
     || a.title.localeCompare(b.title));
-  return tasks;
+  matters.sort((a, b) => a.matterLabel.localeCompare(b.matterLabel));
+  return { tasks, matters };
 }
 
 // ── Feed helpers ────────────────────────────────────────────────────────
@@ -173,13 +179,13 @@ export function registerTaskRoutes(fastify: FastifyInstance): void {
   // ── GET /api/tasks — the unified inbox ────────────────────────────────
   fastify.get('/api/tasks', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
-    const tasks = buildInbox(userId);
+    const { tasks, matters } = buildInbox(userId);
     const counts = { overdue: 0, today: 0, week: 0, later: 0, none: 0, done: 0 };
     for (const t of tasks) {
       if (t.status === 'done') counts.done += 1;
       else counts[t.band] += 1;
     }
-    return reply.send({ ok: true, tasks, counts });
+    return reply.send({ ok: true, tasks, matters, counts });
   });
 
   // ── POST /api/tasks — quick-add a manual task to a matter ─────────────

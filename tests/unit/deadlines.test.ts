@@ -70,6 +70,20 @@ describe('collectDeadlines', () => {
     expect(collectDeadlines(rows)).toHaveLength(0);
   });
 
+  it('keeps system log entries (debrief captured, outcome recorded) off the docket', () => {
+    const rows = [matterRow('m-log', {
+      intake: baseIntake,
+      timeline: [
+        { date: iso(0), label: 'Debrief captured: 5 action items, 4 dated', source: 'system' },
+        { date: iso(1), label: 'Outcome recorded: settled', source: 'system' },
+        { date: iso(3), label: 'Statement of Defence due', source: 'system' },
+      ],
+    })];
+    const items = collectDeadlines(rows);
+    expect(items).toHaveLength(1);
+    expect(items[0].label).toBe('Statement of Defence due');
+  });
+
   it('skips corrupt rows and matters without employment data', () => {
     const rows = [
       { id: 'bad', data_json: 'not json{{' },
