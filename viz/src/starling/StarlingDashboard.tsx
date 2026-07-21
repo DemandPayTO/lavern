@@ -585,7 +585,16 @@ export default function StarlingDashboard() {
 
         {/* ── My Matters ──────────────────────────────────────── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 14px' }}>
-          <h2 style={{ fontFamily: serif, fontSize: 19, fontWeight: 600, color: navy, margin: 0 }}>My Matters</h2>
+          <h2 style={{ fontFamily: serif, fontSize: 19, fontWeight: 600, color: navy, margin: 0 }}>
+            My Matters
+            <a
+              href="#/matters"
+              style={{ marginLeft: 12, fontFamily: sans, fontSize: 13, fontWeight: 600, color: orange, textDecoration: 'none' }}
+              aria-label="View all matters as files"
+            >
+              View as files →
+            </a>
+          </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <input
               type="search"

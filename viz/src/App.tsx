@@ -73,6 +73,7 @@ const PartnerView = lazy(() => import('./partner/PartnerView.js'));
 const ShowcaseView = lazy(() => import('./showcase/ShowcaseView.js'));
 const StarlingDashboard = lazy(() => import('./starling/StarlingDashboard.js'));
 const TasksView = lazy(() => import('./starling/TasksView.js'));
+const MattersFilesView = lazy(() => import('./starling/MattersFilesView.js'));
 const NewMatterView = lazy(() => import('./starling/NewMatterView.js'));
 const MatterDetailView = lazy(() => import('./starling/MatterDetailView.js'));
 const ClientIntakeView = lazy(() => import('./starling/ClientIntakeView.js'));
@@ -80,7 +81,7 @@ const ProcessingView = lazy(() => import('./starling/ProcessingView.js'));
 const ResultsView = lazy(() => import('./starling/ResultsView.js'));
 const BillingView = lazy(() => import('./billing/BillingView.js'));
 
-type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results' | 'billing' | 'client-intake' | 'tasks';
+type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results' | 'billing' | 'client-intake' | 'tasks' | 'matters-files';
 
 function getViewFromHash(): AppView {
   const hash = window.location.hash;
@@ -109,6 +110,7 @@ function getViewFromHash(): AppView {
   if (hash.startsWith('#/new-matter')) return 'new-matter';
   if (hash.startsWith('#/tasks')) return 'tasks';
   if (hash.startsWith('#/matter-detail')) return 'matter-detail';
+  if (hash.startsWith('#/matters')) return 'matters-files';
   if (hash.startsWith('#/processing')) return 'starling-processing';
   if (hash.startsWith('#/results')) return 'starling-results';
   if (hash.startsWith('#/billing')) return 'billing';
@@ -205,7 +207,7 @@ export function App() {
   }, []);
 
   // Demo containment — if a demo session is active, only allow demo-safe routes
-  const DEMO_SAFE: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'billing', 'working', 'delivery', 'demo', 'login', 'tasks'];
+  const DEMO_SAFE: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'billing', 'working', 'delivery', 'demo', 'login', 'tasks', 'matters-files'];
   useEffect(() => {
     const sid = sessionStorage.getItem('shem-session-id') ?? '';
     if (sid.startsWith('demo-session') && !DEMO_SAFE.includes(view)) {
@@ -214,7 +216,7 @@ export function App() {
   }, [view]);
 
   // Redirect to login if not authenticated on protected Starling views
-  const PROTECTED_VIEWS: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'tasks'];
+  const PROTECTED_VIEWS: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'tasks', 'matters-files'];
   useEffect(() => {
     if (!userCtx?.user && PROTECTED_VIEWS.includes(view) && !IS_STANDALONE) {
       window.location.hash = '#/login';
@@ -601,7 +603,7 @@ export function App() {
   // ── View rendering ────────────────────────────────────────────────────
 
   // ── Global M mark — hide on landing (custom cursor) & working (tight header) ──
-  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard' && view !== 'new-matter' && view !== 'matter-detail' && view !== 'starling-processing' && view !== 'starling-results' && view !== 'billing' && view !== 'client-intake' && view !== 'tasks';
+  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard' && view !== 'new-matter' && view !== 'matter-detail' && view !== 'starling-processing' && view !== 'starling-results' && view !== 'billing' && view !== 'client-intake' && view !== 'tasks' && view !== 'matters-files';
 
   // ── Global API error handler (listens for shem:api-error events) ────
   useEffect(() => {
@@ -1298,6 +1300,21 @@ export function App() {
         {verifyBanner}
         <Suspense fallback={<ViewFallback text="Loading dashboard..." />}>
           <StarlingDashboard />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // ── Files — folder-style view of every matter ───────────────────────
+  if (view === 'matters-files') {
+    return (
+      <ErrorBoundary>
+        {skipLink}
+        {toast}
+        {offlineBanner}
+        {verifyBanner}
+        <Suspense fallback={<ViewFallback text="Loading files..." />}>
+          <MattersFilesView />
         </Suspense>
       </ErrorBoundary>
     );

@@ -421,10 +421,6 @@ export default function TasksView() {
                   </button>
                 </div>
                 <code style={{ display: 'block', marginTop: 8, fontSize: 12, color: muted, wordBreak: 'break-all' }}>{feedWebcalUrl}</code>
-                <p style={{ margin: '10px 0 0', fontSize: 12.5, color: muted }}>
-                  Outlook: Add calendar → Subscribe from web. Google: Other calendars → From URL. Apple: File → New Calendar Subscription.
-                  Events show your file numbers, never client names. Subscribing from your firm account keeps the data in the firm's tenant.
-                </p>
               </>
             ) : (
               <>
@@ -438,6 +434,17 @@ export default function TasksView() {
                 </button>
               </>
             )}
+            {/* Subscribe instructions — always visible, not only right after minting */}
+            <p style={{ margin: '12px 0 0', fontSize: 12.5, color: muted }}>
+              <b>Outlook:</b> the desktop app cannot subscribe directly (Import ICS gives a frozen snapshot — avoid it). Instead open{' '}
+              <b>outlook.office.com</b> → Calendar → Add calendar → <b>Subscribe from web</b>, paste the <b>https</b> link, and it
+              syncs into desktop Outlook automatically and stays current.
+              {' '}<b>Google:</b> Other calendars → From URL (https link). <b>Apple Calendar:</b> File → New Calendar Subscription (webcal link).
+            </p>
+            <p style={{ margin: '6px 0 0', fontSize: 12.5, color: muted }}>
+              Events show your file numbers, never client names. Subscribing from your firm account keeps the data in the firm's tenant.
+              The link is shown once when generated; if you lost it, regenerate (old subscriptions stop updating).
+            </p>
             {digestAvailable && (
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${border}`, cursor: 'pointer', fontSize: 13 }}>
                 <input
