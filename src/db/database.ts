@@ -132,6 +132,13 @@ function runMigrations(db: Database.Database): void {
       created_at     TEXT NOT NULL
     );
 
+    -- Weekly task digest opt-ins: per-lawyer, own-data-only, off by default.
+    -- Deliberately distinct from the (disabled) firm-wide digest.
+    CREATE TABLE IF NOT EXISTS task_digest_optin (
+      user_id        TEXT PRIMARY KEY,
+      created_at     TEXT NOT NULL
+    );
+
     -- Usage ledger: one row per billable event (generation, analysis).
     -- Durable, unlike matter.draftHistory which caps at 10 entries. Feeds
     -- usage-based pricing: monthly rollups per matter and per firm.
@@ -1473,6 +1480,28 @@ export function getFeedTokenUser(tokenHash: string): string | undefined {
 export function getFeedTokenInfo(userId: string): { created_at: string } | undefined {
   return getDb().prepare('SELECT created_at FROM feed_tokens WHERE user_id = ?')
     .get(userId) as { created_at: string } | undefined;
+}
+
+// ── Weekly task digest opt-ins ──────────────────────────────────────────
+
+export function setTaskDigestOptIn(userId: string, optIn: boolean): void {
+  const db = getDb();
+  if (optIn) {
+    db.prepare('INSERT OR IGNORE INTO task_digest_optin (user_id, created_at) VALUES (?, ?)')
+      .run(userId, new Date().toISOString());
+  } else {
+    db.prepare('DELETE FROM task_digest_optin WHERE user_id = ?').run(userId);
+  }
+}
+
+export function isTaskDigestOptedIn(userId: string): boolean {
+  return Boolean(getDb().prepare('SELECT 1 FROM task_digest_optin WHERE user_id = ?').get(userId));
+}
+
+/** Every opted-in user id — the weekly runner's send list. */
+export function getTaskDigestOptIns(): string[] {
+  const rows = getDb().prepare('SELECT user_id FROM task_digest_optin').all() as Array<{ user_id: string }>;
+  return rows.map(r => r.user_id);
 }
 
 // ── CA Profile Queries (labour CA library) ──────────────────────────────

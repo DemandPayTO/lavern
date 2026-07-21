@@ -108,6 +108,10 @@ export default function TasksView() {
   const [feedOpen, setFeedOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Weekly digest opt-in (real accounts only; hidden in LOCAL MODE)
+  const [digestAvailable, setDigestAvailable] = useState(false);
+  const [digestOptedIn, setDigestOptedIn] = useState(false);
+
   const fetchInbox = useCallback(async () => {
     try {
       const res = await fetch('/api/tasks', { credentials: 'include' });
@@ -128,7 +132,32 @@ export default function TasksView() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setFeedActive(Boolean((d as { active?: boolean }).active)); })
       .catch(() => { /* panel simply shows generate */ });
+    void fetch('/api/tasks/digest', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        const body = d as { available?: boolean; optedIn?: boolean };
+        setDigestAvailable(Boolean(body.available));
+        setDigestOptedIn(Boolean(body.optedIn));
+      })
+      .catch(() => { /* control stays hidden */ });
   }, [fetchInbox]);
+
+  const toggleDigest = useCallback(async (optIn: boolean) => {
+    setDigestOptedIn(optIn); // optimistic
+    try {
+      const res = await fetch('/api/tasks/digest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ optIn }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      setDigestOptedIn(!optIn); // roll back
+      setError('Could not update the weekly email setting.');
+    }
+  }, []);
 
   const patchTask = useCallback(async (t: TaskRow, body: { status?: 'open' | 'done'; dueDate?: string | null }) => {
     try {
@@ -408,6 +437,23 @@ export default function TasksView() {
                   {feedActive ? 'Regenerate link (revokes old)' : 'Generate subscribe link'}
                 </button>
               </>
+            )}
+            {digestAvailable && (
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${border}`, cursor: 'pointer', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={digestOptedIn}
+                  onChange={e => { void toggleDigest(e.target.checked); }}
+                  aria-label="Weekly task email"
+                  style={{ marginTop: 2, accentColor: navy }}
+                />
+                <span>
+                  <b>Weekly task email.</b>{' '}
+                  <span style={{ color: muted }}>
+                    Every Monday morning, your own outstanding and upcoming items to your own inbox. File numbers only, never client names. Off by default.
+                  </span>
+                </span>
+              </label>
             )}
           </section>
         )}

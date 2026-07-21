@@ -1,6 +1,6 @@
 # Spec — Unified Task Inbox ("Tasks" tab)
 
-**Status:** drafted 2026-07-20 for Jordan's approval. Spec-first; no code until signed off.
+**Status:** BUILT 2026-07-20 (all four slices on `demandpay-config`): aggregation + token calendar feed, the Tasks tab, the dashboard Today/Recent glance, and the opt-in weekly per-lawyer digest.
 **Problem:** tasks live per matter (debrief action items) and deadlines live in the docket. To see everything owed, the lawyer walks every file. Calls and emails generate to-dos that get hand-organized. This does not scale past a handful of matters.
 
 ## Goal

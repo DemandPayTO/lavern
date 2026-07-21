@@ -271,6 +271,23 @@ export async function startApiServer(port: number): Promise<void> {
     console.log(`[DIGEST] Weekly digest disabled (${config.starling.digestEnabled ? 'STARLING_DIGEST_EMAIL unset' : 'STARLING_DIGEST_ENABLED not true'})`);
   }
 
+  // ── Weekly Task Digest Scheduler (per-lawyer, opt-in) ────────────────
+  // Distinct from the firm digest above: each opted-in lawyer gets their
+  // OWN outstanding + week-ahead items to their own inbox, Mondays 08:00
+  // America/Toronto. Only meaningful with real accounts (auth enabled);
+  // the opt-in table gates each send, so no opt-ins means no emails.
+  if (config.authEnabled) {
+    const { maybeSendTaskDigests } = await import('../starling/task-digest-runner.js');
+    const taskDigestMarkerPath = path.join(path.dirname(config.dbPath), '.last-task-digest');
+    const taskDigestInterval = setInterval(() => {
+      maybeSendTaskDigests(taskDigestMarkerPath)
+        .then(n => { if (n > 0) console.log(`[TASK-DIGEST] Sent ${n} per-lawyer task digest${n === 1 ? '' : 's'}`); })
+        .catch(err => console.error('[TASK-DIGEST] Weekly task digest failed', err));
+    }, 60 * 60 * 1000); // 1 hour
+    taskDigestInterval.unref();
+    console.log('[TASK-DIGEST] Per-lawyer weekly task digest scheduler armed (opt-in, Mondays 08:00 America/Toronto)');
+  }
+
   // ── Shared State ─────────────────────────────────────────────────────
 
   const sessionManager = new SessionManager();

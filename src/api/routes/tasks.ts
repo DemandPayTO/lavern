@@ -21,15 +21,16 @@ import { z } from 'zod';
 import {
   getMattersByUser, getMatterById, saveMatter,
   saveFeedToken, getFeedTokenUser, getFeedTokenInfo,
+  setTaskDigestOptIn, isTaskDigestOptedIn, getUserById,
 } from '../../db/database.js';
 import { collectDeadlines, type DeadlineItem } from '../../employment/deadlines.js';
 import { actionItemId, type ActionItem, type DebriefEntry } from '../../employment/debrief.js';
 
 // ── TaskRow ─────────────────────────────────────────────────────────────
 
-type TaskBand = 'overdue' | 'today' | 'week' | 'later' | 'none';
+export type TaskBand = 'overdue' | 'today' | 'week' | 'later' | 'none';
 
-interface TaskRow {
+export interface TaskRow {
   /** Action items carry their stored id (PATCHable); deadlines a derived one. */
   id: string;
   matterId: string;
@@ -129,7 +130,7 @@ const BAND_ORDER: Record<TaskBand, number> = { overdue: 0, today: 1, week: 2, la
  */
 interface MatterOption { matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string }
 
-function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterOption[] } {
+export function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterOption[] } {
   const rows = getMattersByUser(userId);
   const tasks: TaskRow[] = [];
   const matters: MatterOption[] = [];
@@ -307,6 +308,36 @@ export function registerTaskRoutes(fastify: FastifyInstance): void {
     const token = crypto.randomBytes(24).toString('base64url');
     saveFeedToken(hashToken(token), userId);
     return reply.send({ ok: true, path: `/api/tasks/calendar/${token}.ics` });
+  });
+
+  // A digest needs a real inbox: the synthetic local user (LOCAL MODE) is
+  // seeded with a placeholder address, so the control stays hidden there.
+  const digestEmailFor = (userId: string): string | null => {
+    if (userId === 'local-user') return null;
+    const email = getUserById(userId)?.email;
+    return email && email !== 'local@localhost' ? email : null;
+  };
+
+  // ── GET /api/tasks/digest — weekly digest opt-in status ───────────────
+  fastify.get('/api/tasks/digest', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    return reply.send({
+      ok: true,
+      available: Boolean(digestEmailFor(userId)),
+      optedIn: isTaskDigestOptedIn(userId),
+    });
+  });
+
+  // ── POST /api/tasks/digest — opt in or out ────────────────────────────
+  fastify.post('/api/tasks/digest', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const parsed = z.object({ optIn: z.boolean() }).strict().safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid body' });
+    if (!digestEmailFor(userId)) {
+      return reply.status(400).send({ ok: false, error: 'No email on this account to send the digest to' });
+    }
+    setTaskDigestOptIn(userId, parsed.data.optIn);
+    return reply.send({ ok: true, optedIn: parsed.data.optIn });
   });
 
   // ── GET /api/tasks/calendar/:token.ics — the subscribable feed ────────

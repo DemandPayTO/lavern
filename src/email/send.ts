@@ -423,6 +423,69 @@ export async function sendDeadlineDigestEmail(
   });
 }
 
+/** One row of the per-lawyer weekly task digest. */
+export interface TaskDigestRow {
+  title: string;
+  fileNumber: string;
+  dueDate: string | null;
+  isCourt: boolean;
+}
+
+/**
+ * Weekly per-lawyer task digest: the lawyer's OWN outstanding items and the
+ * week ahead, to their own inbox. Deliberately minimized: file numbers, never
+ * client names (the firm-wide digest that broadcast matter labels stays
+ * disabled). Opt-in per user.
+ */
+export async function sendTaskDigestEmail(
+  email: string,
+  digest: { outstanding: TaskDigestRow[]; weekAhead: TaskDigestRow[] },
+): Promise<boolean> {
+  const { outstanding, weekAhead } = digest;
+  if (outstanding.length === 0 && weekAhead.length === 0) return true; // no noise
+
+  const line = (r: TaskDigestRow): string =>
+    `${r.isCourt ? '[COURT] ' : ''}${r.title} — ${r.fileNumber}${r.dueDate ? ` (${r.dueDate})` : ''}`;
+  const text = [
+    outstanding.length ? `Outstanding (${outstanding.length}):\n${outstanding.map(line).join('\n')}` : '',
+    weekAhead.length ? `This week (${weekAhead.length}):\n${weekAhead.map(line).join('\n')}` : '',
+    'Full list: the Tasks tab in Starling. You review and act; Starling never sends or files.',
+  ].filter(Boolean).join('\n\n');
+
+  const section = (title: string, rowsIn: TaskDigestRow[], colour: string): string => {
+    if (rowsIn.length === 0) return '';
+    const rows = rowsIn.slice(0, 12).map(r => `<tr>
+      <td style="padding:7px 8px 7px 0;border-bottom:1px solid ${BRAND.border};">${r.isCourt ? `<span style="color:#dc2626;font-weight:700;font-size:10px;">COURT</span> ` : ''}${esc(r.title)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};color:${BRAND.textDim};white-space:nowrap;">${esc(r.fileNumber)}</td>
+      <td style="padding:7px 0;border-bottom:1px solid ${BRAND.border};text-align:right;font-family:monospace;color:${BRAND.textDim};">${r.dueDate ? esc(r.dueDate) : ''}</td>
+    </tr>`).join('');
+    return `<div style="font-size:13px;font-weight:700;color:${colour};margin:18px 0 8px;">${esc(title)} (${rowsIn.length})</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13.5px;color:${BRAND.text};">${rows}</table>
+      ${rowsIn.length > 12 ? `<div style="font-size:12px;color:${BRAND.textDim};margin-top:8px;">+ ${rowsIn.length - 12} more on the Tasks tab</div>` : ''}`;
+  };
+
+  return send({
+    to: email,
+    subject: outstanding.length > 0
+      ? `Your Starling week — ${outstanding.length} outstanding, ${weekAhead.length} coming up`
+      : `Your Starling week — ${weekAhead.length} coming up`,
+    text,
+    html: emailWrapper(`
+      <div style="background:${BRAND.surface};border-radius:12px;padding:28px;border:1px solid ${BRAND.border};">
+        <div style="font-size:18px;font-weight:600;color:${BRAND.accent};margin-bottom:4px;font-family:Georgia,'Times New Roman',serif;">
+          Your week
+        </div>
+        <div style="font-size:12px;color:${BRAND.textDim};">Your own tasks and deadlines. File numbers only.</div>
+        ${section('Outstanding', outstanding, '#dc2626')}
+        ${section('This week', weekAhead, BRAND.text)}
+        <div style="font-size:12px;color:${BRAND.textDim};margin-top:18px;">
+          Full list and calendar subscription: the Tasks tab in Starling. You review and act; Starling never sends or files.
+        </div>
+      </div>
+    `),
+  });
+}
+
 /** Weekly digest of Claw activity. */
 export async function sendClawDigestEmail(
   email: string,

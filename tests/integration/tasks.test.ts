@@ -194,6 +194,19 @@ describe('task inbox aggregation', () => {
   });
 });
 
+describe('weekly digest opt-in', () => {
+  it('is unavailable for the synthetic local user (no inbox to send to)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/tasks/digest' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { available: boolean; optedIn: boolean };
+    expect(body.available).toBe(false);
+    expect(body.optedIn).toBe(false);
+
+    const post = await app.inject({ method: 'POST', url: '/api/tasks/digest', payload: { optIn: true } });
+    expect(post.statusCode).toBe(400);
+  });
+});
+
 describe('calendar feed (token)', () => {
   let feedPath: string;
 

@@ -111,6 +111,34 @@ describe('TasksView', () => {
     });
   });
 
+  it('shows the weekly email opt-in when available and POSTs the toggle', async () => {
+    const fetchMock = mockFetch({
+      'GET /api/tasks/digest': { ok: true, available: true, optedIn: false },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<TasksView />);
+    await waitFor(() => expect(screen.getByText('Send mitigation reminder')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Calendar subscription' }));
+    const box = await screen.findByLabelText('Weekly task email');
+    await userEvent.click(box);
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c =>
+        (c[1] as RequestInit | undefined)?.method === 'POST' && String(c[0]) === '/api/tasks/digest');
+      expect(post).toBeDefined();
+      expect(JSON.parse(String((post![1] as RequestInit).body))).toEqual({ optIn: true });
+    });
+  });
+
+  it('hides the weekly email opt-in in LOCAL MODE (unavailable)', async () => {
+    vi.stubGlobal('fetch', mockFetch({
+      'GET /api/tasks/digest': { ok: true, available: false, optedIn: false },
+    }));
+    render(<TasksView />);
+    await waitFor(() => expect(screen.getByText('Send mitigation reminder')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Calendar subscription' }));
+    expect(screen.queryByLabelText('Weekly task email')).not.toBeInTheDocument();
+  });
+
   it('mints a subscribe link and shows both copy affordances', async () => {
     vi.stubGlobal('fetch', mockFetch({
       'POST /api/tasks/feed': { ok: true, path: '/api/tasks/calendar/tok123.ics' },
