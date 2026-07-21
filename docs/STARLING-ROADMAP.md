@@ -31,6 +31,7 @@
 
 ## Cross-cutting (all verticals)
 
+- **SharePoint document save** (Microsoft Graph, deferred to post-pilot). Auto-save generated documents into the firm's SharePoint / OneDrive so lawyers skip the download-then-upload step. Build: register a multi-tenant Entra ID app; per-firm OAuth admin-consent flow; store the refresh token per firm (tenant-scoped); on "mark reviewed/filed", write the DOCX to a configured SharePoint library path. Scope is **write-only of Starling's own outputs** — never read the firm's whole document store (that is Clio/iManage's job) and never send or file anything (Starling's standing rule). Privacy note: generated docs already exist in Starling; pushing them to SharePoint adds no new client-data exposure to Anthropic. Prerequisite: the firm's M365 admin consents once. Not for the pilot — the manual download→SharePoint flow is fine for two lawyers; revisit when a firm asks or the doc volume makes the manual step a real cost.
 - **Matter file export** (approved low priority): one-click bundle of everything Starling holds on a matter — the exit guarantee.
 - **Multi-lawyer visibility** within a firm (assignment, per-lawyer docket filters) once the pilot adds a second lawyer.
 - **Pricing activation:** set the two usage knobs after the pilot month's ledger data is in.

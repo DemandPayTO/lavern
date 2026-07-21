@@ -524,9 +524,10 @@ export default function StarlingDashboard() {
                 href="/api/employment/deadlines.ics"
                 download
                 style={{ marginLeft: 'auto', color: orange, textDecoration: 'none', fontWeight: 600, textTransform: 'none' as const, letterSpacing: 0 }}
-                aria-label="Download the docket as a calendar file"
+                aria-label="Download a one-time snapshot of the docket as a calendar file"
+                title="One-time download. For a live feed that stays current, use the subscribe link on the Tasks tab."
               >
-                Calendar feed (.ics)
+                Download docket (.ics)
               </a>
             </div>
             <div style={{ background: '#fff', border: `1px solid ${border}` }} role="list" aria-label="Upcoming deadlines">

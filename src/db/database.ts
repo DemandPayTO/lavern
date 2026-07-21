@@ -123,6 +123,15 @@ function runMigrations(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_portal_tokens_matter ON portal_tokens(matter_id);
 
+    -- Calendar feed tokens: one per user, hashed at rest (portal_tokens
+    -- pattern). The token in the subscribe URL is the capability; calendar
+    -- apps fetch with no cookie. Regenerating replaces (revokes) the old one.
+    CREATE TABLE IF NOT EXISTS feed_tokens (
+      token_hash     TEXT PRIMARY KEY,
+      user_id        TEXT NOT NULL UNIQUE,
+      created_at     TEXT NOT NULL
+    );
+
     -- Usage ledger: one row per billable event (generation, analysis).
     -- Durable, unlike matter.draftHistory which caps at 10 entries. Feeds
     -- usage-based pricing: monthly rollups per matter and per firm.
@@ -1441,6 +1450,29 @@ export function getPortalToken(tokenHash: string): { token_hash: string; matter_
 
 export function deletePortalTokensForMatter(matterId: string): void {
   getDb().prepare('DELETE FROM portal_tokens WHERE matter_id = ?').run(matterId);
+}
+
+// ── Calendar feed tokens (task inbox) ───────────────────────────────────
+
+/** Store a user's feed token hash, replacing (revoking) any earlier one. */
+export function saveFeedToken(tokenHash: string, userId: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM feed_tokens WHERE user_id = ?').run(userId);
+  db.prepare('INSERT INTO feed_tokens (token_hash, user_id, created_at) VALUES (?, ?, ?)')
+    .run(tokenHash, userId, new Date().toISOString());
+}
+
+/** Resolve a feed token hash to its user, or undefined when revoked/unknown. */
+export function getFeedTokenUser(tokenHash: string): string | undefined {
+  const row = getDb().prepare('SELECT user_id FROM feed_tokens WHERE token_hash = ?')
+    .get(tokenHash) as { user_id: string } | undefined;
+  return row?.user_id;
+}
+
+/** Whether the user has an active feed (and since when) — never the token. */
+export function getFeedTokenInfo(userId: string): { created_at: string } | undefined {
+  return getDb().prepare('SELECT created_at FROM feed_tokens WHERE user_id = ?')
+    .get(userId) as { created_at: string } | undefined;
 }
 
 // ── CA Profile Queries (labour CA library) ──────────────────────────────

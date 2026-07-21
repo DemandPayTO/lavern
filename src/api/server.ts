@@ -63,6 +63,7 @@ import { registerLabourRoutes } from './routes/labour.js';
 import { registerIntakePortalRoutes } from './routes/intake-portal.js';
 import { registerCorrespondenceRoutes } from './routes/correspondence.js';
 import { registerUsageRoutes } from './routes/usage.js';
+import { registerTaskRoutes } from './routes/tasks.js';
 import { ClientRegistry, createAuthMiddleware, registerAuthRoutes } from './middleware/auth.js';
 import { createPerUserRateLimitHook } from './middleware/rate-limit.js';
 import { registerUserAuthRoutes } from './routes/auth-routes.js';
@@ -310,6 +311,11 @@ export async function startApiServer(port: number): Promise<void> {
     // it (hashed, expiring) and reveal only the firm name to the client.
     'GET /api/intake-portal/*',
     'POST /api/intake-portal/*',
+    // Calendar feed — calendar apps fetch with no cookie; the per-user
+    // revocable token in the URL is the capability (hashed at rest), and
+    // event text is minimized to file numbers. Only /calendar/* is public;
+    // the rest of /api/tasks requires auth.
+    'GET /api/tasks/calendar/*',
     // Session creation requires auth — all users must log in before starting sessions.
     // Briefing — intake flow before login
     'POST /api/briefing/interview',
@@ -742,6 +748,7 @@ export async function startApiServer(port: number): Promise<void> {
   registerIntakePortalRoutes(fastify);
   registerCorrespondenceRoutes(fastify);
   registerUsageRoutes(fastify);
+  registerTaskRoutes(fastify);
 
   // ── Frontend Static Files ──────────────────────────────────────────
 
