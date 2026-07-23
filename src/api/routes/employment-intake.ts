@@ -193,6 +193,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     const { matter, employment } = loadEmploymentData(row.data_json);
     employment.intake = intake as EmploymentIntakeData;
+    employment.intakeRevisedAt = new Date().toISOString();
 
     // Rebuild intake-derived timeline, preserving lawyer entries and
     // route-added ticklers (court dates, SOC-sent, debriefs, outcomes).
@@ -962,6 +963,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     const timelineBefore = employment.timeline ?? [];
     employment.intake = outcome.intake;
+    employment.intakeRevisedAt = new Date().toISOString();
     employment.timeline = rebuildTimelinePreserving(timelineBefore, outcome.intake);
     employment.gates = evaluateGates(outcome.intake);
 

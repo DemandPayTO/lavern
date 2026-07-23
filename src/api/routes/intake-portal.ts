@@ -156,6 +156,7 @@ export function registerIntakePortalRoutes(fastify: FastifyInstance): void {
       }
     }
     employment.intake = intake as EmploymentIntakeData;
+    employment.intakeRevisedAt = new Date().toISOString();
     employment.gates = evaluateGates(employment.intake);
     employment.timeline = rebuildTimelinePreserving(employment.timeline, employment.intake);
     matter.employmentData = employment;

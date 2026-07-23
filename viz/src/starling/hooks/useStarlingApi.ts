@@ -1449,6 +1449,9 @@ function getTimelineSubtitle(event: Record<string, unknown>): string {
 
 export interface EmploymentData {
   intake: Record<string, unknown>;
+  documentExtractions?: DocumentExtraction[];
+  /** When the intake facts last changed; drafts generated before this are stale. */
+  intakeRevisedAt?: string;
   timeline: Array<{ date: string; label: string; description?: string; category: string; source: string }>;
   gates: Array<{ gate: string; triggered: boolean; reason: string; issueCodes: string[]; requiresLawyerReview: boolean }>;
   approvedIssues: string[];
@@ -1510,17 +1513,41 @@ export interface UseEmploymentDataResult {
   runAnalysis: () => Promise<{ ok: boolean; error?: string }>;
   /** Extract facts from an uploaded document via Claude (parse → extract). */
   extractDocument: (file: File, documentKind: string) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
+  /** Apply the lawyer's selected extracted fields to the intake (deterministic). */
+  applyExtraction: (extractionId: string, fields: string[], overwrite: string[]) => Promise<ApplyExtractionResult>;
 }
 
 export interface DocumentExtraction {
+  /** Stable id for the apply loop (older stored extractions may lack it). */
+  id?: string;
   /** Filename of the analysed document. */
   filename: string;
   /** Document kind that was analysed (employment_agreement, termination_letter, ...). */
   documentType: string;
-  /** Each field carries a value plus the model's confidence. */
-  extractedFields: Record<string, { value: string | number | boolean | null; confidence: 'high' | 'medium' | 'low' }>;
+  /** Each field carries a value plus the model's confidence and, when quote grounding ran, the verbatim source sentence. */
+  extractedFields: Record<string, {
+    value: string | number | boolean | null;
+    confidence: 'high' | 'medium' | 'low';
+    sourceQuote?: string;
+    verified?: boolean;
+  }>;
   keyFindings: string[];
   confirmed: boolean;
+  /** Set once the lawyer applied fields to the intake. */
+  appliedAt?: string;
+  appliedFields?: string[];
+}
+
+export interface ApplyExtractionResult {
+  ok: boolean;
+  error?: string;
+  invalidFields?: string[];
+  applied?: string[];
+  overwritten?: string[];
+  skippedNotBlank?: string[];
+  unmapped?: string[];
+  analysisStale?: boolean;
+  timelineDiff?: { added: Array<{ date: string; label: string }>; removed: Array<{ date: string; label: string }> };
 }
 
 /**
@@ -1764,7 +1791,27 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument };
+  const applyExtraction = useCallback(async (extractionId: string, fields: string[], overwrite: string[]): Promise<ApplyExtractionResult> => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/apply-extraction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ extractionId, fields, overwrite }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, ...(json as object) } as ApplyExtractionResult;
+      // No refresh here: refreshing unmounts the review panel before the
+      // lawyer reads the result summary and consequence diff. The panel's
+      // Done button triggers the refresh.
+      return json as ApplyExtractionResult;
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'The fields could not be applied' };
+    }
+  }, [matterId]);
+
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, applyExtraction };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────

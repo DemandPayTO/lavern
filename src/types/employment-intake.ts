@@ -373,6 +373,11 @@ export interface SourceCitation {
 export interface EmploymentMatterData {
   /** The structured intake data (from form or AI extraction). */
   intake: EmploymentIntakeData;
+  /**
+   * When the intake facts last changed (manual save, portal apply, or
+   * extraction apply). Drafts generated before this are stale.
+   */
+  intakeRevisedAt?: string;
   /** Timeline of events (grows over the matter lifecycle). */
   timeline: TimelineEvent[];
   /** Legal gate evaluation results. */

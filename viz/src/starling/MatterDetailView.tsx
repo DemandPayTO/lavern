@@ -13,6 +13,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMatterDetail, useEmploymentData, useFirmTemplates } from './hooks/useStarlingApi.js';
+import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
 import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
@@ -1363,30 +1364,39 @@ export default function MatterDetailView() {
                         {lastExtraction.keyFindings.map((f, i) => <li key={i}>{f}</li>)}
                       </ul>
                     )}
-                    {Object.keys(lastExtraction.extractedFields).length > 0 && (
+                    {lastExtraction.documentType === 'collective_agreement' ? (
                       <div style={{ fontSize: 12.5, color: muted }}>
-                        {Object.entries(lastExtraction.extractedFields)
-                          .filter(([, f]) => f && f.value !== null && f.value !== '')
-                          .map(([k, f]) => (
-                            <div key={k} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}:</span>
-                              <span style={{ color: ink }}>{String(f.value)}</span>
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 2,
-                                background: f.confidence === 'high' ? '#e7f6ec' : f.confidence === 'medium' ? '#fdf0dd' : '#f4f1ec',
-                                color: f.confidence === 'high' ? green : f.confidence === 'medium' ? amber : muted,
-                              }}>
-                                {f.confidence}
-                              </span>
-                            </div>
-                          ))}
+                        Collective agreement fields apply to the grievance clocks automatically; review them on the Intake tab.
                       </div>
+                    ) : (
+                      <ExtractionReviewPanel
+                        extraction={lastExtraction}
+                        intake={(employment.data?.intake ?? {}) as Record<string, unknown>}
+                        onApply={employment.applyExtraction}
+                        onDone={employment.refresh}
+                      />
                     )}
-                    <div style={{ fontSize: 12, color: amber, marginTop: 8 }}>
-                      Review these facts before relying on them; extraction is a starting point, not a finding.
-                    </div>
                   </div>
                 )}
+                {/* Stored extractions from earlier sessions that were never applied */}
+                {!lastExtraction && (employment.data?.documentExtractions ?? [])
+                  .map((ext, i) => ({ ext, key: ext.id ?? `idx-${i}` }))
+                  .filter(({ ext }) => !ext.appliedAt && ext.documentType !== 'collective_agreement'
+                    && Object.values(ext.extractedFields).some(f => f && f.value !== null && f.value !== ''))
+                  .slice(-2)
+                  .map(({ ext, key }) => (
+                    <div key={key} style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                        Extracted earlier from {ext.filename} — not yet applied
+                      </div>
+                      <ExtractionReviewPanel
+                        extraction={{ ...ext, id: key }}
+                        intake={(employment.data?.intake ?? {}) as Record<string, unknown>}
+                        onApply={employment.applyExtraction}
+                        onDone={employment.refresh}
+                      />
+                    </div>
+                  ))}
               </div>
             </div>
           )}
@@ -1734,7 +1744,16 @@ export default function MatterDetailView() {
                     const dt = DRAFT_TO_DOCTYPE[selectedDraft ?? ''] ?? '';
                     const cur = employment.generatedDocuments.find(d => d.docType === dt);
                     const today = new Date().toISOString().slice(0, 10);
+                    const revisedAt = employment.data?.intakeRevisedAt;
+                    const stale = Boolean(revisedAt && cur?.generatedAt && cur.generatedAt < revisedAt);
                     return (
+                      <>
+                      {stale && (
+                        <div style={{ marginBottom: 10, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '10px 14px', fontSize: 13, color: ink }} role="status">
+                          <b style={{ color: amber }}>Facts changed after this draft was generated.</b>{' '}
+                          The intake was revised (document facts applied or edited) since this document was drafted — regenerate it before relying on the figures or dates.
+                        </div>
+                      )}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 12, color: muted }}>Status:</span>
                         {(['reviewed', 'sent', 'filed'] as const).map(next => (
@@ -1760,6 +1779,7 @@ export default function MatterDetailView() {
                           </span>
                         )}
                       </div>
+                      </>
                     );
                   })()}
                   <div
@@ -1823,6 +1843,11 @@ export default function MatterDetailView() {
                             {d.meta?.demandAmount ? ` · $${Number(d.meta.demandAmount).toLocaleString('en-CA')}` : ''}
                             {d.meta?.claimAmount ? ` · $${Number(d.meta.claimAmount).toLocaleString('en-CA')}` : ''}
                           </span>
+                          {employment.data?.intakeRevisedAt && d.generatedAt < employment.data.intakeRevisedAt && (
+                            <span style={{ fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '1px 6px', borderRadius: 2, marginLeft: 8 }}>
+                              FACTS CHANGED SINCE
+                            </span>
+                          )}
                         </div>
                         <button
                           onClick={() => {
