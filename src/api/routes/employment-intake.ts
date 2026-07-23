@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/employment-intake.js';
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
-import { buildTimelineFromIntake, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
+import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
 import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, recordUsageEvent } from '../../db/database.js';
 import { collectDeadlines } from '../../employment/deadlines.js';
 import { createLogger } from '../../utils/logger.js';
@@ -194,8 +194,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const { matter, employment } = loadEmploymentData(row.data_json);
     employment.intake = intake as EmploymentIntakeData;
 
-    // Auto-generate timeline from intake
-    employment.timeline = buildTimelineFromIntake(intake as EmploymentIntakeData);
+    // Rebuild intake-derived timeline, preserving lawyer entries and
+    // route-added ticklers (court dates, SOC-sent, debriefs, outcomes).
+    employment.timeline = rebuildTimelinePreserving(employment.timeline, intake as EmploymentIntakeData);
 
     // Auto-evaluate gates
     employment.gates = evaluateGates(intake as EmploymentIntakeData);
@@ -241,8 +242,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const { matter, employment } = loadEmploymentData(row.data_json);
     const intake = employment.intake;
 
-    // Timeline
-    employment.timeline = buildTimelineFromIntake(intake);
+    // Timeline (preserving rebuild — lawyer entries and ticklers survive)
+    employment.timeline = rebuildTimelinePreserving(employment.timeline, intake);
 
     // Gates
     employment.gates = evaluateGates(intake);
@@ -868,7 +869,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       mergedTerms,
     );
 
-    // Store extraction on the matter (lawyer reviews before confirming)
+    // Store extraction on the matter (lawyer reviews before confirming).
+    // The id addresses this extraction in the apply loop.
+    extraction.id = `ext-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const { matter, employment } = loadEmploymentData(row.data_json);
     employment.documentExtractions.push(extraction);
 
@@ -908,6 +911,86 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
 
     return reply.send({ ok: true, extraction, labourAutoFilled });
+  });
+
+  // ── POST /api/employment/:matterId/apply-extraction ─────────────────────
+  // The apply loop: move the lawyer's SELECTED extracted fields onto the
+  // intake. Deterministic (no LLM); blanks fill by default, non-blank fields
+  // change only with per-field overwrite opt-in; gates and timeline recompute
+  // through the same preserving path as every other intake mutation; the
+  // response carries the consequence diff (which dated events appeared or
+  // moved). See docs/specs/document-extraction-apply-2026-07.md.
+
+  const applyExtractionBodySchema = z.object({
+    extractionId: z.string().min(1).max(100),
+    fields: z.array(z.string().min(1).max(100)).min(1).max(80),
+    overwrite: z.array(z.string().min(1).max(100)).max(80).default([]),
+  }).strict();
+
+  fastify.post('/api/employment/:matterId/apply-extraction', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = applyExtractionBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ ok: false, error: 'Invalid request', details: parsed.error.issues.map(i => i.message) });
+    }
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+
+    const { applyExtractionSelections, diffTimelines, resolveExtraction } = await import('../../employment/extraction-apply.js');
+    const extraction = resolveExtraction(employment.documentExtractions ?? [], parsed.data.extractionId);
+    if (!extraction) return reply.status(404).send({ ok: false, error: 'Extraction not found on this matter' });
+    if (extraction.documentType === 'collective_agreement') {
+      return reply.status(400).send({ ok: false, error: 'Collective agreements apply automatically at extraction time.' });
+    }
+
+    const outcome = applyExtractionSelections(
+      employment.intake,
+      extraction,
+      parsed.data.fields,
+      new Set(parsed.data.overwrite),
+    );
+    if ('error' in outcome) {
+      return reply.status(400).send({ ok: false, error: outcome.error, invalidFields: outcome.invalidFields });
+    }
+    const changed = [...outcome.applied, ...outcome.overwritten];
+    if (changed.length === 0) {
+      return reply.send({ ok: true, ...outcome, timelineDiff: { added: [], removed: [] } });
+    }
+
+    const timelineBefore = employment.timeline ?? [];
+    employment.intake = outcome.intake;
+    employment.timeline = rebuildTimelinePreserving(timelineBefore, outcome.intake);
+    employment.gates = evaluateGates(outcome.intake);
+
+    // Audit: the apply is a matter event, and the extraction records what
+    // it contributed.
+    employment.timeline = addTimelineEvent(employment.timeline, {
+      date: new Date().toISOString().slice(0, 10),
+      label: `Facts applied from ${extraction.filename}`,
+      description: `Applied ${changed.length} field${changed.length === 1 ? '' : 's'} from the extracted document: ${changed.join(', ')}.`,
+      category: 'legal',
+      source: 'document_extraction',
+    });
+    extraction.appliedAt = new Date().toISOString();
+    extraction.appliedFields = [...new Set([...(extraction.appliedFields ?? []), ...changed])];
+
+    await saveEmploymentData(userId, matterId, matter, employment);
+
+    const timelineDiff = diffTimelines(timelineBefore, employment.timeline);
+    logger.info('Extraction applied', { userId, matterId, extractionId: extraction.id, applied: outcome.applied, overwritten: outcome.overwritten });
+    return reply.send({
+      ok: true,
+      applied: outcome.applied,
+      overwritten: outcome.overwritten,
+      skippedNotBlank: outcome.skippedNotBlank,
+      unmapped: outcome.unmapped,
+      analysisStale: outcome.analysisStale,
+      timelineDiff,
+      gates: employment.gates,
+    });
   });
 
   // ── POST /api/employment/:matterId/demand-letter ───────────────────────

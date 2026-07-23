@@ -20,7 +20,7 @@ import { z } from 'zod';
 import crypto from 'node:crypto';
 import { getMatterById, saveMatter, savePortalToken, getPortalToken, deletePortalTokensForMatter, getUserById } from '../../db/database.js';
 import { evaluateGates } from '../../employment/gate-evaluator.js';
-import { buildTimelineFromIntake } from '../../employment/timeline-generator.js';
+import { rebuildTimelinePreserving } from '../../employment/timeline-generator.js';
 import type { EmploymentMatterData, EmploymentIntakeData } from '../../types/employment-intake.js';
 import { createEmploymentMatterData } from '../../types/employment-intake.js';
 import { createLogger } from '../../utils/logger.js';
@@ -157,7 +157,7 @@ export function registerIntakePortalRoutes(fastify: FastifyInstance): void {
     }
     employment.intake = intake as EmploymentIntakeData;
     employment.gates = evaluateGates(employment.intake);
-    employment.timeline = buildTimelineFromIntake(employment.intake);
+    employment.timeline = rebuildTimelinePreserving(employment.timeline, employment.intake);
     matter.employmentData = employment;
     matter.pendingClientIntake = { ...pending, appliedAt: new Date().toISOString(), appliedFields: applied };
     await saveMatter(userId, matterId, JSON.stringify(matter), (matter.status as string) ?? 'active');

@@ -323,6 +323,8 @@ export interface IntakeAnalysisResult {
 // ── Document Extraction Result ───────────────────────────────────────────
 
 export interface DocumentExtractionResult {
+  /** Stable id for the apply loop. Older stored extractions may lack it. */
+  id?: string;
   /** Type of document that was analysed. */
   documentType: typeof UPLOADABLE_DOCUMENT_TYPES[number];
   /** Filename. */
@@ -331,11 +333,19 @@ export interface DocumentExtractionResult {
   extractedFields: Record<string, {
     value: string | number | boolean | null;
     confidence: 'high' | 'medium' | 'low';
+    /** Verbatim source sentence (quote grounding); absent on old extractions. */
+    sourceQuote?: string;
+    /** True when the sourceQuote was found verbatim in the document. */
+    verified?: boolean;
   }>;
   /** Key findings / notable clauses / red flags. */
   keyFindings: string[];
   /** Whether the lawyer has confirmed the extraction. */
   confirmed: boolean;
+  /** Set when the lawyer applied fields to the intake. */
+  appliedAt?: string;
+  /** The intake fields that were applied. */
+  appliedFields?: string[];
 }
 
 // ── Source Citation ──────────────────────────────────────────────────────

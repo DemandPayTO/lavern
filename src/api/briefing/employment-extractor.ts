@@ -27,6 +27,8 @@ const logger = createLogger('EMPLOYMENT-EXTRACT');
 const extractedFieldSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
   confidence: z.enum(['high', 'medium', 'low']),
+  /** Verbatim sentence from the document the value came from (quote grounding). */
+  sourceQuote: z.string().max(600).optional(),
 });
 
 const extractionOutputSchema = z.object({
@@ -193,11 +195,13 @@ ${schemas[kind]}
 Output ONLY a JSON object with this shape:
 {
   "extractedFields": {
-    "field_name": { "value": <string|number|boolean|null>, "confidence": "high"|"medium"|"low" },
+    "field_name": { "value": <string|number|boolean|null>, "confidence": "high"|"medium"|"low", "sourceQuote": "verbatim sentence copied EXACTLY from the document that states this value" },
     ...
   },
   "keyFindings": ["string", ...]
 }
+
+sourceQuote rules: copy the sentence character for character from the document, no paraphrasing, no corrections; keep it under 600 characters (trim to the clause containing the value); omit sourceQuote entirely when value is null or when no single passage states the value.
 
 No commentary, no markdown, no code fences. JSON only.`;
 }
@@ -280,7 +284,7 @@ Extract the structured fields from the document above. Remember: extract only wh
         return {
           documentType: documentKind,
           filename: documentName,
-          extractedFields: retryValidated.data.extractedFields,
+          extractedFields: verifySourceQuotes(retryValidated.data.extractedFields, content),
           keyFindings: retryValidated.data.keyFindings,
           confirmed: false,
         };
@@ -292,7 +296,7 @@ Extract the structured fields from the document above. Remember: extract only wh
     return {
       documentType: documentKind,
       filename: documentName,
-      extractedFields: validated.data.extractedFields,
+      extractedFields: verifySourceQuotes(validated.data.extractedFields, content),
       keyFindings: validated.data.keyFindings,
       confirmed: false,
     };
@@ -304,6 +308,32 @@ Extract the structured fields from the document above. Remember: extract only wh
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
+
+/** Whitespace-insensitive, case-insensitive normalization for quote matching. */
+function normalizeForMatch(s: string): string {
+  return s.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/**
+ * Quote grounding, the deterministic half: the model may hallucinate a value,
+ * but it cannot make a string search find a sentence that is not in the
+ * document. Each field with a sourceQuote gains verified: true only when the
+ * quote appears verbatim (whitespace/case-normalized) in the document text.
+ * Fields without a quote are left unverified rather than failed — older
+ * extractions and null values carry no quote by design.
+ */
+export function verifySourceQuotes<T extends Record<string, { value: unknown; confidence: string; sourceQuote?: string; verified?: boolean }>>(
+  fields: T,
+  documentContent: string,
+): T {
+  const haystack = normalizeForMatch(documentContent);
+  for (const field of Object.values(fields)) {
+    if (field.sourceQuote) {
+      field.verified = haystack.includes(normalizeForMatch(field.sourceQuote));
+    }
+  }
+  return fields;
+}
 
 /** Parse JSON from an LLM response, handling markdown fences and extra text. */
 function parseJsonResponse(text: string): unknown {

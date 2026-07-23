@@ -1,0 +1,148 @@
+/**
+ * Unit Tests — extraction apply loop (Phase 1 slice 1) + the timeline
+ * preservation fix it depends on, + quote grounding verification.
+ *
+ * See docs/specs/document-extraction-apply-2026-07.md.
+ */
+
+import { describe, it, expect } from 'vitest';
+import {
+  APPLYABLE_INTAKE_FIELDS, applyExtractionSelections, diffTimelines, resolveExtraction,
+} from '../../src/employment/extraction-apply.js';
+import { employmentIntakeSchema } from '../../src/types/employment-intake.js';
+import type { DocumentExtractionResult, EmploymentIntakeData, TimelineEvent } from '../../src/types/employment-intake.js';
+import { rebuildTimelinePreserving } from '../../src/employment/timeline-generator.js';
+import { verifySourceQuotes } from '../../src/api/briefing/employment-extractor.js';
+
+function extraction(fields: DocumentExtractionResult['extractedFields']): DocumentExtractionResult {
+  return {
+    id: 'ext-1', documentType: 'termination_letter', filename: 'letter.pdf',
+    extractedFields: fields, keyFindings: [], confirmed: false,
+  };
+}
+
+const baseIntake = employmentIntakeSchema.parse({
+  client_first_name: 'Ana',
+  employer_legal_name: 'Beta Inc',
+  annual_salary: 90000,
+}) as EmploymentIntakeData;
+
+describe('APPLYABLE_INTAKE_FIELDS whitelist', () => {
+  it('every whitelisted field exists in the intake schema (drift guard)', () => {
+    const shape = employmentIntakeSchema.shape as Record<string, unknown>;
+    for (const key of APPLYABLE_INTAKE_FIELDS) {
+      expect(shape[key], `whitelist key "${key}" missing from intake schema`).toBeDefined();
+    }
+  });
+});
+
+describe('applyExtractionSelections', () => {
+  it('fills blank fields, skips non-blank without overwrite, overwrites with opt-in', () => {
+    const ext = extraction({
+      termination_date: { value: '2026-05-15', confidence: 'high' },
+      employer_legal_name: { value: 'Gamma Corp', confidence: 'high' },
+      annual_salary: { value: 105000, confidence: 'medium' },
+    });
+    const out = applyExtractionSelections(
+      baseIntake, ext,
+      ['termination_date', 'employer_legal_name', 'annual_salary'],
+      new Set(['annual_salary']),
+    );
+    if ('error' in out) throw new Error(out.error);
+    expect(out.applied).toEqual(['termination_date']);            // blank → filled
+    expect(out.skippedNotBlank).toEqual(['employer_legal_name']); // has value, no opt-in
+    expect(out.overwritten).toEqual(['annual_salary']);           // explicit opt-in
+    expect(out.intake.termination_date).toBe('2026-05-15');
+    expect(out.intake.employer_legal_name).toBe('Beta Inc');      // untouched
+    expect(out.intake.annual_salary).toBe(105000);
+    expect(out.analysisStale).toBe(true);                         // salary + date feed the analysis
+  });
+
+  it('reports unmapped fields instead of silently dropping them', () => {
+    const ext = extraction({
+      probation_period: { value: '3 months', confidence: 'high' },
+      termination_date: { value: '2026-05-15', confidence: 'high' },
+    });
+    const out = applyExtractionSelections(baseIntake, ext, ['probation_period', 'termination_date'], new Set());
+    if ('error' in out) throw new Error(out.error);
+    expect(out.unmapped).toEqual(['probation_period']);
+    expect(out.applied).toEqual(['termination_date']);
+  });
+
+  it('rejects values the intake schema cannot store, naming the field', () => {
+    const ext = extraction({
+      termination_date: { value: 'sometime in May', confidence: 'low' }, // not YYYY-MM-DD
+    });
+    const out = applyExtractionSelections(baseIntake, ext, ['termination_date'], new Set());
+    expect('error' in out).toBe(true);
+    if ('error' in out) expect(out.invalidFields).toContain('termination_date');
+  });
+
+  it('null-valued extractions are never applied', () => {
+    const ext = extraction({ termination_date: { value: null, confidence: 'low' } });
+    const out = applyExtractionSelections(baseIntake, ext, ['termination_date'], new Set());
+    if ('error' in out) throw new Error(out.error);
+    expect(out.applied).toEqual([]);
+  });
+});
+
+describe('resolveExtraction', () => {
+  it('resolves by id and falls back to idx-N for legacy records', () => {
+    const legacy = { ...extraction({}), id: undefined };
+    const modern = extraction({});
+    expect(resolveExtraction([legacy, modern], 'ext-1')).toBe(modern);
+    expect(resolveExtraction([legacy, modern], 'idx-0')).toBe(legacy);
+    expect(resolveExtraction([legacy, modern], 'nope')).toBeUndefined();
+  });
+});
+
+describe('diffTimelines (consequence diff)', () => {
+  it('reports a moved deadline as removed + added under the same label', () => {
+    const before: TimelineEvent[] = [
+      { date: '2028-01-01', label: 'Limitation period expires', category: 'legal', source: 'system' },
+    ];
+    const after: TimelineEvent[] = [
+      { date: '2028-05-15', label: 'Limitation period expires', category: 'legal', source: 'system' },
+    ];
+    const diff = diffTimelines(before, after);
+    expect(diff.removed).toEqual([{ date: '2028-01-01', label: 'Limitation period expires' }]);
+    expect(diff.added).toEqual([{ date: '2028-05-15', label: 'Limitation period expires' }]);
+  });
+});
+
+describe('rebuildTimelinePreserving (the wipe fix)', () => {
+  it('keeps lawyer court dates and route-added ticklers across an intake rebuild', () => {
+    const intake = employmentIntakeSchema.parse({ termination_date: '2026-05-15' }) as EmploymentIntakeData;
+    const existing: TimelineEvent[] = [
+      { date: '2026-09-01', label: 'Settlement conference', category: 'legal', source: 'lawyer_entry', courtDeadline: true } as TimelineEvent,
+      { date: '2026-08-01', label: 'Statement of Defence due', category: 'legal', source: 'system' },
+      { date: '2026-07-20', label: 'Debrief captured: 3 action items', category: 'other', source: 'system' },
+      // Generator-owned system event at a stale date: must be regenerated, not duplicated
+      { date: '2027-01-01', label: 'Limitation period expires', category: 'legal', source: 'system' },
+    ];
+    const rebuilt = rebuildTimelinePreserving(existing, intake);
+    const labels = rebuilt.map(e => `${e.date}|${e.label}`);
+    expect(labels).toContain('2026-09-01|Settlement conference');
+    expect(labels).toContain('2026-08-01|Statement of Defence due');
+    expect(labels).toContain('2026-07-20|Debrief captured: 3 action items');
+    // Limitation regenerated from the intake's termination date (2026-05-15 + 2y), stale copy gone
+    expect(labels).toContain('2028-05-15|Limitation period expires');
+    expect(labels).not.toContain('2027-01-01|Limitation period expires');
+    expect(rebuilt.filter(e => e.label === 'Limitation period expires')).toHaveLength(1);
+  });
+});
+
+describe('verifySourceQuotes (quote grounding)', () => {
+  const doc = 'The Employee’s employment will terminate   effective May 15, 2026.\nSeverance of eight (8) weeks is offered.';
+
+  it('verifies quotes found verbatim (whitespace/case tolerant) and flags fabricated ones', () => {
+    const fields = verifySourceQuotes({
+      termination_date: { value: '2026-05-15', confidence: 'high' as const, sourceQuote: 'employment will terminate effective May 15, 2026' },
+      severance_weeks_offered: { value: 12, confidence: 'high' as const, sourceQuote: 'Severance of twelve (12) weeks is offered.' },
+      last_day_worked: { value: null, confidence: 'low' as const }, // no quote → untouched
+    }, doc);
+    expect(fields.termination_date.verified).toBe(true);
+    expect(fields.severance_weeks_offered.verified).toBe(false); // the tripwire
+    expect(fields.last_day_worked.verified).toBeUndefined();
+  });
+});

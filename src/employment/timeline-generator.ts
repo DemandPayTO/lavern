@@ -206,6 +206,42 @@ export function buildTimelineFromIntake(intake: EmploymentIntakeData): TimelineE
 }
 
 /**
+ * System-event labels buildTimelineFromIntake itself emits. On a preserving
+ * rebuild these regenerate from intake, so stored copies are dropped rather
+ * than duplicated.
+ */
+const GENERATED_SYSTEM_LABELS = new Set([
+  'Limitation period expires',
+  'HRTO application deadline (Code s. 34(1))',
+  'ESA claim filing deadline',
+]);
+
+/**
+ * Rebuild the intake-derived timeline WITHOUT losing events the rebuild does
+ * not know how to regenerate: lawyer-entered court dates, route-added system
+ * ticklers (Statement of Defence due, correspondence, debrief and outcome
+ * records), and document-extraction events. Plain buildTimelineFromIntake
+ * replaces the array wholesale, which silently wiped those on every intake
+ * save; every intake mutation path must use this instead.
+ */
+export function rebuildTimelinePreserving(
+  existing: TimelineEvent[] | undefined,
+  intake: EmploymentIntakeData,
+): TimelineEvent[] {
+  const regenerated = buildTimelineFromIntake(intake);
+  const preserved = (existing ?? []).filter(e =>
+    e.source === 'lawyer_entry'
+    || e.source === 'document_extraction'
+    || (e.source === 'system' && !GENERATED_SYSTEM_LABELS.has(e.label)));
+  // Guard against exact duplicates if a preserved event matches a
+  // regenerated one (same date + label).
+  const seen = new Set(regenerated.map(e => `${e.date}|${e.label}`));
+  const merged = [...regenerated, ...preserved.filter(e => !seen.has(`${e.date}|${e.label}`))];
+  merged.sort((a, b) => a.date.localeCompare(b.date));
+  return merged;
+}
+
+/**
  * Add a manual event to the timeline.
  * Returns a new sorted timeline array (does not mutate the input).
  */
