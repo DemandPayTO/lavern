@@ -831,6 +831,36 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     definedTerms: z.array(z.string().max(200)).max(20).optional(),
   });
 
+  // ── POST /api/employment/classify ────────────────────────────────────
+  // Detect the document type before extraction (Phase 2 of the document-
+  // intelligence spec). The lawyer confirms or overrides the detected kind
+  // before the type-specific extraction prompt runs; a failure degrades to
+  // {other, low} so the upload flow never blocks on classification.
+
+  const classifyBodySchema = z.object({
+    matterId: z.string().min(1).max(200),
+    documentContent: z.string().min(1).max(100_000),
+    documentName: z.string().trim().min(1).max(500),
+  });
+
+  fastify.post('/api/employment/classify', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const parsed = classifyBodySchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+
+    const row = await getMatterById(parsed.data.matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { classifyEmploymentDocument } = await import('../briefing/document-classifier.js');
+    const result = await classifyEmploymentDocument(parsed.data.documentContent, parsed.data.documentName);
+    if (result.costUsd > 0) {
+      // Metered like every LLM step; 'analysis' kind so generation counts stay honest.
+      try { recordUsageEvent(userId, parsed.data.matterId, 'analysis', 'classification', result.costUsd); }
+      catch { /* metering never blocks the flow */ }
+    }
+    return reply.send({ ok: true, kind: result.kind, confidence: result.confidence, fallback: result.fallback });
+  });
+
   fastify.post('/api/employment/extract', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string; firmId?: string }).userId ?? 'local-user';
 
@@ -873,6 +903,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // Store extraction on the matter (lawyer reviews before confirming).
     // The id addresses this extraction in the apply loop.
     extraction.id = `ext-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    if ((extraction.costUsd ?? 0) > 0) {
+      // Metered like every LLM step; 'analysis' kind keeps generation counts honest.
+      try { recordUsageEvent(userId, matterId, 'analysis', `extract_${documentKind}`, extraction.costUsd!); }
+      catch { /* metering never blocks the flow */ }
+    }
     const { matter, employment } = loadEmploymentData(row.data_json);
     employment.documentExtractions.push(extraction);
 

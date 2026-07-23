@@ -346,6 +346,8 @@ export interface DocumentExtractionResult {
   appliedAt?: string;
   /** The intake fields that were applied. */
   appliedFields?: string[];
+  /** LLM cost of the extraction call (metered to the usage ledger). */
+  costUsd?: number;
 }
 
 // ── Source Citation ──────────────────────────────────────────────────────

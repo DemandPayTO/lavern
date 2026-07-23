@@ -713,19 +713,46 @@ export default function MatterDetailView() {
     }
   }, [sessionId, clientUpdateLoading]);
 
-  // Docs tab: handle file selection → parse → Claude extraction
-  const handleExtractFile = useCallback(async (file: File) => {
-    setExtracting(true);
+  // Docs tab: file selection → parse + detect type → lawyer confirms → extract.
+  // The detected kind pre-selects the dropdown; extraction never runs on an
+  // unconfirmed type (a wrong classification costs one click, not a wrong fact).
+  const [pendingUpload, setPendingUpload] = useState<{
+    content: string; name: string; definedTerms?: string[];
+    detectedKind?: string; confidence?: 'high' | 'medium' | 'low'; fallback?: boolean;
+  } | null>(null);
+  const [classifying, setClassifying] = useState(false);
+
+  const handleClassifyFile = useCallback(async (file: File) => {
+    setClassifying(true);
     setExtractError(null);
     setLastExtraction(null);
-    const result = await employment.extractDocument(file, uploadKind);
+    setPendingUpload(null);
+    const result = await employment.classifyDocument(file);
+    setClassifying(false);
+    if (!result.ok || !result.content || !result.name) {
+      setExtractError(result.error ?? 'Could not read the document.');
+      return;
+    }
+    if (result.kind && !result.fallback) setUploadKind(result.kind);
+    setPendingUpload({
+      content: result.content, name: result.name, definedTerms: result.definedTerms,
+      detectedKind: result.kind, confidence: result.confidence, fallback: result.fallback,
+    });
+  }, [employment]);
+
+  const handleExtractConfirmed = useCallback(async () => {
+    if (!pendingUpload) return;
+    setExtracting(true);
+    setExtractError(null);
+    const result = await employment.extractParsed(pendingUpload.content, pendingUpload.name, uploadKind, pendingUpload.definedTerms);
     setExtracting(false);
+    setPendingUpload(null);
     if (result.ok && result.extraction) {
       setLastExtraction(result.extraction);
     } else {
       setExtractError(result.error ?? 'Extraction failed.');
     }
-  }, [employment, uploadKind]);
+  }, [employment, uploadKind, pendingUpload]);
 
   // Firm template upload for the selected draft type
   const selectedTemplateDocType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
@@ -1333,22 +1360,56 @@ export default function MatterDetailView() {
                     style={{ display: 'none' }}
                     onChange={e => {
                       const file = e.target.files?.[0];
-                      if (file) handleExtractFile(file);
+                      if (file) void handleClassifyFile(file);
                       if (uploadInputRef.current) uploadInputRef.current.value = '';
                     }}
                   />
                   <button
                     onClick={() => uploadInputRef.current?.click()}
-                    disabled={extracting}
+                    disabled={extracting || classifying}
                     style={{
-                      background: extracting ? '#b0b0b0' : navy, color: '#fff', fontSize: 13.5, fontWeight: 600,
+                      background: (extracting || classifying) ? '#b0b0b0' : navy, color: '#fff', fontSize: 13.5, fontWeight: 600,
                       padding: '10px 18px', borderRadius: 2, border: 'none',
-                      cursor: extracting ? 'not-allowed' : 'pointer', fontFamily: sans,
+                      cursor: (extracting || classifying) ? 'not-allowed' : 'pointer', fontFamily: sans,
                     }}
                   >
-                    {extracting ? 'Extracting facts...' : '+ Upload & extract'}
+                    {classifying ? 'Detecting type...' : extracting ? 'Extracting facts...' : '+ Upload & detect'}
                   </button>
                 </div>
+                {pendingUpload && !extracting && (
+                  <div style={{ marginTop: 12, padding: '12px 14px', border: `1px solid ${border}`, background: '#faf8f5', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }} role="status">
+                    <span style={{ fontSize: 13, color: ink }}>
+                      <b>{pendingUpload.name}</b>{' — '}
+                      {pendingUpload.fallback ? (
+                        <span style={{ color: amber }}>could not detect the type; confirm it in the dropdown.</span>
+                      ) : (
+                        <>
+                          detected: <b>{(pendingUpload.detectedKind ?? '').replace(/_/g, ' ')}</b>
+                          <span style={{
+                            marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 2,
+                            background: pendingUpload.confidence === 'high' ? '#e7f6ec' : pendingUpload.confidence === 'medium' ? '#fdf0dd' : '#f4f1ec',
+                            color: pendingUpload.confidence === 'high' ? green : pendingUpload.confidence === 'medium' ? amber : muted,
+                          }}>
+                            {pendingUpload.confidence}
+                          </span>
+                          {' '}<span style={{ color: muted }}>— change the dropdown if wrong.</span>
+                        </>
+                      )}
+                    </span>
+                    <button
+                      onClick={() => { void handleExtractConfirmed(); }}
+                      style={{ background: navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', cursor: 'pointer', fontFamily: sans }}
+                    >
+                      Extract as {uploadKind.replace(/_/g, ' ')}
+                    </button>
+                    <button
+                      onClick={() => setPendingUpload(null)}
+                      style={{ background: 'none', color: muted, fontSize: 13, padding: '8px 6px', border: 'none', cursor: 'pointer', fontFamily: sans }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
                 {extractError && (
                   <div style={{ marginTop: 12, padding: '10px 14px', border: '1px solid #dc2626', borderRadius: 2, background: '#fce8e6', color: '#dc2626', fontSize: 13 }}>
                     {extractError}

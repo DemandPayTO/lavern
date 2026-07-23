@@ -1513,6 +1513,14 @@ export interface UseEmploymentDataResult {
   runAnalysis: () => Promise<{ ok: boolean; error?: string }>;
   /** Extract facts from an uploaded document via Claude (parse → extract). */
   extractDocument: (file: File, documentKind: string) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
+  /** Parse a file and detect its document type (the lawyer confirms before extraction). */
+  classifyDocument: (file: File) => Promise<{
+    ok: boolean; error?: string;
+    kind?: string; confidence?: 'high' | 'medium' | 'low'; fallback?: boolean;
+    content?: string; name?: string; definedTerms?: string[];
+  }>;
+  /** Extract from already-parsed content with the confirmed kind. */
+  extractParsed: (content: string, name: string, documentKind: string, definedTerms?: string[]) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
   /** Apply the lawyer's selected extracted fields to the intake (deterministic). */
   applyExtraction: (extractionId: string, fields: string[], overwrite: string[]) => Promise<ApplyExtractionResult>;
 }
@@ -1744,6 +1752,52 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
+  const classifyDocument = useCallback(async (file: File) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const parseRes = await fetch('/api/documents/parse', { method: 'POST', credentials: 'include', body: formData });
+      if (!parseRes.ok) return { ok: false, error: 'Could not parse the document. Supported: PDF, DOCX, Markdown, plain text.' };
+      const parsed = await parseRes.json() as { fullText?: string; definedTerms?: string[] };
+      if (!parsed.fullText?.trim()) return { ok: false, error: 'No text could be extracted from this document.' };
+
+      const res = await fetch('/api/employment/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ matterId, documentContent: parsed.fullText.slice(0, 100_000), documentName: file.name }),
+      });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; kind?: string; confidence?: 'high' | 'medium' | 'low'; fallback?: boolean; error?: string };
+      if (!res.ok) return { ok: false, error: json.error ?? 'Classification failed' };
+      return {
+        ok: true, kind: json.kind, confidence: json.confidence, fallback: json.fallback,
+        content: parsed.fullText.slice(0, 100_000), name: file.name,
+        definedTerms: (parsed.definedTerms ?? []).slice(0, 20),
+      };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Classification failed' };
+    }
+  }, [matterId]);
+
+  const extractParsed = useCallback(async (content: string, name: string, documentKind: string, definedTerms?: string[]) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch('/api/employment/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ matterId, documentContent: content, documentName: name, documentKind, definedTerms }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error ?? 'Extraction failed' };
+      refresh();
+      return { ok: true, extraction: json.extraction as DocumentExtraction };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Extraction failed' };
+    }
+  }, [matterId, refresh]);
+
   const setDocumentStatus = useCallback(async (docType: string, status: GeneratedDocSummary['status'], date?: string) => {
     if (!matterId) return { ok: false, error: 'No matter ID' };
     try {
@@ -1811,7 +1865,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, applyExtraction };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────

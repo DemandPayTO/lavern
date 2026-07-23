@@ -269,7 +269,7 @@ Extract the structured fields from the document above. Remember: extract only wh
       });
 
       // Retry once with stricter instruction
-      const { text: retryText } = await crossProviderChat({
+      const { text: retryText, cost: retryCost } = await crossProviderChat({
         system: systemPrompt + '\n\nIMPORTANT: Your previous response was not valid JSON. Output ONLY the JSON object with extractedFields and keyFindings. No other text.',
         user: userMessage,
         tier: 'sonnet',
@@ -287,6 +287,7 @@ Extract the structured fields from the document above. Remember: extract only wh
           extractedFields: verifySourceQuotes(retryValidated.data.extractedFields, content),
           keyFindings: retryValidated.data.keyFindings,
           confirmed: false,
+          costUsd: cost + retryCost,
         };
       }
 
@@ -299,6 +300,7 @@ Extract the structured fields from the document above. Remember: extract only wh
       extractedFields: verifySourceQuotes(validated.data.extractedFields, content),
       keyFindings: validated.data.keyFindings,
       confirmed: false,
+      costUsd: cost,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
