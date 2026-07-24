@@ -14,6 +14,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMatterDetail, useEmploymentData, useFirmTemplates } from './hooks/useStarlingApi.js';
 import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
+import { CaseFileDropPanel } from './CaseFileDropPanel.js';
 import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
@@ -1458,6 +1459,15 @@ export default function MatterDetailView() {
                       />
                     </div>
                   ))}
+                <CaseFileDropPanel
+                  classifyDocument={employment.classifyDocument}
+                  extractParsed={employment.extractParsed}
+                  getCaseReview={employment.getCaseReview}
+                  applyChronology={employment.applyChronology}
+                  generateCaseSynthesis={employment.generateCaseSynthesis}
+                  applyExtraction={employment.applyExtraction}
+                  onDone={employment.refresh}
+                />
               </div>
             </div>
           )}

@@ -1523,6 +1523,27 @@ export interface UseEmploymentDataResult {
   extractParsed: (content: string, name: string, documentKind: string, definedTerms?: string[]) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
   /** Apply the lawyer's selected extracted fields to the intake (deterministic). */
   applyExtraction: (extractionId: string, fields: string[], overwrite: string[]) => Promise<ApplyExtractionResult>;
+  /** Cross-document chronology + conflicts over all stored extractions. */
+  getCaseReview: () => Promise<{ ok: boolean; error?: string; chronology?: ChronologyEntry[]; conflicts?: FieldConflict[]; extractionCount?: number }>;
+  /** Add approved chronology entries to the matter timeline. */
+  applyChronology: (events: Array<{ date: string; label: string; category: string; sourceDoc: string }>) => Promise<{ ok: boolean; error?: string; added?: Array<{ date: string; label: string }>; skippedExisting?: number }>;
+  /** Generate the source-cited case review memo over the structured extractions. */
+  generateCaseSynthesis: () => Promise<{ ok: boolean; error?: string; document?: { html: string; documentTitle: string; lawyerReviewFlags?: string[] } }>;
+}
+
+export interface ChronologyEntry {
+  date: string;
+  field: string;
+  label: string;
+  category: string;
+  sources: Array<{ filename: string; extractionId: string; confidence: string; verified?: boolean }>;
+  onTimeline: boolean;
+}
+
+export interface FieldConflict {
+  field: string;
+  current: string | number | boolean | null;
+  candidates: Array<{ value: string | number | boolean; filename: string; extractionId: string; confidence: string; verified?: boolean }>;
 }
 
 export interface DocumentExtraction {
@@ -1798,6 +1819,51 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
+  const getCaseReview = useCallback(async () => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/case-review`, { credentials: 'include' });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; chronology?: ChronologyEntry[]; conflicts?: FieldConflict[]; extractionCount?: number };
+      if (!res.ok) return { ok: false, error: json.error ?? 'Could not load the case review' };
+      return { ok: true, chronology: json.chronology, conflicts: json.conflicts, extractionCount: json.extractionCount };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not load the case review' };
+    }
+  }, [matterId]);
+
+  const applyChronology = useCallback(async (events: Array<{ date: string; label: string; category: string; sourceDoc: string }>) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/case-review/timeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ events }),
+      });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; added?: Array<{ date: string; label: string }>; skippedExisting?: number };
+      if (!res.ok) return { ok: false, error: json.error ?? 'Could not update the timeline' };
+      refresh();
+      return { ok: true, added: json.added, skippedExisting: json.skippedExisting };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not update the timeline' };
+    }
+  }, [matterId, refresh]);
+
+  const generateCaseSynthesis = useCallback(async () => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/case-synthesis`, {
+        method: 'POST', credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; document?: { html: string; documentTitle: string; lawyerReviewFlags?: string[] } };
+      if (!res.ok) return { ok: false, error: json.error ?? 'The memo could not be generated' };
+      refresh();
+      return { ok: true, document: json.document };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'The memo could not be generated' };
+    }
+  }, [matterId, refresh]);
+
   const setDocumentStatus = useCallback(async (docType: string, status: GeneratedDocSummary['status'], date?: string) => {
     if (!matterId) return { ok: false, error: 'No matter ID' };
     try {
@@ -1865,7 +1931,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────

@@ -831,6 +831,127 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     definedTerms: z.array(z.string().max(200)).max(20).optional(),
   });
 
+  // ── GET /api/employment/:matterId/case-review ────────────────────────
+  // Cross-document aggregation for the bulk drop (Phase 3): the master
+  // chronology (every dated fact, source-cited) and cross-document
+  // conflicts. Deterministic — no LLM, no cost.
+  fastify.get('/api/employment/:matterId/case-review', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { employment } = loadEmploymentData(row.data_json);
+    const { buildChronology, findConflicts } = await import('../../employment/case-file-review.js');
+    const extractions = employment.documentExtractions ?? [];
+    return reply.send({
+      ok: true,
+      extractionCount: extractions.length,
+      chronology: buildChronology(extractions, employment.timeline),
+      conflicts: findConflicts(extractions, employment.intake),
+    });
+  });
+
+  // ── POST /api/employment/:matterId/case-review/timeline ──────────────
+  // Apply APPROVED chronology entries to the matter timeline. Deterministic;
+  // dedups against existing (date, label) pairs; events carry their source
+  // document and survive intake rebuilds (source document_extraction).
+  const chronologyApplySchema = z.object({
+    events: z.array(z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      label: z.string().trim().min(1).max(300),
+      category: z.enum(['employment', 'termination', 'legal', 'mitigation', 'other']).default('other'),
+      sourceDoc: z.string().trim().max(500).default(''),
+    })).min(1).max(100),
+  }).strict();
+
+  fastify.post('/api/employment/:matterId/case-review/timeline', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = chronologyApplySchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid events', details: parsed.error.issues.map(i => i.message) });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const existing = new Set((employment.timeline ?? []).map(e => `${e.date}|${e.label}`));
+    const added: Array<{ date: string; label: string }> = [];
+    for (const ev of parsed.data.events) {
+      if (existing.has(`${ev.date}|${ev.label}`)) continue;
+      employment.timeline = addTimelineEvent(employment.timeline ?? [], {
+        date: ev.date,
+        label: ev.label,
+        description: ev.sourceDoc ? `From ${ev.sourceDoc} (case file review).` : 'From the case file review.',
+        category: ev.category,
+        source: 'document_extraction',
+      });
+      existing.add(`${ev.date}|${ev.label}`);
+      added.push({ date: ev.date, label: ev.label });
+    }
+    (matter as Record<string, unknown>).employmentData = employment;
+    await saveMatter(userId, matterId, JSON.stringify(matter), ((matter as Record<string, unknown>).status as string) ?? 'active');
+
+    logger.info('Chronology applied', { userId, matterId, added: added.length, requested: parsed.data.events.length });
+    return reply.send({ ok: true, added, skippedExisting: parsed.data.events.length - added.length });
+  });
+
+  // ── POST /api/employment/:matterId/case-synthesis ────────────────────
+  // The one LLM pass of the bulk drop: a source-cited internal review memo
+  // over the structured extractions. Stored and metered like any generated
+  // document; never drafts anything outbound.
+  fastify.post('/api/employment/:matterId/case-synthesis', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const extractions = employment.documentExtractions ?? [];
+    if (extractions.length === 0) {
+      return reply.status(400).send({ ok: false, error: 'No document extractions on this matter yet. Upload documents first.' });
+    }
+
+    const { buildChronology, findConflicts } = await import('../../employment/case-file-review.js');
+    const { generateCaseSynthesis } = await import('../../employment/case-synthesis.js');
+    const intake = employment.intake;
+    const partyTerms = [intake.client_first_name, intake.client_last_name, intake.employer_legal_name, intake.employer_operating_name]
+      .filter((s): s is string => Boolean(s));
+
+    let result;
+    try {
+      result = await generateCaseSynthesis({
+        intake,
+        extractions,
+        chronology: buildChronology(extractions, employment.timeline),
+        conflicts: findConflicts(extractions, intake),
+      }, partyTerms);
+    } catch (err) {
+      logger.error('Case synthesis failed', { matterId, error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'The case review memo could not be generated. Please try again.' });
+    }
+
+    const m = matter as Record<string, unknown>;
+    const stored = {
+      html: sanitiseHtml(result.html),
+      documentType: 'case_synthesis',
+      documentTitle: result.documentTitle,
+      lawyerReviewFlags: result.lawyerReviewFlags,
+      citations: [],
+      generatedAt: new Date().toISOString(),
+      costUsd: result.costUsd,
+      status: 'draft',
+    };
+    m.generated_case_synthesis = stored;
+    recordDraftHistory(m, {
+      docType: 'case_synthesis', title: result.documentTitle, html: stored.html, costUsd: result.costUsd,
+    }, { userId, matterId });
+    m.employmentData = employment;
+    await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+
+    return reply.send({ ok: true, document: stored });
+  });
+
   // ── POST /api/employment/classify ────────────────────────────────────
   // Detect the document type before extraction (Phase 2 of the document-
   // intelligence spec). The lawyer confirms or overrides the detected kind
