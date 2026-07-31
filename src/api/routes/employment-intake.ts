@@ -1429,7 +1429,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // ── POST /api/employment/:matterId/litigation-document ──────────────────
   // Generate a discovery plan, affidavit of documents, or mediation brief.
 
-  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'] as const;
+  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'notice_of_arbitration', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'] as const;
 
   const litigationDocBodySchema = z.object({
     documentType: z.enum(LITIGATION_DOC_TYPES),
@@ -1624,6 +1624,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'member-update': 'member_update',
       'remedy-worksheet': 'remedy_worksheet',
       'notice-of-action': 'notice_of_action',
+      'notice-of-arbitration': 'notice_of_arbitration',
       'sj-notice-of-motion': 'sj_notice_of_motion',
       'sj-affidavit': 'sj_affidavit',
       'sj-factum': 'sj_factum',

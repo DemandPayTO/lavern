@@ -46,6 +46,7 @@ export type LitigationDocumentType =
   | 'settlement_conference_brief'
   | 'hrto_schedule_a'
   | 'notice_of_action'
+  | 'notice_of_arbitration'
   | 'sj_notice_of_motion'
   | 'sj_affidavit'
   | 'sj_factum'
@@ -374,6 +375,23 @@ RULES:
 - This document exists to stop the limitation clock. State the relief in terms broad enough to cover the claims the Statement of Claim will plead.
 - Claim only the causes of action supported by the APPROVED ISSUES.`,
 
+    notice_of_arbitration: `You are a senior Ontario employment lawyer drafting a NOTICE OF ARBITRATION commencing a private arbitration under an arbitration agreement in an employment contract, for a non-unionized employee. The Arbitration Act, 1991, S.O. 1991, c. 17 governs unless the agreement provides otherwise.
+
+STRUCTURE:
+1. Heading "NOTICE OF ARBITRATION", the parties with full legal names (the claimant employee and the respondent employer), and the date.
+2. THE ARBITRATION AGREEMENT: identify the employment agreement by date, identify the arbitration clause by section number where the intake provides it, and quote the clause verbatim where its text appears in the intake. State that the claimant demands arbitration of the dispute under the agreement, consistent with section 23 of the Arbitration Act, 1991. Where the clause text is not in the intake, insert "[LAWYER: insert the arbitration clause verbatim from the employment agreement]".
+3. THE DISPUTE: a concise numbered statement of the nature of the dispute: the employment, the termination, and each claim advanced (damages in lieu of reasonable notice; statutory entitlements; Human Rights Code damages where approved; aggravated or punitive damages where approved), with the amounts from the damages analysis. This is a commencement notice, not a pleading; two to five paragraphs.
+4. RELIEF SOUGHT: the remedies claimed, prejudgment and postjudgment interest, and the costs of the arbitration.
+5. APPOINTMENT OF THE ARBITRATOR: follow the mechanism in the clause where the intake states it; otherwise propose that the parties agree on a sole arbitrator within a stated number of days, failing which the claimant will apply to the Superior Court of Justice under section 10 of the Arbitration Act, 1991 for an appointment. Name no specific arbitrator; insert "[LAWYER: proposed arbitrator, roster, or appointing institution, per the clause and client instructions]".
+6. Service statement, the lawyer's name, firm, and contact block.
+
+RULES:
+- The procedure in the arbitration clause governs. Where the clause prescribes a different commencement step (for example, a named institution's rules), say so in a bracketed lawyer note rather than assuming this notice suffices.
+- Do not opine on the enforceability of the arbitration clause in the document; that assessment belongs to the lawyer, outside this notice.
+- Claim only the causes of action supported by the APPROVED ISSUES.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
     sj_notice_of_motion: `You are a senior Ontario employment litigation lawyer drafting a NOTICE OF MOTION (Form 37A) for the plaintiff's motion for summary judgment under Rule 20 in a wrongful dismissal action.
 
 STRUCTURE:
@@ -683,6 +701,7 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'settlement_conference_brief': return 'Settlement Conference / Pre-Trial Brief';
     case 'hrto_schedule_a': return 'HRTO Schedule "A" (Narrative of Allegations)';
     case 'notice_of_action': return 'Notice of Action (Form 14C)';
+    case 'notice_of_arbitration': return 'Notice of Arbitration (Private Arbitration)';
     case 'sj_notice_of_motion': return 'Notice of Motion for Summary Judgment (Form 37A)';
     case 'sj_affidavit': return "Plaintiff's Affidavit for Summary Judgment (Form 4D)";
     case 'sj_factum': return "Plaintiff's Factum (Summary Judgment)";
@@ -723,6 +742,8 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
       return ['last_incident_date_within_limitation', 'grounds_match_form_selections', 'respondents_named_deliberately', 'dignity_quantum_range'];
     case 'notice_of_action':
       return ['limitation_date_confirmed', 'relief_broad_enough_for_the_claim', 'statement_of_claim_due_30_days_after_issuance', 'court_file_number'];
+    case 'notice_of_arbitration':
+      return ['arbitration_clause_enforceability', 'clause_commencement_procedure_matches_this_notice', 'appointment_mechanism_and_response_days', 'limitation_and_commencement_date'];
     case 'sj_notice_of_motion':
       return ['relief_matches_factum_and_affidavit', 'hearing_details_placeholders', 'grounds_track_approved_issues'];
     case 'sj_affidavit':

@@ -40,6 +40,7 @@ motion package the highest-value gap in this table.
 | Form 14A, Statement of Claim | The pleading | **Shipped** (generated content in 14A format) | done | 1 |
 | Form 14E, Notice of Application | Application route | **Shipped** (generated content) | done | 1 |
 | Form 14C, Notice of Action | Limitation-saving start when time is short | **Shipped**; file-ready as of 2026-07-05: the official notice text (RCP-E 14C, June 9, 2014) is pinned as an asset and injected deterministically | done | 1 |
+| Notice of Arbitration (private arbitration) | Commences arbitration under an employment contract arbitration clause (non-unionized employee; Arbitration Act, 1991, ss. 10 and 23) | **Shipped** 2026-07-31 (generated content; no prescribed form, procedure follows the clause) | done | 1 |
 | Form 25A, Reply | Answer to new matters in the Defence | **Shipped** | done | 1 |
 | Form 49A, Offer to Settle | Rule 49 offer with cost consequences | **Shipped** | done | 1 |
 | Form 49B (withdrawal), Form 49C (acceptance) | The rest of the Rule 49 lifecycle | **Shipped** 2026-07-04 (deterministic, validated inputs). 49D (offer to contribute) and 49E (partial settlement) remain on demand | done / P3 | 4 |

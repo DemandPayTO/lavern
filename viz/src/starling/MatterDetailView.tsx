@@ -225,6 +225,13 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     section: 'Pleadings and applications',
   },
   {
+    id: 'noticearb',
+    title: 'Notice of Arbitration',
+    description: 'Commences private arbitration under the employment contract’s arbitration clause and the Arbitration Act, 1991.',
+    cost: '~$8 · under 1 min',
+    section: 'Pleadings and applications',
+  },
+  {
     id: 'reply',
     title: 'Reply (Form 25A)',
     description: 'Respond to new matters in the Statement of Defence: cause allegations, mitigation, limitations.',
@@ -386,6 +393,7 @@ const DRAFT_TO_DOCTYPE: Record<string, string> = {
   confbrief: 'settlement_conference_brief',
   schedulea: 'hrto_schedule_a',
   noa: 'notice_of_action',
+  noticearb: 'notice_of_arbitration',
   sjmotion: 'sj_notice_of_motion',
   sjaffidavit: 'sj_affidavit',
   sjfactum: 'sj_factum',
