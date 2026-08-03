@@ -165,6 +165,13 @@ export function registerGoogleAuthRoutes(fastify: FastifyInstance): void {
           logAuditEvent({ userId: user.id, action: 'google_link', resource: 'auth', ip: request.ip, userAgent: request.headers['user-agent'] });
           logger.info('google_account_linked', { userId: user.id, email });
         } else {
+          // New-account creation honours the same signup switch as the
+          // password flow. Without this, closing signup still left Google
+          // as an open door onto the platform.
+          if (config.signupDisabled) {
+            logger.warn('google_signup_blocked_signup_disabled', { email });
+            return reply.redirect(`${config.email.appUrl}/#/login?error=signup_disabled`);
+          }
           // Create new user via Google
           const placeholderHash = `google:${crypto.randomBytes(32).toString('hex')}`;
           user = createUser(email, placeholderHash, displayName);

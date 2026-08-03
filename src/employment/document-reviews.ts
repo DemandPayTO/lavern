@@ -17,6 +17,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import sanitizeHtmlLib from 'sanitize-html';
 import { getDb } from '../db/database.js';
 import { createLogger } from '../utils/logger.js';
 import { priorityBand, type DeadlineItem } from './deadlines.js';
@@ -81,6 +82,44 @@ export interface TransitionResult {
 }
 
 const VERSION_CAP = 8;
+
+/**
+ * Strict allowlist sanitiser for review-version HTML.
+ *
+ * Unlike generated-document HTML (escaped at source by the generators,
+ * with sanitiseHtml as defense in depth), review versions are ARBITRARY
+ * HTML supplied by one user and rendered in another user's browser via
+ * dangerouslySetInnerHTML. That is untrusted input, so it needs a real
+ * allowlist rather than a blacklist: only document markup survives, and
+ * every attribute except a small safe set is dropped. The approved
+ * version also flows back onto the matter, so this is the one gate for
+ * both render sites.
+ */
+export function sanitiseReviewHtml(html: string): string {
+  return sanitizeHtmlLib(html, {
+    allowedTags: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'div', 'span', 'br', 'hr',
+      'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup', 'blockquote', 'pre', 'code',
+      'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+      'a', 'small',
+    ],
+    allowedAttributes: {
+      a: ['href', 'title'],
+      td: ['colspan', 'rowspan'],
+      th: ['colspan', 'rowspan', 'scope'],
+      col: ['span'],
+      '*': ['class'],
+    },
+    // http/https/mailto only: blocks javascript:, data:, vbscript: hrefs,
+    // including the ones mammoth passes through from a crafted .docx.
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedSchemesAppliedToAttributes: ['href'],
+    disallowedTagsMode: 'discard',
+    // Style attributes carry their own vectors (expression(), url(...)).
+    allowedStyles: {},
+  });
+}
 
 // ── Row mapping ──────────────────────────────────────────────────────────
 
@@ -195,7 +234,7 @@ export function createReview(args: {
     docTitle: args.docTitle,
     fileNumber: args.fileNumber,
     status: 'pending',
-    versions: [{ at: now, authorId: args.submitterId, kind: 'submitted', html: args.html }],
+    versions: [{ at: now, authorId: args.submitterId, kind: 'submitted', html: sanitiseReviewHtml(args.html) }],
     summary: args.summary,
     reviewedHtml: null,
     reviewNotes: null,
@@ -281,7 +320,9 @@ export function addVersion(id: string, firmId: string, userId: string, version: 
     return { ok: false, code: 403, error: 'Versions can be added by the reviewer while in review, or by the submitter while changes are requested.' };
   }
   if (!version.html.trim()) return { ok: false, code: 409, error: 'The new version is empty.' };
-  review.versions.push({ ...version, at: new Date().toISOString(), authorId: userId });
+  const cleanHtml = sanitiseReviewHtml(version.html);
+  if (!cleanHtml.trim()) return { ok: false, code: 409, error: 'The new version has no usable content after sanitisation.' };
+  review.versions.push({ ...version, html: cleanHtml, at: new Date().toISOString(), authorId: userId });
   review.versions = review.versions.slice(-VERSION_CAP);
   persist(review);
   return { ok: true, review };
@@ -295,7 +336,7 @@ export function resubmitReview(id: string, firmId: string, userId: string, html?
   if (review.status !== 'changes_requested') return { ok: false, code: 409, error: 'Only a review with changes requested can be resubmitted.' };
   const now = new Date().toISOString();
   if (html && html.trim() && html !== currentVersion(review).html) {
-    review.versions.push({ at: now, authorId: userId, kind: 'resubmitted', html });
+    review.versions.push({ at: now, authorId: userId, kind: 'resubmitted', html: sanitiseReviewHtml(html) });
     review.versions = review.versions.slice(-VERSION_CAP);
   }
   review.status = 'resubmitted';

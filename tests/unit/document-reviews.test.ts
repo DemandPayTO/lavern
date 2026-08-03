@@ -208,3 +208,42 @@ describe('diff and dates', () => {
     expect(addBusinessDays('2026-07-24', 3)).toBe('2026-07-29');
   });
 });
+
+describe('security regressions (2026-08-03 review)', () => {
+  it('strips active content from review versions (stored XSS fix)', () => {
+    const review = makeReview('m-sec-1');
+    claimReview(review.id, FIRM_A, PARTNER);
+    const attack = '<p>Fine text.</p><img src=x onerror="fetch(\'/api/tasks\')"><script>alert(1)</script>'
+      + '<a href="javascript:alert(2)">click</a><iframe src="//evil.tld"></iframe>';
+    const added = addVersion(review.id, FIRM_A, PARTNER, { kind: 'edit', html: attack });
+    expect(added.ok).toBe(true);
+    const stored = currentVersion(added.review!).html;
+    expect(stored).toContain('Fine text.');
+    for (const vector of ['onerror', '<script', '<iframe', 'javascript:']) {
+      expect(stored.toLowerCase()).not.toContain(vector);
+    }
+  });
+
+  it('sanitises the submitted and resubmitted versions too', () => {
+    const submitted = createReview({
+      matterId: 'm-sec-2', firmId: FIRM_A, submitterId: DRAFTER, docType: 'demand_letter',
+      docTitle: 'Demand Letter', fileNumber: 'DP-2026-099',
+      html: '<p>Body</p><script>alert(1)</script>',
+      summary: { matterLabel: 'DP-2026-099', citationCount: 0, reviewFlagCount: 0, unresolvedMarkers: 0 },
+    });
+    expect(currentVersion(submitted.review!).html).not.toContain('<script');
+
+    claimReview(submitted.review!.id, FIRM_A, PARTNER);
+    requestChanges(submitted.review!.id, FIRM_A, PARTNER, 'Revise.');
+    const re = resubmitReview(submitted.review!.id, FIRM_A, DRAFTER, '<p>New</p><img src=x onerror=alert(1)>');
+    expect(currentVersion(re.review!).html).not.toContain('onerror');
+  });
+
+  it('rejects a version that is only active content', () => {
+    const review = makeReview('m-sec-3');
+    claimReview(review.id, FIRM_A, PARTNER);
+    const result = addVersion(review.id, FIRM_A, PARTNER, { kind: 'edit', html: '<script>alert(1)</script>' });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(409);
+  });
+});

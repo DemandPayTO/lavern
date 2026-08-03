@@ -25,6 +25,11 @@ primary_region = "yyz"
   SHEM_CORS_ORIGINS = "https://starling.demandpay.ca,https://demandpay-starling.fly.dev"
   LAVERN_AUTH_ENABLED = "true"
   LAVERN_WAITLIST_ENABLED = "false"
+  # Public self-signup CLOSED for the pilot: accounts are provisioned
+  # manually (scripts/provision-firm-user.ts over fly ssh) so that firm
+  # membership is deliberate. Covers both the password flow and Google
+  # OAuth. Set to "false" only if open registration is wanted again.
+  LAVERN_SIGNUP_DISABLED = "true"
   LAVERN_BILLING_CURRENCY = "cad"
   # Weekly digest DISABLED for the pilot (emails a firm-wide docket with
   # client matter labels; more risk than value at this stage). To re-enable:

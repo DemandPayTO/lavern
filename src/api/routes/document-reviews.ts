@@ -32,10 +32,22 @@ const logger = createLogger('REVIEW-ROUTES');
 
 const MAX_DOCX_B64 = 7_000_000; // ~5 MB file
 
-function identity(req: FastifyRequest): { userId: string; firmId: string } {
+/**
+ * The caller's identity for the review lane.
+ *
+ * firmId is undefined when the account has no server-assigned firm; every
+ * route here then denies. Falling back to a shared default would put
+ * unrelated accounts into one queue, which is exactly the cross-tenant
+ * exposure this lane must not have. LOCAL MODE supplies 'local-firm' from
+ * the middleware, so single-user local development is unaffected.
+ */
+function identity(req: FastifyRequest): { userId: string; firmId: string | undefined } {
   const r = req as { userId?: string; firmId?: string };
-  return { userId: r.userId ?? 'local-user', firmId: r.firmId ?? 'local-firm' };
+  const firmId = r.firmId && r.firmId.trim() ? r.firmId : undefined;
+  return { userId: r.userId ?? 'local-user', firmId };
 }
+
+const NO_FIRM = { ok: false as const, error: 'No firm is associated with this account.' };
 
 /** Queue-safe projection: everything except the document contents. */
 function toQueueRow(review: DocumentReview) {
@@ -87,6 +99,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
 
   fastify.post('/api/employment/:matterId/reviews', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { matterId } = req.params as { matterId: string };
     const parsed = submitSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
@@ -128,6 +141,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
   // ── GET /api/reviews — the firm queue, split for the caller ────────────
   fastify.get('/api/reviews', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const all = listFirmReviews(firmId);
     return reply.send({
       ok: true,
@@ -139,6 +153,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
   // ── GET /api/reviews/:id — the one-screen approval package ────────────
   fastify.get('/api/reviews/:id', async (req: FastifyRequest, reply: FastifyReply) => {
     const { firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const review = getReviewById(id);
     if (!review || review.firmId !== firmId) return reply.status(404).send({ ok: false, error: 'Review not found' });
@@ -164,6 +179,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
   // ── Transitions ────────────────────────────────────────────────────────
   fastify.post('/api/reviews/:id/claim', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const result = claimReview(id, firmId, userId);
     if (result.ok) audit(req, userId, 'review_claimed', id);
@@ -177,6 +193,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
 
   fastify.post('/api/reviews/:id/approve', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const parsed = decisionSchema.safeParse(req.body ?? {});
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
@@ -221,6 +238,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
 
   fastify.post('/api/reviews/:id/request-changes', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const parsed = decisionSchema.safeParse(req.body ?? {});
     if (!parsed.success || !parsed.data.changesDescription) {
@@ -246,6 +264,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
 
   fastify.post('/api/reviews/:id/version', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const parsed = versionSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid version upload' });
@@ -271,6 +290,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
 
   fastify.post('/api/reviews/:id/resubmit', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const review = getReviewById(id);
     if (!review || review.firmId !== firmId) return reply.status(404).send({ ok: false, error: 'Review not found' });
@@ -292,6 +312,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
 
   fastify.delete('/api/reviews/:id', async (req: FastifyRequest, reply: FastifyReply) => {
     const { userId, firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const result = withdrawReview(id, firmId, userId);
     if (result.ok) audit(req, userId, 'review_withdrawn', id);
@@ -301,6 +322,7 @@ export function registerDocumentReviewRoutes(fastify: FastifyInstance): void {
   // ── GET /api/reviews/:id/download — Word copy of the current version ──
   fastify.get('/api/reviews/:id/download', async (req: FastifyRequest, reply: FastifyReply) => {
     const { firmId } = identity(req);
+    if (!firmId) return reply.status(403).send(NO_FIRM);
     const { id } = req.params as { id: string };
     const review = getReviewById(id);
     if (!review || review.firmId !== firmId) return reply.status(404).send({ ok: false, error: 'Review not found' });

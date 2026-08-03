@@ -207,8 +207,6 @@ export function buildPlaceholderValues(args: {
 // ── Template validation ──────────────────────────────────────────────────
 
 export const templateUploadSchema = z.object({
-  /** Optional — the server prefers the authenticated user's firm ID. */
-  firmId: z.string().min(1).max(200).optional(),
   documentType: z.enum([
     'demand_letter', 'statement_of_claim', 'notice_of_application',
     'hrto_application', 'esa_complaint', 'discovery_plan',

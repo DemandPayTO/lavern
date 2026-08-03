@@ -42,6 +42,18 @@ const logger = createLogger('EMPLOYMENT');
 // user-controlled values at the source; this strips active-content vectors
 // that must never survive regardless. Covers quoted AND unquoted event
 // handlers, script/iframe/object/embed tags, and javascript:/data: URIs.
+/**
+ * The caller's firm, from the authenticated identity only.
+ *
+ * Returns undefined when the account has no firm — firm-scoped routes must
+ * deny rather than fall back to a shared bucket. In LOCAL MODE (auth off)
+ * the synthetic local user carries 'local-firm' from the middleware.
+ */
+export function resolveFirmId(req: unknown): string | undefined {
+  const firmId = (req as { firmId?: string }).firmId;
+  return firmId && firmId.trim() ? firmId : undefined;
+}
+
 export function sanitiseHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -1563,7 +1575,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const matterData = JSON.parse(row.data_json) as Record<string, unknown>;
     const employment = (matterData.employmentData as EmploymentMatterData) ?? null;
 
-    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
+    const firmId = resolveFirmId(req) ?? '';
     let html: string | null = null;
     let title = '';
 
@@ -1686,8 +1698,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
 
     const { documentType, name, templateBase64 } = parsed.data;
-    // Prefer the authenticated user's firm — the body value is a legacy fallback
-    const firmId = (req as { firmId?: string }).firmId ?? parsed.data.firmId ?? 'local-firm';
+    // The firm comes from the authenticated identity ONLY. A body-supplied
+    // firmId let any caller overwrite another firm's template (the same
+    // tenant-isolation hole the legacy /:firmId routes were removed for).
+    const firmId = resolveFirmId(req);
+    if (!firmId) {
+      return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    }
 
     // Decode base64 to detect placeholders in the template text
     let templateText = '';
@@ -1716,7 +1733,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // the firm default for its document type across ALL matters.
 
   fastify.get('/api/employment/templates', async (req: FastifyRequest, reply: FastifyReply) => {
-    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
+    const firmId = resolveFirmId(req) ?? '';
     const templates = getFirmTemplates(firmId);
 
     return reply.send({
@@ -1736,7 +1753,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // Remove the requesting user's firm template for a document type.
 
   fastify.delete('/api/employment/templates/:documentType', async (req: FastifyRequest, reply: FastifyReply) => {
-    const firmId = (req as { firmId?: string }).firmId ?? 'local-firm';
+    const firmId = resolveFirmId(req) ?? '';
     const { documentType } = req.params as { documentType: string };
     deleteFirmTemplate(firmId, documentType);
     logger.info('Template deleted', { firmId, documentType });

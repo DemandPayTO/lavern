@@ -287,6 +287,10 @@ export function createAuthMiddleware(
         const client = registry.authenticate(token);
         if (client) {
           req.userId = client.id;
+          // API clients are not firm members: they get no firm scope, so
+          // firm-scoped routes deny rather than reading an unset firmId
+          // (which previously let a body-supplied value take over).
+          req.firmId = undefined;
           req.user = { id: client.id, email: '', displayName: client.name ?? '' };
           return true;
         }
@@ -297,8 +301,14 @@ export function createAuthMiddleware(
         const user = dbGetUserByToken(cookieToken);
         if (user) {
           req.userId = user.id;
-          req.firmId = user.firm_id ?? user.firm_name ?? undefined;
-          req.user = { id: user.id, email: user.email, displayName: user.display_name ?? '', firmId: user.firm_id ?? user.firm_name ?? undefined };
+          // Tenant key is the server-assigned firm_id ONLY. firm_name is a
+          // user-editable display string; falling back to it let any account
+          // join another tenant by typing its name (and put every account
+          // with a blank firm name into one shared tenant). An account with
+          // no firm_id gets no firm scope, and firm-scoped routes deny.
+          const firmId = user.firm_id?.trim() || undefined;
+          req.firmId = firmId;
+          req.user = { id: user.id, email: user.email, displayName: user.display_name ?? '', firmId };
           return true;
         }
       }

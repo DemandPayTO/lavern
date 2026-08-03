@@ -58,12 +58,14 @@ async function main(): Promise<void> {
   }
 
   const passwordHash = await hashPassword(password);
-  const user = createUser(email, passwordHash, name, firm);
+  // createUser assigns a fresh firm id when none is given; passing firmId
+  // explicitly is how the firm's second and later lawyers join the first
+  // lawyer's firm.
+  const user = createUser(email, passwordHash, name, firm, firmId);
 
-  // Bind to the shared firm id and pre-verify the email (so login works
-  // before transactional email is configured). Password reset still works
-  // once Resend is live.
-  getDb().prepare('UPDATE users SET firm_id = ?, email_verified = 1 WHERE id = ?').run(firmId, user.id);
+  // Pre-verify the email so login works before transactional email is
+  // configured. Password reset still works once Resend is live.
+  getDb().prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(user.id);
 
   console.log('\nProvisioned:');
   console.log(`  email:    ${email}`);

@@ -530,6 +530,21 @@ function runMigrations(db: Database.Database): void {
     db.exec(`ALTER TABLE users ADD COLUMN firm_id TEXT`);
   } catch { /* column already exists */ }
 
+  // Backfill: accounts created before firm_id was assigned at signup have a
+  // NULL firm_id. They must each get their OWN firm, never a shared one and
+  // never one derived from firm_name, or two unrelated accounts would land
+  // in the same tenant. Accounts already provisioned into a firm keep it.
+  const orphanFirms = db.prepare(
+    `SELECT id FROM users WHERE firm_id IS NULL OR TRIM(firm_id) = ''`,
+  ).all() as Array<{ id: string }>;
+  if (orphanFirms.length > 0) {
+    const assign = db.prepare('UPDATE users SET firm_id = ? WHERE id = ?');
+    for (const row of orphanFirms) {
+      assign.run(`firm-${crypto.randomUUID().slice(0, 12)}`, row.id);
+    }
+    logger.info('Backfilled firm_id for accounts without one', { count: orphanFirms.length });
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_tokens (
       token      TEXT PRIMARY KEY,
@@ -637,14 +652,21 @@ export interface DbUser {
   google_id?: string;
 }
 
-export function createUser(email: string, passwordHash: string, displayName?: string, firmName?: string): DbUser {
+export function createUser(email: string, passwordHash: string, displayName?: string, firmName?: string, firmId?: string): DbUser {
   const id = `user-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   const now = new Date().toISOString();
 
+  // Every account gets a server-generated firm_id. firm_name is a display
+  // string the user chooses and can edit; it must never be the tenant key
+  // (two accounts typing the same firm name are NOT the same tenant). A
+  // caller that is deliberately adding a user to an existing firm passes
+  // firmId explicitly (scripts/provision-firm-user.ts).
+  const assignedFirmId = firmId?.trim() || `firm-${crypto.randomUUID().slice(0, 12)}`;
+
   getDb().prepare(`
-    INSERT INTO users (id, email, password_hash, display_name, firm_name, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, email.toLowerCase().trim(), passwordHash, displayName ?? '', firmName ?? '', now, now);
+    INSERT INTO users (id, email, password_hash, display_name, firm_name, firm_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, email.toLowerCase().trim(), passwordHash, displayName ?? '', firmName ?? '', assignedFirmId, now, now);
 
   const user = getUserById(id);
   if (!user) throw new Error(`[DB] Failed to create user — INSERT succeeded but SELECT for ${id} returned nothing`);

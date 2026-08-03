@@ -46,7 +46,9 @@ beforeAll(async () => {
   // test headers, defaulting like LOCAL MODE.
   app.addHook('preHandler', async (req) => {
     (req as { userId?: string }).userId = (req.headers['x-test-user'] as string) ?? 'local-user';
-    (req as { firmId?: string }).firmId = (req.headers['x-test-firm'] as string) ?? 'local-firm';
+    // No header means no firm, exactly as the real middleware now behaves
+    // for an account without a server-assigned firm_id.
+    (req as { firmId?: string }).firmId = (req.headers['x-test-firm'] as string) || undefined;
   });
   registerEmploymentIntakeRoutes(app);
   registerDocumentReviewRoutes(app);
@@ -174,5 +176,58 @@ describe('review lane routes', () => {
     expect((await call('DELETE', `/api/reviews/${id}`, DRAFTER)).status).toBe(200);
     const sent = await call('POST', '/api/employment/m-rev-int-2/document-status', DRAFTER, { docType: 'demand_letter', status: 'sent' });
     expect(sent.status).toBe(200);
+  });
+});
+
+describe('security regressions (2026-08-03 review)', () => {
+  it('refuses firm-scoped routes when the account has no firm', async () => {
+    const NO_FIRM_USER: Record<string, string> = { 'x-test-user': drafterId };
+    expect((await call('GET', '/api/reviews', NO_FIRM_USER)).status).toBe(403);
+    expect((await call('POST', `/api/employment/${MID}/reviews`, NO_FIRM_USER, { docType: 'demand_letter' })).status).toBe(403);
+  });
+
+  it('ignores a body-supplied firmId on template upload (Vuln 3)', async () => {
+    const res = await call('POST', '/api/employment/templates', DRAFTER, {
+      firmId: 'firm-b',
+      documentType: 'demand_letter',
+      name: 'Attacker template',
+      templateBase64: Buffer.from('{{CLIENT_NAME}}').toString('base64'),
+    });
+    // The zod schema no longer accepts firmId; the upload either succeeds
+    // against the CALLER's firm or is rejected, but never writes to firm-b.
+    if (res.status === 200) {
+      const rivalView = await call('GET', '/api/employment/templates', RIVAL);
+      const templates = (rivalView.body.templates ?? []) as Array<Record<string, unknown>>;
+      expect(templates.find(t => t.name === 'Attacker template')).toBeUndefined();
+    } else {
+      expect([400, 403]).toContain(res.status);
+    }
+  });
+
+  it('strips active content end to end through the review package', async () => {
+    saveMatter(drafterId, 'm-rev-xss', JSON.stringify({
+      title: 'XSS Matter',
+      matterNumber: 'DP-2026-XSS',
+      generatedDemandLetter: { html: HTML, status: 'draft', generatedAt: new Date().toISOString() },
+      employmentData: { intake: {}, timeline: [] },
+    }));
+    const submitted = await call('POST', '/api/employment/m-rev-xss/reviews', DRAFTER, { docType: 'demand_letter' });
+    const id = (submitted.body.review as Record<string, unknown>).id as string;
+    await call('POST', `/api/reviews/${id}/claim`, PARTNER);
+    await call('POST', `/api/reviews/${id}/version`, PARTNER, {
+      html: '<p>Edited.</p><img src=x onerror="alert(1)"><script>alert(2)</script>',
+    });
+    const pkg = await call('GET', `/api/reviews/${id}`, PARTNER);
+    const html = (pkg.body.review as Record<string, unknown>).html as string;
+    expect(html).toContain('Edited.');
+    expect(html.toLowerCase()).not.toContain('onerror');
+    expect(html.toLowerCase()).not.toContain('<script');
+
+    // And the sanitised version is what reaches the matter on approval.
+    await call('POST', `/api/reviews/${id}/approve`, PARTNER, {});
+    const row = getMatterById('m-rev-xss', drafterId)!;
+    const matter = JSON.parse(row.data_json) as Record<string, unknown>;
+    const stored = (matter.generatedDemandLetter as Record<string, unknown>).html as string;
+    expect(stored.toLowerCase()).not.toContain('onerror');
   });
 });
