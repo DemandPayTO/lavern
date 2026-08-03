@@ -50,6 +50,10 @@ export type LitigationDocumentType =
   | 'sj_notice_of_motion'
   | 'sj_affidavit'
   | 'sj_factum'
+  | 'sp_timetable_motion'
+  | 'consent_timetable_order'
+  | 'timetable_order'
+  | 'undertakings_answers'
   | 'affidavit_of_service'
   | 'rule49_withdrawal'
   | 'rule49_acceptance'
@@ -443,6 +447,79 @@ RULES:
 - Where a factual reference is needed, use [Affidavit, para X] placeholders for counsel to complete.
 - Persuasive, measured, and short: the best factums in this class are under twenty pages.`,
 
+    sp_timetable_motion: `You are a senior Ontario employment litigation lawyer drafting a MOTION FOR A TIMETABLE ORDER in an action under the SIMPLIFIED PROCEDURE (Rule 76 of the Rules of Civil Procedure), brought by the plaintiff.
+
+CONTEXT: the parties need fixed dates for the remaining steps (documentary discovery, examinations where available, mediation, setting the action down for trial, and the pre-trial). A timetable also protects against dismissal for delay under Rule 48.14.
+
+STRUCTURE:
+1. General heading: court, court file number placeholder, parties.
+2. NOTICE OF MOTION heading, the moving party, and the hearing details as placeholders ([DATE], [TIME], [METHOD OF HEARING], [COURT ADDRESS]). Insert "[LAWYER: confirm the motion form and whether the motion proceeds in writing under Rule 76 as amended, or requires an appearance in the region.]".
+3. THE MOTION IS FOR: (a) an order fixing a timetable for the remaining steps in the action, in the terms set out in Schedule A; (b) if necessary, an order extending the time to set the action down for trial under Rule 48.14; (c) costs of the motion only if opposed; (d) such further relief as counsel may advise.
+4. THE GROUNDS FOR THE MOTION ARE: the action proceeds under the simplified procedure; the steps completed to date and the dates on which they occurred, taken from the matter timeline; the steps remaining; why the proposed dates are reasonable and proportionate to a simplified-procedure action; the prejudice to the plaintiff of continued delay (a dismissed employee is without income while the action is pending); and, where the other side has not consented, the requests made and the response received.
+5. THE FOLLOWING DOCUMENTARY EVIDENCE will be used: the pleadings, correspondence between counsel, and the affidavit of [LAWYER: deponent].
+6. SCHEDULE A: PROPOSED TIMETABLE as a table with two columns, Step and Date, using [DATE] placeholders where the intake does not supply a date. Steps: affidavits of documents exchanged; documentary productions delivered; examinations for discovery completed (or a note that examinations are limited under the simplified procedure); mediation completed; action set down for trial; pre-trial conference; trial.
+7. Date and the lawyer's name, firm, and contact block; TO: the defendant's lawyer placeholder.
+
+RULES:
+- Do not invent form numbers or regional practice requirements; where a form number or local practice is needed, use a "[LAWYER: ...]" marker.
+- Proportionality is the theme of the simplified procedure; the tone should be brisk and practical, not adversarial.
+
+Output as HTML with h1, h2, p, ol, li, strong, and a table for Schedule A. No inline styles.`,
+
+    consent_timetable_order: `You are a senior Ontario employment litigation lawyer drafting a CONSENT ORDER fixing a timetable in a wrongful dismissal action, for signature by counsel for all parties and submission to the court on consent.
+
+STRUCTURE:
+1. General heading: court, court file number placeholder, parties.
+2. Title: "ORDER (Timetable, on consent)".
+3. The recital block: "THIS MOTION, made on consent of the parties, for an order fixing a timetable for the remaining steps in this action, was read this [DATE] without the appearance of counsel." Include "[LAWYER: confirm the local practice for submitting consent orders in this region, including whether a requisition or a basket motion is required.]".
+4. ON READING the consent of the parties, filed.
+5. THE COURT ORDERS as numbered paragraphs: (1) the timetable in the attached schedule is fixed for the remaining steps; (2) where applicable, the time to set the action down for trial is extended to the date in the schedule; (3) any party may move to vary the timetable on notice; (4) no costs of this motion.
+6. THE TIMETABLE as a table with two columns, Step and Date, drawn from the matter timeline where dates exist and [DATE] placeholders where they do not.
+7. A signature block for the judge or associate judge ([LAWYER: judge or associate judge, per the region]), and a consent block listing each party's counsel with name, firm, LSO number placeholder, and a signature line.
+
+RULES:
+- An order speaks in the operative voice of the court ("THE COURT ORDERS"), never in argument. No submissions, no reasons.
+- Do not invent form numbers or local filing requirements; use "[LAWYER: ...]" markers.
+
+Output as HTML with h1, h2, p, ol, li, strong, and a table for the timetable. No inline styles.`,
+
+    timetable_order: `You are a senior Ontario employment litigation lawyer drafting a DRAFT ORDER fixing a timetable in a wrongful dismissal action, to be placed before the court on a contested motion (the form of order the moving party asks the court to grant).
+
+STRUCTURE:
+1. General heading: court, court file number placeholder, parties.
+2. Title: "ORDER (Timetable)".
+3. The recital block: "THIS MOTION, made by the plaintiff for an order fixing a timetable for the remaining steps in this action, was heard this [DATE] at [COURT ADDRESS]."
+4. ON READING the motion record of the plaintiff and the materials filed by the responding party, and on hearing the submissions of counsel for the parties.
+5. THE COURT ORDERS as numbered paragraphs: (1) the timetable set out below is fixed for the remaining steps; (2) where applicable, the time to set the action down for trial is extended to the date stated; (3) a party who fails to comply may be subject to the consequences the court considers just, including costs; (4) any party may move to vary the timetable on notice; (5) costs of the motion, with "[LAWYER: costs disposition sought]".
+6. THE TIMETABLE as a table with two columns, Step and Date, drawn from the matter timeline where dates exist and [DATE] placeholders where they do not.
+7. Signature line for the judge or associate judge ([LAWYER: judge or associate judge, per the region]).
+
+RULES:
+- Operative court language only; no argument and no reasons.
+- Do not invent form numbers or local practice requirements; use "[LAWYER: ...]" markers.
+
+Output as HTML with h1, h2, p, ol, li, strong, and a table for the timetable. No inline styles.`,
+
+    undertakings_answers: `You are a senior Ontario employment litigation lawyer preparing ANSWERS TO UNDERTAKINGS given at the examination for discovery of the plaintiff in a wrongful dismissal action.
+
+CONTEXT: at discovery, counsel gives undertakings to provide information or documents. This document answers them in an organised, numbered form, and records refusals and items taken under advisement separately so that the record is clear if a refusals motion follows.
+
+STRUCTURE:
+1. Title block: "ANSWERS TO UNDERTAKINGS", the parties, the court file number placeholder, the date of the examination ([LAWYER: date of examination]), and the name of the person examined.
+2. A short introductory paragraph: these answers are given without prejudice to the plaintiff's right to supplement them, and documents produced with these answers are listed in the schedule.
+3. PART 1: UNDERTAKINGS. A numbered list. For each item, state the undertaking as given (with a "[Transcript p. X, q. Y]" placeholder), then "ANSWER:" followed by the answer. Where the intake supplies the underlying facts (employment dates, compensation, mitigation efforts, medical or accommodation history where those are approved issues), draft a responsive answer from those facts. Where it does not, write "[LAWYER: answer required — the file does not contain this information]". Never invent an answer.
+4. PART 2: ITEMS TAKEN UNDER ADVISEMENT. Same numbered format, each with the position taken and "[LAWYER: confirm the position]".
+5. PART 3: REFUSALS. Same format, each with the ground of refusal stated neutrally (relevance, privilege, proportionality) and "[LAWYER: confirm the ground and whether it is maintained]".
+6. SCHEDULE: DOCUMENTS PRODUCED WITH THESE ANSWERS, a numbered list with "[LAWYER: list documents]" where unknown.
+7. Date and the lawyer's name, firm, and contact block; TO: the defendant's lawyer placeholder.
+
+RULES:
+- Mitigation undertakings are the most common in this class of case: where the file contains a mitigation record, answer from it and cross-reference the mitigation log rather than restating every entry.
+- Answers are evidence. Draft nothing that the intake does not support, and mark every gap with a "[LAWYER: ...]" marker.
+- Neutral, factual register; an answer to an undertaking is not the place for argument.
+
+Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+
     affidavit_of_service: 'DETERMINISTIC; never sent to the model.',
     rule49_withdrawal: 'DETERMINISTIC; never sent to the model.',
     rule49_acceptance: 'DETERMINISTIC; never sent to the model.',
@@ -705,6 +782,10 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'sj_notice_of_motion': return 'Notice of Motion for Summary Judgment (Form 37A)';
     case 'sj_affidavit': return "Plaintiff's Affidavit for Summary Judgment (Form 4D)";
     case 'sj_factum': return "Plaintiff's Factum (Summary Judgment)";
+    case 'sp_timetable_motion': return 'Simplified Procedure Motion (Timetable Order)';
+    case 'consent_timetable_order': return 'Consent Order (Timetable)';
+    case 'timetable_order': return 'Order (Timetable)';
+    case 'undertakings_answers': return 'Answers to Undertakings';
     case 'affidavit_of_service': return 'Affidavit of Service (Form 16B)';
     case 'rule49_withdrawal': return 'Notice of Withdrawal of Offer (Form 49B)';
     case 'rule49_acceptance': return 'Acceptance of Offer (Form 49C)';
@@ -750,6 +831,14 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
       return ['every_paragraph_verified_with_the_client_before_swearing', 'exhibits_assembled_and_lettered', 'no_argument_in_the_affidavit', 'commissioner_for_swearing'];
     case 'sj_factum':
       return ['affidavit_paragraph_references_completed', 'authorities_verified_and_scheduled', 'quantum_matches_damages_analysis', 'length_and_court_requirements'];
+    case 'sp_timetable_motion':
+      return ['motion_form_and_regional_practice_confirmed', 'proposed_dates_realistic_and_agreed_where_possible', 'rule_48_14_deadline_checked', 'deponent_and_evidence_identified'];
+    case 'consent_timetable_order':
+      return ['all_parties_consent_obtained_in_writing', 'regional_submission_practice_confirmed', 'dates_match_the_signed_consent', 'judge_or_associate_judge_correct'];
+    case 'timetable_order':
+      return ['dates_match_the_notice_of_motion', 'costs_disposition_confirmed', 'judge_or_associate_judge_correct', 'endorsement_reflected_before_entry'];
+    case 'undertakings_answers':
+      return ['every_answer_verified_with_the_client', 'transcript_references_completed', 'refusals_and_advisements_confirmed_with_counsel', 'privilege_reviewed_before_production', 'documents_schedule_complete'];
     // Deterministic court forms carry their own flags from the builder.
     case 'affidavit_of_service':
     case 'rule49_withdrawal':
