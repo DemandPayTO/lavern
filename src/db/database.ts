@@ -139,6 +139,37 @@ function runMigrations(db: Database.Database): void {
       created_at     TEXT NOT NULL
     );
 
+    -- Document review lane: partner approval queue for generated documents.
+    -- Ported from DemandPay's letter_reviews design (claim lock, status
+    -- transition guards). Firm-scoped: the queue is the only surface in
+    -- Starling where one user reads another user's work product, and it
+    -- exposes ONLY the document versions and summary stored here, never
+    -- the underlying matter. One open review per (matter_id, doc_type),
+    -- enforced in code (open = not approved and not withdrawn).
+    CREATE TABLE IF NOT EXISTS document_reviews (
+      id                   TEXT PRIMARY KEY,
+      matter_id            TEXT NOT NULL,
+      firm_id              TEXT NOT NULL,
+      submitter_id         TEXT NOT NULL,
+      reviewer_id          TEXT,
+      doc_type             TEXT NOT NULL,
+      doc_title            TEXT NOT NULL,
+      file_number          TEXT NOT NULL,
+      status               TEXT NOT NULL DEFAULT 'pending',
+      versions_json        TEXT NOT NULL DEFAULT '[]',
+      summary_json         TEXT NOT NULL DEFAULT '{}',
+      reviewed_html        TEXT,
+      review_notes         TEXT,
+      changes_description  TEXT,
+      submitted_at         TEXT NOT NULL,
+      claimed_at           TEXT,
+      decided_at           TEXT,
+      created_at           TEXT NOT NULL,
+      updated_at           TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_document_reviews_firm ON document_reviews(firm_id, status);
+    CREATE INDEX IF NOT EXISTS idx_document_reviews_matter ON document_reviews(matter_id, doc_type);
+
     -- Usage ledger: one row per billable event (generation, analysis).
     -- Durable, unlike matter.draftHistory which caps at 10 entries. Feeds
     -- usage-based pricing: monthly rollups per matter and per firm.

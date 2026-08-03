@@ -41,7 +41,7 @@ export interface DeadlineItem {
   isCourt: boolean;
   kind: 'limitation' | 'demand_response' | 'severance_offer' | 'timeline'
     | 'grievance_filing' | 'grievance_referral' | 'grievance_step' | 'client_email'
-    | 'action_item';
+    | 'action_item' | 'approval';
 }
 
 /**

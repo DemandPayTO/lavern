@@ -60,6 +60,7 @@ import { registerReferralRoutes } from './routes/referral.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerEmploymentIntakeRoutes } from './routes/employment-intake.js';
 import { registerLabourRoutes } from './routes/labour.js';
+import { registerDocumentReviewRoutes } from './routes/document-reviews.js';
 import { registerIntakePortalRoutes } from './routes/intake-portal.js';
 import { registerCorrespondenceRoutes } from './routes/correspondence.js';
 import { registerUsageRoutes } from './routes/usage.js';
@@ -762,6 +763,7 @@ export async function startApiServer(port: number): Promise<void> {
   registerEmploymentIntakeRoutes(fastify);
   // Labour vertical — union-side grievance matters
   registerLabourRoutes(fastify);
+  registerDocumentReviewRoutes(fastify);
   registerIntakePortalRoutes(fastify);
   registerCorrespondenceRoutes(fastify);
   registerUsageRoutes(fastify);

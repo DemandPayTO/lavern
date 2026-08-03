@@ -375,6 +375,19 @@ export default function StarlingDashboard() {
             )}
           </a>
           <a
+            href="#/approvals"
+            style={{
+              padding: '8px 14px',
+              borderRadius: 2,
+              fontSize: 14,
+              color: '#cfd6e0',
+              border: '1px solid transparent',
+              textDecoration: 'none',
+            }}
+          >
+            Approvals
+          </a>
+          <a
             href="#/new-matter"
             style={{
               padding: '8px 14px',

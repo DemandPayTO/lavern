@@ -57,14 +57,14 @@ export function sanitiseHtml(html: string): string {
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /** Load a matter's employment data, or create a fresh one if none exists. */
-function loadEmploymentData(matterDataJson: string): { matter: Record<string, unknown>; employment: EmploymentMatterData } {
+export function loadEmploymentData(matterDataJson: string): { matter: Record<string, unknown>; employment: EmploymentMatterData } {
   const matter = JSON.parse(matterDataJson) as Record<string, unknown>;
   const employment = (matter.employmentData as EmploymentMatterData) ?? createEmploymentMatterData();
   return { matter, employment };
 }
 
 /** Persist employment data back onto the matter record. */
-async function saveEmploymentData(
+export async function saveEmploymentData(
   userId: string,
   matterId: string,
   matter: Record<string, unknown>,
@@ -121,7 +121,7 @@ export interface GeneratedDocumentSummary {
 }
 
 /** Locate the matter key holding a generated document of the given type. */
-function findGeneratedDocKey(matter: Record<string, unknown>, docType: string): string | null {
+export function findGeneratedDocKey(matter: Record<string, unknown>, docType: string): string | null {
   const legacy = Object.entries(LEGACY_DOC_KEYS).find(([, t]) => t === docType);
   if (legacy && matter[legacy[0]]) return legacy[0];
   const key = `generated_${docType}`;
@@ -1589,7 +1589,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet', 'notice-of-action', 'sj-notice-of-motion', 'sj-affidavit', 'sj-factum', 'affidavit-of-service', 'rule49-withdrawal', 'rule49-acceptance', 'costs-outline', 'esa-filing-sheet', 'scc-filing-sheet', 'particulars', 'production-request', 'settlement-memorandum', 'ohsa-reprisal-complaint'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet', 'notice-of-action', 'sj-notice-of-motion', 'sj-affidavit', 'sj-factum', 'affidavit-of-service', 'rule49-withdrawal', 'rule49-acceptance', 'costs-outline', 'esa-filing-sheet', 'scc-filing-sheet', 'notice-of-arbitration', 'particulars', 'production-request', 'settlement-memorandum', 'ohsa-reprisal-complaint'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -1639,6 +1639,19 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       'settlement-memorandum': 'settlement_memorandum',
       'ohsa-reprisal-complaint': 'ohsa_reprisal_complaint',
     };
+
+    // An approved review may carry a Word file the reviewer uploaded; that
+    // file, not a regeneration from html, is the version of record.
+    const canonicalType = docTypeMap[docType] ?? docType.replace(/-/g, '_');
+    const docKey = findGeneratedDocKey(matterData, canonicalType);
+    const uploaded = docKey ? (matterData[docKey] as Record<string, unknown>).uploadedDocx as { b64?: string; filename?: string } | undefined : undefined;
+    if (uploaded?.b64) {
+      const safe = `${(uploaded.filename ?? title).replace(/[^a-zA-Z0-9\-_. ]/g, '').trim() || 'document'}`;
+      return reply
+        .header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        .header('Content-Disposition', `attachment; filename="${safe.endsWith('.docx') ? safe : `${safe}.docx`}"`)
+        .send(Buffer.from(uploaded.b64, 'base64'));
+    }
 
     const buffer = await htmlToDocx(html, {
       title,
@@ -1898,6 +1911,17 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     if (!key) return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
 
     const doc = (matter as Record<string, unknown>)[key] as Record<string, unknown>;
+
+    // Review lane guard: a document with an open review cannot be marked
+    // sent or filed until the review is approved or withdrawn.
+    if (parsed.data.status === 'sent' || parsed.data.status === 'filed') {
+      const { getOpenReviewForDoc } = await import('../../employment/document-reviews.js');
+      const open = getOpenReviewForDoc(matterId, parsed.data.docType);
+      if (open && open.status !== 'approved') {
+        return reply.status(409).send({ ok: false, error: 'This document is in the approval queue. It can be marked sent or filed once the review is approved or withdrawn.' });
+      }
+    }
+
     const statusDate = parsed.data.date ?? new Date().toISOString().slice(0, 10);
     doc.status = parsed.data.status;
     doc.statusDate = statusDate;

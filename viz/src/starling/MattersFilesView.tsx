@@ -144,6 +144,9 @@ export default function MattersFilesView() {
           <a href="#/matters" aria-current="page" style={{ padding: '8px 14px', borderRadius: 2, fontSize: 14, color: '#fff', border: '1px solid rgba(255,255,255,0.25)', textDecoration: 'none' }}>
             Files
           </a>
+          <a href="#/approvals" style={{ padding: '8px 14px', borderRadius: 2, fontSize: 14, color: '#cfd6e0', border: '1px solid transparent', textDecoration: 'none' }}>
+            Approvals
+          </a>
           <a href="#/new-matter" style={{ padding: '8px 14px', borderRadius: 2, fontSize: 14, color: '#cfd6e0', border: '1px solid transparent', textDecoration: 'none' }}>
             New Matter
           </a>

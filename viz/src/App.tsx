@@ -74,6 +74,7 @@ const ShowcaseView = lazy(() => import('./showcase/ShowcaseView.js'));
 const StarlingDashboard = lazy(() => import('./starling/StarlingDashboard.js'));
 const TasksView = lazy(() => import('./starling/TasksView.js'));
 const MattersFilesView = lazy(() => import('./starling/MattersFilesView.js'));
+const ApprovalsView = lazy(() => import('./starling/ApprovalsView.js'));
 const NewMatterView = lazy(() => import('./starling/NewMatterView.js'));
 const MatterDetailView = lazy(() => import('./starling/MatterDetailView.js'));
 const ClientIntakeView = lazy(() => import('./starling/ClientIntakeView.js'));
@@ -81,7 +82,7 @@ const ProcessingView = lazy(() => import('./starling/ProcessingView.js'));
 const ResultsView = lazy(() => import('./starling/ResultsView.js'));
 const BillingView = lazy(() => import('./billing/BillingView.js'));
 
-type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results' | 'billing' | 'client-intake' | 'tasks' | 'matters-files';
+type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results' | 'billing' | 'client-intake' | 'tasks' | 'matters-files' | 'approvals';
 
 function getViewFromHash(): AppView {
   const hash = window.location.hash;
@@ -109,6 +110,7 @@ function getViewFromHash(): AppView {
   if (hash.startsWith('#/client-intake')) return 'client-intake';
   if (hash.startsWith('#/new-matter')) return 'new-matter';
   if (hash.startsWith('#/tasks')) return 'tasks';
+  if (hash.startsWith('#/approvals')) return 'approvals';
   if (hash.startsWith('#/matter-detail')) return 'matter-detail';
   if (hash.startsWith('#/matters')) return 'matters-files';
   if (hash.startsWith('#/processing')) return 'starling-processing';
@@ -216,7 +218,7 @@ export function App() {
   }, [view]);
 
   // Redirect to login if not authenticated on protected Starling views
-  const PROTECTED_VIEWS: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'tasks', 'matters-files'];
+  const PROTECTED_VIEWS: AppView[] = ['starling-dashboard', 'new-matter', 'matter-detail', 'starling-processing', 'starling-results', 'tasks', 'matters-files', 'approvals'];
   useEffect(() => {
     if (!userCtx?.user && PROTECTED_VIEWS.includes(view) && !IS_STANDALONE) {
       window.location.hash = '#/login';
@@ -603,7 +605,7 @@ export function App() {
   // ── View rendering ────────────────────────────────────────────────────
 
   // ── Global M mark — hide on landing (custom cursor) & working (tight header) ──
-  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard' && view !== 'new-matter' && view !== 'matter-detail' && view !== 'starling-processing' && view !== 'starling-results' && view !== 'billing' && view !== 'client-intake' && view !== 'tasks' && view !== 'matters-files';
+  const showMark = view !== 'quickstart' && view !== 'landing' && view !== 'lobby' && view !== 'foyer' && view !== 'partner' && view !== 'login' && view !== 'working' && view !== 'starling-dashboard' && view !== 'new-matter' && view !== 'matter-detail' && view !== 'starling-processing' && view !== 'starling-results' && view !== 'billing' && view !== 'client-intake' && view !== 'tasks' && view !== 'matters-files' && view !== 'approvals';
 
   // ── Global API error handler (listens for shem:api-error events) ────
   useEffect(() => {
@@ -1330,6 +1332,21 @@ export function App() {
         {verifyBanner}
         <Suspense fallback={<ViewFallback text="Loading tasks..." />}>
           <TasksView />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // ── Approvals — firm document review queue ──────────────────────────
+  if (view === 'approvals') {
+    return (
+      <ErrorBoundary>
+        {skipLink}
+        {toast}
+        {offlineBanner}
+        {verifyBanner}
+        <Suspense fallback={<ViewFallback text="Loading approvals..." />}>
+          <ApprovalsView />
         </Suspense>
       </ErrorBoundary>
     );

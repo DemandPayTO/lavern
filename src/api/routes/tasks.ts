@@ -24,6 +24,7 @@ import {
   setTaskDigestOptIn, isTaskDigestOptedIn, getUserById,
 } from '../../db/database.js';
 import { collectDeadlines, type DeadlineItem } from '../../employment/deadlines.js';
+import { reviewDeadlineItems } from '../../employment/document-reviews.js';
 import { actionItemId, type ActionItem, type DebriefEntry } from '../../employment/debrief.js';
 
 // ── TaskRow ─────────────────────────────────────────────────────────────
@@ -147,14 +148,18 @@ export function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterO
   }
   // Deadlines from the shared collector; its action_item entries are skipped
   // because the debrief walk above already emitted them with their real ids.
-  for (const d of collectDeadlines(rows)) {
+  // Approval-queue items ride the same walk. Their labels carry file
+  // numbers only, and their matters may belong to a colleague, so the
+  // parsed-matter lookup deliberately misses them.
+  const firmId = getUserById(userId)?.firm_id ?? 'local-firm';
+  for (const d of [...collectDeadlines(rows), ...reviewDeadlineItems(firmId, userId)]) {
     if (d.kind === 'action_item') continue;
     const parsed = parsedById.get(d.matterId);
     tasks.push({
       id: `${d.matterId}-${d.kind}-${d.date}`,
       matterId: d.matterId,
       matterLabel: d.matterLabel,
-      fileNumber: parsed?.fileNumber ?? d.matterId,
+      fileNumber: parsed?.fileNumber ?? (d.kind === 'approval' ? d.matterLabel : d.matterId),
       title: d.label,
       source: 'deadline',
       kind: d.kind,
@@ -356,9 +361,10 @@ export function registerTaskRoutes(fastify: FastifyInstance): void {
       const parsed = parseMatterRow(row);
       if (parsed) fileNumbers.set(row.id, parsed.fileNumber);
     }
-    const items = collectDeadlines(rows).map((d) => ({
+    const feedFirmId = getUserById(userId)?.firm_id ?? 'local-firm';
+    const items = [...collectDeadlines(rows), ...reviewDeadlineItems(feedFirmId, userId)].map((d) => ({
       ...d,
-      matterLabel: fileNumbers.get(d.matterId) ?? d.matterId,
+      matterLabel: fileNumbers.get(d.matterId) ?? (d.kind === 'approval' ? d.matterLabel : d.matterId),
     }));
     const { buildDocketIcs } = await import('../../employment/docket-ics.js');
     return reply
