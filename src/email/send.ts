@@ -131,10 +131,15 @@ async function send(payload: EmailPayload): Promise<boolean> {
         break;
       }
 
+      // Resend's message id is the only handle for tracing what happened to
+      // a message AFTER acceptance (delivered, bounced, or spam-filtered at
+      // the recipient's host). Acceptance alone does not mean delivery, so
+      // log the id: it is what you search for in the Resend dashboard.
+      const messageId = (result as { data?: { id?: string } })?.data?.id ?? null;
       if (attempt > 1) {
-        logger.info('email_sent_after_retry', { subject: payload.subject, to: payload.to, attempts: attempt });
+        logger.info('email_sent_after_retry', { subject: payload.subject, to: payload.to, attempts: attempt, messageId });
       } else {
-        logger.info('email_sent', { subject: payload.subject, to: payload.to });
+        logger.info('email_sent', { subject: payload.subject, to: payload.to, messageId });
       }
       return true;
     } catch (err) {
