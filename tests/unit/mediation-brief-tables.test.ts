@@ -197,3 +197,56 @@ describe('buildMediationFrontMatter', () => {
     expect(fm.flags.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+
+describe('firm-shaped profile table (style profile rowSpec)', () => {
+  const intake = {
+    client_first_name: 'Aisha', client_last_name: 'Osei',
+    employer_legal_name: 'Brightpath Financial Group Inc',
+    job_title: 'Senior Analyst', hire_date: '2019-09-03', termination_date: '2026-04-20',
+    annual_salary: 110000, was_terminated: true, termination_clause_exists: false,
+  } as never;
+  const analysis = {
+    bardalFactors: { age: 47, tenureYears: 6.6, character: 'Specialised analytical role', availability: 'Limited comparable roles' },
+    damagesEstimate: { esaNoticeWeeks: 6, esaNoticePay: 12692, esaSeverancePay: 13962, commonLawLowMonths: 8, commonLawHighMonths: 12, commonLawLowAmount: 73333, commonLawHighAmount: 110000, additionalHeads: [], totalEstimateLow: 73333, totalEstimateHigh: 110000 },
+    timeline: [], gates: [], limitationDeadline: { date: '2028-04-20', daysRemaining: 600, urgent: false },
+    recommendedProcedure: 'simplified',
+  } as never;
+
+  it('renders the firm labels in the firm order with the matter values', () => {
+    const { html, flags } = buildProfileTable(intake, analysis, [
+      'Name of Employee', 'Age at Dismissal', 'Length of Service', 'Position Held',
+      'Annual Compensation', 'Reasonable Notice Sought',
+    ]);
+    const order = ['Name of Employee', 'Age at Dismissal', 'Length of Service', 'Position Held', 'Annual Compensation', 'Reasonable Notice Sought'];
+    let last = -1;
+    for (const label of order) {
+      const at = html.indexOf(label);
+      expect(at, label).toBeGreaterThan(last);
+      last = at;
+    }
+    expect(html).toContain('Aisha Osei');
+    expect(html).toContain('47');
+    expect(html).toContain('6.6 years');
+    expect(html).toContain('Senior Analyst');
+    expect(html).toContain('$110,000');
+    expect(html).toContain('8 to 12 months');
+    expect(flags).toEqual([]);
+  });
+
+  it('keeps an unmappable firm row visible as [LAWYER: complete] and flags it', () => {
+    const { html, flags } = buildProfileTable(intake, analysis, [
+      'Age at Dismissal', 'Family Circumstances', 'Professional Designations',
+    ]);
+    expect(html).toContain('Family Circumstances');
+    expect(html).toContain('[LAWYER: complete]');
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toContain('Family Circumstances');
+    expect(flags[0]).toContain('Professional Designations');
+  });
+
+  it('falls back to the standard table when the spec is too thin to be a table', () => {
+    const { html } = buildProfileTable(intake, analysis, ['Age']);
+    expect(html).toContain('Age at dismissal');
+  });
+});

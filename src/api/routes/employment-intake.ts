@@ -221,6 +221,98 @@ export function collectGeneratedDocuments(matter: Record<string, unknown>): Gene
   return out;
 }
 
+/**
+ * Recompute the deterministic analysis (timeline, gates, damages, Bardal,
+ * limitation, procedure) from the CURRENT intake, in place, and stamp when
+ * it happened. Called by the analyze route, and by the generation routes
+ * whenever the intake is newer than the analysis, so stale figures never
+ * feed a document silently. No model call.
+ */
+function recomputeAnalysis(employment: EmploymentMatterData): void {
+  const intake = employment.intake;
+
+  // Timeline (preserving rebuild — lawyer entries and ticklers survive)
+  employment.timeline = rebuildTimelinePreserving(employment.timeline, intake);
+
+  // Gates
+  employment.gates = evaluateGates(intake);
+
+  // Bardal factors
+  const bardal = computeBardalFactors(intake);
+
+  // Limitation deadline
+  const limitation = computeLimitationDeadline(intake.termination_date);
+
+  // ESA calculation (simplified — full version would mirror DemandPay's calculator)
+  const salary = intake.annual_salary ?? 0;
+  const startDate = intake.hire_date ?? intake.first_day_of_work;
+  const endDate = intake.termination_date;
+  let tenureYears = 0;
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+      tenureYears = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    }
+  }
+
+  const weeklySalary = salary / 52;
+  const esaNoticeWeeks = Math.min(8, Math.max(0, Math.floor(tenureYears)));
+  const esaNoticePay = Math.round(esaNoticeWeeks * weeklySalary);
+  // ESA severance: only if 5+ years and employer payroll >= $2.5M (we assume yes for estimate)
+  const esaSeverancePay = tenureYears >= 5 ? Math.round(Math.min(26, tenureYears) * weeklySalary) : 0;
+
+  // Common law reasonable notice (simplified Bardal estimate)
+  const age = bardal.age ?? 45;
+  const ageAdd = age >= 60 ? 4 : age >= 50 ? 3 : age >= 40 ? 2 : age >= 30 ? 1 : 0;
+  const clLowMonths = Math.min(24, Math.max(1, Math.round(tenureYears + ageAdd * 0.4)));
+  const clHighMonths = Math.min(24, Math.round(tenureYears * 1.3 + ageAdd + 1));
+  const monthlySalary = salary / 12;
+  const clLow = Math.round(monthlySalary * clLowMonths);
+  const clHigh = Math.round(monthlySalary * clHighMonths);
+
+  const totalLow = Math.max(esaNoticePay + esaSeverancePay, clLow);
+  const totalHigh = clHigh;
+
+  employment.analysis = {
+    timeline: employment.timeline,
+    gates: employment.gates,
+    damagesEstimate: {
+      esaNoticeWeeks,
+      esaNoticePay,
+      esaSeverancePay,
+      commonLawLowMonths: clLowMonths,
+      commonLawHighMonths: clHighMonths,
+      commonLawLowAmount: clLow,
+      commonLawHighAmount: clHigh,
+      additionalHeads: [] as Array<{ name: string; basis: string; estimatedAmount?: number }>,
+      totalEstimateLow: totalLow,
+      totalEstimateHigh: totalHigh,
+    },
+    bardalFactors: bardal,
+    limitationDeadline: limitation ?? { date: '', daysRemaining: 0, urgent: false },
+    recommendedProcedure: recommendProcedure(totalHigh),
+  };
+  employment.analysisRevisedAt = new Date().toISOString();
+}
+
+/**
+ * The generation-time freshness guard: when the intake changed after the
+ * analysis was computed, recompute before drafting. Deterministic and
+ * cheap, so silently doing the right thing beats refusing.
+ * Returns true when a recompute happened (surfaced to the lawyer).
+ */
+function ensureAnalysisFresh(employment: EmploymentMatterData): boolean {
+  if (!employment.analysis) return false;
+  const revised = employment.intakeRevisedAt;
+  const analysed = employment.analysisRevisedAt;
+  if (revised && (!analysed || analysed < revised)) {
+    recomputeAnalysis(employment);
+    return true;
+  }
+  return false;
+}
+
 // ── Route registration ───────────────────────────────────────────────────
 
 export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
@@ -315,84 +407,19 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
 
     const { matter, employment } = loadEmploymentData(row.data_json);
-    const intake = employment.intake;
-
-    // Timeline (preserving rebuild — lawyer entries and ticklers survive)
-    employment.timeline = rebuildTimelinePreserving(employment.timeline, intake);
-
-    // Gates
-    employment.gates = evaluateGates(intake);
-
-    // Bardal factors
-    const bardal = computeBardalFactors(intake);
-
-    // Limitation deadline
-    const limitation = computeLimitationDeadline(intake.termination_date);
-
-    // ESA calculation (simplified — full version would mirror DemandPay's calculator)
-    const salary = intake.annual_salary ?? 0;
-    const startDate = intake.hire_date ?? intake.first_day_of_work;
-    const endDate = intake.termination_date;
-    let tenureYears = 0;
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-        tenureYears = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-      }
-    }
-
-    const weeklySalary = salary / 52;
-    const esaNoticeWeeks = Math.min(8, Math.max(0, Math.floor(tenureYears)));
-    const esaNoticePay = Math.round(esaNoticeWeeks * weeklySalary);
-    // ESA severance: only if 5+ years and employer payroll >= $2.5M (we assume yes for estimate)
-    const esaSeverancePay = tenureYears >= 5 ? Math.round(Math.min(26, tenureYears) * weeklySalary) : 0;
-
-    // Common law reasonable notice (simplified Bardal estimate)
-    const age = bardal.age ?? 45;
-    const ageAdd = age >= 60 ? 4 : age >= 50 ? 3 : age >= 40 ? 2 : age >= 30 ? 1 : 0;
-    const clLowMonths = Math.min(24, Math.max(1, Math.round(tenureYears + ageAdd * 0.4)));
-    const clHighMonths = Math.min(24, Math.round(tenureYears * 1.3 + ageAdd + 1));
-    const monthlySalary = salary / 12;
-    const clLow = Math.round(monthlySalary * clLowMonths);
-    const clHigh = Math.round(monthlySalary * clHighMonths);
-
-    const totalLow = Math.max(esaNoticePay + esaSeverancePay, clLow);
-    const totalHigh = clHigh;
-
-    const analysis = {
-      timeline: employment.timeline,
-      gates: employment.gates,
-      damagesEstimate: {
-        esaNoticeWeeks,
-        esaNoticePay,
-        esaSeverancePay,
-        commonLawLowMonths: clLowMonths,
-        commonLawHighMonths: clHighMonths,
-        commonLawLowAmount: clLow,
-        commonLawHighAmount: clHigh,
-        additionalHeads: [] as Array<{ name: string; basis: string; estimatedAmount?: number }>,
-        totalEstimateLow: totalLow,
-        totalEstimateHigh: totalHigh,
-      },
-      bardalFactors: bardal,
-      limitationDeadline: limitation ?? { date: '', daysRemaining: 0, urgent: false },
-      recommendedProcedure: recommendProcedure(totalHigh),
-    };
-
-    employment.analysis = analysis;
+    recomputeAnalysis(employment);
     await saveEmploymentData(userId, matterId, matter, employment);
 
     logger.info('Analysis complete', {
       userId,
       matterId,
       triggeredGates: employment.gates.filter(g => g.triggered).length,
-      estimatedDamagesHigh: totalHigh,
-      recommendedProcedure: analysis.recommendedProcedure,
-      limitationUrgent: limitation?.urgent ?? false,
+      estimatedDamagesHigh: employment.analysis?.damagesEstimate.totalEstimateHigh,
+      recommendedProcedure: employment.analysis?.recommendedProcedure,
+      limitationUrgent: employment.analysis?.limitationDeadline.urgent ?? false,
     });
 
-    return reply.send({ ok: true, analysis });
+    return reply.send({ ok: true, analysis: employment.analysis });
   });
 
   // ── GET /api/employment/deadlines ──────────────────────────────────────
@@ -1317,6 +1344,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (!employment.intake || !employment.analysis) {
       return reply.status(400).send({ ok: false, error: 'Complete intake and run analysis before generating a demand letter.' });
     }
+    ensureAnalysisFresh(employment);
 
     // Verify at least one issue is approved
     if (employment.approvedIssues.length === 0) {
@@ -1425,6 +1453,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (!employment.intake || !employment.analysis) {
       return reply.status(400).send({ ok: false, error: 'Complete intake and analysis first.' });
     }
+    ensureAnalysisFresh(employment);
     if (employment.approvedIssues.length === 0) {
       return reply.status(400).send({ ok: false, error: 'Approve at least one legal issue first.' });
     }
@@ -1506,6 +1535,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (!employment.intake || !employment.analysis) {
       return reply.status(400).send({ ok: false, error: 'Complete intake and analysis first.' });
     }
+    ensureAnalysisFresh(employment);
 
     const definedTerms: string[] = [];
     if (employment.intake.client_first_name && employment.intake.client_last_name) {
@@ -1593,6 +1623,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (!employment.intake || !employment.analysis) {
       return reply.status(400).send({ ok: false, error: 'Complete intake and analysis first.' });
     }
+    // Facts changed since the analysis ran? Recompute before drafting so
+    // the damages table and clocks reflect the current intake, and say so.
+    const analysisRefreshed = ensureAnalysisFresh(employment);
 
     const definedTerms: string[] = [];
     if (employment.intake.client_first_name && employment.intake.client_last_name) {
@@ -1661,6 +1694,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let styleContext: string | undefined;
     let styleIdentifiers: string[] = [];
     let styleLabel = '';
+    let styleTypicalWords: number | undefined;
+    let styleProfileTableRows: string[] | undefined;
     if (parsed.data.styleProfileId) {
       const firmIdForStyle = resolveFirmId(req);
       const profile = firmIdForStyle ? getStyleProfile(firmIdForStyle, parsed.data.styleProfileId) : undefined;
@@ -1674,6 +1709,22 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       styleContext = styleContextForPrompt(guide.data, profile.label);
       try { styleIdentifiers = JSON.parse(profile.identifiers_json) as string[]; } catch { styleIdentifiers = []; }
       styleLabel = profile.label;
+      styleTypicalWords = guide.data.typicalWords;
+      styleProfileTableRows = guide.data.profileTableRows;
+    }
+
+    // Mediation logistics: the date is validated like every other
+    // lawyer-typed date (ambiguity refused, never guessed) and docketed
+    // below as a real scheduled proceeding.
+    let mediationDateIso: string | undefined;
+    if (parsed.data.documentType === 'mediation_brief' && parsed.data.formFields?.mediation_date) {
+      const { normaliseDate } = await import('../../employment/date-normalise.js');
+      const norm = normaliseDate(String(parsed.data.formFields.mediation_date));
+      if (!norm.value) {
+        return reply.status(400).send({ ok: false, error: `Mediation date: ${norm.reason}` });
+      }
+      mediationDateIso = norm.value;
+      parsed.data.formFields.mediation_date = norm.value;
     }
 
     let result;
@@ -1694,6 +1745,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         comparables,
         comparableRange,
         negotiationEntries,
+        styleTypicalWords,
+        styleProfileTableRows,
       }, definedTerms);
     } catch (err) {
       // Deterministic court forms validate their inputs and fail with a
@@ -1745,6 +1798,24 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // than court deadlines and are replaced (not duplicated) if the document
     // is regenerated with different dates.
     let docketed = 0;
+    if (mediationDateIso) {
+      // A scheduled mediation is a commitment, not a proposal: it goes on
+      // as a real deadline, replaced (not duplicated) on regeneration.
+      const mediatorName = typeof parsed.data.formFields?.mediator_name === 'string' ? parsed.data.formFields.mediator_name : '';
+      const label = 'Mediation';
+      employment.timeline = [
+        ...employment.timeline.filter(ev => ev.label !== label),
+        {
+          date: mediationDateIso,
+          label,
+          description: `Mediation${mediatorName ? ` before ${mediatorName}` : ''}. Serve the brief in good time beforehand.`,
+          category: 'legal' as const,
+          source: 'system' as const,
+          courtDeadline: true,
+        },
+      ].sort((a, b) => a.date.localeCompare(b.date));
+      docketed += 1;
+    }
     if (timetableDates && Object.keys(timetableDates).length > 0) {
       const tt = await import('../../employment/timetable.js');
       const events = tt.timetableTimelineEvents(timetableDates);
@@ -1767,7 +1838,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       citations: result.citations,
       costUsd: result.costUsd,
       ...(docketed > 0 ? { docketedDates: docketed } : {}),
-      ...(timetableCautions.length > 0 ? { cautions: timetableCautions } : {}),
+      ...(timetableCautions.length > 0 || analysisRefreshed ? {
+        cautions: [
+          ...(analysisRefreshed ? ['The facts changed after the last analysis, so the analysis was recomputed from the current intake before drafting.'] : []),
+          ...timetableCautions,
+        ],
+      } : {}),
     });
   });
 

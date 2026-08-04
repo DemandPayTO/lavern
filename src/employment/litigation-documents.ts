@@ -66,6 +66,10 @@ export interface LitigationDocumentRequest {
   approvedIssues: string[];
   analysis: IntakeAnalysisResult;
   documentType: LitigationDocumentType;
+  /** Firm style depth: typical word count learned from the precedents. Scales the output budget. */
+  styleTypicalWords?: number;
+  /** Firm opening-table row labels from the style profile (mediation brief). */
+  styleProfileTableRows?: string[] | null;
   /** Claim amount (for mediation brief settlement range context). */
   claimAmount?: number;
   lawyerName: string;
@@ -671,6 +675,7 @@ export async function generateLitigationDocument(
         comparables: req.comparables,
         comparableRange: req.comparableRange,
         negotiationEntries: req.negotiationEntries,
+        profileTableRows: req.styleProfileTableRows,
       })
     : null;
 
@@ -692,7 +697,9 @@ export async function generateLitigationDocument(
       system: systemPrompt,
       user: userPrompt,
       tier: getModelTier(req.documentType),
-      maxTokens: 10240,
+      maxTokens: req.styleTypicalWords
+        ? Math.min(28_000, Math.max(10_240, Math.ceil(req.styleTypicalWords * 2.2)))
+        : 10_240,
       maxRetries: 2,
       timeoutMs: getTimeoutMs(req.documentType),
       definedTerms: definedTerms ?? undefined,
@@ -725,7 +732,12 @@ export async function generateLitigationDocument(
     // (client-controlled), and the assembled HTML is rendered in the
     // dashboard via dangerouslySetInnerHTML.
     const plaintiff = esc([req.intake.client_first_name, req.intake.client_last_name].filter(Boolean).join(' '));
-    const titleBlock = `<h1>Mediation Brief of the Plaintiff${plaintiff ? `, ${plaintiff}` : ''}</h1>`;
+    const mediationDate = typeof req.formFields?.mediation_date === 'string' ? req.formFields.mediation_date : '';
+    const mediatorName = typeof req.formFields?.mediator_name === 'string' ? req.formFields.mediator_name : '';
+    const logistics = mediationDate || mediatorName
+      ? `<p><strong>Mediation${mediationDate ? ` scheduled for ${esc(mediationDate)}` : ''}${mediatorName ? ` before ${esc(mediatorName)}` : ''}.</strong></p>`
+      : '';
+    const titleBlock = `<h1>Mediation Brief of the Plaintiff${plaintiff ? `, ${plaintiff}` : ''}</h1>${logistics ? `\n${logistics}` : ''}`;
     // Factum convention: narrative paragraphs numbered consecutively,
     // deterministically (the tables and title are not numbered).
     html = [titleBlock, frontMatter.html, numberNarrativeParagraphs(html)].filter(Boolean).join('\n\n');

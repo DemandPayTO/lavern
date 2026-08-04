@@ -463,6 +463,10 @@ const TIMETABLE_FIELDS: CourtFieldDef[] = [
 ];
 
 const COURT_FORM_FIELDS: Record<string, CourtFieldDef[]> = {
+  mediation: [
+    { key: 'mediation_date', label: 'Mediation date (goes on your docket)', type: 'date' },
+    { key: 'mediator_name', label: 'Mediator', placeholder: 'e.g., R. Fisher' },
+  ],
   sptimetable: TIMETABLE_FIELDS,
   consenttimetable: TIMETABLE_FIELDS,
   timetableorder: TIMETABLE_FIELDS,
@@ -1554,7 +1558,12 @@ export default function MatterDetailView() {
                 }}
                 downloadHref={(dt) => {
                   const slug = downloadSlugFor(dt);
-                  return slug && sessionId ? `/api/employment/${sessionId}/download/${slug}` : null;
+                  if (!slug || !sessionId) return null;
+                  // The variant picked on the Draft tab travels with the
+                  // download; other types render on their default template.
+                  const variant = dt === selectedTemplateDocType && activeVariant
+                    ? `?templateVariantId=${encodeURIComponent(activeVariant.variantId)}` : '';
+                  return `/api/employment/${sessionId}/download/${slug}${variant}`;
                 }}
                 renderExtra={approvalsEnabled && sessionId
                   ? (dt) => (

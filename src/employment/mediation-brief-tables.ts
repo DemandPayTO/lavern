@@ -29,6 +29,8 @@ export interface MediationFrontMatterInput {
   comparableRange?: CaseBasedRange | null;
   negotiationEntries?: NegotiationEntry[] | null;
   negotiationSummary?: NegotiationSummary | null;
+  /** The firm's opening-table row labels from its style profile, when learned. */
+  profileTableRows?: string[] | null;
 }
 
 export interface MediationFrontMatter {
@@ -51,7 +53,81 @@ function row(label: string, value: string): string {
 
 // ── 1. Plaintiff profile (the Bardal table) ──────────────────────────────
 
-export function buildProfileTable(intake: EmploymentIntakeData, analysis: IntakeAnalysisResult): { html: string; flags: string[] } {
+/**
+ * When a style profile learned the firm's own opening-table row labels,
+ * the table is rendered in THAT shape: the firm's labels, the firm's
+ * order, the matter's real values. A label Starling cannot map to a known
+ * field renders as [LAWYER: complete] and is flagged, so the firm's
+ * structure survives with its holes visible instead of silently replaced
+ * by the generic layout. Values never come from the model either way.
+ */
+function firmShapedProfileTable(
+  intake: EmploymentIntakeData,
+  analysis: IntakeAnalysisResult,
+  rowSpec: string[],
+): { html: string; flags: string[] } {
+  const flags: string[] = [];
+  const b = analysis.bardalFactors;
+  const d = analysis.damagesEstimate;
+  const name = [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ');
+  const employer = intake.employer_legal_name ?? intake.employer_operating_name;
+  const start = intake.hire_date ?? intake.first_day_of_work;
+  const comp: string[] = [];
+  if (intake.annual_salary) comp.push(`Base salary ${cad(intake.annual_salary)} per year`);
+  if (intake.has_bonus && intake.bonus_amount) comp.push(`bonus ${cad(intake.bonus_amount)}`);
+  if (intake.has_commissions && intake.commission_amount) comp.push(`commissions ${cad(intake.commission_amount)}`);
+  const dismissalType = intake.was_terminated
+    ? (intake.employer_alleged_just_cause ? 'Termination; employer alleges just cause' : 'Termination without cause')
+    : intake.is_constructive_dismissal ? 'Constructive dismissal (alleged)' : null;
+
+  // Keyword → value resolvers. First match wins; order the specific
+  // before the general ("date of termination" before "termination").
+  const resolvers: Array<[RegExp, () => string | null]> = [
+    [/plaintiff|client name|employee(?!r)|grievor/i, () => name || null],
+    [/employer|defendant|respondent|company/i, () => employer ?? null],
+    [/age/i, () => b.age != null ? String(b.age) : null],
+    [/(length|years) of (service|employment)|tenure|service/i, () =>
+      b.tenureYears != null ? `${start ?? ''}${start && intake.termination_date ? ' to ' : ''}${intake.termination_date ?? ''} (${b.tenureYears} years)`.trim() : null],
+    [/date of (hire|start)|start date|hired/i, () => start ?? null],
+    [/date of (termination|dismissal)|termination date|dismissed/i, () => intake.termination_date ?? null],
+    [/position|title|role|occupation/i, () => intake.job_title ?? null],
+    [/character of (the )?employment|character/i, () => b.character ?? null],
+    [/availability|comparable employment|similar employment|re-?employment/i, () => b.availability ?? null],
+    [/compensation|salary|income|remuneration|earnings/i, () => comp.length ? comp.join('; ') : null],
+    [/notice (period )?(sought|claimed|range)|reasonable notice/i, () =>
+      d.commonLawHighMonths > 0 ? `${d.commonLawLowMonths} to ${d.commonLawHighMonths} months` : null],
+    [/type of (dismissal|termination)|nature of (the )?dismissal/i, () => dismissalType],
+    [/termination clause|written contract|employment (agreement|contract)/i, () =>
+      intake.termination_clause_exists === true ? 'Yes; enforceability in issue'
+        : intake.termination_clause_exists === false ? 'None' : null],
+    [/mitigation/i, () => null],   // always case-specific; leave for the lawyer
+  ];
+
+  const rows: string[] = [];
+  const unmapped: string[] = [];
+  for (const label of rowSpec) {
+    let value: string | null = null;
+    for (const [pattern, resolve] of resolvers) {
+      if (pattern.test(label)) { value = resolve(); break; }
+    }
+    if (value) {
+      rows.push(row(label, esc(value)));
+    } else {
+      rows.push(row(label, '<em>[LAWYER: complete]</em>'));
+      unmapped.push(label);
+    }
+  }
+  if (unmapped.length > 0) {
+    flags.push(`Profile table follows your firm's layout; complete these rows by hand before service: ${unmapped.join('; ')}.`);
+  }
+  return {
+    html: `<h2>Profile of the Plaintiff</h2>\n<table>\n${rows.join('\n')}\n</table>`,
+    flags,
+  };
+}
+
+export function buildProfileTable(intake: EmploymentIntakeData, analysis: IntakeAnalysisResult, rowSpec?: string[] | null): { html: string; flags: string[] } {
+  if (rowSpec && rowSpec.length >= 3) return firmShapedProfileTable(intake, analysis, rowSpec);
   const flags: string[] = [];
   const b = analysis.bardalFactors;
   const rows: string[] = [];
@@ -203,7 +279,7 @@ export function numberNarrativeParagraphs(html: string): string {
 // ── Composition ──────────────────────────────────────────────────────────
 
 export function buildMediationFrontMatter(input: MediationFrontMatterInput): MediationFrontMatter {
-  const profile = buildProfileTable(input.intake, input.analysis);
+  const profile = buildProfileTable(input.intake, input.analysis, input.profileTableRows);
   const damages = buildDamagesTable(input.intake, input.analysis);
   const comparables = buildComparablesTable(input.comparables, input.comparableRange);
   const negotiation = buildNegotiationTable(input.negotiationEntries);

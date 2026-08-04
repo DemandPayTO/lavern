@@ -407,6 +407,8 @@ export interface EmploymentMatterData {
   documentExtractions: DocumentExtractionResult[];
   /** Full intake analysis (damages, Bardal, limitations, procedure). */
   analysis: IntakeAnalysisResult | null;
+  /** When the analysis was last computed. Compared against intakeRevisedAt so stale figures never feed a document silently. */
+  analysisRevisedAt?: string;
   /** Lawyer's chosen tone for demand letter. */
   selectedTone: typeof TONE_OPTIONS[number];
   /** Lawyer's chosen procedure type (may override recommendation). */
