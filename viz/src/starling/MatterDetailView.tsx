@@ -2341,6 +2341,24 @@ export default function MatterDetailView() {
           {/* Intake editor */}
           {activeTab === 'intake' && (
             <div id="panel-intake" role="tabpanel" style={{ paddingTop: 22 }}>
+              {/* The lawyer's own record comes first. The client portal
+                  used to sit on top of it, which made the intake look as
+                  though it could only be filled by sending the client a
+                  link. */}
+
+              <IntakeEditorPanel
+                fields={EMPLOYMENT_INTAKE_FIELDS}
+                values={(employment.data?.intake ?? {}) as Record<string, unknown>}
+                onSave={async (edited) => {
+                  const merged: Record<string, unknown> = { ...((employment.data?.intake ?? {}) as Record<string, unknown>) };
+                  for (const [k, v] of Object.entries(edited)) {
+                    if (v === undefined) delete merged[k];
+                    else merged[k] = v;
+                  }
+                  return employment.saveIntake(merged);
+                }}
+              />
+
               {/* Client intake portal */}
               <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginBottom: 16 }}>
                 <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
@@ -2423,19 +2441,6 @@ export default function MatterDetailView() {
                   </div>
                 )}
               </div>
-
-              <IntakeEditorPanel
-                fields={EMPLOYMENT_INTAKE_FIELDS}
-                values={(employment.data?.intake ?? {}) as Record<string, unknown>}
-                onSave={async (edited) => {
-                  const merged: Record<string, unknown> = { ...((employment.data?.intake ?? {}) as Record<string, unknown>) };
-                  for (const [k, v] of Object.entries(edited)) {
-                    if (v === undefined) delete merged[k];
-                    else merged[k] = v;
-                  }
-                  return employment.saveIntake(merged);
-                }}
-              />
             </div>
           )}
 
