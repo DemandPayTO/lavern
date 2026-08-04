@@ -7,7 +7,7 @@
  * factual correction updates the matter as well as the sentence.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { navy, cream, green, amber, red, border, ink, muted, serif, sans } from './shared.js';
 
 type RevisionKind = 'factual_correction' | 'position_change' | 'wording' | 'needs_lawyer';
@@ -65,6 +65,40 @@ export function RevisionPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ changed: number; intakeApplied: string[]; analysisStale: boolean } | null>(null);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  /** Take back a Word file the client edited: read its comments and
+   *  tracked changes into the feedback box, where they are reviewed like
+   *  any other feedback. */
+  const readWordFile = useCallback(async (file: File) => {
+    setBusy(true); setError(null); setUploadNote(null);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      const res = await fetch(`/api/employment/${matterId}/revision/upload`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docType, docxBase64: btoa(binary), filename: file.name }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setError(d.error ?? 'Could not read that file.'); return; }
+      if (d.clean) {
+        setUploadNote('That file has no comments or tracked changes. If the client edited the text directly, paste what they asked for below.');
+        return;
+      }
+      setFeedback(f => (f.trim() ? `${f.trim()}\n${d.feedback}` : d.feedback));
+      const who = (d.authors as string[]).filter(Boolean).join(', ');
+      setUploadNote(
+        `Read ${d.comments} comment${d.comments === 1 ? '' : 's'} and ${d.trackedChanges} tracked change${d.trackedChanges === 1 ? '' : 's'}`
+        + `${who ? ` from ${who}` : ''}. Review them below before anything changes.`,
+      );
+    } catch {
+      setError('Could not read that file.');
+    } finally { setBusy(false); }
+  }, [matterId, docType]);
 
   const buildPlan = useCallback(async () => {
     setBusy(true); setError(null);
@@ -153,6 +187,25 @@ export function RevisionPanel({
           works out which paragraphs each point affects and proposes what to change. Nothing is edited until you
           approve it.
         </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".docx"
+          style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) void readWordFile(f); e.target.value = ''; }}
+          aria-label="Upload the edited Word file"
+        />
+        <div style={{ marginBottom: 10 }}>
+          <button onClick={() => fileRef.current?.click()} disabled={busy} style={btn()}>
+            Upload the edited Word file
+          </button>
+          <span style={{ fontSize: 12.5, color: muted, marginLeft: 10 }}>
+            or paste the feedback below
+          </span>
+        </div>
+        {uploadNote && (
+          <p role="status" style={{ fontSize: 12.5, color: navy, margin: '0 0 8px' }}>{uploadNote}</p>
+        )}
         <textarea
           value={feedback}
           onChange={e => setFeedback(e.target.value)}

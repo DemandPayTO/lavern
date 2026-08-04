@@ -2259,6 +2259,60 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     });
   });
 
+  // ── POST /api/employment/:matterId/revision/upload ─────────────────────
+  // Take back a Word file the client edited. Reads the comments and tracked
+  // changes out of the .docx and renders them as feedback, so the same
+  // planner handles them: the lawyer still approves every item. A file with
+  // no comments and no tracked changes is reported as clean rather than
+  // treated as an error, since replacing the draft outright is a separate,
+  // deliberate act.
+
+  const revisionUploadSchema = z.object({
+    docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    docxBase64: z.string().max(7_000_000),
+    filename: z.string().trim().max(300).optional(),
+  });
+
+  fastify.post('/api/employment/:matterId/revision/upload', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = revisionUploadSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid upload' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter } = loadEmploymentData(row.data_json);
+    if (!findGeneratedDocKey(matter, parsed.data.docType)) {
+      return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
+    }
+
+    const { extractDocxRevisions, revisionsAsFeedback } = await import('../../documents/docx-revisions.js');
+    let revisions;
+    try {
+      revisions = await extractDocxRevisions(Buffer.from(parsed.data.docxBase64, 'base64'));
+    } catch {
+      return reply.status(400).send({ ok: false, error: 'Could not read that file as a Word document.' });
+    }
+
+    logger.info('Revision upload read', {
+      userId, matterId, docType: parsed.data.docType,
+      comments: revisions.comments.length, trackedChanges: revisions.trackedChanges.length,
+    });
+
+    return reply.send({
+      ok: true,
+      clean: revisions.clean,
+      comments: revisions.comments.length,
+      trackedChanges: revisions.trackedChanges.length,
+      authors: [...new Set([
+        ...revisions.comments.map(c => c.author),
+        ...revisions.trackedChanges.map(c => c.author),
+      ])],
+      feedback: revisionsAsFeedback(revisions),
+    });
+  });
+
   // ── POST /api/employment/:matterId/revision/plan ───────────────────────
   // Map feedback (a client's email, or the reviewing partner's comments)
   // onto the paragraphs of a generated document. Returns a PLAN only:

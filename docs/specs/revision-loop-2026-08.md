@@ -154,8 +154,14 @@ consequence diff (what the correction changes downstream). Deliberately
 separate: it touches matter state rather than a document, and deserves its
 own testing pass.
 
-**Phase 3** — uploaded DOCX as the starting point, and tracked
-changes/comments if that is the real input format.
+**Phase 3 — SHIPPED 2026-08-04.** Upload the Word file the client edited.
+src/documents/docx-revisions.ts walks the OOXML directly (mammoth discards
+both): comments come from word/comments.xml and are ANCHORED to the passage
+they mark via commentRangeStart/End, tracked changes from inline w:ins and
+w:del runs. Each is rendered as feedback prose and fed to the same planner,
+so the lawyer still approves every item and nothing bypasses the review.
+A file with no comments and no tracked changes is reported as clean rather
+than an error, since replacing a draft outright is a separate act.
 
 Phase 1 is a session; Phase 2 is a session; Phase 3 depends on section 6.
 
