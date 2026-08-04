@@ -968,7 +968,7 @@ export default function MatterDetailView() {
   const [buildingStyle, setBuildingStyle] = useState(false);
   const [styleProfileId, setStyleProfileId] = useState('');
   const approvalsEnabled = useApprovalsEnabled();
-  const [revising, setRevising] = useState<null | { source: 'client' | 'partner'; initial?: string }>(null);
+  const [revising, setRevising] = useState<null | { source: 'client' | 'partner' | 'lawyer'; initial?: string }>(null);
 
   // Reset the choice when the document type changes, and keep a stale id
   // (deleted or renamed variant) from lingering.
@@ -2287,6 +2287,15 @@ export default function MatterDetailView() {
                       >
                         Apply feedback
                       </button>
+                      <button
+                        onClick={() => setRevising({ source: 'lawyer' })}
+                        style={{
+                          background: '#fff', color: navy, border: `1px solid ${border}`,
+                          fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                        }}
+                      >
+                        Redraft a section
+                      </button>
                       <a
                         href={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'demand-letter'}${activeVariant ? `?templateVariantId=${encodeURIComponent(activeVariant.variantId)}` : ''}`}
                         download
@@ -2350,6 +2359,9 @@ export default function MatterDetailView() {
                           docTitle={DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'document'}
                           initialFeedback={revising.initial}
                           source={revising.source}
+                          sections={(generatedHtml?.match(/<h2[^>]*>([^<]{1,120})<\/h2>/gi) ?? [])
+                            .map(h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+                            .filter(Boolean)}
                           onApplied={() => { void employment.refresh(); }}
                           onClose={() => setRevising(null)}
                         />

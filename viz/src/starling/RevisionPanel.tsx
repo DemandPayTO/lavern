@@ -51,15 +51,20 @@ export interface RevisionPanelProps {
   docTitle: string;
   /** Prefills the box when the partner asked for changes. */
   initialFeedback?: string;
-  source?: 'client' | 'partner';
+  source?: 'client' | 'partner' | 'lawyer';
+  /** Section headings of the document; enables the section-scoped redraft picker. */
+  sections?: string[];
+  /** Preselects a section for redraft. */
+  initialSection?: string;
   onApplied: () => void;
   onClose: () => void;
 }
 
 export function RevisionPanel({
-  matterId, docType, docTitle, initialFeedback, source = 'client', onApplied, onClose,
+  matterId, docType, docTitle, initialFeedback, source = 'client', sections, initialSection, onApplied, onClose,
 }: RevisionPanelProps) {
   const [feedback, setFeedback] = useState(initialFeedback ?? '');
+  const [section, setSection] = useState(initialSection ?? '');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [approved, setApproved] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
@@ -106,7 +111,7 @@ export function RevisionPanel({
       const res = await fetch(`/api/employment/${matterId}/revision/plan`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docType, feedback, source }),
+        body: JSON.stringify({ docType, feedback, source, ...(section ? { section } : {}) }),
       });
       const d = await res.json();
       if (!d.ok) { setError(d.error ?? 'Could not read that feedback.'); return; }
@@ -180,10 +185,12 @@ export function RevisionPanel({
     return (
       <div style={box}>
         <h3 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 4px' }}>
-          Apply feedback to the {docTitle.toLowerCase()}
+          {section ? `Redraft one section of the ${docTitle.toLowerCase()}` : `Apply feedback to the ${docTitle.toLowerCase()}`}
         </h3>
         <p style={{ fontSize: 13, color: muted, margin: '0 0 12px' }}>
-          Paste the {source === 'partner' ? 'reviewing lawyer' : 'client'}&rsquo;s feedback as it arrived. Starling
+          {source === 'lawyer'
+            ? 'Say what you want changed, in your own words. Starling'
+            : `Paste the ${source === 'partner' ? 'reviewing lawyer' : 'client'}\u2019s feedback as it arrived. Starling`} 
           works out which paragraphs each point affects and proposes what to change. Nothing is edited until you
           approve it.
         </p>
@@ -195,6 +202,27 @@ export function RevisionPanel({
           onChange={e => { const f = e.target.files?.[0]; if (f) void readWordFile(f); e.target.value = ''; }}
           aria-label="Upload the edited Word file"
         />
+        {(sections?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 12.5, color: muted, fontWeight: 600, marginRight: 8 }}>
+              Scope
+              <select
+                value={section}
+                onChange={e => setSection(e.target.value)}
+                aria-label="Limit the redraft to one section"
+                style={{ marginLeft: 8, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}
+              >
+                <option value="">Whole document</option>
+                {sections!.map(h => <option key={h} value={h}>Only: {h}</option>)}
+              </select>
+            </label>
+            {section && (
+              <span style={{ fontSize: 12, color: muted, marginLeft: 8 }}>
+                Every other section stays byte-identical; that is verified, not assumed.
+              </span>
+            )}
+          </div>
+        )}
         <div style={{ marginBottom: 10 }}>
           <button onClick={() => fileRef.current?.click()} disabled={busy} style={btn()}>
             Upload the edited Word file

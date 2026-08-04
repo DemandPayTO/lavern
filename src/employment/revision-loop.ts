@@ -96,6 +96,42 @@ export function paragraphText(block: string): string {
     .trim();
 }
 
+// ── Sections ─────────────────────────────────────────────────────────────
+
+/** Heading paragraph indices and their text, for section-scoped redrafts. */
+export function listSectionHeadings(paragraphs: string[]): Array<{ index: number; heading: string }> {
+  const out: Array<{ index: number; heading: string }> = [];
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (/^<h[123][\s>]/i.test(paragraphs[i])) {
+      const text = paragraphText(paragraphs[i]);
+      if (text) out.push({ index: i, heading: text });
+    }
+  }
+  return out;
+}
+
+/**
+ * The paragraph range of one section: from the paragraph after its heading
+ * to the paragraph before the next heading (end exclusive). The heading
+ * itself is excluded — a redraft rewrites content, not the document's
+ * structure. Null when no heading matches.
+ */
+export function sectionParagraphRange(
+  paragraphs: string[],
+  sectionHeading: string,
+): { start: number; end: number } | null {
+  const wanted = sectionHeading.replace(/\s+/g, ' ').trim().toLowerCase();
+  const headings = listSectionHeadings(paragraphs);
+  for (let h = 0; h < headings.length; h++) {
+    if (headings[h].heading.toLowerCase() === wanted) {
+      const start = headings[h].index + 1;
+      const end = h + 1 < headings.length ? headings[h + 1].index : paragraphs.length;
+      return start < end ? { start, end } : null;
+    }
+  }
+  return null;
+}
+
 // ── The safety property ──────────────────────────────────────────────────
 
 /**
@@ -286,18 +322,26 @@ export function buildPlannerUserPrompt(args: {
   documentTitle: string;
   paragraphs: string[];
   feedback: string;
-  source: 'client' | 'partner';
+  source: 'client' | 'partner' | 'lawyer';
+  /** Restrict the plan to one section's paragraphs. */
+  section?: { heading: string; start: number; end: number };
 }): string {
   const numbered = args.paragraphs
     .map((p, i) => `[${i}] ${paragraphText(p).slice(0, 600)}`)
     .join('\n');
+  const sourceLabel = args.source === 'partner' ? 'REVIEWING LAWYER'
+    : args.source === 'lawyer' ? 'DRAFTING LAWYER (their own redraft instructions)'
+    : 'CLIENT';
+  const sectionRule = args.section
+    ? `\n\nSCOPE: The lawyer is redrafting ONLY the section "${args.section.heading}" (paragraphs ${args.section.start} to ${args.section.end - 1}). Every item MUST target only paragraphs in that range. Feedback that touches anything outside it becomes a needs_lawyer item with no paragraph indices.`
+    : '';
   return `DOCUMENT: ${args.documentTitle}
 
 PARAGRAPHS:
 ${numbered}
 
-FEEDBACK FROM THE ${args.source === 'partner' ? 'REVIEWING LAWYER' : 'CLIENT'}:
-${args.feedback}
+FEEDBACK FROM THE ${sourceLabel}:
+${args.feedback}${sectionRule}
 
 Map each distinct piece of feedback onto the paragraphs above.`;
 }

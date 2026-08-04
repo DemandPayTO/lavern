@@ -13,7 +13,7 @@ import {
   toParagraphs, fromParagraphs, paragraphText,
   verifyOnlyApprovedChanged, applyRevisions, groundPlan,
   correctionMakesAnalysisStale, CORRECTABLE_INTAKE_FIELDS,
-  type RevisionItem,
+  type RevisionItem, listSectionHeadings, sectionParagraphRange,
 } from '../../src/employment/revision-loop.js';
 
 const DOC = [
@@ -182,5 +182,47 @@ describe('a factual correction must reach the matter, not just the text', () => 
       paras, CORRECTABLE_INTAKE_FIELDS,
     );
     expect(warnings.join(' ')).not.toMatch(/document only/i);
+  });
+});
+
+
+describe('section-scoped redraft', () => {
+  const html = [
+    '<h1>Mediation Brief of the Plaintiff</h1>',
+    '<h2>Overview</h2>', '<p>1. The case.</p>', '<p>2. More overview.</p>',
+    '<h2>Settlement Position</h2>', '<p>3. Twelve months.</p>',
+    '<h2>Practical Considerations</h2>', '<p>4. Costs.</p>',
+  ].join('\n');
+  const paragraphs = toParagraphs(html);
+
+  it('lists the document headings with their indices', () => {
+    const headings = listSectionHeadings(paragraphs);
+    expect(headings.map(h => h.heading)).toEqual([
+      'Mediation Brief of the Plaintiff', 'Overview', 'Settlement Position', 'Practical Considerations',
+    ]);
+  });
+
+  it('resolves a section to its content range, heading excluded', () => {
+    const range = sectionParagraphRange(paragraphs, 'Overview');
+    expect(range).toEqual({ start: 2, end: 4 });
+    // The last section runs to the end of the document.
+    expect(sectionParagraphRange(paragraphs, 'Practical Considerations')).toEqual({ start: 7, end: 8 });
+  });
+
+  it('matches case-insensitively and returns null for unknown headings', () => {
+    expect(sectionParagraphRange(paragraphs, 'settlement position')).toEqual({ start: 5, end: 6 });
+    expect(sectionParagraphRange(paragraphs, 'No Such Section')).toBeNull();
+  });
+
+  it('the safety property still holds for a scoped redraft', () => {
+    // A scoped apply approves only in-range paragraphs; drift anywhere
+    // else refuses the whole revision.
+    const after = [...paragraphs];
+    after[3] = '<p>2. Rewritten overview.</p>';
+    expect(verifyOnlyApprovedChanged(paragraphs, after, new Set([2, 3])).ok).toBe(true);
+    after[5] = '<p>3. Sneaky edit outside the section.</p>';
+    const out = verifyOnlyApprovedChanged(paragraphs, after, new Set([2, 3]));
+    expect(out.ok).toBe(false);
+    expect(out.drifted).toContain(5);
   });
 });

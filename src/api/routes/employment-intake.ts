@@ -2692,7 +2692,9 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
   const revisionPlanSchema = z.object({
     docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
     feedback: z.string().trim().min(1).max(20_000),
-    source: z.enum(['client', 'partner']).default('client'),
+    source: z.enum(['client', 'partner', 'lawyer']).default('client'),
+    /** Restrict the redraft to one section (its heading text, as rendered). */
+    section: z.string().trim().min(1).max(200).optional(),
   });
 
   fastify.post('/api/employment/:matterId/revision/plan', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -2714,6 +2716,22 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     const rl = await import('../../employment/revision-loop.js');
     const paragraphs = rl.toParagraphs(html);
 
+    // Section-scoped redraft: resolve the heading to its paragraph range
+    // up front, and refuse with the available headings when it does not
+    // match — a silent whole-document plan would defeat the point.
+    let sectionRange: { heading: string; start: number; end: number } | undefined;
+    if (parsed.data.section) {
+      const range = rl.sectionParagraphRange(paragraphs, parsed.data.section);
+      if (!range) {
+        return reply.status(400).send({
+          ok: false,
+          error: `No section named "${parsed.data.section}" in this document.`,
+          sections: rl.listSectionHeadings(paragraphs).map(h => h.heading),
+        });
+      }
+      sectionRange = { heading: parsed.data.section, ...range };
+    }
+
     const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
     let text: string;
     let cost = 0;
@@ -2723,6 +2741,7 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
         user: rl.buildPlannerUserPrompt({
           documentTitle: String(doc.documentTitle ?? parsed.data.docType),
           paragraphs, feedback: parsed.data.feedback, source: parsed.data.source,
+          section: sectionRange,
         }),
         tier: 'sonnet',
         maxTokens: 4096,
@@ -2758,6 +2777,16 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     }));
 
     const grounded = rl.groundPlan({ items: typed }, paragraphs, rl.CORRECTABLE_INTAKE_FIELDS);
+    if (sectionRange) {
+      const inRange = (i: number) => i >= sectionRange!.start && i < sectionRange!.end;
+      const kept = grounded.items.filter(it =>
+        it.paragraphIndices.length === 0 || it.paragraphIndices.every(inRange));
+      const dropped = grounded.items.length - kept.length;
+      if (dropped > 0) {
+        grounded.warnings.push(`${dropped} proposed change${dropped === 1 ? 's' : ''} reached outside "${sectionRange.heading}" and ${dropped === 1 ? 'was' : 'were'} not included.`);
+      }
+      grounded.items = kept;
+    }
 
     try { recordUsageEvent(userId, matterId, 'analysis', `revision_plan_${parsed.data.docType}`, cost); }
     catch { /* metering must never fail the request */ }
