@@ -147,6 +147,25 @@ export function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterO
       ...(row.user_id !== userId && row.owner_name ? { openedBy: row.owner_name } : {}),
     });
     tasks.push(...actionRows(row.id, parsed));
+
+    // A client's portal submission waits invisibly otherwise: it becomes a
+    // due-today row until the lawyer reviews and applies it.
+    const pendingIntake = parsed.m.pendingClientIntake as { data?: unknown; appliedAt?: string } | undefined;
+    if (pendingIntake?.data && !pendingIntake.appliedAt) {
+      tasks.push({
+        id: `${row.id}-client-intake-pending`,
+        matterId: row.id,
+        matterLabel: parsed.matterLabel,
+        fileNumber: parsed.fileNumber,
+        title: 'Client intake submitted; review and apply it',
+        source: 'deadline',
+        kind: 'task' as never,
+        dueDate: new Date().toISOString().slice(0, 10),
+        isCourt: false,
+        band: 'today',
+        status: 'open',
+      });
+    }
   }
   // Deadlines from the shared collector; its action_item entries are skipped
   // because the debrief walk above already emitted them with their real ids.

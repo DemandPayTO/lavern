@@ -218,7 +218,7 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     description: 'File in the Superior Court of Justice for wrongful dismissal and Code damages.',
     cost: '~$19 · under 1 min',
     section: 'Pleadings and applications',
-    recommended: true,
+
   },
   {
     id: 'noa',
@@ -1215,7 +1215,7 @@ export default function MatterDetailView() {
     { key: 'docs', label: 'Documents', badge: docCount || undefined },
     { key: 'draft', label: 'Draft' },
     { key: 'timeline', label: 'Timeline' },
-    { key: 'intake', label: 'Intake' },
+    { key: 'intake', label: 'Intake', badge: pendingClient?.data && !pendingClient.appliedAt ? 1 : undefined },
     { key: 'client', label: 'Client' },
     { key: 'negotiation', label: 'Negotiation' },
     { key: 'debrief', label: 'Debrief' },
@@ -1741,10 +1741,21 @@ export default function MatterDetailView() {
                 <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No documents yet.</div>
               )}
 
+              {/* Bulk first: real matters arrive as a folder of documents */}
+              <CaseFileDropPanel
+                classifyDocument={employment.classifyDocument}
+                extractParsed={employment.extractParsed}
+                getCaseReview={employment.getCaseReview}
+                applyChronology={employment.applyChronology}
+                generateCaseSynthesis={employment.generateCaseSynthesis}
+                applyExtraction={employment.applyExtraction}
+                onDone={employment.refresh}
+              />
+
               {/* Upload & extract */}
               <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginTop: 16 }}>
                 <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
-                  Upload a document and Starling extracts the facts
+                  Upload a single document
                 </div>
                 <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
                   PDF, DOCX, or text. Names and identifiers are anonymised before any AI processing. You review every extracted fact before it's used.
@@ -1871,15 +1882,7 @@ export default function MatterDetailView() {
                       />
                     </div>
                   ))}
-                <CaseFileDropPanel
-                  classifyDocument={employment.classifyDocument}
-                  extractParsed={employment.extractParsed}
-                  getCaseReview={employment.getCaseReview}
-                  applyChronology={employment.applyChronology}
-                  generateCaseSynthesis={employment.generateCaseSynthesis}
-                  applyExtraction={employment.applyExtraction}
-                  onDone={employment.refresh}
-                />
+
               </div>
             </div>
           )}
@@ -2144,9 +2147,22 @@ export default function MatterDetailView() {
                 style={{ width: '100%', maxWidth: 420, fontFamily: sans, fontSize: 13.5, padding: '9px 12px', border: `1px solid ${border}`, borderRadius: 2, marginBottom: 16, boxSizing: 'border-box' as const }}
               />
               {DRAFT_SECTIONS.map(section => {
+                // Drafted state and the recommendation come from the matter,
+                // not a constant: a day-one file and a file whose SOC went
+                // out last month need different advice.
+                const draftedCards = new Set(employment.generatedDocuments.map(d => DOCTYPE_TO_DRAFT[d.docType]).filter(Boolean));
+                const nextActions = (employment.nextSteps ?? []).map(n => n.action.toLowerCase()).join(' | ');
+                const recommendedCard =
+                  nextActions.includes('demand letter') ? 'demand'
+                  : nextActions.includes('statement of claim') ? 'soc'
+                  : nextActions.includes('mediation brief') ? 'mediation'
+                  : nextActions.includes('severance offer') ? 'severance'
+                  : nextActions.includes('counter-offer') ? 'counter'
+                  : null;
                 const sectionCards = DEMO_DRAFT_TYPES.filter(dt => dt.section === section)
                   .filter(dt => !draftFilter.trim()
-                    || `${dt.title} ${dt.description ?? ''}`.toLowerCase().includes(draftFilter.trim().toLowerCase()));
+                    || `${dt.title} ${dt.description ?? ''}`.toLowerCase().includes(draftFilter.trim().toLowerCase()))
+                  .map(dt => ({ ...dt, recommended: dt.id === recommendedCard, alreadyDrafted: draftedCards.has(dt.id) }));
                 if (sectionCards.length === 0) return null;
                 return (
                 <div key={section} style={{ marginBottom: 18 }}>
@@ -2192,6 +2208,7 @@ export default function MatterDetailView() {
                           {dt.alreadyDrafted && (
                             <>
                               <StatusDot colour={green} size={6} />{' '}
+                              <b style={{ color: green }}>Drafted · </b>
                             </>
                           )}
                           {dt.description}
@@ -2444,6 +2461,9 @@ export default function MatterDetailView() {
                       // Tell the lawyer their dates reached the docket, and
                       // pass on any Rule 48.14 caution.
                       const notes: string[] = [];
+                      if (typeof result.costUsd === 'number' && result.costUsd > 0) {
+                        notes.push(`Draft cost $${result.costUsd.toFixed(2)}.`);
+                      }
                       if (result.positionsUsed?.length) {
                         notes.push(`Drafted from the positions already served: ${result.positionsUsed.join(' and ')}.`);
                       }
