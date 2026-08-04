@@ -59,30 +59,46 @@ usable on a law firm's precedents:
    choosing the document type and naming the variant.
 2. **Parse.** Extract the document text with structure preserved (mammoth is
    already a dependency and already used for the review-lane DOCX path).
-3. **Propose.** One model call returns a proposal: for each span it believes
-   is case-specific, the exact verbatim text, the placeholder it maps to, and
-   a confidence. For Model C it additionally proposes which sections are
-   "generate per matter" (facts narrative, analysis) versus "keep verbatim".
-4. **Verify deterministically (the safety property).** Reassemble the
-   document from the proposal: every character outside the proposed spans
-   must be byte-identical to the original. Any drift, any invented or
-   reworded text, and the proposal is rejected before the lawyer ever sees
-   it. The model can only ever *select* spans; it can never rewrite the
-   firm's language. This mirrors the quote-grounding discipline already used
-   in the extraction apply loop.
-5. **Review.** Side-by-side screen: original on the left, proposed
-   placeholders highlighted on the right. Per span: accept, reject, or change
-   which placeholder it maps to. Nothing is saved until the lawyer confirms.
-6. **Save.** Store the template with its placeholder map and variant label.
+3. **Align (Jordan's improvement, 2026-08-04 — replaces the single-document
+   model proposal).** Give Starling THREE OR MORE precedents of the same
+   type and fact pattern, and diff them against each other. Text that
+   recurs across all of them is the firm's boilerplate; text that varies is
+   case-specific and becomes a placeholder. The signal is structural, not
+   inferred, so no model decides what the firm's language is.
+   Proven on three synthetic medical-leave demand letters: the alignment
+   correctly held the whole Human Rights Code paragraph as boilerplate and
+   isolated the client, employer, address, job title, hire and termination
+   dates, salary, notice range, settlement figure, and deadline, showing
+   the three real values behind each slot.
+4. **Classify the varying spans** into placeholder names, in this order of
+   preference: (a) cross-reference each precedent against the matter it came
+   from, which is exact and fully deterministic; (b) pattern-match the
+   obvious ones (currency, dates, addresses); (c) as a last resort, send
+   only the SHORT VARYING FRAGMENTS to a model for labelling. Option (c)
+   means the model never sees the firm's boilerplate at all — only values
+   like ["Vera Nunes", "Tess Vega", "Marcus Diallo"].
+5. **Structure.** Paragraphs present in some precedents but not others are
+   optional sections, mapping to the conditional blocks the injector already
+   supports (`{{#SECTION}}...{{/SECTION}}`).
+6. **Review.** Side-by-side screen: the aligned skeleton with proposed
+   placeholders highlighted, and the values observed behind each. Per span:
+   accept, reject, or change which placeholder it maps to. Nothing is saved
+   until the lawyer confirms.
+7. **Save.** Store the template with its placeholder map and variant label.
 
-**Cost:** one model call per precedent, roughly $0.05 to $0.30 depending on
-length. Paid once per precedent, never again.
+**Cost:** $0 for the alignment itself, which is pure algorithm. Only the
+optional labelling step (4c) costs anything, and it sees fragments rather
+than documents.
 
-**Known limit (do not paper over this).** Redacted precedents with black-box
-redactions produce unlabelled gaps and unreliable inference — the finding
-from 2026-07-20 stands. Auto-conversion wants unredacted source. It never
-leaves Starling's own infrastructure, and the review step means a bad
-proposal costs the lawyer a rejection, not a bad document.
+**Redaction, revisited.** The 2026-07-20 finding was that black-box
+redactions defeat SINGLE-document inference, and that stands. Alignment may
+survive them: it needs to know WHERE the case-specific text is, not what it
+says, and a redacted region simply presents as a varying span. Unverified
+against real redaction styles — test before relying on it.
+
+**Requirement:** three or more precedents of the same type and fact
+pattern. Two works but is weaker, since a coincidentally shared phrase
+cannot be told from real boilerplate. Precedents stay inside Starling.
 
 ---
 
