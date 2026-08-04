@@ -22,7 +22,7 @@ import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, Documen
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
 import type { MatterFacts } from '../../employment/precedent-alignment.js';
 import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
-import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, recordUsageEvent, getUserById } from '../../db/database.js';
+import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, saveStyleProfile, getStyleProfiles, getStyleProfile, deleteStyleProfile, recordUsageEvent, getUserById } from '../../db/database.js';
 import { collectDeadlines } from '../../employment/deadlines.js';
 import { createLogger } from '../../utils/logger.js';
 import { extractEmploymentDocument } from '../briefing/employment-extractor.js';
@@ -1571,6 +1571,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     firmAddress: z.string().trim().max(500).optional(),
     courtLocation: z.string().trim().max(200).optional(),
     additionalContext: z.string().trim().max(5000).optional(),
+    /** Draft in the firm's style, learned from its precedents. */
+    styleProfileId: z.string().trim().max(100).optional(),
     /** Structured inputs for the deterministic court forms. */
     formFields: z.record(z.string().max(60), z.union([z.string().max(3000), z.number()])).optional(),
   });
@@ -1653,6 +1655,27 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       timetableCautions = check.issues.filter(i => i.severity === 'caution').map(i => i.message);
     }
 
+    // The firm's style profile, when the lawyer picked one: its guide is
+    // folded into the drafting prompt, and its identifier list drives the
+    // deterministic precedent-bleed scan after generation.
+    let styleContext: string | undefined;
+    let styleIdentifiers: string[] = [];
+    let styleLabel = '';
+    if (parsed.data.styleProfileId) {
+      const firmIdForStyle = resolveFirmId(req);
+      const profile = firmIdForStyle ? getStyleProfile(firmIdForStyle, parsed.data.styleProfileId) : undefined;
+      if (!profile) return reply.status(404).send({ ok: false, error: 'Style profile not found.' });
+      if (profile.document_type !== parsed.data.documentType) {
+        return reply.status(400).send({ ok: false, error: 'That style profile is for a different document type.' });
+      }
+      const { styleContextForPrompt, styleGuideSchema } = await import('../../employment/style-profile.js');
+      const guide = styleGuideSchema.safeParse(JSON.parse(profile.guide_json));
+      if (!guide.success) return reply.status(500).send({ ok: false, error: 'The stored style profile is unreadable. Rebuild it.' });
+      styleContext = styleContextForPrompt(guide.data, profile.label);
+      try { styleIdentifiers = JSON.parse(profile.identifiers_json) as string[]; } catch { styleIdentifiers = []; }
+      styleLabel = profile.label;
+    }
+
     let result;
     try {
       result = await generateLitigationDocument({
@@ -1665,9 +1688,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         firmName: parsed.data.firmName,
         firmAddress: parsed.data.firmAddress,
         courtLocation: parsed.data.courtLocation,
-        additionalContext: timetableContext
-          ? [parsed.data.additionalContext, timetableContext].filter(Boolean).join('\n\n')
-          : parsed.data.additionalContext,
+        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext]
+          .filter(Boolean).join('\n\n') || undefined,
         formFields: parsed.data.formFields,
         comparables,
         comparableRange,
@@ -1680,6 +1702,25 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         return reply.status(400).send({ ok: false, error: err instanceof Error ? err.message : 'Form inputs are incomplete.' });
       }
       throw err;
+    }
+
+    // Deterministic precedent-bleed scan: the precedents' names and
+    // amounts must not surface in this matter's draft. This matter's own
+    // parties and figures are excluded first.
+    if (styleIdentifiers.length > 0) {
+      const { checkPrecedentBleed } = await import('../../employment/style-profile.js');
+      const intakeVals = employment.intake as Record<string, unknown>;
+      const matterValues = [
+        [intakeVals.client_first_name, intakeVals.client_last_name].filter(Boolean).join(' '),
+        String(intakeVals.employer_legal_name ?? ''),
+        String(intakeVals.employer_operating_name ?? ''),
+        ...(parsed.data.claimAmount ? [`$${Number(parsed.data.claimAmount).toLocaleString('en-CA')}`] : []),
+      ];
+      result.lawyerReviewFlags = [
+        ...result.lawyerReviewFlags,
+        ...checkPrecedentBleed(result.html, styleIdentifiers, matterValues),
+        `Drafted in the firm style "${styleLabel}". Read it against a recent example: style profiles guide the draft, they do not guarantee it.`,
+      ];
     }
 
     // Store on the matter
@@ -1902,6 +1943,98 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       .header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
       .header('Content-Disposition', `attachment; filename="${filename}"`)
       .send(buffer);
+  });
+
+  // ── Style profiles ─────────────────────────────────────────────────────
+  // The complement to templates for flowing prose: Starling reads several
+  // of the firm's precedents ONCE, describes how the firm writes that
+  // document (flow, voice, recurring language), and stores the description.
+  // Every later generation can draft in that style for the current
+  // matter's facts. Two precedents suffice here (unlike alignment, which
+  // needs three to tell boilerplate from coincidence), because the model
+  // describes rather than diffs.
+
+  const styleBuildSchema = z.object({
+    documentType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    label: z.string().trim().min(1).max(120),
+    precedents: z.array(z.object({
+      name: z.string().trim().min(1).max(300),
+      docxBase64: z.string().max(7_000_000),
+    })).min(2).max(8),
+  });
+
+  fastify.post('/api/employment/style-profiles/build', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+
+    const parsed = styleBuildSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid style profile request' });
+
+    const mammoth = (await import('mammoth')).default;
+    const texts: Array<{ name: string; text: string }> = [];
+    for (const p of parsed.data.precedents) {
+      try {
+        const buffer = Buffer.from(p.docxBase64, 'base64');
+        const { value } = await mammoth.extractRawText({ buffer });
+        if (!value || value.trim().length < 300) {
+          return reply.status(400).send({ ok: false, error: `"${p.name}" has too little text to learn from. Is it the right file?` });
+        }
+        texts.push({ name: p.name, text: value });
+      } catch {
+        return reply.status(400).send({ ok: false, error: `"${p.name}" could not be read as a Word document.` });
+      }
+    }
+
+    const { analyseStyle, extractIdentifiers } = await import('../../employment/style-profile.js');
+    let guide;
+    let costUsd = 0;
+    try {
+      const analysed = await analyseStyle(texts);
+      guide = analysed.guide;
+      costUsd = analysed.costUsd;
+    } catch (err) {
+      return reply.status(502).send({ ok: false, error: err instanceof Error ? err.message : 'Analysis failed.' });
+    }
+
+    const id = `style-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    saveStyleProfile({
+      id,
+      firm_id: firmId,
+      document_type: parsed.data.documentType,
+      label: parsed.data.label,
+      guide_json: JSON.stringify(guide),
+      identifiers_json: JSON.stringify(extractIdentifiers(texts.map(t => t.text))),
+      source_count: texts.length,
+      source_names: JSON.stringify(texts.map(t => t.name)),
+      cost_usd: costUsd,
+    });
+    try { recordUsageEvent(userId, 'firm', 'analysis', `style_profile_${parsed.data.documentType}`, costUsd); } catch { /* metering is best-effort */ }
+    logger.info('Style profile built', { userId, firmId, documentType: parsed.data.documentType, sources: texts.length, costUsd: costUsd.toFixed(4) });
+    return reply.send({ ok: true, id, label: parsed.data.label, guide, sourceCount: texts.length, costUsd });
+  });
+
+  fastify.get('/api/employment/style-profiles', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.send({ ok: true, profiles: [] });
+    const { documentType } = (req.query ?? {}) as { documentType?: string };
+    const rows = getStyleProfiles(firmId, documentType && /^[a-z0-9_]{1,60}$/.test(documentType) ? documentType : undefined);
+    return reply.send({
+      ok: true,
+      profiles: rows.map(r => ({
+        id: r.id, documentType: r.document_type, label: r.label,
+        sourceCount: r.source_count, createdAt: r.created_at,
+      })),
+    });
+  });
+
+  fastify.delete('/api/employment/style-profiles/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { id } = req.params as { id: string };
+    const removed = deleteStyleProfile(firmId, id);
+    if (!removed) return reply.status(404).send({ ok: false, error: 'Style profile not found.' });
+    return reply.send({ ok: true });
   });
 
   // ── POST /api/employment/templates/align ───────────────────────────────

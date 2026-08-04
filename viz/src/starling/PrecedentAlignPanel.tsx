@@ -159,7 +159,16 @@ export function PrecedentAlignPanel({ documentType, documentLabel, onSaved, onCa
           accept=".docx"
           multiple
           style={{ display: 'none' }}
-          onChange={e => { setFiles([...(e.target.files ?? [])]); e.target.value = ''; }}
+          onChange={e => {
+            // APPEND rather than replace: precedents often live in different
+            // matter folders, so the lawyer adds them one pick at a time.
+            const picked = [...(e.target.files ?? [])];
+            setFiles(prev => {
+              const seen = new Set(prev.map(f => `${f.name}|${f.size}`));
+              return [...prev, ...picked.filter(f => !seen.has(`${f.name}|${f.size}`))];
+            });
+            e.target.value = '';
+          }}
           aria-label="Choose precedent files"
         />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -192,7 +201,18 @@ export function PrecedentAlignPanel({ documentType, documentLabel, onSaved, onCa
 
         {files.length > 0 && (
           <ul style={{ fontSize: 12.5, color: ink, margin: '12px 0 0', paddingLeft: 18 }}>
-            {files.map(f => <li key={f.name}>{f.name}</li>)}
+            {files.map(f => (
+              <li key={`${f.name}|${f.size}`}>
+                {f.name}
+                <button
+                  onClick={() => setFiles(prev => prev.filter(x => !(x.name === f.name && x.size === f.size)))}
+                  aria-label={`Remove ${f.name}`}
+                  style={{ marginLeft: 8, fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                >
+                  remove
+                </button>
+              </li>
+            ))}
           </ul>
         )}
         {files.length > 0 && files.length < 3 && (

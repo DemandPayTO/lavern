@@ -120,6 +120,19 @@ function runMigrations(db: Database.Database): void {
       UNIQUE(firm_id, document_type, variant_id)
     );
 
+    CREATE TABLE IF NOT EXISTS firm_style_profiles (
+      id             TEXT PRIMARY KEY,
+      firm_id        TEXT NOT NULL,
+      document_type  TEXT NOT NULL,
+      label          TEXT NOT NULL,
+      guide_json     TEXT NOT NULL,
+      identifiers_json TEXT NOT NULL DEFAULT '[]',
+      source_count   INTEGER NOT NULL DEFAULT 0,
+      source_names   TEXT NOT NULL DEFAULT '[]',
+      cost_usd       REAL NOT NULL DEFAULT 0,
+      created_at     TEXT NOT NULL
+    );
+
     -- Client intake portal tokens: hashed, expiring, one active per matter
     CREATE TABLE IF NOT EXISTS portal_tokens (
       token_hash     TEXT PRIMARY KEY,
@@ -207,6 +220,7 @@ function runMigrations(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_matters_user ON matters(user_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_firm_templates_firm ON firm_templates(firm_id);
+    CREATE INDEX IF NOT EXISTS idx_firm_style_profiles_firm ON firm_style_profiles(firm_id);
     CREATE INDEX IF NOT EXISTS idx_ca_profiles_firm ON ca_profiles(firm_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
 
@@ -1509,6 +1523,47 @@ export function deleteMatter(matterId: string, userId: string): boolean {
     DELETE FROM matters WHERE id = ? AND user_id = ?
   `).run(matterId, userId);
   return result.changes > 0;
+}
+
+// ── Firm Style Profile Queries ───────────────────────────────────────────
+// A style profile is how the firm writes a document type: flow, voice,
+// recurring language, learned once from the firm's precedents. Firm-scoped
+// like templates; the identifiers ride along for the bleed check.
+
+export interface FirmStyleProfileRow {
+  id: string; firm_id: string; document_type: string; label: string;
+  guide_json: string; identifiers_json: string;
+  source_count: number; source_names: string; cost_usd: number; created_at: string;
+}
+
+export function saveStyleProfile(row: Omit<FirmStyleProfileRow, 'created_at'>): void {
+  getDb().prepare(`
+    INSERT INTO firm_style_profiles (id, firm_id, document_type, label, guide_json, identifiers_json, source_count, source_names, cost_usd, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(row.id, row.firm_id, row.document_type, row.label, row.guide_json, row.identifiers_json, row.source_count, row.source_names, row.cost_usd, new Date().toISOString());
+}
+
+export function getStyleProfiles(firmId: string, documentType?: string): FirmStyleProfileRow[] {
+  if (documentType) {
+    return getDb().prepare(`
+      SELECT * FROM firm_style_profiles WHERE firm_id = ? AND document_type = ? ORDER BY created_at DESC
+    `).all(firmId, documentType) as FirmStyleProfileRow[];
+  }
+  return getDb().prepare(`
+    SELECT * FROM firm_style_profiles WHERE firm_id = ? ORDER BY created_at DESC
+  `).all(firmId) as FirmStyleProfileRow[];
+}
+
+export function getStyleProfile(firmId: string, id: string): FirmStyleProfileRow | undefined {
+  return getDb().prepare(`
+    SELECT * FROM firm_style_profiles WHERE firm_id = ? AND id = ?
+  `).get(firmId, id) as FirmStyleProfileRow | undefined;
+}
+
+export function deleteStyleProfile(firmId: string, id: string): boolean {
+  return getDb().prepare(`
+    DELETE FROM firm_style_profiles WHERE firm_id = ? AND id = ?
+  `).run(firmId, id).changes > 0;
 }
 
 // ── Firm Template Queries ────────────────────────────────────────────────

@@ -14,6 +14,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMatterDetail, useEmploymentData, useFirmTemplates, useApprovalsEnabled } from './hooks/useStarlingApi.js';
 import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
+import { StyleProfilePanel, useStyleProfiles } from './StyleProfilePanel.js';
 import { CaseFileDropPanel } from './CaseFileDropPanel.js';
 import { PrecedentAlignPanel } from './PrecedentAlignPanel.js';
 import { RevisionPanel } from './RevisionPanel.js';
@@ -952,11 +953,16 @@ export default function MatterDetailView() {
   // variants per type (constructive dismissal, medical leave, and so on);
   // the lawyer picks one and the download renders on it.
   const selectedTemplateDocType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
+  const styleProfiles = useStyleProfiles(selectedTemplateDocType);
+  // Changing document type invalidates the picked style.
+  useEffect(() => { setStyleProfileId(''); }, [selectedTemplateDocType]);
   const variantsForType = selectedTemplateDocType
     ? firmTemplates.templates.filter(t => t.documentType === selectedTemplateDocType)
     : [];
   const [chosenVariantId, setChosenVariantId] = useState<string | null>(null);
   const [buildingTemplate, setBuildingTemplate] = useState(false);
+  const [buildingStyle, setBuildingStyle] = useState(false);
+  const [styleProfileId, setStyleProfileId] = useState('');
   const approvalsEnabled = useApprovalsEnabled();
   const [revising, setRevising] = useState<null | { source: 'client' | 'partner'; initial?: string }>(null);
 
@@ -1932,6 +1938,15 @@ export default function MatterDetailView() {
                     >
                       {buildingTemplate ? 'Close builder' : 'Build from precedents'}
                     </button>
+                    <button
+                      onClick={() => setBuildingStyle(v => !v)}
+                      style={{
+                        background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
+                        padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                      }}
+                    >
+                      {buildingStyle ? 'Close style teacher' : 'Teach your style'}
+                    </button>
                     {currentTemplate && activeVariant && !activeVariant.isDefault && (
                       <button
                         onClick={async () => {
@@ -1974,6 +1989,14 @@ export default function MatterDetailView() {
                   documentLabel={DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'document'}
                   onSaved={() => { setBuildingTemplate(false); firmTemplates.refresh(); setTemplateStatus('Template built from your precedents and saved.'); }}
                   onCancel={() => setBuildingTemplate(false)}
+                />
+              )}
+              {buildingStyle && selectedTemplateDocType && (
+                <StyleProfilePanel
+                  documentType={selectedTemplateDocType}
+                  documentLabel={DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'document'}
+                  onChanged={() => styleProfiles.refresh()}
+                  onClose={() => setBuildingStyle(false)}
                 />
               )}
               <input
@@ -2125,6 +2148,23 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {selectedDraft && !generatedHtml && styleProfiles.profiles.length > 0 && (
+                <div style={{ margin: '0 0 12px' }}>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Draft in your firm's style</div>
+                  <select
+                    value={styleProfileId}
+                    onChange={e => setStyleProfileId(e.target.value)}
+                    aria-label="Firm style for this draft"
+                    style={{ fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, minWidth: 280 }}
+                  >
+                    <option value="">Standard Starling drafting</option>
+                    {styleProfiles.profiles.map(sp => (
+                      <option key={sp.id} value={sp.id}>{sp.label} (from {sp.sourceCount} precedents)</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {selectedDraft && !generatedHtml && (
                 <button
                   onClick={async () => {
@@ -2158,6 +2198,7 @@ export default function MatterDetailView() {
                         ].filter(Boolean).join(' · ') || undefined,
                         courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
+                        ...(styleProfileId ? { styleProfileId } : {}),
                       },
                     );
                     setGenerating(false);
