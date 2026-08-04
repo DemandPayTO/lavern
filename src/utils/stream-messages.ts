@@ -20,8 +20,13 @@ const logger = createLogger('STREAM');
 // ── Token Pricing (per million tokens) ────────────────────────────────
 // Source: Anthropic pricing as of 2025. Updated here if prices change.
 export const PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
-  // Anthropic / Claude — current (4.8 generation). Opus 4.8 rates mirror 4.7
-  // ($15/$75 per M) — confirm against Anthropic's published 4.8 pricing.
+  // Anthropic / Claude — current (5 generation, upgraded 2026-08-04).
+  // Opus 5 $5/$25 per M; Sonnet 5 standard $3/$15 (intro $2/$10 ends
+  // 2026-08-31 — metering uses standard, so August costs are slightly
+  // overstated rather than understated).
+  'claude-opus-5':              { input: 5.0,  output: 25.0, cacheRead: 0.5,  cacheWrite: 6.25 },
+  'claude-sonnet-5':            { input: 3.0,  output: 15.0, cacheRead: 0.3,  cacheWrite: 3.75 },
+  // Prior generation (kept for in-flight sessions + archived cost records)
   'claude-opus-4-8':            { input: 15.0, output: 75.0, cacheRead: 1.5,  cacheWrite: 18.75 },
   'claude-sonnet-4-5':          { input: 3.0,  output: 15.0, cacheRead: 0.3,  cacheWrite: 3.75 },
   'claude-haiku-4-5':            { input: 1.0,  output: 5.0,  cacheRead: 0.1,  cacheWrite: 1.25 },

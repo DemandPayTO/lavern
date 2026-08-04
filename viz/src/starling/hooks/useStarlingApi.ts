@@ -1456,6 +1456,8 @@ export interface GenerateDocumentResult {
   reviewFlags?: string[];
   /** Timetable dates written to the matter's docket by this generation. */
   docketedDates?: number;
+  /** Which served position documents grounded this draft (mediation brief). */
+  positionsUsed?: string[];
   /** Non-blocking warnings, e.g. setting down past the Rule 48.14 deadline. */
   cautions?: string[];
 }
@@ -1717,6 +1719,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
         reviewFlags: Array.isArray(json.lawyerReviewFlags) ? json.lawyerReviewFlags : [],
         docketedDates: typeof json.docketedDates === 'number' ? json.docketedDates : undefined,
         cautions: Array.isArray(json.cautions) ? (json.cautions as string[]) : undefined,
+        positionsUsed: Array.isArray(json.positionsUsed) ? (json.positionsUsed as string[]) : undefined,
       };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Generation failed' };

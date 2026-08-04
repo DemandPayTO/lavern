@@ -230,6 +230,15 @@ export function PrecedentAlignPanel({ documentType, documentLabel, onSaved, onCa
   return (
     <div style={{ ...box, marginBottom: 16 }}>
       <h3 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 4px' }}>Review the template</h3>
+      {alignment.slots.length > alignment.stableLineCount && (
+        <div style={{ background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '10px 14px', fontSize: 13, color: ink, margin: '0 0 10px' }} role="status">
+          <b style={{ color: amber }}>These precedents differ more than they repeat.</b>{' '}
+          That is the mark of a fact-specific document: a placeholder template would be mostly blanks
+          to fill by hand. For this kind of document, <b>Teach your style</b> is the better tool: it
+          learns the flow and voice and lets Starling draft each matter fresh, from the file's own
+          facts and positions. Save this template only if the boilerplate below is genuinely worth keeping.
+        </div>
+      )}
       <p style={{ fontSize: 13, color: muted, margin: '0 0 6px' }}>
         Compared {alignment.precedentNames.length} precedents.{' '}
         <b style={{ color: ink }}>{alignment.stableLineCount}</b> paragraphs were identical in all of

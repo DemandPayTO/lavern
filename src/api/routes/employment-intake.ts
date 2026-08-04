@@ -1735,6 +1735,18 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let comparables: import('../../employment/case-comparables.js').ComparableCase[] | null = null;
     let comparableRange: import('../../employment/case-comparables.js').CaseBasedRange | null = null;
     let negotiationEntries: import('../../employment/negotiation.js').NegotiationEntry[] | null = null;
+    // The brief is built FROM the positions already served: the matter's
+    // demand letter and statement of claim ground the story and figures,
+    // and double as citation sources so claims attribute to them.
+    const positionDocuments: Array<{ title: string; text: string }> = [];
+    if (parsed.data.documentType === 'mediation_brief') {
+      const stripCap = (html: unknown) => String(html ?? '')
+        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 12_000);
+      const dl = (matter as Record<string, unknown>).generatedDemandLetter as Record<string, unknown> | undefined;
+      const soc = (matter as Record<string, unknown>).generatedSOC as Record<string, unknown> | undefined;
+      if (dl?.html) positionDocuments.push({ title: 'Demand Letter', text: stripCap(dl.html) });
+      if (soc?.html) positionDocuments.push({ title: 'Statement of Claim', text: stripCap(soc.html) });
+    }
     if (parsed.data.documentType === 'mediation_brief') {
       negotiationEntries = ((matter as Record<string, unknown>).negotiation ?? null) as import('../../employment/negotiation.js').NegotiationEntry[] | null;
       try {
@@ -1833,6 +1845,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         negotiationEntries,
         styleTypicalWords,
         styleProfileTableRows,
+        positionDocuments: positionDocuments.length > 0 ? positionDocuments : undefined,
+        sourceDocuments: positionDocuments.length > 0
+          ? positionDocuments.map(d => ({ name: d.title, content: d.text }))
+          : undefined,
       }, definedTerms);
     } catch (err) {
       // Deterministic court forms validate their inputs and fail with a
@@ -1914,6 +1930,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       lawyerReviewFlags: result.lawyerReviewFlags,
       citations: result.citations,
       costUsd: result.costUsd,
+      ...(positionDocuments.length > 0 ? { positionsUsed: positionDocuments.map(d => d.title) } : {}),
       ...(docketed > 0 ? { docketedDates: docketed } : {}),
       ...(timetableCautions.length > 0 || analysisRefreshed ? {
         cautions: [

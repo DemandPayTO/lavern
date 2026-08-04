@@ -55,11 +55,13 @@ function modelFor(tier: 'opus' | 'sonnet' | 'haiku'): string {
     case 'managed':
     case 'anthropic':
     default:
-      // Anthropic-tier mapping. Sonnet 4.5 covers sonnet+haiku in this build.
+      // Anthropic-tier mapping, Claude 5 generation (upgraded 2026-08-04):
+      // Opus 5 drafts the documents that matter; Sonnet 5 covers the
+      // structured work (extraction, style analysis, planning) and haiku.
       switch (tier) {
-        case 'opus':   return 'claude-opus-4-8';
-        case 'sonnet': return 'claude-sonnet-4-5';
-        case 'haiku':  return 'claude-sonnet-4-5'; // upgraded in v0.14.3
+        case 'opus':   return 'claude-opus-5';
+        case 'sonnet': return 'claude-sonnet-5';
+        case 'haiku':  return 'claude-sonnet-5';
       }
   }
 }
@@ -261,7 +263,7 @@ export async function crossProviderChat(
   // the API on 2026-05-29 (opus-4-8 rejects temperature; sonnet-4-5 accepts).
   ensureApiKey();
   const client = new Anthropic();
-  const omitTemperature = /opus-4-[78]/.test(model);
+  const omitTemperature = /opus-4-[78]|claude-(?:opus|sonnet|fable)-5/.test(model);
   const requestBody: Anthropic.MessageCreateParamsNonStreaming = {
     model,
     max_tokens: opts.maxTokens,

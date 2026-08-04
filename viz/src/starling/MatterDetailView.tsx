@@ -2236,6 +2236,9 @@ export default function MatterDetailView() {
                       // Tell the lawyer their dates reached the docket, and
                       // pass on any Rule 48.14 caution.
                       const notes: string[] = [];
+                      if (result.positionsUsed?.length) {
+                        notes.push(`Drafted from the positions already served: ${result.positionsUsed.join(' and ')}.`);
+                      }
                       if (result.docketedDates) {
                         notes.push(`${result.docketedDates} timetable date${result.docketedDates === 1 ? '' : 's'} added to your docket.`);
                       }

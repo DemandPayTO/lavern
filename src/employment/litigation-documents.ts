@@ -66,6 +66,12 @@ export interface LitigationDocumentRequest {
   approvedIssues: string[];
   analysis: IntakeAnalysisResult;
   documentType: LitigationDocumentType;
+  /**
+   * The positions already served in this matter (the demand letter, the
+   * statement of claim), as text. The mediation brief must tell the same
+   * story and take the same positions as these documents.
+   */
+  positionDocuments?: Array<{ title: string; text: string }>;
   /** Firm style depth: typical word count learned from the precedents. Scales the output budget. */
   styleTypicalWords?: number;
   /** Firm opening-table row labels from the style profile (mediation brief). */
@@ -683,6 +689,15 @@ export async function generateLitigationDocument(
   let userPrompt = buildUserPrompt(req);
   if (frontMatter) {
     userPrompt += `\n\nTABLES ALREADY IN THE DOCUMENT (do not reproduce): ${frontMatter.included.join(', ') || 'none'}.`;
+  }
+  if (req.documentType === 'mediation_brief' && req.positionDocuments?.length) {
+    const positions = req.positionDocuments
+      .map(d => `<position_document title="${d.title}">\n${d.text}\n</position_document>`)
+      .join('\n\n');
+    userPrompt += `\n\nTHE POSITIONS ALREADY SERVED IN THIS MATTER:
+These are the operative documents the firm has already put forward for this client. The brief MUST tell the same story and take the same positions: the same characterisation of the dismissal, the same legal issues, the same or updated figures. Reuse their framing of the facts and issues where it fits a mediation audience. Never contradict them; where the position has genuinely moved since (for example a later offer), present the current position and note the change for counsel in [LAWYER: ...].
+
+${positions}`;
   }
 
   logger.info('Generating litigation document', {
