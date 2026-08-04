@@ -15,6 +15,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import sanitizeHtmlLib from 'sanitize-html';
 import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/employment-intake.js';
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
@@ -37,12 +38,26 @@ import type { FirmTemplate } from '../../employment/firm-templates.js';
 
 const logger = createLogger('EMPLOYMENT');
 
-/** Strip script tags and event handlers from generated HTML before storing. */
-// Shared last-line-of-defense sanitiser for generated-document HTML rendered
-// in the dashboard via dangerouslySetInnerHTML. Generators already escape
-// user-controlled values at the source; this strips active-content vectors
-// that must never survive regardless. Covers quoted AND unquoted event
-// handlers, script/iframe/object/embed tags, and javascript:/data: URIs.
+/**
+ * Sanitiser for generated-document HTML before it is stored and rendered in
+ * the dashboard via dangerouslySetInnerHTML.
+ *
+ * This was a regex blacklist until 2026-08-04. A blacklist cannot be made
+ * correct: the security review found live bypasses that all turned on the
+ * handler rules requiring literal whitespace before the attribute, so
+ * `<img src="x"onerror="...">` and `<details/open/ontoggle=...>` survived,
+ * as did `javascript:` URLs containing a quote or an entity-encoded scheme.
+ * The tag rule also covered only script/iframe/object/embed/link/meta/base,
+ * leaving img, svg, details and form to pass through as tags.
+ *
+ * It is now an allowlist over the same library the review lane already uses:
+ * anything not named here cannot survive, so a novel vector is refused by
+ * default rather than needing a new rule. The allowed set is exactly what
+ * the generators actually emit (verified against the eval-results corpus):
+ * headings, paragraphs, lists, tables, and inline emphasis — plus `class`,
+ * which the court-format CSS keys on, and `start`, which carries numbered
+ * pleading paragraphs across list breaks.
+ */
 /**
  * The caller's firm, from the authenticated identity only.
  *
@@ -56,15 +71,37 @@ export function resolveFirmId(req: unknown): string | undefined {
 }
 
 export function sanitiseHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<(script|iframe|object|embed|link|meta|base)[^>]*>/gi, '')
-    // Event handlers: quoted, single-quoted, and unquoted (onerror=alert(1)).
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
-    // Dangerous URI schemes in href/src/etc.
-    .replace(/\s(href|src|xlink:href|formaction)\s*=\s*(["']?)\s*(?:javascript|data|vbscript):[^"'>\s]*\2/gi, ' $1=$2#$2');
+  return sanitizeHtmlLib(html, {
+    allowedTags: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'div', 'span', 'br', 'hr',
+      'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup', 'small',
+      'blockquote', 'pre', 'code',
+      'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+      'a',
+    ],
+    allowedAttributes: {
+      // The court-format stylesheet keys on class (.numbered); `start` keeps
+      // numbered pleading paragraphs running across a list break.
+      '*': ['class'],
+      ol: ['class', 'start', 'type'],
+      li: ['class', 'value'],
+      a: ['href', 'title'],
+      td: ['class', 'colspan', 'rowspan'],
+      th: ['class', 'colspan', 'rowspan', 'scope'],
+      col: ['span'],
+      table: ['class'],
+    },
+    // http/https/mailto only. Blocks javascript:, data: and vbscript:
+    // however they are written, including entity-encoded and quoted forms
+    // that defeated the old scheme regex.
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedSchemesAppliedToAttributes: ['href'],
+    disallowedTagsMode: 'discard',
+    // Inline styles carry their own vectors and the generators do not emit
+    // them (verified against the eval-results corpus).
+    allowedStyles: {},
+  });
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────

@@ -51,6 +51,66 @@ describe('sanitiseHtml — active-content stripping', () => {
     const out = sanitiseHtml(doc);
     expect(out).toContain('<h1>Brief</h1>');
     expect(out).toContain('<table>');
-    expect(out).toContain('<p>1.&nbsp;&nbsp;Facts.</p>');
+    // sanitize-html decodes entities, so &nbsp; arrives as a literal
+    // non-breaking space. That decoding is REQUIRED, not incidental: it is
+    // what lets the scheme check see through java&#115;cript: (verified —
+    // with decoding disabled that payload survives). U+00A0 renders and
+    // exports identically to the entity, so nothing is lost.
+    expect(out).toContain('<p>1.\u00a0\u00a0Facts.</p>');
+  });
+});
+
+describe('allowlist regressions (2026-08-04 review: blacklist bypasses)', () => {
+  // Each of these survived the previous regex blacklist. They are the reason
+  // it was replaced rather than patched: the handler rules all required
+  // literal whitespace before the attribute, and the tag rule named only a
+  // handful of elements.
+  it('strips a handler with no whitespace before it', () => {
+    const out = sanitiseHtml('<p><img src="x"onerror="alert(1)"></p>');
+    expect(out).not.toMatch(/onerror/i);
+    expect(out).not.toMatch(/<img/i);
+  });
+
+  it('strips handlers separated by a slash', () => {
+    expect(sanitiseHtml('<p><details/open/ontoggle=alert(1)></p>')).not.toMatch(/ontoggle/i);
+  });
+
+  it('blocks an entity-encoded javascript scheme', () => {
+    expect(sanitiseHtml('<a href="java&#115;cript:alert(1)">x</a>')).not.toMatch(/javascript:/i);
+    expect(sanitiseHtml('<a href="javascript&colon;alert(1)">x</a>')).not.toMatch(/javascript/i);
+  });
+
+  it('blocks a javascript URL containing a quote or space', () => {
+    expect(sanitiseHtml(`<a href="javascript:alert('x')">x</a>`)).not.toMatch(/javascript:/i);
+    expect(sanitiseHtml('<a href="javascript: alert(1)">x</a>')).not.toMatch(/javascript:/i);
+  });
+
+  it('drops tags the old blacklist never named', () => {
+    for (const markup of ['<img src=x>', '<svg><circle/></svg>', '<form action="//evil"></form>', '<video src=x>']) {
+      const out = sanitiseHtml(markup);
+      expect(out).not.toMatch(/<(img|svg|form|video)/i);
+    }
+  });
+
+  it('refuses anything not on the allowlist by default', () => {
+    // The point of an allowlist: a vector nobody thought of is still refused.
+    expect(sanitiseHtml('<marquee onstart=alert(1)>x</marquee>')).not.toMatch(/<marquee|onstart/i);
+    expect(sanitiseHtml('<math><mtext></mtext></math>')).not.toMatch(/<math/i);
+  });
+
+  it('keeps the markup court documents actually use', () => {
+    const doc = '<h1>Statement of Claim</h1>'
+      + '<ol start="7" class="numbered"><li>Paragraph seven.</li></ol>'
+      + '<table><thead><tr><th scope="col">Head</th></tr></thead>'
+      + '<tbody><tr><td colspan="2">Amount</td></tr></tbody></table>'
+      + '<p class="numbered">Numbered paragraph.</p>'
+      + '<a href="https://ontariocourtforms.on.ca">Form 14A</a>';
+    const out = sanitiseHtml(doc);
+    expect(out).toContain('start="7"');          // pleading numbering survives
+    expect(out).toContain('class="numbered"');    // court-format CSS hook
+    expect(out).toContain('scope="col"');
+    expect(out).toContain('colspan="2"');
+    expect(out).toContain('<h1>Statement of Claim</h1>');
+    expect(out).toContain('href="https://ontariocourtforms.on.ca"');
   });
 });
