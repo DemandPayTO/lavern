@@ -52,7 +52,9 @@ function statusChip(status: string): { label: string; colour: string } {
   if (CLOSED.has(status)) return { label: 'closed', colour: muted };
   if (status === 'urgent') return { label: 'urgent', colour: red };
   if (status === 'stale') return { label: 'needs attention', colour: amber };
-  return { label: status || 'active', colour: green };
+  if (status === 'pre-engagement') return { label: 'new', colour: green };
+  if (status === 'active' || status === '') return { label: 'active', colour: green };
+  return { label: 'active', colour: green };
 }
 
 export default function MattersFilesView() {
@@ -64,9 +66,11 @@ export default function MattersFilesView() {
   const [sort, setSort] = useState<SortKey>('recent');
   const [search, setSearch] = useState('');
   const [showClosed, setShowClosed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     fetch('/api/tasks', { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => {
@@ -89,7 +93,7 @@ export default function MattersFilesView() {
       .catch(() => { if (!cancelled) setError('Could not load your files. Check the connection and retry.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   const handleNav = useCallback((hash: string) => { window.location.hash = hash; }, []);
 
@@ -203,7 +207,10 @@ export default function MattersFilesView() {
         {loading ? (
           <p style={{ marginTop: 32, color: muted }}>Loading your files…</p>
         ) : error ? (
-          <p style={{ marginTop: 32, color: red }}>{error}</p>
+          <div style={{ marginTop: 32 }}>
+            <p role="alert" style={{ color: red, fontSize: 13.5 }}>{error}</p>
+            <button onClick={() => setReloadKey(k => k + 1)} style={{ fontSize: 12.5, fontWeight: 600, padding: '6px 14px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: navy, cursor: 'pointer', fontFamily: sans }}>Retry</button>
+          </div>
         ) : sorted.length === 0 ? (
           <p style={{ marginTop: 32, color: muted }}>
             {q ? 'No files match the search.' : 'No files yet. Start one from New Matter.'}

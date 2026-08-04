@@ -59,6 +59,24 @@ const HEADING_TO_MARKER: Array<[RegExp, string]> = [
   [/^recommendation$/, 'RECOMMENDATION'],
   [/^why the offer is inadequate$/, 'LEGAL_ANALYSIS'],
   [/^(the )?counter.?position$/, 'DEMAND'],
+
+  // Mediation brief. The narrative sections follow the mediator-guidance
+  // structure (Fisher, Rudner, Rose) and the deterministic front-matter
+  // tables carry their own headings, so a firm template built from
+  // mediation precedents can place every part deliberately.
+  [/^overview$/, 'OVERVIEW'],
+  [/^factual background$/, 'FACTUAL_BACKGROUND'],
+  [/^issues in dispute$/, 'ISSUES_IN_DISPUTE'],
+  [/^(response to )?anticipated defences?$/, 'DEFENCE_RESPONSE'],
+  [/^mitigation$/, 'MITIGATION_SECTION'],
+  [/^settlement position$/, 'SETTLEMENT_POSITION'],
+  [/^mediation objectives$/, 'MEDIATION_OBJECTIVES'],
+  [/^practical considerations$/, 'PRACTICAL_CONSIDERATIONS'],
+  // Front-matter tables (deterministic, built from the matter record).
+  [/^profile of the plaintiff$/, 'PROFILE_TABLE'],
+  [/^damages calculation$/, 'DAMAGES_TABLE'],
+  [/^comparable cases$/, 'COMPARABLES_TABLE'],
+  [/^negotiation history$/, 'NEGOTIATION_HISTORY'],
 ];
 
 /** Markers that name a PART of a document rather than the whole of it. */
@@ -69,6 +87,11 @@ export const SECTION_MARKERS = new Set([
   // Severance assessment and counter-offer
   'OFFER_SUMMARY', 'STATUTORY_FLOOR', 'NOTICE_RANGE', 'CLAUSE_ANALYSIS',
   'GAP_ANALYSIS', 'OTHER_FACTORS', 'RECOMMENDATION',
+  // Mediation brief narrative and front-matter tables
+  'OVERVIEW', 'FACTUAL_BACKGROUND', 'ISSUES_IN_DISPUTE', 'DEFENCE_RESPONSE',
+  'MITIGATION_SECTION', 'SETTLEMENT_POSITION', 'MEDIATION_OBJECTIVES',
+  'PRACTICAL_CONSIDERATIONS', 'PROFILE_TABLE', 'DAMAGES_TABLE',
+  'COMPARABLES_TABLE', 'NEGOTIATION_HISTORY',
 ]);
 
 /** Markers that historically received the entire generated document. */

@@ -175,7 +175,8 @@ Output as HTML with h1, h2, tables, and structured lists. No inline styles.`,
 
 IMPORTANT: The document already begins with deterministic tables prepared from the matter record (plaintiff profile with the Bardal facts, itemized damages calculation, comparable cases, and negotiation history, as available). Do NOT reproduce those tables, do NOT restate their numbers in detail, and do NOT output an h1 title. Refer to them naturally (for example "as set out in the damages table above"). Begin directly with the first h2 section.
 
-Write these sections, each as an h2:
+Write these sections, each as an <h2> using the EXACT heading wording given
+(without the number), so each section can be placed into a firm template:
 
 1. OVERVIEW: Two or three sentences: who the plaintiff is, what happened, and what this case is really about. A mediator should understand the case from this paragraph alone.
 

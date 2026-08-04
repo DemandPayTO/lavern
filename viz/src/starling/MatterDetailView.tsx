@@ -772,6 +772,7 @@ export default function MatterDetailView() {
   const [notes, setNotes] = useState('');
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
+  const [draftFilter, setDraftFilter] = useState('');
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
   const [genCitations, setGenCitations] = useState<SourceCitation[]>([]);
   const [genReviewFlags, setGenReviewFlags] = useState<string[]>([]);
@@ -810,6 +811,8 @@ export default function MatterDetailView() {
   // Firm templates
   const firmTemplates = useFirmTemplates();
   const [templateStatus, setTemplateStatus] = useState<string | null>(null);
+  const [pendingTemplateFile, setPendingTemplateFile] = useState<File | null>(null);
+  const [pendingTemplateLabel, setPendingTemplateLabel] = useState('');
   const templateInputRef = useRef<HTMLInputElement>(null);
   // Draft version history
   interface DraftHistoryEntry { docType: string; title: string; html: string; costUsd: number; generatedAt: string; meta?: Record<string, unknown> }
@@ -1861,17 +1864,55 @@ export default function MatterDetailView() {
                     onChange={e => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        // A second template for the same type needs a label
-                        // so the lawyer can tell them apart in the picker.
-                        const label = variantsForType.length > 0
-                          ? window.prompt('Name this template (for example: Constructive dismissal, Medical leave)', '')
-                          : null;
-                        if (variantsForType.length > 0 && !label) return;
-                        void handleTemplateUpload(file, label ?? undefined);
+                        // A second template for the same type needs a label so
+                        // the lawyer can tell them apart in the picker. Ask
+                        // inline: window.prompt is blocked in some browsers
+                        // and cancelling it silently dropped the chosen file.
+                        if (variantsForType.length > 0) {
+                          setPendingTemplateFile(file);
+                          setPendingTemplateLabel('');
+                        } else {
+                          void handleTemplateUpload(file, undefined);
+                        }
                       }
                       if (templateInputRef.current) templateInputRef.current.value = '';
                     }}
                   />
+                  {pendingTemplateFile && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '8px 0', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12.5, color: ink }}>Name this template:</span>
+                      <input
+                        autoFocus
+                        value={pendingTemplateLabel}
+                        onChange={e => setPendingTemplateLabel(e.target.value)}
+                        placeholder="e.g. Constructive dismissal"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && pendingTemplateLabel.trim()) {
+                            void handleTemplateUpload(pendingTemplateFile, pendingTemplateLabel.trim());
+                            setPendingTemplateFile(null);
+                          }
+                          if (e.key === 'Escape') setPendingTemplateFile(null);
+                        }}
+                        style={{ fontSize: 12.5, fontFamily: sans, padding: '6px 9px', border: `1px solid ${border}`, borderRadius: 2, width: 220 }}
+                      />
+                      <button
+                        disabled={!pendingTemplateLabel.trim()}
+                        onClick={() => {
+                          void handleTemplateUpload(pendingTemplateFile, pendingTemplateLabel.trim());
+                          setPendingTemplateFile(null);
+                        }}
+                        style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: pendingTemplateLabel.trim() ? navy : '#c8ccd4', color: '#fff', border: 'none', cursor: pendingTemplateLabel.trim() ? 'pointer' : 'default' }}
+                      >
+                        Save template
+                      </button>
+                      <button
+                        onClick={() => setPendingTemplateFile(null)}
+                        style={{ fontSize: 12, color: muted, background: 'none', border: `1px solid ${border}`, borderRadius: 2, padding: '6px 12px', cursor: 'pointer', fontFamily: sans }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => templateInputRef.current?.click()}
@@ -1935,13 +1976,26 @@ export default function MatterDetailView() {
                   onCancel={() => setBuildingTemplate(false)}
                 />
               )}
-              {DRAFT_SECTIONS.map(section => (
+              <input
+                type="search"
+                value={draftFilter}
+                onChange={e => setDraftFilter(e.target.value)}
+                placeholder="Filter documents… (e.g. mediation, timetable, offer)"
+                aria-label="Filter the document catalogue"
+                style={{ width: '100%', maxWidth: 420, fontFamily: sans, fontSize: 13.5, padding: '9px 12px', border: `1px solid ${border}`, borderRadius: 2, marginBottom: 16, boxSizing: 'border-box' as const }}
+              />
+              {DRAFT_SECTIONS.map(section => {
+                const sectionCards = DEMO_DRAFT_TYPES.filter(dt => dt.section === section)
+                  .filter(dt => !draftFilter.trim()
+                    || `${dt.title} ${dt.description ?? ''}`.toLowerCase().includes(draftFilter.trim().toLowerCase()));
+                if (sectionCards.length === 0) return null;
+                return (
                 <div key={section} style={{ marginBottom: 18 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
                     {section}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-                    {DEMO_DRAFT_TYPES.filter(dt => dt.section === section).map(dt => (
+                    {sectionCards.map(dt => (
                       <div
                         key={dt.id}
                         onClick={() => setSelectedDraft(dt.id)}
@@ -1988,7 +2042,7 @@ export default function MatterDetailView() {
                     ))}
                   </div>
                 </div>
-              ))}
+              );})}
 
               {/* Court-form inputs: the deterministic forms are data, and
                   these fields are that data */}
@@ -2172,7 +2226,7 @@ export default function MatterDetailView() {
                           fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
                         }}
                       >
-                        Regenerate
+                        Change options
                       </button>
                       <button
                         onClick={() => setRevising({ source: 'client' })}

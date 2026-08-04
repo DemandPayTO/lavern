@@ -89,19 +89,22 @@ export default function ApprovalsView() {
   const [editing, setEditing] = useState(false);
   const [editHtml, setEditHtml] = useState('');
   const [approveNote, setApproveNote] = useState('');
+  const [queueError, setQueueError] = useState<string | null>(null);
   const [changesText, setChangesText] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadQueue = useCallback(() => {
+    setQueueError(null);
     fetch('/api/reviews', { credentials: 'include' })
       .then(async r => {
         // The routes refuse with 404 while the lane is switched off.
         if (r.status === 404) { setDisabled(true); setLoading(false); return; }
         const d = await r.json();
         if (d.ok) { setToReview(d.toReview ?? []); setMine(d.mine ?? []); }
+        else setQueueError(d.error ?? 'The queue could not be loaded.');
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => { setQueueError('The queue could not be loaded. Check the connection and retry.'); setLoading(false); });
   }, []);
 
   const loadDetail = useCallback((id: string) => {
@@ -253,6 +256,11 @@ export default function ApprovalsView() {
           </div>
         ) : loading ? (
           <p style={{ color: muted }}>Loading the queue…</p>
+        ) : queueError ? (
+          <div style={{ marginTop: 8 }}>
+            <p role="alert" style={{ color: red, fontSize: 13.5 }}>{queueError}</p>
+            <button onClick={loadQueue} style={{ fontSize: 12.5, fontWeight: 600, padding: '6px 14px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: navy, cursor: 'pointer', fontFamily: sans }}>Retry</button>
+          </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: detail ? 'minmax(280px, 380px) 1fr' : '1fr', gap: 24, alignItems: 'start' }}>
             <div>

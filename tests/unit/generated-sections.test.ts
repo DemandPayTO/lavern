@@ -171,3 +171,41 @@ describe('pinned headings across the generators', () => {
     expect(sections.CLOSING).toContain('ten days');
   });
 });
+
+
+describe('mediation brief sections', () => {
+  // The pilot's first real use: a firm template built from mediation
+  // precedents must be able to place every narrative section and every
+  // front-matter table deliberately.
+  it('maps every pinned mediation heading and table to its own marker', () => {
+    const html = [
+      '<h1>Mediation Brief of the Plaintiff, Jane Smith</h1>',
+      '<h2>Profile of the Plaintiff</h2><table><tr><th>Age</th><td>52</td></tr></table>',
+      '<h2>Damages Calculation</h2><table><tr><td>Base</td></tr></table>',
+      '<h2>Comparable Cases</h2><table><tr><td>Case</td></tr></table>',
+      '<h2>Negotiation History</h2><p>No offers.</p>',
+      '<h2>Overview</h2><p>1.&nbsp;&nbsp;The case.</p>',
+      '<h2>Factual Background</h2><p>2.&nbsp;&nbsp;Hired 2010.</p>',
+      '<h2>Issues in Dispute</h2><p>3.&nbsp;&nbsp;Notice period.</p>',
+      '<h2>Response to Anticipated Defences</h2><p>4.&nbsp;&nbsp;Cause fails.</p>',
+      '<h2>Mitigation</h2><p>5.&nbsp;&nbsp;Forty applications.</p>',
+      '<h2>Settlement Position</h2><p>6.&nbsp;&nbsp;Twelve months.</p>',
+      '<h2>Mediation Objectives</h2><p>7.&nbsp;&nbsp;Reference letter.</p>',
+      '<h2>Practical Considerations</h2><p>8.&nbsp;&nbsp;Costs.</p>',
+    ].join('\n');
+    const { sections, unmatchedHeadings } = splitGeneratedSections(html);
+    expect(unmatchedHeadings).toEqual([]);
+    for (const marker of [
+      'PROFILE_TABLE', 'DAMAGES_TABLE', 'COMPARABLES_TABLE', 'NEGOTIATION_HISTORY',
+      'OVERVIEW', 'FACTUAL_BACKGROUND', 'ISSUES_IN_DISPUTE', 'DEFENCE_RESPONSE',
+      'MITIGATION_SECTION', 'SETTLEMENT_POSITION', 'MEDIATION_OBJECTIVES',
+      'PRACTICAL_CONSIDERATIONS',
+    ]) expect(sections[marker], marker).toBeTruthy();
+    expect(sections.SETTLEMENT_POSITION).toContain('Twelve months');
+    expect(sections.DAMAGES_TABLE).toContain('<table>');
+  });
+
+  it('treats a mediation template naming two sections as sectioned', () => {
+    expect(wantsSectionedFill(['OVERVIEW', 'SETTLEMENT_POSITION'])).toBe(true);
+  });
+});

@@ -699,6 +699,8 @@ export function CloseMatterPanel({ matterId, resolved, onChanged }: {
     }
   };
 
+  const [confirmingReopen, setConfirmingReopen] = useState(false);
+
   const reopen = async () => {
     setBusy(true);
     try {
@@ -710,13 +712,32 @@ export function CloseMatterPanel({ matterId, resolved, onChanged }: {
   };
 
   if (resolved) {
+    if (confirmingReopen) {
+      return (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, color: muted }}>Reopen this file and clear its recorded outcome?</span>
+          <button
+            onClick={reopen}
+            disabled={busy}
+            style={{ background: navy, color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+          >
+            {busy ? 'Reopening...' : 'Yes, reopen'}
+          </button>
+          <button
+            onClick={() => setConfirmingReopen(false)}
+            style={{ background: '#fff', color: muted, border: `1px solid ${border}`, fontSize: 13, padding: '9px 16px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+          >
+            Cancel
+          </button>
+        </div>
+      );
+    }
     return (
       <button
-        onClick={reopen}
-        disabled={busy}
+        onClick={() => setConfirmingReopen(true)}
         style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13.5, fontWeight: 600, padding: '11px 18px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
       >
-        {busy ? 'Reopening...' : 'Reopen matter'}
+        Reopen matter
       </button>
     );
   }

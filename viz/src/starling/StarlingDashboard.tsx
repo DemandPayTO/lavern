@@ -182,6 +182,7 @@ export default function StarlingDashboard() {
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [hoveredMatter, setHoveredMatter] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Wire hook data
@@ -214,10 +215,11 @@ export default function StarlingDashboard() {
       })
       .catch(() => { /* glance stays empty */ });
     return () => { cancelled = true; };
-  }, [matters.length]);
+  }, [matters]);
 
   const handleDeleteMatter = async (matterId: string) => {
     setDeleting(true);
+    setDeleteError(null);
     try {
       // Rows come from three sources — try each: employment matter,
       // live session, then archived session.
@@ -225,7 +227,15 @@ export default function StarlingDashboard() {
       let res = await fetch(`/api/matters/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) res = await fetch(`/api/sessions/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) res = await fetch(`/api/sessions/archive/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (res.ok) refresh();
+      if (res.ok) {
+        refresh();
+      } else {
+        // A colleague's file refuses with the owner's name; surface it.
+        const body = await res.json().catch(() => ({}));
+        setDeleteError((body as { error?: string }).error ?? 'The file could not be deleted. Reload and try again.');
+      }
+    } catch {
+      setDeleteError('The file could not be deleted. Check the connection and try again.');
     } finally {
       setDeleting(false);
       setConfirmingDelete(null);
@@ -454,7 +464,7 @@ export default function StarlingDashboard() {
         {/* Page header */}
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
           <h1 style={{ fontFamily: serif, fontSize: 26, fontWeight: 600, color: navy, margin: 0 }}>
-            {getGreeting()}, Jordan
+            {getGreeting()}{userCtx?.user?.displayName ? `, ${userCtx.user.displayName.split(' ')[0]}` : ''}
           </h1>
           <div style={{ color: muted, fontSize: 13 }}>{getFormattedDate()}</div>
         </div>
@@ -819,7 +829,8 @@ export default function StarlingDashboard() {
                   {matter.metaValue}
                 </div>
                 {confirmingDelete === matter.id ? (
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#dc2626' }}>Deletes the whole file: drafts, deadlines, intake.</span>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteMatter(matter.id); }}
                       disabled={deleting}
@@ -845,6 +856,8 @@ export default function StarlingDashboard() {
                       opacity: hoveredMatter === matter.id ? 1 : 0,
                       transition: 'opacity 0.15s',
                     }}
+                    onFocus={() => setHoveredMatter(matter.id)}
+                    onBlur={() => setHoveredMatter(h => (h === matter.id ? null : h))}
                   >
                     Delete
                   </button>
@@ -854,6 +867,9 @@ export default function StarlingDashboard() {
           ))}
 
         </div>
+        )}
+        {deleteError && (
+          <div role="alert" style={{ fontSize: 12.5, color: '#dc2626', padding: '8px 0' }}>{deleteError}</div>
         )}
         {!loading && searchedMatters.length > visibleMatters.length && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '12px 0' }}>
