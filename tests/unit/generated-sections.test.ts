@@ -119,3 +119,55 @@ describe('building the values a sectioned template receives', () => {
     expect(values.DEMAND).toContain('$110,000');
   });
 });
+
+describe('pinned headings across the generators', () => {
+  it('recognises the Statement of Claim sections', () => {
+    const soc = [
+      '<h1>Statement of Claim</h1>',
+      '<h2>Title of Proceedings</h2><p>Ontario Superior Court.</p>',
+      '<h2>Claim</h2><p>The Plaintiff claims damages.</p>',
+      '<h2>Facts</h2><p>1. The plaintiff was hired in 2015.</p>',
+      '<h2>Legal Basis</h2><p>Wrongful dismissal at common law.</p>',
+      '<h2>Damages Particulars</h2><p>Twelve months notice.</p>',
+    ].join('\n');
+    const { sections } = splitGeneratedSections(soc);
+    expect(Object.keys(sections).sort()).toEqual([
+      'CLAIM', 'DAMAGES_PARTICULARS', 'FACTS_SECTION', 'LEGAL_BASIS', 'TITLE_OF_PROCEEDINGS',
+    ]);
+    expect(sections.FACTS_SECTION).toContain('hired in 2015');
+    expect(sections.CLAIM).not.toContain('hired in 2015');
+  });
+
+  it('recognises the severance assessment sections', () => {
+    const memo = [
+      '<h2>The Offer</h2><p>Eight weeks.</p>',
+      '<h2>The Statutory Floor</h2><p>ESA minimum is six weeks.</p>',
+      '<h2>The Common Law Range</h2><p>Ten to fourteen months.</p>',
+      '<h2>Termination Clause Analysis</h2><p>Likely void per Waksdale.</p>',
+      '<h2>The Gap</h2><p>Shortfall of $80,000.</p>',
+      '<h2>Other Factors</h2><p>Deadline pressure.</p>',
+      '<h2>Recommendation</h2><p>Counter at $120,000.</p>',
+    ].join('\n');
+    const { sections } = splitGeneratedSections(memo);
+    expect(sections.OFFER_SUMMARY).toContain('Eight weeks');
+    expect(sections.STATUTORY_FLOOR).toContain('six weeks');
+    expect(sections.NOTICE_RANGE).toContain('fourteen months');
+    expect(sections.CLAUSE_ANALYSIS).toContain('Waksdale');
+    expect(sections.GAP_ANALYSIS).toContain('$80,000');
+    expect(sections.RECOMMENDATION).toContain('$120,000');
+  });
+
+  it('maps the counter-offer sections onto the shared vocabulary', () => {
+    const letter = [
+      '<h2>Acknowledgment</h2><p>We have the offer.</p>',
+      '<h2>Why the offer is inadequate</h2><p>It is below the Bardal range.</p>',
+      '<h2>The counter-position</h2><p>We counter at $130,000.</p>',
+      '<h2>Terms</h2><p>Respond within ten days.</p>',
+    ].join('\n');
+    const { sections } = splitGeneratedSections(letter);
+    expect(sections.OFFER_SUMMARY).toContain('We have the offer');
+    expect(sections.LEGAL_ANALYSIS).toContain('Bardal');
+    expect(sections.DEMAND).toContain('$130,000');
+    expect(sections.CLOSING).toContain('ten days');
+  });
+});

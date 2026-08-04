@@ -237,12 +237,15 @@ FILING DETAILS:
 ${req.firmAddress ? `- Firm address: ${req.firmAddress}` : ''}
 ${limitation ? `- Limitation: ${limitation.date} (${limitation.daysRemaining} days remaining)` : ''}
 
-DOCUMENT STRUCTURE:
-1. Title of Proceedings (court name, file number placeholder, parties)
-2. CLAIM: "The Plaintiff claims:" followed by itemised relief sought
-3. FACTS: Numbered paragraphs setting out the material facts in chronological order
-4. LEGAL BASIS: Statutory and common law grounds for each claim
-5. DAMAGES PARTICULARS: Itemised breakdown with amounts
+DOCUMENT STRUCTURE. Emit each numbered section below as an <h2> heading
+using the EXACT wording given, so that the pleading can be placed into a
+firm's own template section by section. Do not rename, merge, or omit a
+heading.
+1. <h2>Title of Proceedings</h2> (court name, file number placeholder, parties)
+2. <h2>Claim</h2>: "The Plaintiff claims:" followed by itemised relief sought
+3. <h2>Facts</h2>: Numbered paragraphs setting out the material facts in chronological order
+4. <h2>Legal Basis</h2>: Statutory and common law grounds for each claim
+5. <h2>Damages Particulars</h2>: Itemised breakdown with amounts
 6. ${req.procedureType === 'simplified' ? 'RULE 76 COMPLIANCE STATEMENT' : 'DATE AND PLACE OF ISSUE'}
 7. Lawyer/firm information and service address
 

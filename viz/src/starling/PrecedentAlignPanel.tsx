@@ -38,13 +38,22 @@ interface Alignment {
   warnings: string[];
 }
 
-/** Placeholders Starling knows how to fill from a matter. */
-const FILLABLE = [
+/** Facts Starling fills from the matter's own record. */
+const DATA_FIELDS = [
   'CLIENT_NAME', 'CLIENT_FIRST_NAME', 'CLIENT_LAST_NAME', 'CLIENT_ADDRESS',
   'EMPLOYER_NAME', 'EMPLOYER_ADDRESS', 'JOB_TITLE', 'HIRE_DATE',
   'TERMINATION_DATE', 'ANNUAL_SALARY', 'AMOUNT',
   'FIRM_NAME', 'LAWYER_NAME', 'FIRM_ADDRESS', 'DATE', 'FILE_NUMBER',
-  'COURT_NAME', 'COURT_FILE_NUMBER', 'LEGAL_ANALYSIS',
+  'COURT_NAME', 'COURT_FILE_NUMBER',
+];
+
+/** Passages Starling writes for the matter and places at this point. */
+const WRITTEN_SECTIONS = [
+  'EMPLOYMENT_BACKGROUND', 'TERMINATION_FACTS', 'FACTS_SECTION',
+  'LEGAL_ANALYSIS', 'LEGAL_BASIS', 'DAMAGES_SECTION', 'DAMAGES_PARTICULARS',
+  'DEMAND', 'RELIEF_SOUGHT', 'CLAIM', 'CLOSING', 'TITLE_OF_PROCEEDINGS',
+  'OFFER_SUMMARY', 'STATUTORY_FLOOR', 'NOTICE_RANGE', 'CLAUSE_ANALYSIS',
+  'GAP_ANALYSIS', 'OTHER_FACTORS', 'RECOMMENDATION',
 ];
 
 const BASIS_LABEL: Record<AlignedSlot['basis'], string> = {
@@ -252,7 +261,12 @@ export function PrecedentAlignPanel({ documentType, documentLabel, onSaved, onCa
               aria-label={`Field for ${slot.observedValues[0] || 'this spot'}`}
             >
               <option value="">Keep the original wording</option>
-              {FILLABLE.map(p => <option key={p} value={p}>{p}</option>)}
+              <optgroup label="Facts from the matter">
+                {DATA_FIELDS.map(p => <option key={p} value={p}>{p}</option>)}
+              </optgroup>
+              <optgroup label="Passages Starling writes">
+                {WRITTEN_SECTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+              </optgroup>
             </select>
           </div>
         ))}

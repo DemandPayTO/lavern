@@ -43,7 +43,22 @@ const HEADING_TO_MARKER: Array<[RegExp, string]> = [
   [/^relief sought$/, 'RELIEF_SOUGHT'],
   [/^(the )?claim$/, 'CLAIM'],
   [/^closing$/, 'CLOSING'],
+  [/^terms$/, 'CLOSING'],
   [/^title of proceedings$/, 'TITLE_OF_PROCEEDINGS'],
+
+  // Severance assessment and counter-offer sections. These name parts of a
+  // document rather than data fields, so they take content from the
+  // generated output like any other section marker.
+  [/^(the )?offer$/, 'OFFER_SUMMARY'],
+  [/^acknowledgment$/, 'OFFER_SUMMARY'],
+  [/^(the )?statutory floor$/, 'STATUTORY_FLOOR'],
+  [/^(the )?common law range$/, 'NOTICE_RANGE'],
+  [/^termination clause analysis$/, 'CLAUSE_ANALYSIS'],
+  [/^(the )?gap$/, 'GAP_ANALYSIS'],
+  [/^other factors$/, 'OTHER_FACTORS'],
+  [/^recommendation$/, 'RECOMMENDATION'],
+  [/^why the offer is inadequate$/, 'LEGAL_ANALYSIS'],
+  [/^(the )?counter.?position$/, 'DEMAND'],
 ];
 
 /** Markers that name a PART of a document rather than the whole of it. */
@@ -51,6 +66,9 @@ export const SECTION_MARKERS = new Set([
   'EMPLOYMENT_BACKGROUND', 'TERMINATION_FACTS', 'FACTS_SECTION', 'LEGAL_ANALYSIS',
   'LEGAL_BASIS', 'DAMAGES_SECTION', 'DAMAGES_PARTICULARS', 'DEMAND',
   'RELIEF_SOUGHT', 'CLAIM', 'CLOSING', 'TITLE_OF_PROCEEDINGS',
+  // Severance assessment and counter-offer
+  'OFFER_SUMMARY', 'STATUTORY_FLOOR', 'NOTICE_RANGE', 'CLAUSE_ANALYSIS',
+  'GAP_ANALYSIS', 'OTHER_FACTORS', 'RECOMMENDATION',
 ]);
 
 /** Markers that historically received the entire generated document. */

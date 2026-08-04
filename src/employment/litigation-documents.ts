@@ -206,6 +206,10 @@ Output as HTML with h2, p, ol, li, strong only. No h1, no tables, no inline styl
 
 STRUCTURE:
 
+Emit each numbered section below as an <h2> heading using the EXACT wording
+given (without the number), so the memo can be placed into a firm template
+section by section.
+
 1. THE OFFER: What the employer has offered (weeks/amount, payment structure, deadline to accept, release required), stated plainly.
 
 2. THE STATUTORY FLOOR: ESA termination pay and (if eligible) severance pay. The offer can NEVER lawfully be below this floor; if it is, say so prominently.
@@ -234,6 +238,9 @@ STRUCTURE:
 1. HEADER: "WITHOUT PREJUDICE" prominently. Date, addressee, re-line (client name, former employer).
 
 2. ACKNOWLEDGMENT: Confirm receipt of the offer and its terms (weeks/amount, deadline) accurately and neutrally.
+   Emit sections 2 to 5 as <h2> headings using the EXACT wording given
+   (without the number), so the letter can be placed into a firm template
+   section by section.
 
 3. WHY THE OFFER IS INADEQUATE: The entitlements analysis: ESA floor, then the common law reasonable notice range under Bardal with the client's specific factors; compensation components beyond salary (Matthews v Ocean Nutrition for bonus/commission/equity through notice); termination clause enforceability where applicable (Waksdale line). Cite only real authorities.
 
@@ -247,7 +254,7 @@ RULES:
 - The counter amount is the claim amount provided in the filing details.
 - Canadian spelling.
 
-Output as HTML with h1, p, strong. Letter format, no tables. No inline styles.`,
+Output as HTML with h1, h2, p, strong. Letter format, no tables. No inline styles.`,
 
     reply: `You are a senior Ontario litigation lawyer drafting a REPLY (Form 25A) under Rule 25.08 of the Rules of Civil Procedure, on behalf of the Plaintiff in a wrongful dismissal action.
 
@@ -531,6 +538,7 @@ Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
   return prompts[docType] + `
 
 CRITICAL:
+0. Where the STRUCTURE above names sections, emit each as an <h2> heading using that exact wording. Firm templates place documents section by section, and a missing or renamed heading sends a section to the wrong place.
 1. Every factual claim must come from the intake data; never fabricate facts.
 2. Use Canadian English spelling throughout.
 3. All monetary amounts in Canadian dollars.
