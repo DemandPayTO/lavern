@@ -447,23 +447,10 @@ export function useMatterCreate(): MatterCreateResult {
           body: JSON.stringify({ matterId }),
         });
 
-        // Auto-approve all triggered issues so document generation works immediately.
-        // The lawyer can dismiss specific issues from the Issues tab later.
-        if (analysisRes.ok) {
-          const analysisData = await analysisRes.json();
-          const triggeredCodes = (analysisData.analysis?.gates ?? [])
-            .filter((g: Record<string, unknown>) => g.triggered)
-            .flatMap((g: Record<string, unknown>) => g.issueCodes as string[] ?? []);
-
-          if (triggeredCodes.length > 0) {
-            await fetch(`/api/employment/${matterId}/issues`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ approved: triggeredCodes, dismissed: [] }),
-            });
-          }
-        }
+        // Issues are PROPOSED by the analysis, never silently approved.
+        // The Issues tab promises "Starling drafts nothing you have not
+        // approved", and that promise is only true if approval is the
+        // lawyer's click (the tab has per-issue controls and Approve all).
       } catch {
         // Non-fatal — intake saved, analysis can be re-run from matter detail
       }

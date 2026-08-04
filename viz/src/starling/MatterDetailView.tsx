@@ -975,6 +975,14 @@ export default function MatterDetailView() {
   const [includeGenSoc, setIncludeGenSoc] = useState(true);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sourceParsing, setSourceParsing] = useState(false);
+  const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
+  useEffect(() => {
+    if (selectedDraft !== 'mediation' || !sessionId) { setReadiness([]); return; }
+    fetch(`/api/employment/${sessionId}/brief-readiness`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setReadiness(d.items ?? []); })
+      .catch(() => { /* the checklist is advisory */ });
+  }, [selectedDraft, sessionId, employment.data]);
   const briefSourceInputRef = useRef<HTMLInputElement | null>(null);
 
   const attachBriefSource = useCallback(async (file: File) => {
@@ -1477,6 +1485,28 @@ export default function MatterDetailView() {
 
               {/* Lawyer decisions on triggered gates — controls which issues
                   are included in generated documents (shared with the labour view) */}
+              {(() => {
+                const pending = triggeredGates.filter(g => gateDecision(g) === 'pending');
+                if (pending.length === 0) return null;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '10px 14px', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: ink }}>
+                      <b>{pending.length} issue{pending.length === 1 ? '' : 's'} await{pending.length === 1 ? 's' : ''} your decision.</b>{' '}
+                      Documents argue only approved issues.
+                    </span>
+                    <button
+                      onClick={() => {
+                        const approvedSet = new Set(employment.data?.approvedIssues ?? []);
+                        for (const g of pending) for (const c of g.issueCodes) approvedSet.add(c);
+                        void employment.approveIssues([...approvedSet], employment.data?.dismissedIssues ?? []);
+                      }}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: navy, color: '#fff', border: 'none', cursor: 'pointer' }}
+                    >
+                      Approve all {pending.length}
+                    </button>
+                  </div>
+                );
+              })()}
               <GateApprovalPanel
                 gates={triggeredGates}
                 structuralGates={structuralGates}
@@ -2204,6 +2234,38 @@ export default function MatterDetailView() {
                     <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
                     <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
                   </div>
+                </div>
+              )}
+
+              {selectedDraft === 'mediation' && !generatedHtml && readiness.length > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                    Before you generate
+                    {readiness.some(r => r.level === 'warn') && (
+                      <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
+                        {readiness.filter(r => r.level === 'warn').length} TO FIX
+                      </span>
+                    )}
+                  </div>
+                  {readiness.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', fontSize: 12.5 }}>
+                      <span aria-hidden="true" style={{ color: r.level === 'ok' ? green : r.level === 'warn' ? amber : muted, fontWeight: 700, minWidth: 14 }}>
+                        {r.level === 'ok' ? '✓' : r.level === 'warn' ? '!' : '·'}
+                      </span>
+                      <span style={{ color: r.level === 'warn' ? ink : muted, flex: 1 }}>
+                        <span style={{ fontWeight: r.level === 'warn' ? 600 : 400 }}>{r.label}</span>
+                        {r.hint && <span> {r.hint}</span>}
+                        {r.goTo && r.level !== 'ok' && (
+                          <button
+                            onClick={() => setActiveTab(r.goTo as TabKey)}
+                            style={{ marginLeft: 6, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
+                          >
+                            fix it
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
 

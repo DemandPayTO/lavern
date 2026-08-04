@@ -1965,6 +1965,39 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
   });
 
+  // ── GET /api/employment/:matterId/brief-readiness ──────────────────────
+  // What the mediation brief will be missing, before generating: every
+  // check mirrors a decision the deterministic assemblers make, so the
+  // lawyer fixes holes from a checklist instead of a paid draft.
+
+  fastify.get('/api/employment/:matterId/brief-readiness', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const { briefReadiness } = await import('../../employment/brief-readiness.js');
+    const { caselawConfigured } = await import('../../employment/case-comparables.js');
+    const firmId = resolveFirmId(req);
+    const dl = (matter as Record<string, unknown>).generatedDemandLetter as Record<string, unknown> | undefined;
+    const soc = (matter as Record<string, unknown>).generatedSOC as Record<string, unknown> | undefined;
+
+    return reply.send({
+      ok: true,
+      items: briefReadiness({
+        intake: employment.intake,
+        analysis: employment.analysis,
+        approvedIssuesCount: employment.approvedIssues?.length ?? 0,
+        negotiationCount: (((matter as Record<string, unknown>).negotiation ?? []) as unknown[]).length,
+        caselawConfigured: caselawConfigured(),
+        styleProfilesCount: firmId ? getStyleProfiles(firmId, 'mediation_brief').length : 0,
+        sourcesCount: (dl?.html ? 1 : 0) + (soc?.html ? 1 : 0),
+        mediationDocketed: (employment.timeline ?? []).some(e => e.label === 'Mediation'),
+      }),
+    });
+  });
+
   // ── GET /api/employment/:matterId/download/:docType ────────────────────
   // Download a generated document as DOCX.
 
