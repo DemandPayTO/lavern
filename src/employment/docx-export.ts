@@ -53,7 +53,13 @@ export interface DocxExportOptions {
     client_address?: string;
     employer_legal_name?: string;
     employer_address?: string;
+    job_title?: string;
+    hire_date?: string;
+    termination_date?: string;
+    annual_salary?: number | null;
   };
+  /** Demand or settlement figure set on the matter, for {{AMOUNT}}. */
+  demandAmount?: number | null;
 }
 
 // ── HTML parsing helpers ─────────────────────────────────────────────────
@@ -240,6 +246,7 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
       firmName: options.firmName,
       lawyerName: options.lawyerName,
       firmAddress: options.firmAddress,
+      demandAmount: options.demandAmount,
       matterNumber: options.matterNumber,
       courtName: options.courtName,
       date: options.date,

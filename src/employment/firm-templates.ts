@@ -90,6 +90,13 @@ export const STANDARD_PLACEHOLDERS: Record<string, string> = {
   '{{COURT_NAME}}': 'Court name and location',
   '{{COURT_FILE_NUMBER}}': 'Court file number (placeholder for filing)',
 
+  // Employment particulars
+  '{{JOB_TITLE}}': 'The client\u2019s position',
+  '{{HIRE_DATE}}': 'Date the client was hired',
+  '{{TERMINATION_DATE}}': 'Date of termination',
+  '{{ANNUAL_SALARY}}': 'Annual salary at termination',
+  '{{AMOUNT}}': 'The demand or settlement figure set on the matter',
+
   // Content sections
   '{{SALUTATION}}': 'Opening salutation (Dear...)',
   '{{EMPLOYMENT_BACKGROUND}}': 'Employment history narrative',
@@ -161,6 +168,18 @@ export function injectPlaceholders(template: string, values: TemplatePlaceholder
  * This maps the structured intake data + generated HTML sections into
  * the placeholder format that templates expect.
  */
+/** ISO date to the long form Ontario correspondence uses. */
+function formatDate(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(`${iso}T00:00:00`);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatMoney(amount: number): string {
+  return `$${amount.toLocaleString('en-CA')}`;
+}
+
 export function buildPlaceholderValues(args: {
   intake: {
     client_first_name?: string;
@@ -168,7 +187,13 @@ export function buildPlaceholderValues(args: {
     client_address?: string;
     employer_legal_name?: string;
     employer_address?: string;
+    job_title?: string;
+    hire_date?: string;
+    termination_date?: string;
+    annual_salary?: number | null;
   };
+  /** Demand or settlement figure the lawyer set on the matter. */
+  demandAmount?: number | null;
   firmName?: string;
   lawyerName?: string;
   firmAddress?: string;
@@ -197,6 +222,17 @@ export function buildPlaceholderValues(args: {
     FILE_NUMBER: args.matterNumber || undefined,
     COURT_NAME: args.courtName || undefined,
     COURT_FILE_NUMBER: '[TO BE ASSIGNED]',
+    // Employment particulars. Precedent alignment proposes these markers
+    // when it sees the job title, dates, or salary varying between a
+    // firm's precedents, so they must be fillable or an aligned template
+    // would carry holes.
+    JOB_TITLE: args.intake.job_title || undefined,
+    HIRE_DATE: formatDate(args.intake.hire_date),
+    TERMINATION_DATE: formatDate(args.intake.termination_date),
+    ANNUAL_SALARY: typeof args.intake.annual_salary === 'number'
+      ? formatMoney(args.intake.annual_salary) : undefined,
+    AMOUNT: typeof args.demandAmount === 'number'
+      ? formatMoney(args.demandAmount) : undefined,
     // The full generated HTML is injected as the main content
     // Individual sections can be parsed out if the template uses section-level placeholders
     LEGAL_ANALYSIS: args.generatedHtml || undefined,

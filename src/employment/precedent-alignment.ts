@@ -194,7 +194,12 @@ export function classifyValues(
       if (factValue === undefined || factValue === null || factValue === '') return false;
       return valueMatchesFact(value, String(factValue));
     });
-    if (hits.length >= Math.min(2, cleaned.length)) return { placeholder, basis: 'matter_data' };
+    // One tagged precedent is enough to identify what a slot IS: if this
+    // slot holds the employer name in the matter we know about, it holds
+    // the employer name in the others too. Requiring a match from every
+    // precedent would mean tagging all of them, which is friction for no
+    // extra certainty — and the lawyer confirms every suggestion anyway.
+    if (hits.length >= 1) return { placeholder, basis: 'matter_data' };
   }
   // Client name may appear as first, last, or full name.
   const nameHits = cleaned.filter((value, idx) => {
@@ -205,7 +210,7 @@ export function classifyValues(
       .filter((c): c is string => Boolean(c))
       .some(candidate => valueMatchesFact(value, candidate));
   });
-  if (nameHits.length >= Math.min(2, cleaned.length)) return { placeholder: 'CLIENT_NAME', basis: 'matter_data' };
+  if (nameHits.length >= 1) return { placeholder: 'CLIENT_NAME', basis: 'matter_data' };
 
   // (b) Pattern match the unambiguous shapes.
   if (cleaned.every(v => MONEY_RE.test(v))) return { placeholder: 'AMOUNT', basis: 'pattern' };

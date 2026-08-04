@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/employment-intake.js';
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
+import type { MatterFacts } from '../../employment/precedent-alignment.js';
 import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
 import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, recordUsageEvent, getUserById } from '../../db/database.js';
 import { collectDeadlines } from '../../employment/deadlines.js';
@@ -1714,12 +1715,17 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       firmId,
       documentType: docTypeMap[docType],
       templateVariantId,
+      demandAmount: employment?.demandAmount ?? null,
       intake: employment?.intake ? {
         client_first_name: employment.intake.client_first_name,
         client_last_name: employment.intake.client_last_name,
         client_address: employment.intake.client_address,
         employer_legal_name: employment.intake.employer_legal_name,
         employer_address: employment.intake.employer_address,
+        job_title: employment.intake.job_title,
+        hire_date: employment.intake.hire_date,
+        termination_date: employment.intake.termination_date,
+        annual_salary: employment.intake.annual_salary,
       } : undefined,
     });
 
@@ -1729,6 +1735,165 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       .header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
       .header('Content-Disposition', `attachment; filename="${filename}"`)
       .send(buffer);
+  });
+
+  // ── POST /api/employment/templates/align ───────────────────────────────
+  // Turn several of the firm's precedents into a template proposal by
+  // diffing them: recurring text is the firm's boilerplate, varying text
+  // becomes a placeholder. Deterministic and free — no model call, and the
+  // precedents never leave this server. The lawyer reviews the proposal
+  // before anything is saved (POST .../align/save).
+
+  const alignSchema = z.object({
+    documentType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    precedents: z.array(z.object({
+      name: z.string().trim().min(1).max(300),
+      docxBase64: z.string().max(7_000_000),
+      /** Optional: the matter this precedent came from. Naming placeholders
+       *  from real intake data is exact, where pattern matching guesses. */
+      matterId: z.string().trim().max(200).optional(),
+    })).min(3).max(8),
+  });
+
+  fastify.post('/api/employment/templates/align', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+
+    const parsed = alignSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: 'Provide a document type and at least three precedents (up to eight).',
+      });
+    }
+
+    const mammoth = (await import('mammoth')).default;
+    const { alignPrecedents } = await import('../../employment/precedent-alignment.js');
+
+    const inputs: Array<{ name: string; text: string }> = [];
+    const facts: Array<MatterFacts | undefined> = [];
+    for (const p of parsed.data.precedents) {
+      let text = '';
+      try {
+        const { value } = await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64, 'base64') });
+        text = value;
+      } catch {
+        return reply.status(400).send({ ok: false, error: `Could not read “${p.name}” as a Word document.` });
+      }
+      if (!text.trim()) {
+        return reply.status(400).send({ ok: false, error: `“${p.name}” appears to contain no text.` });
+      }
+      inputs.push({ name: p.name, text });
+
+      // Matter facts are read under the CALLER's id, so a precedent can
+      // only be tied to a matter the caller already owns.
+      let matterFacts: MatterFacts | undefined;
+      if (p.matterId) {
+        const row = getMatterById(p.matterId, userId);
+        if (row) {
+          const { employment } = loadEmploymentData(row.data_json);
+          const i = employment.intake;
+          if (i) {
+            matterFacts = {
+              client_first_name: i.client_first_name, client_last_name: i.client_last_name,
+              client_address: i.client_address, employer_legal_name: i.employer_legal_name,
+              employer_address: i.employer_address, job_title: i.job_title,
+              hire_date: i.hire_date, termination_date: i.termination_date,
+              annual_salary: i.annual_salary,
+            };
+          }
+        }
+      }
+      facts.push(matterFacts);
+    }
+
+    try {
+      const result = alignPrecedents(inputs, facts);
+      logger.info('Precedents aligned', {
+        firmId, documentType: parsed.data.documentType,
+        precedents: inputs.length, slots: result.slots.length,
+      });
+      return reply.send({ ok: true, documentType: parsed.data.documentType, alignment: result });
+    } catch (err) {
+      return reply.status(400).send({
+        ok: false,
+        error: err instanceof Error ? err.message : 'Alignment failed.',
+      });
+    }
+  });
+
+  // ── POST /api/employment/templates/align/save ──────────────────────────
+  // Save a reviewed alignment as a template variant. The lawyer's decisions
+  // arrive as slot id → placeholder name (or null to keep the original
+  // wording). The rendered template is verified to contain no invented
+  // prose before it is stored.
+
+  const alignSaveSchema = z.object({
+    documentType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    variantLabel: z.string().trim().min(1).max(80),
+    isDefault: z.boolean().optional(),
+    alignment: z.object({
+      lines: z.array(z.object({
+        index: z.number(), presentIn: z.array(z.number()),
+        skeleton: z.string(), stable: z.boolean(),
+      })).max(2000),
+      slots: z.array(z.object({
+        id: z.string().max(20), kind: z.string().max(20), lineIndex: z.number(),
+        observedValues: z.array(z.string().max(4000)).max(8),
+        suggestedPlaceholder: z.string().max(60).nullable(),
+        basis: z.string().max(20),
+      })).max(500),
+      stableLineCount: z.number(), optionalLineCount: z.number(),
+      precedentNames: z.array(z.string().max(300)).max(8),
+      warnings: z.array(z.string().max(500)).max(20),
+    }),
+    decisions: z.record(z.string().max(20), z.string().max(60).nullable()),
+    includeOptionalLines: z.boolean().optional(),
+  });
+
+  fastify.post('/api/employment/templates/align/save', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+
+    const parsed = alignSaveSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid template to save.' });
+
+    const { renderTemplate } = await import('../../employment/precedent-alignment.js');
+    const { Document, Packer, Paragraph, TextRun } = await import('docx');
+
+    const alignment = parsed.data.alignment as unknown as Parameters<typeof renderTemplate>[0];
+    const templateText = renderTemplate(alignment, parsed.data.decisions, {
+      includeOptionalLines: parsed.data.includeOptionalLines ?? true,
+    });
+    if (!templateText.trim()) {
+      return reply.status(400).send({ ok: false, error: 'The reviewed template is empty.' });
+    }
+
+    // Build a DOCX carrying the firm's own words plus the confirmed
+    // placeholders. Formatting comes from the firm's later edits; the point
+    // here is that the language is theirs, verbatim.
+    const doc = new Document({
+      sections: [{
+        children: templateText.split('\n').map(line =>
+          new Paragraph({ children: [new TextRun({ text: line, font: 'Times New Roman', size: 24 })] })),
+      }],
+    });
+    const buffer = await Packer.toBuffer(doc);
+    const templateBase64 = buffer.toString('base64');
+
+    const placeholders = detectPlaceholders(templateText);
+    const label = parsed.data.variantLabel.trim();
+    const variantId = `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'variant'}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    saveFirmTemplate(id, firmId, parsed.data.documentType, `${label}.docx`, templateBase64, placeholders,
+      { variantId, variantLabel: label, isDefault: parsed.data.isDefault });
+
+    logger.info('Aligned template saved', {
+      firmId, documentType: parsed.data.documentType, variantId, placeholders: placeholders.length,
+    });
+    return reply.send({ ok: true, templateId: id, variantId, variantLabel: label, placeholders });
   });
 
   // ── POST /api/employment/templates ─────────────────────────────────────

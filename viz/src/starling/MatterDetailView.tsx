@@ -15,6 +15,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMatterDetail, useEmploymentData, useFirmTemplates } from './hooks/useStarlingApi.js';
 import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
 import { CaseFileDropPanel } from './CaseFileDropPanel.js';
+import { PrecedentAlignPanel } from './PrecedentAlignPanel.js';
 import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
@@ -903,6 +904,7 @@ export default function MatterDetailView() {
     ? firmTemplates.templates.filter(t => t.documentType === selectedTemplateDocType)
     : [];
   const [chosenVariantId, setChosenVariantId] = useState<string | null>(null);
+  const [buildingTemplate, setBuildingTemplate] = useState(false);
 
   // Reset the choice when the document type changes, and keep a stale id
   // (deleted or renamed variant) from lingering.
@@ -1750,6 +1752,15 @@ export default function MatterDetailView() {
                     >
                       {currentTemplate ? 'Add another' : 'Upload template'}
                     </button>
+                    <button
+                      onClick={() => setBuildingTemplate(v => !v)}
+                      style={{
+                        background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
+                        padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                      }}
+                    >
+                      {buildingTemplate ? 'Close builder' : 'Build from precedents'}
+                    </button>
                     {currentTemplate && activeVariant && !activeVariant.isDefault && (
                       <button
                         onClick={async () => {
@@ -1785,6 +1796,14 @@ export default function MatterDetailView() {
                     )}
                   </div>
                 </div>
+              )}
+              {buildingTemplate && selectedTemplateDocType && (
+                <PrecedentAlignPanel
+                  documentType={selectedTemplateDocType}
+                  documentLabel={DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'document'}
+                  onSaved={() => { setBuildingTemplate(false); firmTemplates.refresh(); setTemplateStatus('Template built from your precedents and saved.'); }}
+                  onCancel={() => setBuildingTemplate(false)}
+                />
               )}
               {DRAFT_SECTIONS.map(section => (
                 <div key={section} style={{ marginBottom: 18 }}>
