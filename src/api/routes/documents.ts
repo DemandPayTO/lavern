@@ -43,17 +43,38 @@ export function registerDocumentRoutes(fastify: FastifyInstance): void {
         });
       }
 
-      // Read the file buffer
+      // Read the file, enforcing the size cap AS IT STREAMS.
+      //
+      // This previously buffered the whole upload and only then compared its
+      // length to the cap, so an oversized file was fully resident before it
+      // could be rejected, and Buffer.concat briefly held a second copy. On
+      // a small container that is enough to get the process OOM-killed by
+      // the kernel: the server dies mid-request and every other user's
+      // session dies with it, surfacing as a 502 rather than a useful error.
+      // Aborting mid-stream bounds the memory a caller can make us hold.
       const chunks: Buffer[] = [];
+      let received = 0;
       for await (const chunk of data.file) {
-        chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+        const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+        received += buf.length;
+        if (received > MAX_FILE_SIZE) {
+          chunks.length = 0;              // release what we hold before replying
+          data.file.destroy();
+          return reply.status(413).send({
+            error: `File too large. The limit is ${MAX_FILE_SIZE / 1024 / 1024} MB.`,
+            maxSizeMb: MAX_FILE_SIZE / 1024 / 1024,
+          });
+        }
+        chunks.push(buf);
       }
       const buffer = Buffer.concat(chunks);
+      chunks.length = 0;                  // the concatenated copy is enough
 
-      // Validate file size
-      if (buffer.length > MAX_FILE_SIZE) {
-        return reply.status(400).send({
-          error: `File too large: ${(buffer.length / 1024 / 1024).toFixed(1)} MB`,
+      // @fastify/multipart truncates at the server-wide limit; a truncated
+      // file would parse into a silently incomplete document.
+      if ((data.file as { truncated?: boolean }).truncated) {
+        return reply.status(413).send({
+          error: `File too large. The limit is ${MAX_FILE_SIZE / 1024 / 1024} MB.`,
           maxSizeMb: MAX_FILE_SIZE / 1024 / 1024,
         });
       }

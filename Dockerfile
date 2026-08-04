@@ -57,6 +57,14 @@ RUN mkdir -p /app/data /app/audit-logs
 
 # Environment defaults
 ENV NODE_ENV=production
+# Cap V8's heap. Without this Node sizes its heap from the HOST's memory and
+# has no idea the container is smaller, so under a heavy request (parsing an
+# uploaded document) it grows past the cgroup limit and the kernel OOM-kills
+# the process. That takes the whole server down mid-request and surfaces to
+# every connected user as a 502. With a cap, V8 collects instead, and the
+# worst case is one failed request rather than a restart.
+# Sized for the 512 MB machine; raise alongside `fly scale memory`.
+ENV NODE_OPTIONS=--max-old-space-size=384
 ENV SHEM_HOST=0.0.0.0
 ENV SHEM_PORT=3000
 ENV SHEM_DB_PATH=/app/data/lavern.db
