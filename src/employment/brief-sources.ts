@@ -22,7 +22,10 @@ export interface BriefSource {
 }
 
 const MAX_SOURCES = 6;
-const MAX_CHARS_PER_SOURCE = 15_000;
+// ~40 pages per source. Sized to real pleadings, not synthetic tests:
+// the pilot's documents are 20 to 40 pages, and a cap that silently
+// reads only the first ten defeats the point of attaching them.
+const MAX_CHARS_PER_SOURCE = 60_000;
 
 /** Strip HTML to text and cap, for generated documents stored as HTML. */
 function stripCap(html: unknown): string {

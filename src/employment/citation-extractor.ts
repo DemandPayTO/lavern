@@ -72,8 +72,8 @@ export async function extractCitations(
   }).join('\n\n');
 
   // Truncate the generated document if very long
-  const genDoc = generatedHtml.length > 15_000
-    ? generatedHtml.slice(0, 15_000) + '\n[...truncated]'
+  const genDoc = generatedHtml.length > 90_000
+    ? generatedHtml.slice(0, 90_000) + '\n[...truncated]'
     : generatedHtml;
 
   const systemPrompt = `You are a legal citation analyst. Given a GENERATED DOCUMENT (a demand letter or statement of claim) and one or more SOURCE DOCUMENTS (employment agreements, termination letters, etc.), identify every passage in the source documents that the generated document relies on or references.

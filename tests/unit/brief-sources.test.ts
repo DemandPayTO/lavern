@@ -56,11 +56,11 @@ describe('assembleBriefSources', () => {
       includeGeneratedDemand: true,
       includeGeneratedSoc: true,
       extraSources: [
-        { name: 'big.docx', text: 'w '.repeat(20000) },
+        { name: 'big.docx', text: 'w '.repeat(80000) },
         { name: 'empty.docx', text: '   ' },
       ],
     });
     expect(sources).toHaveLength(1);
-    expect(sources[0].text.length).toBeLessThanOrEqual(15_000);
+    expect(sources[0].text.length).toBeLessThanOrEqual(60_000);
   });
 });

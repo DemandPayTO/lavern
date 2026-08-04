@@ -266,9 +266,11 @@ export async function extractEmploymentDocument(
   const systemPrompt = buildExtractionPrompt(documentKind);
 
   // Truncate very long documents (keep first 15K chars — more generous than briefing)
-  const maxChars = 15_000;
+  // ~80 pages. Real uploads run 20 to 40 pages and the facts worth
+  // extracting are scattered through them, not front-loaded.
+  const maxChars = 120_000;
   const content = documentContent.length > maxChars
-    ? documentContent.slice(0, maxChars) + '\n\n[...document truncated at 15,000 characters]'
+    ? documentContent.slice(0, maxChars) + '\n\n[...document truncated at 120,000 characters]'
     : documentContent;
 
   const userMessage = `<document name="${documentName}" type="${documentKind}">

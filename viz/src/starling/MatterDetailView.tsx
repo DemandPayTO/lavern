@@ -2339,7 +2339,7 @@ export default function MatterDetailView() {
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Sources for this brief</div>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
                     The brief argues the positions in these documents and cites back to them. Attach what was
-                    drafted outside Starling: the statement of claim, the demand letter, a list of cases.
+                    drafted outside Starling: the statement of claim, the demand letter, a list of cases. Up to roughly 40 pages per document is read in full.
                   </div>
                   {employment.generatedDocuments.some(d => d.docType === 'demand_letter') && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>

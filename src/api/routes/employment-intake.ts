@@ -2008,7 +2008,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (sources.some(sd => sd.name === parsed.data.name)) {
       return reply.status(409).send({ ok: false, error: `"${parsed.data.name}" is already attached.` });
     }
-    const text = parsed.data.text.replace(/\s+/g, ' ').trim().slice(0, 15_000);
+    const text = parsed.data.text.replace(/\s+/g, ' ').trim().slice(0, 60_000);
     sources.push({
       id: `src-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name: parsed.data.name,
