@@ -814,6 +814,7 @@ input:focus-visible {
 .starling-doc li { margin: 5px 0; }
 .starling-doc table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
 .starling-doc th, .starling-doc td { border: 1px solid rgba(15,26,46,0.2); padding: 6px 9px; text-align: left; vertical-align: top; }
-.starling-doc th { background: #f5f3ef; font-weight: 700; }
+.starling-doc th { font-weight: 700; }
+.starling-doc .centered { text-align: center; }
 .starling-doc strong { font-weight: 700; }
 .starling-doc hr { border: none; border-top: 1px solid rgba(15,26,46,0.15); margin: 16px 0; }

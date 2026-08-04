@@ -14,7 +14,7 @@ import {
   buildComparablesTable,
   buildNegotiationTable,
   buildMediationFrontMatter,
-  numberNarrativeParagraphs,
+  numberNarrativeParagraphs, buildMediationCover, buildMediationSignOff,
 } from '../../src/employment/mediation-brief-tables.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult } from '../../src/types/employment-intake.js';
 import type { ComparableCase, CaseBasedRange } from '../../src/employment/case-comparables.js';
@@ -248,5 +248,51 @@ describe('firm-shaped profile table (style profile rowSpec)', () => {
   it('falls back to the standard table when the spec is too thin to be a table', () => {
     const { html } = buildProfileTable(intake, analysis, ['Age']);
     expect(html).toContain('Age at dismissal');
+  });
+});
+
+
+describe('cover and sign-off (deterministic boilerplate)', () => {
+  const intake = { client_first_name: 'Aisha', client_last_name: 'Osei', employer_legal_name: 'Brightpath Financial Group Inc' } as never;
+
+  it('builds the first page: parties, -and-, title, counsel', () => {
+    const cover = buildMediationCover({ intake, lawyerName: 'Jordan Haworth', firmName: 'Evans Law Firm', firmAddress: '1 King St W' });
+    const order = ['BETWEEN:', 'Aisha Osei', 'Plaintiff', '- and -', 'Brightpath Financial Group Inc', 'Defendant', 'MEDIATION BRIEF OF THE PLAINTIFF', 'Evans Law Firm', 'Per: Jordan Haworth', 'Lawyers for the Plaintiff'];
+    let last = -1;
+    for (const piece of order) {
+      const at = cover.indexOf(piece);
+      expect(at, piece).toBeGreaterThan(last);
+      last = at;
+    }
+    // Centered via class, never inline style (the sanitiser strips styles).
+    expect(cover).toContain('class="centered"');
+    expect(cover).not.toContain('style=');
+  });
+
+  it('marks missing parties for the lawyer instead of omitting the block', () => {
+    const cover = buildMediationCover({ intake: {} as never, lawyerName: 'J', firmName: 'F' });
+    expect(cover).toContain('[LAWYER: plaintiff name]');
+    expect(cover).toContain('[LAWYER: defendant name]');
+  });
+
+  it('signs off with the date, the firm, and counsel', () => {
+    const signOff = buildMediationSignOff({ lawyerName: 'Jordan Haworth', firmName: 'Evans Law Firm', date: new Date('2026-08-05T12:00:00') });
+    expect(signOff).toContain('ALL OF WHICH IS RESPECTFULLY SUBMITTED this August 5, 2026');
+    expect(signOff).toContain('Per: Jordan Haworth');
+  });
+});
+
+describe('firm table never states one fact twice', () => {
+  it('drops a second label that resolves to the same value (Age / Age at Dismissal)', () => {
+    const intake = { client_first_name: 'A', client_last_name: 'O', annual_salary: 100000 } as never;
+    const analysis = {
+      bardalFactors: { age: 47, tenureYears: 6 },
+      damagesEstimate: { esaNoticeWeeks: 6, esaNoticePay: 1, esaSeverancePay: 1, commonLawLowMonths: 8, commonLawHighMonths: 12, commonLawLowAmount: 1, commonLawHighAmount: 2, additionalHeads: [], totalEstimateLow: 1, totalEstimateHigh: 2 },
+      timeline: [], gates: [], limitationDeadline: { date: '', daysRemaining: 0, urgent: false }, recommendedProcedure: 'simplified',
+    } as never;
+    const { html } = buildProfileTable(intake, analysis, ['Age at Dismissal', 'Length of Service', 'Age']);
+    expect((html.match(/47/g) ?? []).length).toBe(1);
+    expect(html).toContain('Age at Dismissal');
+    expect(html).not.toContain('>Age<');
   });
 });

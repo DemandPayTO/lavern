@@ -92,8 +92,9 @@ describe('styleContextForPrompt', () => {
     expect(ctx).toContain('Short declarative sentences');
     expect(ctx).toContain('We say this plainly:');
     expect(ctx).toContain('none of their names, dates, or amounts may appear');
-    // The pinned generator headings stay authoritative for machine mapping.
-    expect(ctx).toContain('KEEP the required headings');
+    // Heading policy lives in the drafting instructions (firm flow when
+    // rich enough); the context defers to them.
+    expect(ctx).toContain('headings to use are given in the drafting instructions');
   });
 
   it('schema strips dollar-amount phrasings at validation time via analyseStyle filter contract', () => {

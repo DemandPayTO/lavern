@@ -285,5 +285,5 @@ VOICE: ${guide.voice}
 HOW FACTS ARE WOVEN IN: ${guide.factWeaving}
 ${phrasings}${notes}${depth}
 
-Follow the firm's flow, voice, and phrasing habits. Where the section headings required earlier in this prompt differ from the firm's flow, KEEP the required headings and realise the firm's flow within and across those sections. Every case is different: adapt the structure's emphasis to THIS matter's facts and live issues rather than forcing every section to the same weight. Use ONLY this matter's facts, parties, and figures; the precedents' cases are other clients and none of their names, dates, or amounts may appear.`;
+Follow the firm's flow, voice, and phrasing habits. The section headings to use are given in the drafting instructions above; realise the firm's flow within them. Every case is different: adapt the structure's emphasis to THIS matter's facts and live issues rather than forcing every section to the same weight. Use ONLY this matter's facts, parties, and figures; the precedents' cases are other clients and none of their names, dates, or amounts may appear.`;
 }

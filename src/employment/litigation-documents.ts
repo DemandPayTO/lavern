@@ -24,7 +24,7 @@ import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
-import { buildMediationFrontMatter, numberNarrativeParagraphs, esc } from './mediation-brief-tables.js';
+import { buildMediationFrontMatter, buildMediationCover, buildMediationSignOff, numberNarrativeParagraphs, esc } from './mediation-brief-tables.js';
 import type { ComparableCase, CaseBasedRange } from './case-comparables.js';
 import type { NegotiationEntry } from './negotiation.js';
 
@@ -76,6 +76,8 @@ export interface LitigationDocumentRequest {
   styleTypicalWords?: number;
   /** Firm opening-table row labels from the style profile (mediation brief). */
   styleProfileTableRows?: string[] | null;
+  /** The firm's own section headings from the style profile flow; when present they replace the pinned h2 list. */
+  styleFlowHeadings?: string[] | null;
   /** Claim amount (for mediation brief settlement range context). */
   claimAmount?: number;
   lawyerName: string;
@@ -185,8 +187,7 @@ Output as HTML with h1, h2, tables, and structured lists. No inline styles.`,
 
 IMPORTANT: The document already begins with deterministic tables prepared from the matter record (plaintiff profile with the Bardal facts, itemized damages calculation, comparable cases, and negotiation history, as available). Do NOT reproduce those tables, do NOT restate their numbers in detail, and do NOT output an h1 title. Refer to them naturally (for example "as set out in the damages table above"). Begin directly with the first h2 section.
 
-Write these sections, each as an <h2> using the EXACT heading wording given
-(without the number), so each section can be placed into a firm template:
+{{SECTION_INSTRUCTION}}
 
 1. OVERVIEW: Two or three sentences: who the plaintiff is, what happened, and what this case is really about. A mediator should understand the case from this paragraph alone.
 
@@ -206,6 +207,7 @@ Write these sections, each as an <h2> using the EXACT heading wording given
 
 RULES:
 - CONCISE. The narrative must not exceed roughly 2,000 words; mediators say they stop absorbing long briefs. Every sentence earns its place.
+- SHORT NUMBERED PARAGRAPHS: one point per paragraph, two to four sentences, each in its own <p>. NEVER merge several points into one long paragraph; the paragraphs are numbered and cited by number, so a merged paragraph breaks the convention counsel relies on.
 - Candid about weaknesses; mediators reward honest assessments and discount inflated ones.
 - Credible, measured register. Inflammatory language impedes settlement.
 - Do not fabricate facts, offers, or mitigation details not provided. If something material is unknown, note it for counsel in square brackets [LAWYER: ...].
@@ -685,7 +687,13 @@ export async function generateLitigationDocument(
       })
     : null;
 
-  const systemPrompt = buildSystemPrompt(req.documentType);
+  let systemPrompt = buildSystemPrompt(req.documentType);
+  if (req.documentType === 'mediation_brief') {
+    const firmHeadings = (req.styleFlowHeadings ?? []).filter(h => h && h.trim());
+    systemPrompt = systemPrompt.replace('{{SECTION_INSTRUCTION}}', firmHeadings.length >= 3
+      ? `Use the FIRM'S OWN section headings, in this order, each as an <h2> with the EXACT wording given:\n${firmHeadings.map((h, i) => `${i + 1}. ${h}`).join('\n')}\nCover the substance of the numbered components below within that structure (a component may live inside whichever firm section fits it; omit none):`
+      : 'Write these sections, each as an <h2> using the EXACT heading wording given\n(without the number), so each section can be placed into a firm template:');
+  }
   let userPrompt = buildUserPrompt(req);
   if (frontMatter) {
     userPrompt += `\n\nTABLES ALREADY IN THE DOCUMENT (do not reproduce): ${frontMatter.included.join(', ') || 'none'}.`;
@@ -746,16 +754,29 @@ ${positions}`;
     // Escape the name: it can originate from the public intake portal
     // (client-controlled), and the assembled HTML is rendered in the
     // dashboard via dangerouslySetInnerHTML.
-    const plaintiff = esc([req.intake.client_first_name, req.intake.client_last_name].filter(Boolean).join(' '));
     const mediationDate = typeof req.formFields?.mediation_date === 'string' ? req.formFields.mediation_date : '';
     const mediatorName = typeof req.formFields?.mediator_name === 'string' ? req.formFields.mediator_name : '';
-    const logistics = mediationDate || mediatorName
-      ? `<p><strong>Mediation${mediationDate ? ` scheduled for ${esc(mediationDate)}` : ''}${mediatorName ? ` before ${esc(mediatorName)}` : ''}.</strong></p>`
-      : '';
-    const titleBlock = `<h1>Mediation Brief of the Plaintiff${plaintiff ? `, ${plaintiff}` : ''}</h1>${logistics ? `\n${logistics}` : ''}`;
-    // Factum convention: narrative paragraphs numbered consecutively,
-    // deterministically (the tables and title are not numbered).
-    html = [titleBlock, frontMatter.html, numberNarrativeParagraphs(html)].filter(Boolean).join('\n\n');
+    // Cover, tables, numbered narrative, sign-off. Cover and sign-off are
+    // the parts that never vary by case, so they are deterministic; the
+    // sign-off rides after numbering so its paragraphs stay unnumbered.
+    const cover = buildMediationCover({
+      intake: req.intake,
+      lawyerName: req.lawyerName ?? '[LAWYER: name]',
+      firmName: req.firmName ?? '[LAWYER: firm]',
+      firmAddress: req.firmAddress,
+      mediationDate,
+      mediatorName,
+    });
+    const signOff = buildMediationSignOff({
+      lawyerName: req.lawyerName ?? '[LAWYER: name]',
+      firmName: req.firmName ?? '[LAWYER: firm]',
+      firmAddress: req.firmAddress,
+    });
+    // The cover already carries the title; a title heading the model
+    // emitted anyway (they sometimes do, whatever the instruction) would
+    // duplicate it, so it is stripped deterministically.
+    const narrativeSansTitle = html.replace(/^\s*<h[12][^>]*>\s*MEDIATION BRIEF[^<]*<\/h[12]>\s*/i, '');
+    html = [cover, frontMatter.html, numberNarrativeParagraphs(narrativeSansTitle), signOff].filter(Boolean).join('\n\n');
   }
 
   // Citation tracking

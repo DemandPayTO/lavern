@@ -15,6 +15,7 @@
 import {
   Document, Packer, Paragraph, TextRun,
   AlignmentType, Header, Footer, PageNumber, BorderStyle,
+  Table, TableRow, TableCell, WidthType,
 } from 'docx';
 import { createLogger } from '../utils/logger.js';
 import { injectIntoFirmTemplate } from './template-injector.js';
@@ -98,7 +99,13 @@ function parseInlineHtml(html: string): TextRun[] {
 
     const text = stripTags(part);
     if (text) {
-      runs.push(new TextRun({ text, bold, italics: italic, font: 'Times New Roman', size: 24 }));
+      // <br> arrives as newlines from stripTags; each becomes a real Word
+      // line break (the cover's counsel block depends on this).
+      const lines = text.split('\n');
+      lines.forEach((line, i) => {
+        if (!line && i === 0) return;
+        runs.push(new TextRun({ text: line, bold, italics: italic, font: 'Times New Roman', size: 24, ...(i > 0 ? { break: 1 } : {}) }));
+      });
     }
   }
 
@@ -106,11 +113,44 @@ function parseInlineHtml(html: string): TextRun[] {
 }
 
 /** Parse HTML into DOCX paragraphs. */
-function htmlToParagraphs(html: string): Paragraph[] {
-  const paragraphs: Paragraph[] = [];
+/**
+ * Convert an HTML table to a PLAIN Word table: single black borders, no
+ * shading, header cells bold. Court and mediation documents do not take
+ * decorated tables, and highlighted cells read as emphasis a tribunal
+ * did not ask for.
+ */
+function htmlTableToDocx(tableHtml: string): Table | null {
+  const rowMatches = [...tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+  if (rowMatches.length === 0) return null;
+  const border = { style: BorderStyle.SINGLE, size: 4, color: '000000' } as const;
+  const rows: TableRow[] = [];
+  for (const rm of rowMatches) {
+    const cellMatches = [...rm[1].matchAll(/<(th|td)[^>]*>([\s\S]*?)<\/\1>/gi)];
+    if (cellMatches.length === 0) continue;
+    rows.push(new TableRow({
+      children: cellMatches.map(cm => new TableCell({
+        borders: { top: border, bottom: border, left: border, right: border },
+        margins: { top: 60, bottom: 60, left: 100, right: 100 },
+        children: [new Paragraph({
+          children: [new TextRun({
+            text: stripTags(cm[2]),
+            bold: cm[1].toLowerCase() === 'th',
+            font: 'Times New Roman',
+            size: 22,
+          })],
+        })],
+      })),
+    }));
+  }
+  if (rows.length === 0) return null;
+  return new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } });
+}
+
+function htmlToParagraphs(html: string): Array<Paragraph | Table> {
+  const paragraphs: Array<Paragraph | Table> = [];
 
   // Split into blocks by major HTML elements
-  const blocks = html.split(/(?=<h[1-6]|<p|<ol|<ul|<hr|<li)/gi);
+  const blocks = html.split(/(?=<h[1-6]|<p|<ol|<ul|<hr|<li|<table)/gi);
 
   // Ordered-list state — court documents (SOC facts, grounds) require
   // continuous numbered paragraphs, so <ol><li> items get "N." prefixes
@@ -130,6 +170,30 @@ function htmlToParagraphs(html: string): Paragraph[] {
     }
     if (/^<ul/i.test(trimmed)) {
       inOrderedList = false;
+      continue;
+    }
+
+    // Table — a real Word table, plain
+    if (/^<table/i.test(trimmed)) {
+      const tableEnd = trimmed.search(/<\/table>/i);
+      const tableHtml = tableEnd >= 0 ? trimmed.slice(0, tableEnd + 8) : trimmed;
+      const table = htmlTableToDocx(tableHtml);
+      if (table) {
+        paragraphs.push(table);
+        // Breathing room after the table.
+        paragraphs.push(new Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
+      }
+      // Content after </table> in the same block (rare) falls through as text.
+      const rest = tableEnd >= 0 ? trimmed.slice(tableEnd + 8).trim() : '';
+      if (rest) {
+        const restText = stripTags(rest);
+        if (restText) {
+          paragraphs.push(new Paragraph({
+            spacing: { before: 120, after: 120 },
+            children: [new TextRun({ text: restText, font: 'Times New Roman', size: 24 })],
+          }));
+        }
+      }
       continue;
     }
 
@@ -199,13 +263,15 @@ function htmlToParagraphs(html: string): Paragraph[] {
       continue;
     }
 
-    // Paragraph
-    const pMatch = trimmed.match(/^<p[^>]*>([\s\S]*?)(?:<\/p>|$)/i);
+    // Paragraph — class="centered" (the brief's cover block) centres it
+    const pMatch = trimmed.match(/^<p([^>]*)>([\s\S]*?)(?:<\/p>|$)/i);
     if (pMatch) {
-      const runs = parseInlineHtml(pMatch[1]);
+      const runs = parseInlineHtml(pMatch[2]);
+      const centered = /class="[^"]*centered[^"]*"/i.test(pMatch[1]);
       if (runs.length > 0) {
         paragraphs.push(new Paragraph({
           spacing: { before: 120, after: 120 },
+          ...(centered ? { alignment: AlignmentType.CENTER } : {}),
           children: runs,
         }));
       }

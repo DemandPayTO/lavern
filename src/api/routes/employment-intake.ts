@@ -232,7 +232,7 @@ async function loadStyleForGeneration(
   documentType: string,
 ): Promise<
   | { error: string; status: number }
-  | { context: string; identifiers: string[]; label: string; typicalWords?: number; profileTableRows?: string[] }
+  | { context: string; identifiers: string[]; label: string; typicalWords?: number; profileTableRows?: string[]; flowHeadings?: string[] }
 > {
   const firmId = resolveFirmId(req);
   const profile = firmId ? getStyleProfile(firmId, styleProfileId) : undefined;
@@ -251,6 +251,7 @@ async function loadStyleForGeneration(
     label: profile.label,
     typicalWords: guide.data.typicalWords,
     profileTableRows: guide.data.profileTableRows,
+    flowHeadings: guide.data.flow.map(f => f.heading),
   };
 }
 
@@ -1820,6 +1821,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let styleLabel = '';
     let styleTypicalWords: number | undefined;
     let styleProfileTableRows: string[] | undefined;
+    let styleFlowHeadings: string[] | undefined;
     if (parsed.data.styleProfileId) {
       const style = await loadStyleForGeneration(req, parsed.data.styleProfileId, parsed.data.documentType);
       if ('error' in style) return reply.status(style.status).send({ ok: false, error: style.error });
@@ -1828,6 +1830,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       styleLabel = style.label;
       styleTypicalWords = style.typicalWords;
       styleProfileTableRows = style.profileTableRows;
+      styleFlowHeadings = style.flowHeadings;
     }
 
     // Mediation logistics: the date is validated like every other
@@ -1864,6 +1867,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         negotiationEntries,
         styleTypicalWords,
         styleProfileTableRows,
+        styleFlowHeadings,
         positionDocuments: positionDocuments.length > 0 ? positionDocuments : undefined,
         sourceDocuments: positionDocuments.length > 0
           ? positionDocuments.map(d => ({ name: d.title, content: d.text }))

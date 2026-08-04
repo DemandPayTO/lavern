@@ -105,12 +105,20 @@ function firmShapedProfileTable(
 
   const rows: string[] = [];
   const unmapped: string[] = [];
+  // Two labels resolving through the same rule to the same value are one
+  // fact ("Age" and "Age at Dismissal"); the second is dropped rather
+  // than the plaintiff's age appearing twice.
+  const seenFacts = new Set<string>();
   for (const label of rowSpec) {
     let value: string | null = null;
-    for (const [pattern, resolve] of resolvers) {
-      if (pattern.test(label)) { value = resolve(); break; }
+    let resolverIdx = -1;
+    for (let ri = 0; ri < resolvers.length; ri++) {
+      if (resolvers[ri][0].test(label)) { value = resolvers[ri][1](); resolverIdx = ri; break; }
     }
     if (value) {
+      const factKey = `${resolverIdx}|${value}`;
+      if (seenFacts.has(factKey)) continue;
+      seenFacts.add(factKey);
       rows.push(row(label, esc(value)));
     } else {
       rows.push(row(label, '<em>[LAWYER: complete]</em>'));
@@ -256,6 +264,55 @@ export function buildNegotiationTable(entries: NegotiationEntry[] | null | undef
     html: `<h2>Negotiation History</h2>\n<table>\n<tr><th>Date</th><th>Party</th><th>Step</th><th>Amount</th><th>Terms</th></tr>\n${rows.join('\n')}\n</table>`,
     flags: ['Negotiation history: attach copies of any Rule 49 offers served, whether or not still open.'],
   };
+}
+
+// ── Cover and sign-off (deterministic boilerplate) ───────────────────────
+
+/**
+ * The brief's first page: full parties, the title, counsel. These stay
+ * consistent across every brief the firm serves, so they are assembled
+ * from the matter record, never drafted.
+ */
+export function buildMediationCover(args: {
+  intake: EmploymentIntakeData;
+  lawyerName: string;
+  firmName: string;
+  firmAddress?: string;
+  mediationDate?: string;
+  mediatorName?: string;
+}): string {
+  const plaintiff = esc([args.intake.client_first_name, args.intake.client_last_name].filter(Boolean).join(' ') || '[LAWYER: plaintiff name]');
+  const defendant = esc(args.intake.employer_legal_name ?? args.intake.employer_operating_name ?? '[LAWYER: defendant name]');
+  const logistics = args.mediationDate || args.mediatorName
+    ? `<p class="centered"><strong>Mediation${args.mediationDate ? ` scheduled for ${esc(args.mediationDate)}` : ''}${args.mediatorName ? ` before ${esc(args.mediatorName)}` : ''}</strong></p>`
+    : '';
+  return [
+    '<p class="centered">BETWEEN:</p>',
+    `<p class="centered"><strong>${plaintiff}</strong></p>`,
+    '<p class="centered">Plaintiff</p>',
+    '<p class="centered">- and -</p>',
+    `<p class="centered"><strong>${defendant}</strong></p>`,
+    '<p class="centered">Defendant</p>',
+    '<h1>MEDIATION BRIEF OF THE PLAINTIFF</h1>',
+    logistics,
+    `<p class="centered">${esc(args.firmName)}<br>Per: ${esc(args.lawyerName)}<br>Lawyers for the Plaintiff${args.firmAddress ? `<br>${esc(args.firmAddress)}` : ''}</p>`,
+    '<hr>',
+  ].filter(Boolean).join('\n');
+}
+
+/** The closing the brief must never go out without. */
+export function buildMediationSignOff(args: {
+  lawyerName: string;
+  firmName: string;
+  firmAddress?: string;
+  date?: Date;
+}): string {
+  const d = args.date ?? new Date();
+  const dateLine = d.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+  return [
+    `<p>ALL OF WHICH IS RESPECTFULLY SUBMITTED this ${dateLine}.</p>`,
+    `<p>${esc(args.firmName)}<br>Per: ${esc(args.lawyerName)}<br>Lawyers for the Plaintiff${args.firmAddress ? `<br>${esc(args.firmAddress)}` : ''}</p>`,
+  ].join('\n');
 }
 
 // ── Paragraph numbering (factum convention) ──────────────────────────────
