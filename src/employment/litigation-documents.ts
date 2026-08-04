@@ -694,8 +694,8 @@ export async function generateLitigationDocument(
     const positions = req.positionDocuments
       .map(d => `<position_document title="${d.title}">\n${d.text}\n</position_document>`)
       .join('\n\n');
-    userPrompt += `\n\nTHE POSITIONS ALREADY SERVED IN THIS MATTER:
-These are the operative documents the firm has already put forward for this client. The brief MUST tell the same story and take the same positions: the same characterisation of the dismissal, the same legal issues, the same or updated figures. Reuse their framing of the facts and issues where it fits a mediation audience. Never contradict them; where the position has genuinely moved since (for example a later offer), present the current position and note the change for counsel in [LAWYER: ...].
+    userPrompt += `\n\nTHE POSITIONS AND SUPPORTING MATERIALS FOR THIS MATTER:
+These documents ground the brief. For position documents (a demand letter, a statement of claim): the brief MUST tell the same story and take the same positions — the same characterisation of the dismissal, the same legal issues, the same or updated figures. Reuse their framing where it fits a mediation audience. Never contradict them; where the position has genuinely moved since (for example a later offer), present the current position and note the change for counsel in [LAWYER: ...]. For a list of authorities or case law: rely on it for the legal framing, cite ONLY cases that appear in it or in the comparable-case table above, and never state a holding the material does not give you. For research memos: use their analysis, not their prose.
 
 ${positions}`;
   }

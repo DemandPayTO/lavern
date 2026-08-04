@@ -108,14 +108,17 @@ Identify all source document citations used in the generated document.`;
       system: systemPrompt,
       user: userMessage,
       tier: 'sonnet',  // Sonnet is sufficient for citation extraction
-      maxTokens: 4096,
+      maxTokens: 8192,
       definedTerms: definedTerms ?? undefined,
     });
 
     // Parse response
     const parsed = parseJsonResponse(text);
     if (!parsed) {
-      logger.warn('Citation extraction: failed to parse response');
+      logger.warn('Citation extraction: failed to parse response', {
+        responseChars: text.length,
+        tail: text.slice(-120),
+      });
       return { citations: [], costUsd: cost };
     }
 
@@ -181,5 +184,11 @@ function parseJsonResponse(text: string): unknown {
   if (fenced) { try { return JSON.parse(fenced[1]); } catch { /* continue */ } }
   const obj = text.match(/\{[\s\S]*\}/);
   if (obj) { try { return JSON.parse(obj[0]); } catch { /* continue */ } }
+  // A bare top-level array of citations is a reasonable model reading of
+  // the task; wrap it instead of discarding it.
+  const arr = text.match(/\[[\s\S]*\]/);
+  if (arr) {
+    try { return { citations: JSON.parse(arr[0]) }; } catch { /* continue */ }
+  }
   return null;
 }

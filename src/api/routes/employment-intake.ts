@@ -1698,6 +1698,18 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     styleProfileId: z.string().trim().max(100).optional(),
     /** Structured inputs for the deterministic court forms. */
     formFields: z.record(z.string().max(60), z.union([z.string().max(3000), z.number()])).optional(),
+    /**
+     * Documents attached at generation time to ground the brief (an
+     * externally-drafted SOC, a demand letter, a list of authorities).
+     * Text is parsed client-side via /api/documents/parse.
+     */
+    extraSources: z.array(z.object({
+      name: z.string().trim().min(1).max(300),
+      text: z.string().trim().min(1).max(60_000),
+    })).max(6).optional(),
+    /** Include the matter's generated positions (default yes, when they exist). */
+    includeGeneratedDemand: z.boolean().default(true),
+    includeGeneratedSoc: z.boolean().default(true),
   });
 
   fastify.post('/api/employment/:matterId/litigation-document', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -1738,14 +1750,21 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // The brief is built FROM the positions already served: the matter's
     // demand letter and statement of claim ground the story and figures,
     // and double as citation sources so claims attribute to them.
-    const positionDocuments: Array<{ title: string; text: string }> = [];
+    let positionDocuments: Array<{ title: string; text: string }> = [];
+    let droppedSources: string[] = [];
     if (parsed.data.documentType === 'mediation_brief') {
-      const stripCap = (html: unknown) => String(html ?? '')
-        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 12_000);
+      const { assembleBriefSources } = await import('../../employment/brief-sources.js');
       const dl = (matter as Record<string, unknown>).generatedDemandLetter as Record<string, unknown> | undefined;
       const soc = (matter as Record<string, unknown>).generatedSOC as Record<string, unknown> | undefined;
-      if (dl?.html) positionDocuments.push({ title: 'Demand Letter', text: stripCap(dl.html) });
-      if (soc?.html) positionDocuments.push({ title: 'Statement of Claim', text: stripCap(soc.html) });
+      const assembled = assembleBriefSources({
+        generatedDemandHtml: dl?.html,
+        generatedSocHtml: soc?.html,
+        includeGeneratedDemand: parsed.data.includeGeneratedDemand,
+        includeGeneratedSoc: parsed.data.includeGeneratedSoc,
+        extraSources: parsed.data.extraSources ?? [],
+      });
+      positionDocuments = assembled.sources;
+      droppedSources = assembled.dropped;
     }
     if (parsed.data.documentType === 'mediation_brief') {
       negotiationEntries = ((matter as Record<string, unknown>).negotiation ?? null) as import('../../employment/negotiation.js').NegotiationEntry[] | null;
@@ -1931,6 +1950,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       citations: result.citations,
       costUsd: result.costUsd,
       ...(positionDocuments.length > 0 ? { positionsUsed: positionDocuments.map(d => d.title) } : {}),
+      ...(droppedSources.length > 0 ? { droppedSources } : {}),
       ...(docketed > 0 ? { docketedDates: docketed } : {}),
       ...(timetableCautions.length > 0 || analysisRefreshed ? {
         cautions: [

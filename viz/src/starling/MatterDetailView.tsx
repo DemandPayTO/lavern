@@ -967,6 +967,38 @@ export default function MatterDetailView() {
   const [buildingTemplate, setBuildingTemplate] = useState(false);
   const [buildingStyle, setBuildingStyle] = useState(false);
   const [styleProfileId, setStyleProfileId] = useState('');
+  // Sources for the mediation brief: generated positions (toggles) plus
+  // documents attached at generation time (an externally-drafted SOC, a
+  // list of authorities), parsed to text before the request.
+  const [briefSources, setBriefSources] = useState<Array<{ name: string; text: string; words: number }>>([]);
+  const [includeGenDemand, setIncludeGenDemand] = useState(true);
+  const [includeGenSoc, setIncludeGenSoc] = useState(true);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const [sourceParsing, setSourceParsing] = useState(false);
+  const briefSourceInputRef = useRef<HTMLInputElement | null>(null);
+
+  const attachBriefSource = useCallback(async (file: File) => {
+    setSourceParsing(true);
+    setSourceError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/documents/parse', { method: 'POST', credentials: 'include', body: formData });
+      if (!res.ok) { setSourceError(`"${file.name}" could not be parsed. Supported: PDF, DOCX, Markdown, plain text.`); return; }
+      const parsedDoc = await res.json() as { fullText?: string };
+      const text = (parsedDoc.fullText ?? '').trim();
+      if (!text) { setSourceError(`No text could be read from "${file.name}".`); return; }
+      setBriefSources(prev => {
+        if (prev.some(sd => sd.name === file.name)) return prev;
+        if (prev.length >= 5) { setSourceError('Six sources at most (including the generated positions); more dilutes the draft.'); return prev; }
+        return [...prev, { name: file.name, text, words: text.split(/\s+/).filter(Boolean).length }];
+      });
+    } catch {
+      setSourceError(`"${file.name}" could not be read.`);
+    } finally {
+      setSourceParsing(false);
+    }
+  }, []);
   const approvalsEnabled = useApprovalsEnabled();
   const [revising, setRevising] = useState<null | { source: 'client' | 'partner' | 'lawyer'; initial?: string }>(null);
 
@@ -2175,6 +2207,57 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {selectedDraft === 'mediation' && !generatedHtml && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Sources for this brief</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                    The brief argues the positions in these documents and cites back to them. Attach what was
+                    drafted outside Starling: the statement of claim, the demand letter, a list of cases.
+                  </div>
+                  {employment.generatedDocuments.some(d => d.docType === 'demand_letter') && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={includeGenDemand} onChange={() => setIncludeGenDemand(v => !v)} style={{ accentColor: navy }} />
+                      Demand Letter (generated in Starling)
+                    </label>
+                  )}
+                  {employment.generatedDocuments.some(d => d.docType === 'statement_of_claim') && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={includeGenSoc} onChange={() => setIncludeGenSoc(v => !v)} style={{ accentColor: navy }} />
+                      Statement of Claim (generated in Starling)
+                    </label>
+                  )}
+                  {briefSources.map(sd => (
+                    <div key={sd.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, padding: '3px 0' }}>
+                      <span style={{ flex: 1 }}>{sd.name} <span style={{ color: muted, fontSize: 12 }}>({sd.words.toLocaleString('en-CA')} words{sd.words > 11000 ? ', long documents are trimmed to ~11,000' : ''})</span></span>
+                      <button
+                        onClick={() => setBriefSources(prev => prev.filter(x => x.name !== sd.name))}
+                        aria-label={`Remove ${sd.name}`}
+                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        remove
+                      </button>
+                    </div>
+                  ))}
+                  <input
+                    ref={briefSourceInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.md,.txt"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f); e.target.value = ''; }}
+                    aria-label="Attach a source document for the brief"
+                  />
+                  <button
+                    onClick={() => briefSourceInputRef.current?.click()}
+                    disabled={sourceParsing}
+                    style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                  >
+                    {sourceParsing ? 'Reading…' : 'Attach a document'}
+                  </button>
+                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
+                </div>
+              )}
+
               {selectedDraft && !generatedHtml && styleProfiles.profiles.length > 0 && (
                 <div style={{ margin: '0 0 12px' }}>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Draft in your firm's style</div>
@@ -2226,6 +2309,11 @@ export default function MatterDetailView() {
                         courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
                         ...(styleProfileId ? { styleProfileId } : {}),
+                        ...(selectedDraft === 'mediation' ? {
+                          extraSources: briefSources.map(sd => ({ name: sd.name, text: sd.text.slice(0, 60_000) })),
+                          includeGeneratedDemand: includeGenDemand,
+                          includeGeneratedSoc: includeGenSoc,
+                        } : {}),
                       },
                     );
                     setGenerating(false);
