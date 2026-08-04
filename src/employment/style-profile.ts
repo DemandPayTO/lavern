@@ -63,6 +63,35 @@ export const styleGuideSchema = z.object({
 
 export type StyleGuide = z.infer<typeof styleGuideSchema>;
 
+/**
+ * Trim an analysis output to the schema's size caps BEFORE validation.
+ *
+ * The 502 the pilot hit (2026-08-04): Sonnet 5, reading two full-length
+ * briefs, wrote a factWeaving of 1,230 characters against the 1,000-char
+ * cap, and the strict schema rejected the ENTIRE guide twice. A thorough
+ * description is not a failure; over-length values are trimmed and
+ * over-long lists sliced. Structural problems (missing fields, empty
+ * flow, wrong types) still fail validation as they should.
+ */
+export function clampStyleGuide(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const g = { ...(raw as Record<string, unknown>) };
+  const str = (v: unknown, max: number) => typeof v === 'string' ? v.slice(0, max) : v;
+  const strArr = (v: unknown, itemMax: number, listMax: number) =>
+    Array.isArray(v) ? v.slice(0, listMax).map(x => str(x, itemMax)) : v;
+  if (Array.isArray(g.flow)) {
+    g.flow = g.flow.slice(0, 24).map(f => (f && typeof f === 'object')
+      ? { ...(f as Record<string, unknown>), heading: str((f as Record<string, unknown>).heading, 200), purpose: str((f as Record<string, unknown>).purpose, 500) }
+      : f);
+  }
+  g.voice = str(g.voice, 1500);
+  g.recurringLanguage = strArr(g.recurringLanguage, 400, 20);
+  g.factWeaving = str(g.factWeaving, 1000);
+  g.notes = strArr(g.notes, 400, 10);
+  g.profileTableRows = strArr(g.profileTableRows, 120, 20);
+  return g;
+}
+
 export interface StyleProfile {
   id: string;
   documentType: string;
@@ -114,11 +143,11 @@ export async function analyseStyle(
         : ANALYSIS_SYSTEM + '\n\nYour previous response was not valid JSON matching the schema. Output ONLY the JSON object.',
       user,
       tier: 'sonnet',
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
     totalCost += cost;
     const parsed = parseJson(text);
-    const validated = parsed ? styleGuideSchema.safeParse(parsed) : null;
+    const validated = parsed ? styleGuideSchema.safeParse(clampStyleGuide(parsed)) : null;
     if (validated?.success) {
       // Belt and braces: strip any identifier-looking strings the model put
       // into recurringLanguage despite the instruction.
@@ -136,7 +165,16 @@ export async function analyseStyle(
       }
       return { guide, costUsd: totalCost };
     }
-    logger.warn('Style analysis output failed validation', { attempt });
+    logger.warn('Style analysis output failed validation', {
+      attempt,
+      responseChars: text.length,
+      parsed: Boolean(parsed),
+      // A truncated response shows here as a cut-off tail.
+      tail: text.slice(-120),
+      issues: validated && !validated.success
+        ? validated.error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.code}`)
+        : undefined,
+    });
   }
   throw new Error('The precedents could not be analysed into a style profile. Try again, or with different files.');
 }

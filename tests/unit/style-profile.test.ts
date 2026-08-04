@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   extractIdentifiers, checkPrecedentBleed, styleContextForPrompt, styleGuideSchema,
+  clampStyleGuide,
 } from '../../src/employment/style-profile.js';
 
 const PRECEDENT_A = `MEDIATION BRIEF
@@ -100,5 +101,44 @@ describe('styleContextForPrompt', () => {
     // This pins the schema shape so stored guides stay readable.
     expect(guide.flow).toHaveLength(2);
     expect(guide.notes).toEqual(['Never more than six pages.']);
+  });
+});
+
+
+describe('clampStyleGuide (the pilot 502)', () => {
+  it('trims over-length values instead of rejecting the whole guide', () => {
+    const raw = {
+      flow: [{ heading: 'Overview', purpose: 'p'.repeat(900) }],
+      voice: 'v'.repeat(2000),
+      recurringLanguage: ['r'.repeat(600)],
+      factWeaving: 'f'.repeat(1230),   // the exact production failure
+      notes: [],
+    };
+    const validated = styleGuideSchema.safeParse(clampStyleGuide(raw));
+    expect(validated.success).toBe(true);
+    if (validated.success) {
+      expect(validated.data.factWeaving).toHaveLength(1000);
+      expect(validated.data.voice).toHaveLength(1500);
+      expect(validated.data.flow[0].purpose).toHaveLength(500);
+      expect(validated.data.recurringLanguage[0]).toHaveLength(400);
+    }
+  });
+
+  it('slices over-long lists to their caps', () => {
+    const raw = {
+      flow: Array.from({ length: 30 }, (_, i) => ({ heading: `S${i}`, purpose: 'x' })),
+      voice: 'v', recurringLanguage: Array.from({ length: 25 }, () => 'p'), factWeaving: 'f', notes: [],
+    };
+    const validated = styleGuideSchema.safeParse(clampStyleGuide(raw));
+    expect(validated.success).toBe(true);
+    if (validated.success) {
+      expect(validated.data.flow).toHaveLength(24);
+      expect(validated.data.recurringLanguage).toHaveLength(20);
+    }
+  });
+
+  it('still fails structurally broken output (clamping is not laundering)', () => {
+    expect(styleGuideSchema.safeParse(clampStyleGuide({ flow: [], voice: 'v', recurringLanguage: [], factWeaving: 'f', notes: [] })).success).toBe(false);
+    expect(styleGuideSchema.safeParse(clampStyleGuide({ voice: 'v' })).success).toBe(false);
   });
 });
