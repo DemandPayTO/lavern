@@ -56,7 +56,7 @@ export interface RevisionPanelProps {
   sections?: string[];
   /** Preselects a section for redraft. */
   initialSection?: string;
-  onApplied: () => void;
+  onApplied: (revisedHtml?: string) => void;
   onClose: () => void;
 }
 
@@ -68,6 +68,7 @@ export function RevisionPanel({
   const [plan, setPlan] = useState<Plan | null>(null);
   const [approved, setApproved] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [confirmedJudgment, setConfirmedJudgment] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ changed: number; intakeApplied: string[]; analysisStale: boolean } | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
@@ -127,7 +128,15 @@ export function RevisionPanel({
 
   const apply = useCallback(async () => {
     if (!plan) return;
-    const items = plan.items.filter(i => approved[i.id] && i.kind !== 'needs_lawyer');
+    // Confirmed judgment items ride along, promoted to wording changes:
+    // the lawyer's explicit confirmation IS the judgment they needed.
+    const confirmed = plan.items
+      .filter(i => i.kind === 'needs_lawyer' && confirmedJudgment[i.id] && i.paragraphIndices.length > 0)
+      .map(i => ({ ...i, kind: 'wording' as RevisionKind }));
+    const items = [
+      ...plan.items.filter(i => approved[i.id] && i.kind !== 'needs_lawyer'),
+      ...confirmed,
+    ];
     if (items.length === 0) { setError('Approve at least one change to apply.'); return; }
     setBusy(true); setError(null);
     try {
@@ -143,11 +152,11 @@ export function RevisionPanel({
         intakeApplied: (d.intakeApplied as string[]) ?? [],
         analysisStale: Boolean(d.analysisStale),
       });
-      onApplied();
+      onApplied(typeof d.html === 'string' ? d.html : undefined);
     } catch {
       setError('Could not apply the revisions.');
     } finally { setBusy(false); }
-  }, [plan, approved, matterId, docType, onApplied]);
+  }, [plan, approved, confirmedJudgment, matterId, docType, onApplied]);
 
   const box = { background: '#fff', border: `1px solid ${border}`, borderRadius: 2, padding: '18px 20px', marginBottom: 16 };
   const btn = (primary = false) => ({
@@ -303,6 +312,23 @@ export function RevisionPanel({
                   {it.paragraphIndices.length > 0 && (
                     <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>
                       Paragraph{it.paragraphIndices.length === 1 ? '' : 's'} {it.paragraphIndices.map(i => i + 1).join(', ')}
+                    </div>
+                  )}
+                  {isJudgment && it.paragraphIndices.length > 0 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 8, fontSize: 12.5, color: ink, cursor: 'pointer', fontWeight: 600 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(confirmedJudgment[it.id])}
+                        onChange={e => setConfirmedJudgment(c => ({ ...c, [it.id]: e.target.checked }))}
+                        style={{ accentColor: red }}
+                        aria-label={`I have considered this and want it applied: ${it.feedback}`}
+                      />
+                      I have considered this. Apply it as written.
+                    </label>
+                  )}
+                  {isJudgment && it.paragraphIndices.length === 0 && (
+                    <div style={{ fontSize: 11.5, color: muted, marginTop: 6 }}>
+                      This point names no paragraph, so nothing can be applied automatically. Restate it in the feedback box naming what to change, or edit the document directly.
                     </div>
                   )}
                   {it.intakeField && (

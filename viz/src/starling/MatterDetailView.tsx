@@ -2471,7 +2471,14 @@ export default function MatterDetailView() {
                           sections={(generatedHtml?.match(/<h2[^>]*>([^<]{1,120})<\/h2>/gi) ?? [])
                             .map(h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
                             .filter(Boolean)}
-                          onApplied={() => { void employment.refresh(); }}
+                          onApplied={(revisedHtml) => {
+                            // The apply route returns the revised document;
+                            // the preview must show it, not the pre-revision
+                            // draft the lawyer just corrected.
+                            if (revisedHtml) setGeneratedHtml(revisedHtml);
+                            refreshDraftHistory();
+                            void employment.refresh();
+                          }}
                           onClose={() => setRevising(null)}
                         />
                       )}

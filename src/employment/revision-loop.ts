@@ -332,6 +332,9 @@ export function buildPlannerUserPrompt(args: {
   const sourceLabel = args.source === 'partner' ? 'REVIEWING LAWYER'
     : args.source === 'lawyer' ? 'DRAFTING LAWYER (their own redraft instructions)'
     : 'CLIENT';
+  const lawyerRule = args.source === 'lawyer'
+    ? `\n\nNOTE: These instructions come from the drafting lawyer personally. They ARE the lawyer's judgment, so classify them as actionable (factual_correction, position_change, or wording) whenever they can be tied to paragraphs. Use needs_lawyer ONLY for an instruction that requires information the document does not contain.`
+    : '';
   const sectionRule = args.section
     ? `\n\nSCOPE: The lawyer is redrafting ONLY the section "${args.section.heading}" (paragraphs ${args.section.start} to ${args.section.end - 1}). Every item MUST target only paragraphs in that range. Feedback that touches anything outside it becomes a needs_lawyer item with no paragraph indices.`
     : '';
@@ -343,7 +346,7 @@ ${numbered}
 FEEDBACK FROM THE ${sourceLabel}:
 ${args.feedback}${sectionRule}
 
-Map each distinct piece of feedback onto the paragraphs above.`;
+Map each distinct piece of feedback onto the paragraphs above.${lawyerRule}`;
 }
 
 /** Prompt for the apply step: rewrite ONLY the approved paragraphs. */
