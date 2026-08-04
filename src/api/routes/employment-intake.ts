@@ -240,7 +240,7 @@ async function loadStyleForGeneration(
   if (profile.document_type !== documentType) {
     return { error: 'That style profile is for a different document type.', status: 400 };
   }
-  const { styleContextForPrompt, styleGuideSchema } = await import('../../employment/style-profile.js');
+  const { styleContextForPrompt, styleGuideSchema, usableFlow } = await import('../../employment/style-profile.js');
   const guide = styleGuideSchema.safeParse(JSON.parse(profile.guide_json));
   if (!guide.success) return { error: 'The stored style profile is unreadable. Rebuild it.', status: 500 };
   let identifiers: string[] = [];
@@ -251,7 +251,7 @@ async function loadStyleForGeneration(
     label: profile.label,
     typicalWords: guide.data.typicalWords,
     profileTableRows: guide.data.profileTableRows,
-    flowHeadings: guide.data.flow.map(f => f.heading),
+    flowHeadings: usableFlow(guide.data.flow).map(f => f.heading),
   };
 }
 

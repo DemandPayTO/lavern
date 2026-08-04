@@ -14,7 +14,7 @@ import {
   buildComparablesTable,
   buildNegotiationTable,
   buildMediationFrontMatter,
-  numberNarrativeParagraphs, buildMediationCover, buildMediationSignOff,
+  numberNarrativeParagraphs, scrubNarrative, buildMediationCover, buildMediationSignOff,
 } from '../../src/employment/mediation-brief-tables.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult } from '../../src/types/employment-intake.js';
 import type { ComparableCase, CaseBasedRange } from '../../src/employment/case-comparables.js';
@@ -312,5 +312,40 @@ describe('numberNarrativeParagraphs strips model self-numbering', () => {
   it('does not eat a paragraph that legitimately starts with a year', () => {
     const out = numberNarrativeParagraphs('<p>2020 ONCA 391 changed the analysis.</p>');
     expect(out).toContain('2020 ONCA 391 changed the analysis');
+  });
+});
+
+
+describe('scrubNarrative removes echoed furniture', () => {
+  const parties = { plaintiff: 'Aisha Osei', defendant: 'Brightpath Financial Group Inc' };
+
+  it('drops sign-offs, party blocks, and titles wherever the model wrote them', () => {
+    const html = [
+      '<h2>WHY WE ARE HERE</h2>',
+      '<p>The dismissal happened during a medical leave.</p>',
+      '<p>ALL OF WHICH IS RESPECTFULLY SUBMITTED.</p>',   // mid-document echo
+      '<h2>WHAT RESOLUTION LOOKS LIKE</h2>',
+      '<p>BETWEEN:</p>', '<p>Aisha Osei</p>', '<p>Plaintiff</p>', '<p>- and -</p>',
+      '<p>Brightpath Financial Group Inc</p>', '<p>Defendant</p>',
+      '<h2>MEDIATION BRIEF OF THE PLAINTIFF</h2>',
+      '<p>We value the claim at twelve months.</p>',
+      '<p>ALL OF WHICH IS RESPECTFULLY SUBMITTED this day.</p>',
+    ].join('\n');
+    const out = scrubNarrative(html, parties);
+    expect(out).not.toMatch(/RESPECTFULLY SUBMITTED/);
+    expect(out).not.toMatch(/BETWEEN:/);
+    expect(out).not.toMatch(/- and -/);
+    expect(out).not.toMatch(/<p>Aisha Osei<\/p>/);
+    expect(out).not.toMatch(/MEDIATION BRIEF/);
+    // Substance survives, including sentences that merely mention a party.
+    expect(out).toContain('during a medical leave');
+    expect(out).toContain('twelve months');
+    expect(out).toContain('WHY WE ARE HERE');
+  });
+
+  it('unwraps a bold lead-in pseudo-heading but leaves real emphasis alone', () => {
+    const out = scrubNarrative('<p><strong>The employer knew.</strong> It had written notice for three weeks.</p>\n<p>The clause fails under <strong>Waksdale</strong> principles.</p>', parties);
+    expect(out).toContain('<p>The employer knew. It had written notice for three weeks.</p>');
+    expect(out).toContain('under <strong>Waksdale</strong> principles');
   });
 });

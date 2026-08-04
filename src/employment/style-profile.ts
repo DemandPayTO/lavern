@@ -73,6 +73,16 @@ export type StyleGuide = z.infer<typeof styleGuideSchema>;
  * over-long lists sliced. Structural problems (missing fields, empty
  * flow, wrong types) still fail validation as they should.
  */
+/** Headings that are document furniture, not sections: the assembly owns them. */
+const FURNITURE_HEADING = /^(mediation brief|between\b|court file|plaintiff$|defendant$|closing statement)/i;
+/** Phrasings that belong to the deterministic sign-off, never the narrative. */
+const FURNITURE_PHRASE = /respectfully submitted|lawyers for the plaintiff/i;
+
+/** The guide's flow with document furniture removed. */
+export function usableFlow(flow: Array<{ heading: string; purpose: string }>): Array<{ heading: string; purpose: string }> {
+  return flow.filter(f => !FURNITURE_HEADING.test(f.heading.trim()));
+}
+
 export function clampStyleGuide(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   const g = { ...(raw as Record<string, unknown>) };
@@ -83,6 +93,11 @@ export function clampStyleGuide(raw: unknown): unknown {
     g.flow = g.flow.slice(0, 24).map(f => (f && typeof f === 'object')
       ? { ...(f as Record<string, unknown>), heading: str((f as Record<string, unknown>).heading, 200), purpose: str((f as Record<string, unknown>).purpose, 500) }
       : f);
+    // Cover blocks, the document title, and closings recur in every
+    // precedent, so the model faithfully learns them as sections; the
+    // assembly owns that furniture, and teaching it back produces
+    // duplicated covers and mid-document sign-offs.
+    g.flow = (g.flow as Array<{ heading?: unknown }>).filter(f => typeof f?.heading !== 'string' || !FURNITURE_HEADING.test((f.heading as string).trim()));
   }
   g.voice = str(g.voice, 1500);
   g.recurringLanguage = strArr(g.recurringLanguage, 400, 20);
@@ -153,7 +168,7 @@ export async function analyseStyle(
       // Belt and braces: strip any identifier-looking strings the model put
       // into recurringLanguage despite the instruction.
       const guide = validated.data;
-      guide.recurringLanguage = guide.recurringLanguage.filter(p => !/\$\s?[\d,]+/.test(p));
+      guide.recurringLanguage = guide.recurringLanguage.filter(p => !/\$\s?[\d,]+/.test(p) && !FURNITURE_PHRASE.test(p));
       // Depth is measured, not asked: the median word count of the
       // precedents as supplied (before truncation the counts come from the
       // full texts passed in).
@@ -269,7 +284,7 @@ export function checkPrecedentBleed(
  * them); the firm's flow governs everything inside and around them.
  */
 export function styleContextForPrompt(guide: StyleGuide, label: string): string {
-  const flow = guide.flow.map((f, i) => `${i + 1}. ${f.heading}: ${f.purpose}`).join('\n');
+  const flow = usableFlow(guide.flow).map((f, i) => `${i + 1}. ${f.heading}: ${f.purpose}`).join('\n');
   const phrasings = guide.recurringLanguage.length
     ? `\nFIRM PHRASINGS (reuse where they fit naturally, never force them):\n${guide.recurringLanguage.map(p => `- "${p}"`).join('\n')}`
     : '';

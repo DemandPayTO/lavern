@@ -24,7 +24,7 @@ import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
-import { buildMediationFrontMatter, buildMediationCover, buildMediationSignOff, numberNarrativeParagraphs, esc } from './mediation-brief-tables.js';
+import { buildMediationFrontMatter, buildMediationCover, buildMediationSignOff, numberNarrativeParagraphs, scrubNarrative, esc } from './mediation-brief-tables.js';
 import type { ComparableCase, CaseBasedRange } from './case-comparables.js';
 import type { NegotiationEntry } from './negotiation.js';
 
@@ -208,6 +208,8 @@ IMPORTANT: The document already begins with deterministic tables prepared from t
 RULES:
 - CONCISE. The narrative must not exceed roughly 2,000 words; mediators say they stop absorbing long briefs. Every sentence earns its place.
 - SHORT NUMBERED PARAGRAPHS: one point per paragraph, two to four sentences, each in its own <p>. NEVER merge several points into one long paragraph; the paragraphs are numbered and cited by number, so a merged paragraph breaks the convention counsel relies on. Do NOT write paragraph numbers yourself; numbering is applied automatically after generation.
+- THE FURNITURE IS NOT YOURS TO WRITE: the cover page (parties, title, counsel), the closing (ALL OF WHICH IS RESPECTFULLY SUBMITTED, the signature block), and any party block are added automatically. NEVER write any of them, anywhere, even if the source materials or the firm's precedents contain them. The narrative begins at the first section heading and ends with the final section's last substantive paragraph.
+- NO PSEUDO-HEADINGS: never open a paragraph with a bold phrase standing in for a heading. Structure comes from the <h2> sections only; within a section, plain prose.
 - Candid about weaknesses; mediators reward honest assessments and discount inflated ones.
 - Credible, measured register. Inflammatory language impedes settlement.
 - Do not fabricate facts, offers, or mitigation details not provided. If something material is unknown, note it for counsel in square brackets [LAWYER: ...].
@@ -780,8 +782,14 @@ ${positions}`;
     // The cover already carries the title; a title heading the model
     // emitted anyway (they sometimes do, whatever the instruction) would
     // duplicate it, so it is stripped deterministically.
-    const narrativeSansTitle = html.replace(/^\s*<h[12][^>]*>\s*MEDIATION BRIEF[^<]*<\/h[12]>\s*/i, '');
-    html = [cover, frontMatter.html, numberNarrativeParagraphs(narrativeSansTitle), signOff].filter(Boolean).join('\n\n');
+    const narrative = scrubNarrative(
+      html.replace(/^\s*<h[12][^>]*>\s*MEDIATION BRIEF[^<]*<\/h[12]>\s*/i, ''),
+      {
+        plaintiff: [req.intake.client_first_name, req.intake.client_last_name].filter(Boolean).join(' '),
+        defendant: req.intake.employer_legal_name ?? req.intake.employer_operating_name ?? undefined,
+      },
+    );
+    html = [cover, frontMatter.html, numberNarrativeParagraphs(narrative), signOff].filter(Boolean).join('\n\n');
   }
 
   // Citation tracking

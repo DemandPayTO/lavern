@@ -315,6 +315,48 @@ export function buildMediationSignOff(args: {
   ].join('\n');
 }
 
+// ── Narrative scrub ──────────────────────────────────────────────────────
+
+/**
+ * Remove document furniture the model echoed into the narrative, before
+ * numbering. The cover, the title, and the sign-off are assembled
+ * deterministically; a model that learned them from the precedents (they
+ * recur in every one) reproduces them mid-document, where the numberer
+ * would stamp them as paragraphs. Also unwraps bold lead-in
+ * pseudo-headings: structure comes from real headings or not at all.
+ */
+export function scrubNarrative(html: string, parties?: { plaintiff?: string; defendant?: string }): string {
+  const partyNames = [parties?.plaintiff, parties?.defendant]
+    .filter((x): x is string => Boolean(x && x.trim()))
+    .map(x => x.trim().toLowerCase());
+
+  const isFurnitureText = (text: string): boolean => {
+    const t = text.replace(/\s+/g, ' ').trim();
+    if (!t) return false;
+    if (/^all of which is respectfully submitted/i.test(t)) return true;
+    if (/^between:?$/i.test(t)) return true;
+    if (/^-\s*and\s*-$/i.test(t)) return true;
+    if (/^(plaintiff|defendant)$/i.test(t)) return true;
+    if (/^mediation brief( of the plaintiff)?$/i.test(t)) return true;
+    if (/^court file no/i.test(t)) return true;
+    if (/^lawyers for the plaintiff/i.test(t)) return true;
+    if (/^per:\s/i.test(t)) return true;
+    if (partyNames.includes(t.toLowerCase())) return true;
+    return false;
+  };
+
+  let out = html.replace(/<(p|h[1-3])(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (match, _tag, _attrs, inner) => {
+    const text = String(inner).replace(/<[^>]+>/g, ' ');
+    return isFurnitureText(text) ? '' : match;
+  });
+
+  // Bold lead-in pseudo-headings: a short bold phrase opening a longer
+  // paragraph is neither a heading nor prose. Unwrap it to plain text.
+  out = out.replace(/(<p(?:\s[^>]*)?>)\s*<(strong|b)>([^<]{1,80})<\/\2>\s*/gi, (_m, open, _tag, lead) => `${open}${lead} `);
+
+  return out;
+}
+
 // ── Paragraph numbering (factum convention) ──────────────────────────────
 
 /**
