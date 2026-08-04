@@ -405,9 +405,12 @@ export function useMatterCreate(): MatterCreateResult {
       const matterData = await matterRes.json();
       const matterId = matterData.matterId;
       const sessionId = matterId;
-      const toIsoDate = (dmy: string | undefined): string | undefined => {
-        if (!dmy) return undefined;
-        const parts = dmy.trim().split('/');
+      const toIsoDate = (raw: string | undefined): string | undefined => {
+        if (!raw) return undefined;
+        const value = raw.trim();
+        // The date inputs send ISO already; dd/mm/yyyy still converts for safety.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+        const parts = value.split('/');
         if (parts.length !== 3) return undefined;
         return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
       };
@@ -544,47 +547,17 @@ export function useMatterList(): MatterListResult {
             request: { type: 'employment_agreement', requestText: m.description ?? '' },
             _source: 'matter',
             _matterNumber: m.matterNumber,
-            _clientName: m.clientId,
+            // The list endpoint now carries the intake summary itself, so
+            // every file is enriched — not just the first 25.
+            _clientName: m.clientName || m.clientId,
+            _employerName: m.employerName || undefined,
+            _limitationDate: m.limitationDate || undefined,
+            _grievanceDeadline: m.grievanceDeadline || undefined,
+            _isLabour: m.isLabour === true || undefined,
             _openedBy: m.openedBy,
             _openedByMe: m.openedByMe,
           });
         }
-
-        // Enrich with employment intake data (client, employer, limitation
-        // deadline) — cheap local reads, capped to keep the list snappy.
-        // Matters with no employment intake are probed for labour
-        // (grievance) data instead.
-        await Promise.allSettled(matterEntries.slice(0, 25).map(async entry => {
-          try {
-            const res = await fetch(`/api/employment/${entry.id}`, { credentials: 'include' });
-            if (!res.ok) return;
-            const json = await res.json();
-            const intake = json.data?.intake as Record<string, unknown> | undefined;
-            const client = intake ? [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' ') : '';
-            if (client) {
-              entry._clientName = client;
-              const employer = (intake!.employer_legal_name ?? intake!.employer_operating_name) as string | undefined;
-              if (employer) entry._employerName = employer;
-              const lim = json.data?.analysis?.limitationDeadline as { date?: string } | undefined;
-              if (lim?.date) entry._limitationDate = lim.date;
-              return;
-            }
-
-            // No employment intake — labour (grievance) matter?
-            const lres = await fetch(`/api/labour/${entry.id}`, { credentials: 'include' });
-            if (!lres.ok) return;
-            const ljson = await lres.json();
-            const li = ljson.data?.intake as Record<string, unknown> | undefined;
-            if (!li || Object.keys(li).length === 0) return;
-            const grievor = [li.grievor_first_name, li.grievor_last_name].filter(Boolean).join(' ');
-            if (grievor) entry._clientName = grievor;
-            if (li.employer_name) entry._employerName = String(li.employer_name);
-            entry._isLabour = true;
-            const griefDeadlines = (ljson.data?.analysis?.deadlines ?? []) as Array<{ date: string; overdue: boolean }>;
-            const next = griefDeadlines.find(d => !d.overdue) ?? griefDeadlines[0];
-            if (next?.date) entry._grievanceDeadline = next.date;
-          } catch { /* enrichment is best-effort */ }
-        }));
 
         allSessions.push(...matterEntries);
       }

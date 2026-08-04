@@ -698,7 +698,12 @@ export default function LabourMatterDetailView({ sessionId, matterNumber }: { se
           {/* ── Documents ─────────────────────────────────────────── */}
           {activeTab === 'docs' && (
             <div id="panel-docs" role="tabpanel" style={{ paddingTop: 22 }}>
-              <GeneratedDocsPanel docs={generatedDocs} onSetStatus={setDocumentStatus} />
+              <GeneratedDocsPanel
+                docs={generatedDocs}
+                onSetStatus={setDocumentStatus}
+                downloadHref={(dt) => DRAFT_TO_DOWNLOAD[dt] && sessionId
+                  ? `/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[dt]}` : null}
+              />
               <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px' }}>
                 <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
                   Upload the collective agreement and Starling fills the clocks

@@ -31,17 +31,11 @@ const sans = "system-ui, -apple-system, sans-serif";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-/** Parse dd/mm/yyyy into a Date, or return null. */
-function parseDateDMY(value: string): Date | null {
-  const parts = value.trim().split('/');
-  if (parts.length !== 3) return null;
-  const [dd, mm, yyyy] = parts;
-  const day = parseInt(dd, 10);
-  const month = parseInt(mm, 10);
-  const year = parseInt(yyyy, 10);
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900) return null;
-  return new Date(year, month - 1, day);
+/** Parse the date input's ISO value into a Date, or return null. */
+function parseIsoDate(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return null;
+  const d = new Date(`${value.trim()}T00:00:00`);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 /** Format a Date as "Month Day, Year" (en-CA style). */
@@ -116,7 +110,7 @@ export default function NewMatterView() {
   const { createMatter, uploading, error } = useMatterCreate();
 
   // Parse termination date for deadline calculations
-  const termDate = useMemo(() => parseDateDMY(terminationDate), [terminationDate]);
+  const termDate = useMemo(() => parseIsoDate(terminationDate), [terminationDate]);
   const limitationDate = useMemo(() => termDate ? addYears(termDate, 2) : null, [termDate]);
   const hrtoDate = useMemo(() => termDate ? addYears(termDate, 1) : null, [termDate]);
 
@@ -512,8 +506,7 @@ export default function NewMatterView() {
                   Employment start date
                 </div>
                 <input
-                  type="text"
-                  placeholder="dd/mm/yyyy"
+                  type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   style={{
@@ -534,8 +527,7 @@ export default function NewMatterView() {
                   Termination date
                 </div>
                 <input
-                  type="text"
-                  placeholder="dd/mm/yyyy"
+                  type="date"
                   value={terminationDate}
                   onChange={(e) => setTerminationDate(e.target.value)}
                   style={{

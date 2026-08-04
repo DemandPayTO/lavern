@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 // ── Design Tokens ───────────────────────────────────────────────────────
 export const navy = '#0f1a2e';
@@ -503,9 +503,15 @@ const STATUS_COLOURS: Record<GeneratedDocSummary['status'], { fg: string; bg: st
 export interface GeneratedDocsPanelProps {
   docs: GeneratedDocSummary[];
   onSetStatus: (docType: string, status: GeneratedDocSummary['status'], date?: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Open the saved draft in the Draft tab. Returns false when no saved copy exists. */
+  onOpen?: (docType: string) => boolean;
+  /** DOCX download URL for a document, or null when it has no download route. */
+  downloadHref?: (docType: string) => string | null;
+  /** Extra per-row controls, e.g. the approval-lane strip. */
+  renderExtra?: (docType: string) => ReactNode;
 }
 
-export function GeneratedDocsPanel({ docs, onSetStatus }: GeneratedDocsPanelProps) {
+export function GeneratedDocsPanel({ docs, onSetStatus, onOpen, downloadHref, renderExtra }: GeneratedDocsPanelProps) {
   const [eventDate, setEventDate] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -553,7 +559,25 @@ export function GeneratedDocsPanel({ docs, onSetStatus }: GeneratedDocsPanelProp
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {onOpen && (
+                <button
+                  onClick={() => {
+                    if (!onOpen(doc.docType)) setMessage('No saved copy of that draft remains. Generate it again from the Draft tab.');
+                  }}
+                  style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                >
+                  Open
+                </button>
+              )}
+              {downloadHref && downloadHref(doc.docType) && (
+                <a
+                  href={downloadHref(doc.docType)!}
+                  style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, textDecoration: 'none', display: 'inline-block' }}
+                >
+                  Download DOCX
+                </a>
+              )}
               {(['reviewed', 'sent', 'filed'] as const).map(next => (
                 <button
                   key={next}
@@ -571,6 +595,7 @@ export function GeneratedDocsPanel({ docs, onSetStatus }: GeneratedDocsPanelProp
                 </button>
               ))}
             </div>
+            {renderExtra && <div style={{ flexBasis: '100%' }}>{renderExtra(doc.docType)}</div>}
           </div>
         );
       })}

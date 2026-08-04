@@ -585,7 +585,7 @@ export default function StarlingDashboard() {
             cta="Draft a document"
             hovered={hoveredAction === 'draft'}
             onHover={(h) => setHoveredAction(h ? 'draft' : null)}
-            onClick={() => handleNav('#/matter-detail')}
+            onClick={() => handleNav('#/matters')}
           />
           {/* Review Document */}
           <ActionCard
@@ -595,7 +595,7 @@ export default function StarlingDashboard() {
             cta="Review a document"
             hovered={hoveredAction === 'review'}
             onHover={(h) => setHoveredAction(h ? 'review' : null)}
-            onClick={() => handleNav('#/matter-detail')}
+            onClick={() => handleNav('#/matters')}
           />
         </div>
 

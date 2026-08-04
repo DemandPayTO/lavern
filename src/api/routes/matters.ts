@@ -66,6 +66,44 @@ function normaliseClientName(name: unknown): string {
   return String(name ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * List-row summary drawn from the stored record, so the dashboard needs no
+ * per-matter enrichment fetches. Before this, the client fanned out one
+ * request per matter capped at 25: file 26 showed as "Untitled matter" and
+ * never turned urgent regardless of its limitation date.
+ */
+function listSummaryOf(record: Record<string, unknown>): {
+  clientName: string; employerName: string; limitationDate: string | null;
+  grievanceDeadline: string | null; isLabour: boolean;
+} {
+  const ed = record.employmentData as { intake?: Record<string, unknown>; analysis?: Record<string, unknown> } | undefined;
+  const ei = ed?.intake;
+  if (ei && Object.keys(ei).length > 0) {
+    const lim = (ed?.analysis?.limitationDeadline as { date?: string } | undefined)?.date;
+    return {
+      clientName: [ei.client_first_name, ei.client_last_name].filter(Boolean).join(' '),
+      employerName: String(ei.employer_legal_name ?? ei.employer_operating_name ?? ''),
+      limitationDate: lim ?? null,
+      grievanceDeadline: null,
+      isLabour: false,
+    };
+  }
+  const ld = record.labourData as { intake?: Record<string, unknown>; analysis?: Record<string, unknown> } | undefined;
+  const li = ld?.intake;
+  if (li && Object.keys(li).length > 0) {
+    const deadlines = (ld?.analysis?.deadlines ?? []) as Array<{ date?: string; overdue?: boolean }>;
+    const next = deadlines.find(d => !d.overdue) ?? deadlines[0];
+    return {
+      clientName: [li.grievor_first_name, li.grievor_last_name].filter(Boolean).join(' '),
+      employerName: String(li.employer_name ?? ''),
+      limitationDate: null,
+      grievanceDeadline: next?.date ?? null,
+      isLabour: true,
+    };
+  }
+  return { clientName: '', employerName: '', limitationDate: null, grievanceDeadline: null, isLabour: false };
+}
+
 /** Best available client name on a stored matter record. */
 function clientNameOf(record: Record<string, unknown>): string {
   const intake = ((record.employmentData ?? record.labourData) as { intake?: Record<string, unknown> } | undefined)?.intake;
@@ -257,6 +295,7 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
         openedBy: row.owner_name ?? '',
         openedByMe: row.user_id === userId,
         lastModifiedBy: row.last_modified_by ?? '',
+        ...listSummaryOf(m as unknown as Record<string, unknown>),
       })),
       total: matters.length,
     });
