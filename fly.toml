@@ -61,4 +61,10 @@ primary_region = "yyz"
 
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  # 1 GB, not the 512 MB default: parsing an uploaded document (PDF or DOCX
+  # up to 10 MB, expanded to text and HTML) pushed the process past 512 MB
+  # and the kernel OOM-killed it mid-request, restarting the server and
+  # returning 502 to everyone connected (2026-08-04). Keep this in step with
+  # NODE_OPTIONS=--max-old-space-size in the Dockerfile: fly.toml wins on
+  # every deploy, so a scale made only on the CLI is silently reverted here.
+  memory = "1024mb"

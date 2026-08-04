@@ -63,8 +63,8 @@ ENV NODE_ENV=production
 # the process. That takes the whole server down mid-request and surfaces to
 # every connected user as a 502. With a cap, V8 collects instead, and the
 # worst case is one failed request rather than a restart.
-# Sized for the 512 MB machine; raise alongside `fly scale memory`.
-ENV NODE_OPTIONS=--max-old-space-size=384
+# Sized for the 1 GB machine set in fly.toml; keep the two in step.
+ENV NODE_OPTIONS=--max-old-space-size=768
 ENV SHEM_HOST=0.0.0.0
 ENV SHEM_PORT=3000
 ENV SHEM_DB_PATH=/app/data/lavern.db
