@@ -321,7 +321,8 @@ export async function generateDemandLetter(
     system: systemPrompt,
     user: userPrompt,
     tier: 'opus',    // Use strongest model for legal drafting
-    maxTokens: req.styleTypicalWords ? Math.min(28_000, Math.max(8192, Math.ceil(req.styleTypicalWords * 2.2))) : 8192,
+    maxTokens: req.styleTypicalWords ? Math.min(30_000, Math.max(8192, Math.ceil(req.styleTypicalWords * 3))) : 8192,
+    extendOnTruncation: true,
     maxRetries: 2,
     definedTerms: definedTerms ?? undefined,
   });

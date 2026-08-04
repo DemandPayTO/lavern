@@ -715,20 +715,25 @@ ${positions}`;
 
   let text: string;
   let cost: number;
+  let outputTruncated = false;
   try {
     const result = await crossProviderChat({
       system: systemPrompt,
       user: userPrompt,
       tier: getModelTier(req.documentType),
+      // Legal prose with HTML runs ~3 tokens per word; the old 2.2x cut
+      // firm-depth briefs off mid-sentence.
       maxTokens: req.styleTypicalWords
-        ? Math.min(28_000, Math.max(10_240, Math.ceil(req.styleTypicalWords * 2.2)))
+        ? Math.min(30_000, Math.max(10_240, Math.ceil(req.styleTypicalWords * 3)))
         : 10_240,
       maxRetries: 2,
       timeoutMs: getTimeoutMs(req.documentType),
       definedTerms: definedTerms ?? undefined,
+      extendOnTruncation: true,
     });
     text = result.text;
     cost = result.cost;
+    outputTruncated = Boolean(result.truncated);
   } catch (err) {
     logger.error('Litigation document generation failed', { error: err instanceof Error ? err.message : String(err) });
     throw new Error('Document generation failed. Please try again.');
@@ -795,6 +800,7 @@ ${positions}`;
   }
 
   const lawyerReviewFlags = [
+    ...(outputTruncated ? ['INCOMPLETE DRAFT: the document hit the output limit even after an extended attempt and likely ends abruptly. Shorten the style depth or generate again; do not serve this version.'] : []),
     ...getLawyerReviewFlags(req.documentType),
     ...(frontMatter?.flags ?? []),
     ...checkCitationIntegrity(narrativeHtml, definedTerms ?? []),

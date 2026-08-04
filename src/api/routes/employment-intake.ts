@@ -3120,16 +3120,39 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
       const shown = targets.map(i => `[${i}] ${paragraphs[i]}`).join('\n');
 
       const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+      // The model returns the revised paragraphs in full, so the budget
+      // must scale with what is being revised: a fixed 8k cap truncated
+      // the JSON on long firm-depth briefs and 502'd the whole apply.
+      const targetChars = targets.reduce((a, i) => a + (paragraphs[i]?.length ?? 0), 0);
+      const applyBudget = Math.min(24_576, Math.max(8_192, Math.ceil(targetChars / 2)));
       try {
         const result = await crossProviderChat({
           system: rl.buildApplySystemPrompt(),
           user: `PARAGRAPHS TO REVISE:\n${shown}\n\nAPPROVED INSTRUCTIONS:\n${instructions}`,
           tier: 'opus',
-          maxTokens: 8192,
+          maxTokens: applyBudget,
           maxRetries: 2,
+          extendOnTruncation: true,
         });
-        const fenced = result.text.trim().match(/```(?:json)?\s*([\s\S]*?)```/);
-        const payload = JSON.parse(fenced ? fenced[1] : result.text.trim()) as { revised?: Record<string, string> };
+        const raw = result.text.trim();
+        const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+        let payload: { revised?: Record<string, string> };
+        try {
+          payload = JSON.parse(fenced ? fenced[1] : raw) as { revised?: Record<string, string> };
+        } catch (parseErr) {
+          logger.error('Revision apply: unparseable response', {
+            responseChars: raw.length,
+            tail: raw.slice(-120),
+            truncated: Boolean(result.truncated),
+            budget: applyBudget,
+          });
+          return reply.status(502).send({
+            ok: false,
+            error: result.truncated
+              ? 'The revision was too large for one pass. Approve fewer changes at a time and apply again.'
+              : 'Could not apply the revisions. Please try again.',
+          });
+        }
         revised = Object.fromEntries(
           Object.entries(payload.revised ?? {}).map(([k, v]) => [Number(k), sanitiseHtml(String(v))]),
         );

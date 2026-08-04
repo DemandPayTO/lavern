@@ -281,7 +281,8 @@ export async function generateStatementOfClaim(
       system: systemPrompt,
       user: userPrompt,
       tier: 'opus',
-      maxTokens: req.styleTypicalWords ? Math.min(28_000, Math.max(12288, Math.ceil(req.styleTypicalWords * 2.2))) : 12288,
+      maxTokens: req.styleTypicalWords ? Math.min(30_000, Math.max(12288, Math.ceil(req.styleTypicalWords * 3))) : 12288,
+    extendOnTruncation: true,
       maxRetries: 2,
       definedTerms: definedTerms ?? undefined,
     });

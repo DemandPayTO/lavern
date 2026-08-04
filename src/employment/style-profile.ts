@@ -144,6 +144,7 @@ export async function analyseStyle(
       user,
       tier: 'sonnet',
       maxTokens: 8192,
+      extendOnTruncation: true,
     });
     totalCost += cost;
     const parsed = parseJson(text);

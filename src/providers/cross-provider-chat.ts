@@ -33,6 +33,9 @@ import { PRICING as ANTHROPIC_PRICING } from '../utils/stream-messages.js';
 import { LOCAL_PRICING } from './local.js';
 import { MISTRAL_MODELS } from './types.js';
 import { withRetry } from '../utils/with-retry.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('XPROVIDER');
 import { anonymize, deanonymize, type EntityMapping } from '../claw/anonymize.js';
 
 // ── Tier → model resolution ─────────────────────────────────────────────
@@ -112,6 +115,14 @@ export interface CrossProviderChatOptions {
    * Pass null to skip anonymisation entirely for this call.
    */
   definedTerms?: string[] | null;
+  /**
+   * When the model hits the output-token ceiling (stop_reason max_tokens),
+   * retry ONCE with double the budget (capped at 32k). A truncated legal
+   * document that gets assembled and served ends mid-sentence, and
+   * truncated JSON parses as nothing; both have bitten in production.
+   * Callers that stream or want the raw behaviour leave this off.
+   */
+  extendOnTruncation?: boolean;
 }
 
 export interface CrossProviderChatResult {
@@ -119,6 +130,8 @@ export interface CrossProviderChatResult {
   text: string;
   /** USD cost (0 for local). */
   cost: number;
+  /** True when the response hit the output ceiling and is cut off. */
+  truncated?: boolean;
   /** Resolved model name. */
   model: string;
   /** Provider that handled the call. */
@@ -156,6 +169,23 @@ export async function checkProviderReady(): Promise<string | null> {
  * `checkProviderReady()` first and short-circuit.
  */
 export async function crossProviderChat(
+  opts: CrossProviderChatOptions,
+): Promise<CrossProviderChatResult> {
+  const first = await crossProviderChatOnce(opts);
+  if (first.truncated && opts.extendOnTruncation) {
+    const extended = Math.min(32_768, opts.maxTokens * 2);
+    if (extended > opts.maxTokens) {
+      logger.warn('Output hit the token ceiling; retrying with headroom', {
+        tier: opts.tier, maxTokens: opts.maxTokens, extended,
+      });
+      const second = await crossProviderChatOnce({ ...opts, maxTokens: extended });
+      return { ...second, cost: first.cost + second.cost };
+    }
+  }
+  return first;
+}
+
+async function crossProviderChatOnce(
   opts: CrossProviderChatOptions,
 ): Promise<CrossProviderChatResult> {
   const model = modelFor(opts.tier);
@@ -314,5 +344,8 @@ export async function crossProviderChat(
     (regularInput * pricing.input / 1_000_000) +
     (outputTokens * pricing.output / 1_000_000);
 
-  return { text, cost, model, provider: config.provider };
+  return {
+    text, cost, model, provider: config.provider,
+    truncated: res.stop_reason === 'max_tokens',
+  };
 }

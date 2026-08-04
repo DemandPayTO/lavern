@@ -109,6 +109,7 @@ Identify all source document citations used in the generated document.`;
       user: userMessage,
       tier: 'sonnet',  // Sonnet is sufficient for citation extraction
       maxTokens: 8192,
+      extendOnTruncation: true,
       definedTerms: definedTerms ?? undefined,
     });
 
