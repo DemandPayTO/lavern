@@ -1,14 +1,30 @@
 import { Component } from 'react';
 import { colors, fonts } from '../staffing/styles/tokens.js';
 
-interface Props { children: React.ReactNode; }
-interface State { error: Error | null; }
+interface Props {
+  children: React.ReactNode;
+  /**
+   * Changes when the user navigates. Without it the boundary latches: one
+   * error anywhere leaves this screen up for the rest of the session, even
+   * for views that would render perfectly, and only a reload clears it.
+   */
+  resetKey?: string;
+}
+interface State { error: Error | null }
 
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    // Navigating away from a broken view clears the error, so the app
+    // recovers on the next click rather than needing a reload.
+    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {

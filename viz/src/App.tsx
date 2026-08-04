@@ -23,7 +23,8 @@
  * App.tsx handles routing and cross-view data flow via sessionStorage.
  */
 
-import { useEffect, useState, useCallback, useContext, useRef, Suspense, lazy } from 'react';
+import { useEffect, useState, useCallback, useContext, useRef, Suspense } from 'react';
+import { lazyView } from './lazyView.js';
 import { UserContext } from './auth/UserContext.js';
 import { ErrorToast } from './components/ErrorToast.js';
 import { VerificationBanner } from './components/VerificationBanner.js';
@@ -43,44 +44,44 @@ import { CustomCursor } from './components/CustomCursor.js';
 import { IS_STANDALONE } from './standalone.js';
 
 // Lazy-load all views (separate code-split chunks)
-const DemoTourView = lazy(() => import('./demo/DemoTourView.js'));
-const LandingView = lazy(() => import('./landing/LandingView.js'));
-const LobbyView = lazy(() => import('./landing/LobbyView.js'));
-const IntakeView = lazy(() => import('./intake/IntakeView.js'));
-const BriefingView = lazy(() => import('./briefing/BriefingView.js'));
-const StrategyView = lazy(() => import('./staffing/StrategyView.js'));
+const DemoTourView = lazyView(() => import('./demo/DemoTourView.js'));
+const LandingView = lazyView(() => import('./landing/LandingView.js'));
+const LobbyView = lazyView(() => import('./landing/LobbyView.js'));
+const IntakeView = lazyView(() => import('./intake/IntakeView.js'));
+const BriefingView = lazyView(() => import('./briefing/BriefingView.js'));
+const StrategyView = lazyView(() => import('./staffing/StrategyView.js'));
 
-const TeamView = lazy(() => import('./staffing/TeamView.js'));
-const WorkingView = lazy(() => import('./working/WorkingView.js'));
-const DeliveryView = lazy(() => import('./delivery/DeliveryView.js'));
-const MyPageView = lazy(() => import('./my-page/MyPageView.js'));
-const MyCasesView = lazy(() => import('./my-cases/MyCasesView.js'));
-const AgentDocsView = lazy(() => import('./agent-docs/AgentDocsView.js'));
-const LoginView = lazy(() => import('./auth/LoginView.js'));
-const ResetPasswordView = lazy(() => import('./auth/ResetPasswordView.js'));
-const QuickStartView = lazy(() => import('./landing/QuickStartView.js'));
-const ClawView = lazy(() => import('./claw/ClawView.js'));
-const ClawLiveView = lazy(() => import('./claw/ClawLiveView.js'));
-const RalphLoopView = lazy(() => import('./ralph/RalphLoopView.js'));
-const DispatchView = lazy(() => import('./dispatch/DispatchView.js'));
-const ArchiveView = lazy(() => import('./archive/ArchiveView.js'));
-const ChallengeView = lazy(() => import('./challenge/ChallengeView.js'));
-const AgentBuilderView = lazy(() => import('./agent-builder/AgentBuilderView.js'));
-const PublicAgentShareView = lazy(() => import('./agent-builder/PublicAgentShareView.js'));
-const PublicTeamShareView = lazy(() => import('./agent-builder/PublicTeamShareView.js'));
-const LegalView = lazy(() => import('./legal/LegalView.js'));
-const PartnerView = lazy(() => import('./partner/PartnerView.js'));
-const ShowcaseView = lazy(() => import('./showcase/ShowcaseView.js'));
-const StarlingDashboard = lazy(() => import('./starling/StarlingDashboard.js'));
-const TasksView = lazy(() => import('./starling/TasksView.js'));
-const MattersFilesView = lazy(() => import('./starling/MattersFilesView.js'));
-const ApprovalsView = lazy(() => import('./starling/ApprovalsView.js'));
-const NewMatterView = lazy(() => import('./starling/NewMatterView.js'));
-const MatterDetailView = lazy(() => import('./starling/MatterDetailView.js'));
-const ClientIntakeView = lazy(() => import('./starling/ClientIntakeView.js'));
-const ProcessingView = lazy(() => import('./starling/ProcessingView.js'));
-const ResultsView = lazy(() => import('./starling/ResultsView.js'));
-const BillingView = lazy(() => import('./billing/BillingView.js'));
+const TeamView = lazyView(() => import('./staffing/TeamView.js'));
+const WorkingView = lazyView(() => import('./working/WorkingView.js'));
+const DeliveryView = lazyView(() => import('./delivery/DeliveryView.js'));
+const MyPageView = lazyView(() => import('./my-page/MyPageView.js'));
+const MyCasesView = lazyView(() => import('./my-cases/MyCasesView.js'));
+const AgentDocsView = lazyView(() => import('./agent-docs/AgentDocsView.js'));
+const LoginView = lazyView(() => import('./auth/LoginView.js'));
+const ResetPasswordView = lazyView(() => import('./auth/ResetPasswordView.js'));
+const QuickStartView = lazyView(() => import('./landing/QuickStartView.js'));
+const ClawView = lazyView(() => import('./claw/ClawView.js'));
+const ClawLiveView = lazyView(() => import('./claw/ClawLiveView.js'));
+const RalphLoopView = lazyView(() => import('./ralph/RalphLoopView.js'));
+const DispatchView = lazyView(() => import('./dispatch/DispatchView.js'));
+const ArchiveView = lazyView(() => import('./archive/ArchiveView.js'));
+const ChallengeView = lazyView(() => import('./challenge/ChallengeView.js'));
+const AgentBuilderView = lazyView(() => import('./agent-builder/AgentBuilderView.js'));
+const PublicAgentShareView = lazyView(() => import('./agent-builder/PublicAgentShareView.js'));
+const PublicTeamShareView = lazyView(() => import('./agent-builder/PublicTeamShareView.js'));
+const LegalView = lazyView(() => import('./legal/LegalView.js'));
+const PartnerView = lazyView(() => import('./partner/PartnerView.js'));
+const ShowcaseView = lazyView(() => import('./showcase/ShowcaseView.js'));
+const StarlingDashboard = lazyView(() => import('./starling/StarlingDashboard.js'));
+const TasksView = lazyView(() => import('./starling/TasksView.js'));
+const MattersFilesView = lazyView(() => import('./starling/MattersFilesView.js'));
+const ApprovalsView = lazyView(() => import('./starling/ApprovalsView.js'));
+const NewMatterView = lazyView(() => import('./starling/NewMatterView.js'));
+const MatterDetailView = lazyView(() => import('./starling/MatterDetailView.js'));
+const ClientIntakeView = lazyView(() => import('./starling/ClientIntakeView.js'));
+const ProcessingView = lazyView(() => import('./starling/ProcessingView.js'));
+const ResultsView = lazyView(() => import('./starling/ResultsView.js'));
+const BillingView = lazyView(() => import('./billing/BillingView.js'));
 
 type AppView = 'foyer' | 'partner' | 'quickstart' | 'landing' | 'lobby' | 'login' | 'reset-password' | 'verify-email' | 'dashboard' | 'intake' | 'briefing' | 'strategy' | 'team' | 'working' | 'delivery' | 'my-page' | 'my-cases' | 'agent-docs' |'claw' | 'claw-live' | 'dispatch' | 'archive' | 'challenge' | 'agent-builder' | 'shared-agent' | 'shared-team' | 'terms' | 'privacy' | 'showcase' | 'demo' | 'ralph' | 'starling-dashboard' | 'new-matter' | 'matter-detail' | 'starling-processing' | 'starling-results' | 'billing' | 'client-intake' | 'tasks' | 'matters-files' | 'approvals';
 
@@ -648,7 +649,7 @@ export function App() {
   // ── Quick Start — fast-track entry point ────────────────────────────
   if (view === 'quickstart') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -667,7 +668,7 @@ export function App() {
 
   if (view === 'intake') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -689,7 +690,7 @@ export function App() {
 
   if (view === 'briefing') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -711,7 +712,7 @@ export function App() {
 
   if (view === 'strategy') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -733,7 +734,7 @@ export function App() {
 
   if (view === 'team') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -755,7 +756,7 @@ export function App() {
 
   if (view === 'working') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -779,7 +780,7 @@ export function App() {
 
   if (view === 'delivery') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -803,7 +804,7 @@ export function App() {
 
   if (view === 'my-page') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -821,7 +822,7 @@ export function App() {
 
   if (view === 'my-cases') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -851,7 +852,7 @@ export function App() {
   // ── Archive — Knowledge Base UI ─────────────────────────────────────────
   if (view === 'archive') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -870,7 +871,7 @@ export function App() {
   // ── Login — standalone login page ──────────────────────────────────────
   if (view === 'login') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -892,7 +893,7 @@ export function App() {
   // ── Reset Password — token-based password reset from email link ────────
   if (view === 'reset-password') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -911,7 +912,7 @@ export function App() {
     // triggers the verification API call (handled by LoginView or a small inline component).
     // For now, we render a minimal verify-email handler.
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -927,7 +928,7 @@ export function App() {
   // ── Agent Docs — API documentation for agent clients ───────────────────
   if (view === 'agent-docs') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -947,7 +948,7 @@ export function App() {
   // ── The Lavern Challenge — blind document comparison ────────────────
   if (view === 'challenge') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -965,7 +966,7 @@ export function App() {
   // ── Agent Builder — custom agent creator ────────────────────────────
   if (view === 'agent-builder') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -989,7 +990,7 @@ export function App() {
     const tokenMatch = /^#\/a\/([^?#&]+)/.exec(window.location.hash);
     const token = tokenMatch ? tokenMatch[1] : '';
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         <ViewTransition>
@@ -1006,7 +1007,7 @@ export function App() {
     const tokenMatch = /^#\/t\/([^?#&]+)/.exec(window.location.hash);
     const token = tokenMatch ? tokenMatch[1] : '';
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         <ViewTransition>
@@ -1021,7 +1022,7 @@ export function App() {
   // ── Legal — Terms of Service & Privacy Policy ────────────────────────
   if (view === 'terms' || view === 'privacy') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1047,7 +1048,7 @@ export function App() {
 
   if (view === 'claw') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1088,7 +1089,7 @@ export function App() {
   // ── Ralph — goal-driven loop. He keeps going until done. ─────────────
   if (view === 'ralph') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1103,7 +1104,7 @@ export function App() {
   // ── Dispatch — Voice command interface ────────────────────────────────
   if (view === 'dispatch') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         <Suspense fallback={<ViewFallback text="Loading Dispatch..." />}>
           <DispatchView onBack={() => { window.location.hash = '#/claw'; }} />
         </Suspense>
@@ -1114,7 +1115,7 @@ export function App() {
   // ── Lobby — cinematic LAVERN gate ────────────────────────────────────
   if (view === 'lobby') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1138,7 +1139,7 @@ export function App() {
   // ── Dashboard — sessions hub (the old "landing") ──────────────────────
   if (view === 'dashboard') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1170,7 +1171,7 @@ export function App() {
   // ── Landing — cinematic dark door (legacy, accessible via #/landing) ──
   if (view === 'landing') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1192,7 +1193,7 @@ export function App() {
   if (view === 'partner') {
     const isPartnerDemo = window.location.hash.includes('demo=true');
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1235,7 +1236,7 @@ export function App() {
 
   if (view === 'new-matter') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1250,7 +1251,7 @@ export function App() {
   // ── Matter Detail — Starling matter detail view ────────────────────
   if (view === 'matter-detail') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1265,7 +1266,7 @@ export function App() {
   // ── Starling Processing — pipeline progress screen ──────────────────
   if (view === 'starling-processing') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1280,7 +1281,7 @@ export function App() {
   // ── Starling Results — document delivery with quality score ────────
   if (view === 'starling-results') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1295,7 +1296,7 @@ export function App() {
   // ── Starling Dashboard — Phase 2 default landing ────────────────────
   if (view === 'starling-dashboard') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1310,7 +1311,7 @@ export function App() {
   // ── Files — folder-style view of every matter ───────────────────────
   if (view === 'matters-files') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1325,7 +1326,7 @@ export function App() {
   // ── Tasks — unified cross-matter task inbox ─────────────────────────
   if (view === 'tasks') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1340,7 +1341,7 @@ export function App() {
   // ── Approvals — firm document review queue ──────────────────────────
   if (view === 'approvals') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1355,7 +1356,7 @@ export function App() {
   // ── Billing — hour pack purchase + usage history ──
   if (view === 'billing') {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={view}>
         {skipLink}
         {toast}
         {offlineBanner}
@@ -1369,7 +1370,7 @@ export function App() {
 
   // ── QuickStart — previous default landing (still accessible via #/quickstart) ──
   return (
-    <ErrorBoundary>
+    <ErrorBoundary resetKey={view}>
       {skipLink}
       {toast}
       {offlineBanner}
