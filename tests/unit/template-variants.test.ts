@@ -169,3 +169,28 @@ describe('migration from the single-template schema', () => {
     fs.rmSync(dbPath, { force: true });
   });
 });
+
+describe('placeholder detection (2026-08-04 fix)', () => {
+  it('reads markers from inside the DOCX zip, not the raw bytes', async () => {
+    const { Document, Packer, Paragraph, TextRun } = await import('docx');
+    const { detectPlaceholders } = await import('../../src/employment/firm-templates.js');
+    const JSZip = (await import('jszip')).default;
+
+    const doc = new Document({ sections: [{ children: [
+      new Paragraph({ children: [new TextRun('Re: {{CLIENT_NAME}} and {{EMPLOYER_NAME}}')] }),
+      new Paragraph({ children: [new TextRun('{{LEGAL_ANALYSIS}}')] }),
+    ] }] });
+    const buffer = await Packer.toBuffer(doc);
+
+    // The old path: reading the compressed bytes as text finds nothing.
+    expect(detectPlaceholders(buffer.toString('utf-8'))).toHaveLength(0);
+
+    // The fixed path: unzip first.
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    const found = detectPlaceholders(xml);
+    expect(found).toContain('CLIENT_NAME');
+    expect(found).toContain('EMPLOYER_NAME');
+    expect(found).toContain('LEGAL_ANALYSIS');
+  });
+});

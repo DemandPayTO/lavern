@@ -19,7 +19,7 @@ import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
 import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
-import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, recordUsageEvent } from '../../db/database.js';
+import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, recordUsageEvent, getUserById } from '../../db/database.js';
 import { collectDeadlines } from '../../employment/deadlines.js';
 import { createLogger } from '../../utils/logger.js';
 import { extractEmploymentDocument } from '../briefing/employment-extractor.js';
@@ -1579,11 +1579,42 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let html: string | null = null;
     let title = '';
 
-    // Extract firm/lawyer name from the most recent generated document
+    // Firm and lawyer identity for the template's letterhead placeholders.
+    // A generated demand letter or SOC carries what the lawyer typed at
+    // generation time, so prefer that; otherwise fall back to the account
+    // profile. Without the fallback these render as literal {{FIRM_NAME}}
+    // markers on every document type that is not a demand letter or SOC.
     const genDL = matterData.generatedDemandLetter as Record<string, unknown> | undefined;
     const genSOC = matterData.generatedSOC as Record<string, unknown> | undefined;
-    const firmName = (genDL?.firmName as string) ?? (genSOC?.firmName as string) ?? '';
-    const lawyerName = (genDL?.lawyerName as string) ?? (genSOC?.lawyerName as string) ?? '';
+    let firmName = (genDL?.firmName as string) || (genSOC?.firmName as string) || '';
+    let lawyerName = (genDL?.lawyerName as string) || (genSOC?.lawyerName as string) || '';
+    let firmAddress = '';
+    try {
+      const user = getUserById(userId);
+      if (user) {
+        firmName = firmName || user.firm_name || '';
+        lawyerName = lawyerName || user.display_name || '';
+        if (user.profile_json) {
+          const profile = JSON.parse(user.profile_json) as Record<string, unknown>;
+          firmAddress = [profile.firmAddress, profile.firmPhone, profile.firmEmail]
+            .filter(v => typeof v === 'string' && v.trim())
+            .join(' · ');
+        }
+      }
+    } catch { /* profile is best-effort; markers simply stay visible */ }
+
+    // The firm's own file number where set, otherwise the matter number.
+    const fileNumber = String(
+      (matterData.firmFileNumber as string) || (matterData.matterNumber as string) || '',
+    );
+    // Court name follows the forum: the lawyer's chosen procedure where set,
+    // otherwise the analysis recommendation.
+    const procedure = employment?.selectedProcedure
+      ?? employment?.analysis?.recommendedProcedure
+      ?? null;
+    const courtName = procedure === 'small_claims'
+      ? 'ONTARIO SUPERIOR COURT OF JUSTICE (SMALL CLAIMS COURT)'
+      : 'ONTARIO SUPERIOR COURT OF JUSTICE';
 
     if (docType === 'demand-letter') {
       if (!genDL?.html) return reply.status(404).send({ ok: false, error: 'No demand letter generated yet.' });
@@ -1677,6 +1708,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       title,
       firmName,
       lawyerName,
+      firmAddress,
+      matterNumber: fileNumber,
+      courtName,
       firmId,
       documentType: docTypeMap[docType],
       templateVariantId,
@@ -1715,15 +1749,31 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
     }
 
-    // Decode base64 to detect placeholders in the template text
-    let templateText = '';
+    // Detect placeholders from the DOCX's actual text. A .docx is a zip, so
+    // reading the raw bytes as utf-8 finds nothing (the text is compressed) —
+    // that made every upload report zero placeholders. Unzip and read the
+    // document body plus any headers and footers, which is where letterhead
+    // markers usually live.
+    let placeholders: string[] = [];
     try {
-      templateText = Buffer.from(templateBase64, 'base64').toString('utf-8');
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(Buffer.from(templateBase64, 'base64'));
+      const parts = Object.keys(zip.files).filter(f =>
+        f === 'word/document.xml' || f.startsWith('word/header') || f.startsWith('word/footer'));
+      const chunks: string[] = [];
+      for (const part of parts) {
+        const file = zip.file(part);
+        if (file) chunks.push(await file.async('string'));
+      }
+      // Markers split across XML runs by Word would otherwise be missed:
+      // strip the tags between braces before detecting.
+      const joined = chunks.join('\n').replace(/(\{\{[A-Z_]*)(<[^>]+>)+([A-Z_]*\}\})/g, '$1$3');
+      placeholders = detectPlaceholders(joined);
     } catch {
-      // Binary DOCX — placeholder detection will work on the raw bytes
-      templateText = templateBase64;
+      // Not a readable DOCX: store it anyway, but report no placeholders
+      // rather than guessing from the raw bytes.
+      placeholders = [];
     }
-    const placeholders = detectPlaceholders(templateText);
 
     // The variant id is derived from the lawyer's label so it stays
     // readable, with a short suffix so two similar labels cannot collide.

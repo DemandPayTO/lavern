@@ -40,6 +40,12 @@ export interface DocxExportOptions {
   /** Which of the firm's templates for that type to use. Omitted means the
    *  type's default variant. */
   templateVariantId?: string;
+  /** Firm address block for {{FIRM_ADDRESS}}. */
+  firmAddress?: string;
+  /** The firm's file number for {{FILE_NUMBER}}. */
+  matterNumber?: string;
+  /** Court general heading for {{COURT_NAME}}. */
+  courtName?: string;
   /** Intake data for placeholder values (client name, employer name, etc.). */
   intake?: {
     client_first_name?: string;
@@ -233,6 +239,9 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
       intake: options.intake ?? {},
       firmName: options.firmName,
       lawyerName: options.lawyerName,
+      firmAddress: options.firmAddress,
+      matterNumber: options.matterNumber,
+      courtName: options.courtName,
       date: options.date,
       generatedHtml: html,
     });

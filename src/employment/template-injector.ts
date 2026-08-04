@@ -70,6 +70,22 @@ export async function injectIntoFirmTemplate(
     // First, try to clean up split placeholders by joining adjacent runs.
     xmlContent = cleanSplitPlaceholders(xmlContent);
 
+    // The generated body is offered under several marker names for
+    // backwards compatibility. A template using more than one would print
+    // the whole document once per marker, so only the highest-priority
+    // marker present receives it; the others resolve to nothing rather
+    // than surviving as visible {{MARKERS}}. This runs on the real document
+    // text (after split runs are rejoined), not on the stored placeholder
+    // list, which is the only reliable source.
+    const CONTENT_MARKERS = ['LEGAL_ANALYSIS', 'FACTS_SECTION'];
+    const usedContentMarkers = CONTENT_MARKERS.filter(m => xmlContent.includes(`{{${m}}}`));
+    if (usedContentMarkers.length > 1) {
+      for (const marker of usedContentMarkers.slice(1)) values[marker] = '';
+      logger.info('Template uses several content markers; body injected once', {
+        firmId, documentType, markers: usedContentMarkers,
+      });
+    }
+
     // Now inject the values
     xmlContent = injectPlaceholders(xmlContent, values);
 
