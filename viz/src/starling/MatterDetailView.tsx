@@ -970,12 +970,26 @@ export default function MatterDetailView() {
   // Sources for the mediation brief: generated positions (toggles) plus
   // documents attached at generation time (an externally-drafted SOC, a
   // list of authorities), parsed to text before the request.
-  const [briefSources, setBriefSources] = useState<Array<{ name: string; text: string; words: number }>>([]);
+  // Stored sources come from the matter (attach once, reuse); selection
+  // is which of them this generation uses.
+  const [storedSources, setStoredSources] = useState<Array<{ id: string; name: string; words: number }>>([]);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [includeGenDemand, setIncludeGenDemand] = useState(true);
   const [includeGenSoc, setIncludeGenSoc] = useState(true);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sourceParsing, setSourceParsing] = useState(false);
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
+  // The last generation's logistics prefill the fields; the lawyer edits
+  // rather than retypes.
+  useEffect(() => {
+    if (selectedDraft !== 'mediation' || !employment.mediationLogistics) return;
+    setCourtFields(prev => ({
+      ...prev,
+      ...(employment.mediationLogistics!.date && !prev.mediation_date ? { mediation_date: employment.mediationLogistics!.date } : {}),
+      ...(employment.mediationLogistics!.mediator && !prev.mediator_name ? { mediator_name: employment.mediationLogistics!.mediator } : {}),
+    }));
+  }, [selectedDraft, employment.mediationLogistics]);
+
   useEffect(() => {
     if (selectedDraft !== 'mediation' || !sessionId) { setReadiness([]); return; }
     fetch(`/api/employment/${sessionId}/brief-readiness`, { credentials: 'include' })
@@ -985,7 +999,22 @@ export default function MatterDetailView() {
   }, [selectedDraft, sessionId, employment.data]);
   const briefSourceInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Load stored sources whenever the matter data refreshes; new ones
+  // arrive pre-selected.
+  useEffect(() => {
+    const list = (employment.briefSources ?? []) as Array<{ id: string; name: string; words: number }>;
+    setStoredSources(list);
+    setSelectedSourceIds(prev => {
+      const next = new Set([...prev].filter(id => list.some(sd => sd.id === id)));
+      for (const sd of list) if (!prev.has(sd.id) && prev.size === 0) next.add(sd.id);
+      // First load with no prior selection: select everything stored.
+      if (prev.size === 0) for (const sd of list) next.add(sd.id);
+      return next;
+    });
+  }, [employment.briefSources]);
+
   const attachBriefSource = useCallback(async (file: File) => {
+    if (!sessionId) return;
     setSourceParsing(true);
     setSourceError(null);
     try {
@@ -996,17 +1025,36 @@ export default function MatterDetailView() {
       const parsedDoc = await res.json() as { fullText?: string };
       const text = (parsedDoc.fullText ?? '').trim();
       if (!text) { setSourceError(`No text could be read from "${file.name}".`); return; }
-      setBriefSources(prev => {
-        if (prev.some(sd => sd.name === file.name)) return prev;
-        if (prev.length >= 5) { setSourceError('Six sources at most (including the generated positions); more dilutes the draft.'); return prev; }
-        return [...prev, { name: file.name, text, words: text.split(/\s+/).filter(Boolean).length }];
+      const save = await fetch(`/api/employment/${sessionId}/brief-sources`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: file.name, text }),
+      });
+      const d = await save.json();
+      if (!d.ok) { setSourceError(d.error ?? 'The source could not be saved.'); return; }
+      const list = (d.sources ?? []) as Array<{ id: string; name: string; words: number }>;
+      setStoredSources(list);
+      setSelectedSourceIds(prev => {
+        const next = new Set(prev);
+        const added = list.find(sd => sd.name === file.name);
+        if (added) next.add(added.id);
+        return next;
       });
     } catch {
       setSourceError(`"${file.name}" could not be read.`);
     } finally {
       setSourceParsing(false);
     }
-  }, []);
+  }, [sessionId]);
+
+  const removeBriefSource = useCallback(async (id: string) => {
+    if (!sessionId) return;
+    const res = await fetch(`/api/employment/${sessionId}/brief-sources/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
+    if (res.ok) {
+      setStoredSources(prev => prev.filter(sd => sd.id !== id));
+      setSelectedSourceIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }, [sessionId]);
   const approvalsEnabled = useApprovalsEnabled();
   const [revising, setRevising] = useState<null | { source: 'client' | 'partner' | 'lawyer'; initial?: string }>(null);
 
@@ -2288,18 +2336,28 @@ export default function MatterDetailView() {
                       Statement of Claim (generated in Starling)
                     </label>
                   )}
-                  {briefSources.map(sd => (
-                    <div key={sd.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, padding: '3px 0' }}>
-                      <span style={{ flex: 1 }}>{sd.name} <span style={{ color: muted, fontSize: 12 }}>({sd.words.toLocaleString('en-CA')} words{sd.words > 11000 ? ', long documents are trimmed to ~11,000' : ''})</span></span>
+                  {storedSources.map(sd => (
+                    <div key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, padding: '3px 0' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSourceIds.has(sd.id)}
+                        onChange={() => setSelectedSourceIds(prev => { const next = new Set(prev); if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id); return next; })}
+                        aria-label={`Use ${sd.name} for this draft`}
+                        style={{ accentColor: navy }}
+                      />
+                      <span style={{ flex: 1 }}>{sd.name} <span style={{ color: muted, fontSize: 12 }}>({Number(sd.words).toLocaleString('en-CA')} words)</span></span>
                       <button
-                        onClick={() => setBriefSources(prev => prev.filter(x => x.name !== sd.name))}
-                        aria-label={`Remove ${sd.name}`}
+                        onClick={() => void removeBriefSource(sd.id)}
+                        aria-label={`Remove ${sd.name} from the matter`}
                         style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
                       >
                         remove
                       </button>
                     </div>
                   ))}
+                  {storedSources.length > 0 && (
+                    <div style={{ fontSize: 11.5, color: muted, marginTop: 2 }}>Attached sources stay on the matter for every regeneration.</div>
+                  )}
                   <input
                     ref={briefSourceInputRef}
                     type="file"
@@ -2372,7 +2430,7 @@ export default function MatterDetailView() {
                         responseDeadlineDays: 14,
                         ...(styleProfileId ? { styleProfileId } : {}),
                         ...(selectedDraft === 'mediation' ? {
-                          extraSources: briefSources.map(sd => ({ name: sd.name, text: sd.text.slice(0, 60_000) })),
+                          briefSourceIds: [...selectedSourceIds],
                           includeGeneratedDemand: includeGenDemand,
                           includeGeneratedSoc: includeGenSoc,
                         } : {}),

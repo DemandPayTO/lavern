@@ -878,6 +878,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       openedBy: row.owner_name ?? '',
       openedByMe: row.user_id === userId,
       lastModifiedByName: row.last_modified_by_name ?? '',
+      briefSources: (((matter as Record<string, unknown>).briefSources ?? []) as Array<Record<string, unknown>>)
+        .map(sd => ({ id: sd.id, name: sd.name, words: sd.words })),
+      mediationLogistics: (matter as Record<string, unknown>).mediationLogistics ?? null,
     });
   });
 
@@ -1708,6 +1711,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       name: z.string().trim().min(1).max(300),
       text: z.string().trim().min(1).max(60_000),
     })).max(6).optional(),
+    /** Stored brief sources to include, by id (attach once, reuse). */
+    briefSourceIds: z.array(z.string().max(60)).max(6).optional(),
     /** Include the matter's generated positions (default yes, when they exist). */
     includeGeneratedDemand: z.boolean().default(true),
     includeGeneratedSoc: z.boolean().default(true),
@@ -1757,12 +1762,19 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       const { assembleBriefSources } = await import('../../employment/brief-sources.js');
       const dl = (matter as Record<string, unknown>).generatedDemandLetter as Record<string, unknown> | undefined;
       const soc = (matter as Record<string, unknown>).generatedSOC as Record<string, unknown> | undefined;
+      const stored = (((matter as Record<string, unknown>).briefSources ?? []) as Array<{ id: string; name: string; text: string }>);
+      const selectedStored = parsed.data.briefSourceIds
+        ? stored.filter(sd => parsed.data.briefSourceIds!.includes(sd.id))
+        : [];
       const assembled = assembleBriefSources({
         generatedDemandHtml: dl?.html,
         generatedSocHtml: soc?.html,
         includeGeneratedDemand: parsed.data.includeGeneratedDemand,
         includeGeneratedSoc: parsed.data.includeGeneratedSoc,
-        extraSources: parsed.data.extraSources ?? [],
+        extraSources: [
+          ...selectedStored.map(sd => ({ name: sd.name, text: sd.text })),
+          ...(parsed.data.extraSources ?? []),
+        ],
       });
       positionDocuments = assembled.sources;
       droppedSources = assembled.dropped;
@@ -1914,6 +1926,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // than court deadlines and are replaced (not duplicated) if the document
     // is regenerated with different dates.
     let docketed = 0;
+    if (mediationDateIso || (parsed.data.formFields?.mediator_name)) {
+      (matter as Record<string, unknown>).mediationLogistics = {
+        ...(mediationDateIso ? { date: mediationDateIso } : {}),
+        ...(typeof parsed.data.formFields?.mediator_name === 'string' && parsed.data.formFields.mediator_name
+          ? { mediator: parsed.data.formFields.mediator_name } : {}),
+      };
+    }
     if (mediationDateIso) {
       // A scheduled mediation is a commitment, not a proposal: it goes on
       // as a real deadline, replaced (not duplicated) on regeneration.
@@ -1963,6 +1982,57 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         ],
       } : {}),
     });
+  });
+
+  // ── Brief sources, persisted on the matter ─────────────────────────────
+  // Attach once, reuse for every regeneration: an externally-drafted SOC
+  // or a case list should not need re-attaching after each revision.
+
+  const briefSourceSchema = z.object({
+    name: z.string().trim().min(1).max(300),
+    text: z.string().trim().min(1).max(60_000),
+  });
+
+  fastify.post('/api/employment/:matterId/brief-sources', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = briefSourceSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid source' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+
+    const sources = (((matter as Record<string, unknown>).briefSources ?? []) as Array<Record<string, unknown>>);
+    if (sources.length >= 8) return reply.status(400).send({ ok: false, error: 'Eight stored sources at most. Remove one first.' });
+    if (sources.some(sd => sd.name === parsed.data.name)) {
+      return reply.status(409).send({ ok: false, error: `"${parsed.data.name}" is already attached.` });
+    }
+    const text = parsed.data.text.replace(/\s+/g, ' ').trim().slice(0, 15_000);
+    sources.push({
+      id: `src-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: parsed.data.name,
+      text,
+      words: text.split(/\s+/).filter(Boolean).length,
+      addedAt: new Date().toISOString(),
+    });
+    (matter as Record<string, unknown>).briefSources = sources;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, sources: sources.map(sd => ({ id: sd.id, name: sd.name, words: sd.words })) });
+  });
+
+  fastify.delete('/api/employment/:matterId/brief-sources/:sourceId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId, sourceId } = req.params as { matterId: string; sourceId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const sources = (((matter as Record<string, unknown>).briefSources ?? []) as Array<Record<string, unknown>>);
+    const next = sources.filter(sd => sd.id !== sourceId);
+    if (next.length === sources.length) return reply.status(404).send({ ok: false, error: 'Source not found' });
+    (matter as Record<string, unknown>).briefSources = next;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true });
   });
 
   // ── GET /api/employment/:matterId/brief-readiness ──────────────────────

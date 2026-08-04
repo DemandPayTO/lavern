@@ -1490,6 +1490,10 @@ export interface UseEmploymentDataResult {
   saveNotes: (notes: string) => Promise<{ ok: boolean; error?: string }>;
   /** Who opened the file and who wrote last, for the header attribution line. */
   attribution: { openedBy: string; openedByMe: boolean; lastModifiedByName: string };
+  /** Sources attached to the matter for brief generation (metadata only). */
+  briefSources: Array<{ id: string; name: string; words: number }>;
+  /** Mediation logistics stored at the last generation, for prefill. */
+  mediationLogistics: { date?: string; mediator?: string } | null;
   runAnalysis: () => Promise<{ ok: boolean; error?: string }>;
   /** Extract facts from an uploaded document via Claude (parse → extract). */
   extractDocument: (file: File, documentKind: string) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
@@ -1587,6 +1591,8 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   // timestamp rides along on notes/intake saves so a colleague's newer
   // write is refused instead of silently overwritten.
   const [attribution, setAttribution] = useState<{ openedBy: string; openedByMe: boolean; lastModifiedByName: string }>({ openedBy: '', openedByMe: true, lastModifiedByName: '' });
+  const [briefSources, setBriefSources] = useState<Array<{ id: string; name: string; words: number }>>([]);
+  const [mediationLogistics, setMediationLogistics] = useState<{ date?: string; mediator?: string } | null>(null);
   const loadedUpdatedAt = useRef<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
@@ -1614,6 +1620,8 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setNextSteps(Array.isArray(json.nextSteps) ? json.nextSteps : []);
       setFirmFileNumber(typeof json.firmFileNumber === 'string' ? json.firmFileNumber : '');
       loadedUpdatedAt.current = typeof json.updatedAt === 'string' ? json.updatedAt : undefined;
+      setBriefSources(Array.isArray(json.briefSources) ? json.briefSources : []);
+      setMediationLogistics(json.mediationLogistics && typeof json.mediationLogistics === 'object' ? json.mediationLogistics : null);
       setAttribution({
         openedBy: typeof json.openedBy === 'string' ? json.openedBy : '',
         openedByMe: json.openedByMe !== false,
@@ -1949,7 +1957,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────

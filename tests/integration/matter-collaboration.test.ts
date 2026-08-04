@@ -113,3 +113,34 @@ describe('the stale-write guard', () => {
     expect(save.status).toBe(200);
   });
 });
+
+
+describe('persistent brief sources', () => {
+  it('attaches, lists, refuses duplicates, and removes', async () => {
+    const add = await call('POST', `/api/employment/${MID}/brief-sources`, OPENER,
+      { name: 'SOC-draft-v3.docx', text: 'The plaintiff claims damages of $132,000 for wrongful dismissal.' });
+    expect(add.status).toBe(200);
+    const sources = add.body.sources as Array<{ id: string; name: string; words: number }>;
+    expect(sources).toHaveLength(1);
+    expect(sources[0].words).toBeGreaterThan(5);
+
+    const dup = await call('POST', `/api/employment/${MID}/brief-sources`, OPENER,
+      { name: 'SOC-draft-v3.docx', text: 'again' });
+    expect(dup.status).toBe(409);
+
+    const emp = await call('GET', `/api/employment/${MID}`, OPENER);
+    expect((emp.body.briefSources as unknown[])).toHaveLength(1);
+
+    const colleague = await call('GET', `/api/employment/${MID}`, COLLEAGUE);
+    expect((colleague.body.briefSources as unknown[])).toHaveLength(1);
+
+    const add2 = await call('POST', `/api/employment/${MID}/brief-sources`, OPENER,
+      { name: 'authorities.docx', text: 'Bardal; Waksdale; Matthews.' });
+    expect(add2.status).toBe(200);
+    const id = (add2.body.sources as Array<{ id: string; name: string }>).find(x => x.name === 'authorities.docx')!.id;
+    const rm = await app.inject({ method: 'DELETE', url: `/api/employment/${MID}/brief-sources/${id}`, headers: OPENER });
+    expect(rm.statusCode).toBe(200);
+    const after = await call('GET', `/api/employment/${MID}`, OPENER);
+    expect((after.body.briefSources as Array<{ name: string }>).map(x => x.name)).toEqual(['SOC-draft-v3.docx']);
+  });
+});
