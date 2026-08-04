@@ -146,3 +146,57 @@ describe('verifySourceQuotes (quote grounding)', () => {
     expect(fields.last_day_worked.verified).toBeUndefined();
   });
 });
+
+describe('dates as documents write them (2026-08-04)', () => {
+  const baseIntake = { client_first_name: 'Vera' } as never;
+  const extraction = (fields: Record<string, unknown>) => ({
+    id: 'x', documentName: 'SOC.pdf', documentKind: 'pleading',
+    extractedFields: Object.fromEntries(
+      Object.entries(fields).map(([k, v]) => [k, { value: v, confidence: 'high', sourceQuote: 'q' }]),
+    ),
+  }) as never;
+
+  it('reads a long-form date out of a pleading', () => {
+    const out = applyExtractionSelections(
+      baseIntake, extraction({ termination_date: 'January 15, 2026' }), ['termination_date'], new Set(),
+    );
+    expect('intake' in out).toBe(true);
+    if ('intake' in out) {
+      expect(out.intake.termination_date).toBe('2026-01-15');
+      expect(out.applied).toContain('termination_date');
+    }
+  });
+
+  it('strips a time component rather than rejecting', () => {
+    const out = applyExtractionSelections(
+      baseIntake, extraction({ hire_date: '2012-04-02T00:00:00Z' }), ['hire_date'], new Set(),
+    );
+    if ('intake' in out) expect(out.intake.hire_date).toBe('2012-04-02');
+    else throw new Error('should have applied');
+  });
+
+  it('refuses an ambiguous date and says why, naming the field', () => {
+    const out = applyExtractionSelections(
+      baseIntake, extraction({ termination_date: '03/04/2026' }), ['termination_date'], new Set(),
+    );
+    expect('error' in out).toBe(true);
+    if ('error' in out) {
+      expect(out.error).toMatch(/two ways/i);
+      expect(out.invalidFields).toContain('termination_date');
+    }
+  });
+
+  it('names the value and the rule when the schema still rejects', () => {
+    // salary_period is an enum; "fortnightly" is not one of its values.
+    const out = applyExtractionSelections(
+      baseIntake, extraction({ salary_period: 'fortnightly' }), ['salary_period'], new Set(),
+    );
+    expect('error' in out).toBe(true);
+    if ('error' in out) {
+      // The lawyer must be able to see WHAT was wrong, not just which field.
+      expect(out.error).toContain('salary_period');
+      expect(out.error).toContain('fortnightly');
+      expect(out.error).toMatch(/nothing was changed/i);
+    }
+  });
+});

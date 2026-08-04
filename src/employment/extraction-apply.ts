@@ -16,6 +16,7 @@
  */
 
 import { employmentIntakeSchema } from '../types/employment-intake.js';
+import { normaliseDate, DATE_FIELDS } from './date-normalise.js';
 import type { DocumentExtractionResult, EmploymentIntakeData, TimelineEvent } from '../types/employment-intake.js';
 
 /**
@@ -95,6 +96,8 @@ export function applyExtractionSelections(
   const skippedNotBlank: string[] = [];
   const unmapped: string[] = [];
 
+  const unreadableDates: string[] = [];
+
   for (const name of selectedFields) {
     const field = extraction.extractedFields[name];
     if (!field || isBlank(field.value)) continue; // nothing extracted → nothing to apply
@@ -102,16 +105,41 @@ export function applyExtractionSelections(
       unmapped.push(name);
       continue;
     }
+
+    // Documents write dates as prose ("March 2, 2017"); the intake needs
+    // YYYY-MM-DD. Read it here rather than rejecting the whole apply and
+    // making the lawyer retype a date the system could parse. Anything
+    // genuinely ambiguous is refused with its reason, never guessed.
+    let value = field.value;
+    if (DATE_FIELDS.has(name) && typeof value === 'string' && value.trim()) {
+      const parsed = normaliseDate(value);
+      if (!parsed.value) {
+        unreadableDates.push(`${name}: ${parsed.reason}`);
+        continue;
+      }
+      value = parsed.value;
+    }
+
     const current = next[name];
     if (isBlank(current)) {
-      next[name] = field.value;
+      next[name] = value;
       applied.push(name);
     } else if (overwriteFields.has(name)) {
-      next[name] = field.value;
+      next[name] = value;
       overwritten.push(name);
     } else {
       skippedNotBlank.push(name);
     }
+  }
+
+  // A date we could not read is reported on its own, naming the field AND
+  // why, so the lawyer can fix it on the Intake tab instead of guessing
+  // which of the selected fields the schema objected to.
+  if (unreadableDates.length > 0 && applied.length === 0 && overwritten.length === 0) {
+    return {
+      error: `Could not read ${unreadableDates.length === 1 ? 'a date' : 'some dates'} from the document. ${unreadableDates.join(' ')}`,
+      invalidFields: unreadableDates.map(d => d.split(':')[0]),
+    };
   }
 
   // The merged intake must still satisfy the schema — extracted values never
@@ -119,8 +147,15 @@ export function applyExtractionSelections(
   const validated = employmentIntakeSchema.safeParse(next);
   if (!validated.success) {
     const invalidFields = [...new Set(validated.error.issues.map(i => String(i.path[0])))];
+    // Name the value and the rule it broke. Naming only the field left the
+    // lawyer unable to tell WHAT was wrong with it.
+    const detail = validated.error.issues.slice(0, 4).map(i => {
+      const field = String(i.path[0]);
+      const offending = next[field];
+      return `${field} (${JSON.stringify(offending)}): ${i.message}`;
+    }).join('; ');
     return {
-      error: 'Applying these values would make the intake invalid. Uncheck the listed fields or correct them manually.',
+      error: `Applying these values would make the intake invalid, so nothing was changed. ${detail}. Uncheck those fields, or set them on the Intake tab.`,
       invalidFields,
     };
   }
