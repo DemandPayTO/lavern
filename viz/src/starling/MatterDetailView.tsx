@@ -178,7 +178,7 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     id: 'severance',
     title: 'Severance Offer Assessment',
     description: 'Offer vs. ESA floor vs. common-law range, with a recommendation. Internal memo.',
-    cost: '~$5 · under 1 min',
+    cost: '~$5 · 2 to 4 min',
     section: 'Advice and negotiation',
   },
   {
@@ -265,7 +265,7 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     id: 'sjfactum',
     title: 'SJ Factum',
     description: 'The argument: Hryniak, Bardal, Waksdale, and the issue-specific authorities, from the approved issues only.',
-    cost: '~$18 · under 1 min',
+    cost: '~$18 · 2 to 4 min',
     section: 'Motions and hearings',
   },
   {
@@ -300,14 +300,14 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     id: 'mediation',
     title: 'Mediation Brief',
     description: 'Rule 24.1 mandatory mediation brief with entitlement analysis and settlement range.',
-    cost: '~$17 · under 1 min',
+    cost: '~$17 · 2 to 4 min',
     section: 'Motions and hearings',
   },
   {
     id: 'confbrief',
     title: 'Settlement Conference Brief',
     description: 'Rule 13 (Small Claims) or Rule 50 pre-trial brief; adapts to the matter\u2019s forum automatically.',
-    cost: '~$14 · under 1 min',
+    cost: '~$14 · 2 to 4 min',
     section: 'Motions and hearings',
   },
   // ── Offers and settlement ──────────────────────────────────────────────

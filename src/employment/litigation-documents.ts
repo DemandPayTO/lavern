@@ -693,6 +693,7 @@ export async function generateLitigationDocument(
       tier: getModelTier(req.documentType),
       maxTokens: 10240,
       maxRetries: 2,
+      timeoutMs: getTimeoutMs(req.documentType),
       definedTerms: definedTerms ?? undefined,
     });
     text = result.text;
@@ -906,6 +907,37 @@ ${row.repeat(6)}
 /** Model tier per document type — internal memos and plain-language
  *  client documents run on sonnet (fast, cheap); court filings and
  *  binding settlement documents get the strongest model. */
+/**
+ * Per-document generation timeout.
+ *
+ * The default 240s suits a letter, but several of these documents are long
+ * structured memos: a severance assessment runs seven sections plus a
+ * comparison table and measured 157s for a REDUCED prompt in testing, so the
+ * real one (full intake, comparables, negotiation history) exceeded 240s and
+ * failed outright. A timeout that fires on a document that was going to
+ * succeed is worse than waiting, because the lawyer gets nothing and the
+ * spend is already incurred.
+ *
+ * These are ceilings, not delays: a generation that finishes early returns
+ * immediately. Timeouts are deliberately not retried (see cross-provider-chat)
+ * because on a document this size a timeout is genuine rather than transient.
+ */
+function getTimeoutMs(docType: LitigationDocumentType): number {
+  switch (docType) {
+    // Long structured memos and briefs: several sections, tables, authorities.
+    case 'severance_assessment':
+    case 'mediation_brief':
+    case 'settlement_conference_brief':
+    case 'sj_factum':
+    case 'sj_affidavit':
+    case 'retainer_agreement':
+    case 'settlement_minutes':
+      return 600_000;
+    default:
+      return 240_000;
+  }
+}
+
 function getModelTier(docType: LitigationDocumentType): 'opus' | 'sonnet' {
   switch (docType) {
     case 'severance_assessment':

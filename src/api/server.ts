@@ -86,6 +86,13 @@ export async function startApiServer(port: number): Promise<void> {
   const fastify = Fastify({
     trustProxy: config.trustProxy,
     disableRequestLogging: true,
+    // Node closes any request at 300s by default, which is SHORTER than the
+    // longest document generation (a severance assessment runs past four
+    // minutes). Left at the default, the socket drops mid-generation and the
+    // lawyer gets a dead connection rather than the document or a clear
+    // error. Set above the longest generation ceiling so the generator's own
+    // timeout is what fires, with a message attached.
+    requestTimeout: 660_000,
     logger: {
       level: config.logLevel === 'debug' ? 'debug' : 'info',
       ...(isProd ? {} : {
