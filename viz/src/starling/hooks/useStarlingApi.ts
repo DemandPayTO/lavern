@@ -312,7 +312,6 @@ export interface MatterCreateResult {
     clientName: string;
     employerName: string;
     situation: string;
-    files?: File[];
     startDate?: string;
     termDate?: string;
     // Employment-specific fields
@@ -344,7 +343,6 @@ export function useMatterCreate(): MatterCreateResult {
     clientName: string;
     employerName: string;
     situation: string;
-    files?: File[];
     startDate?: string;
     termDate?: string;
     jobTitle?: string;
@@ -365,32 +363,11 @@ export function useMatterCreate(): MatterCreateResult {
     }
 
     try {
-      // Step 1: Parse uploaded files (if any)
-      const parsedDocs: Array<{ filename: string; content: string; mimeType: string }> = [];
-
-      if (data.files && data.files.length > 0) {
-        for (const file of data.files) {
-          const form = new FormData();
-          form.append('file', file);
-
-          const parseRes = await fetch('/api/documents/parse', {
-            method: 'POST',
-            body: form,
-            credentials: 'include',
-          });
-
-          if (!parseRes.ok) {
-            throw new Error(`Failed to parse ${file.name}: ${parseRes.statusText}`);
-          }
-
-          const parsed = await parseRes.json();
-          parsedDocs.push({
-            filename: file.name,
-            content: parsed.content ?? parsed.text ?? '',
-            mimeType: file.type || 'application/octet-stream',
-          });
-        }
-      }
+      // Documents are NOT uploaded here. This used to parse each file and
+      // then discard the result: the text never reached the matter, so a
+      // lawyer who attached a claim saw nothing populated and no error.
+      // Uploading happens on the matter's Documents tab, which runs
+      // extraction and shows the proposed facts for review.
 
       // Step 2: Build the situation text with client/employer context
       const requestText = [

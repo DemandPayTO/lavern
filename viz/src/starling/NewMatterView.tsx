@@ -28,11 +28,6 @@ const sans = "system-ui, -apple-system, sans-serif";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-interface UploadedFile {
-  id: string;
-  name: string;
-  type: string;
-}
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -89,8 +84,6 @@ export default function NewMatterView() {
   const [clientName, setClientName] = useState('');
   const [employerName, setEmployerName] = useState('');
   const [situation, setSituation] = useState('');
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [rawFiles, setRawFiles] = useState<File[]>([]);
   const [startDate, setStartDate] = useState('');
   const [terminationDate, setTerminationDate] = useState('');
   const [jobTitle, setJobTitle] = useState('');
@@ -98,8 +91,6 @@ export default function NewMatterView() {
   const [justCause, setJustCause] = useState(false);
   const [constructiveDismissal, setConstructiveDismissal] = useState(false);
   const [terminationReason, setTerminationReason] = useState('');
-  const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { createMatter, uploading, error } = useMatterCreate();
 
   // Parse termination date for deadline calculations
@@ -111,33 +102,7 @@ export default function NewMatterView() {
     window.location.hash = hash;
   }, []);
 
-  const addFiles = useCallback((fileList: FileList | null) => {
-    if (!fileList) return;
-    const incoming = Array.from(fileList);
-    const newFiles: UploadedFile[] = incoming.map(f => ({
-      id: `${f.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: f.name,
-      type: getFileTypeLabel(f.name),
-    }));
-    setFiles(prev => [...prev, ...newFiles]);
-    setRawFiles(prev => [...prev, ...incoming]);
-  }, []);
 
-  const removeFile = useCallback((id: string) => {
-    setFiles(prev => {
-      const idx = prev.findIndex(f => f.id === id);
-      if (idx !== -1) {
-        setRawFiles(rf => rf.filter((_, i) => i !== idx));
-      }
-      return prev.filter(f => f.id !== id);
-    });
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    addFiles(e.dataTransfer.files);
-  }, [addFiles]);
 
   const handleSubmit = useCallback(async () => {
     try {
@@ -145,7 +110,6 @@ export default function NewMatterView() {
         clientName,
         employerName,
         situation,
-        files: rawFiles.length > 0 ? rawFiles : undefined,
         startDate: startDate || undefined,
         termDate: terminationDate || undefined,
         // Employment-specific fields
@@ -155,11 +119,12 @@ export default function NewMatterView() {
         constructiveDismissal,
         terminationReason: terminationReason || undefined,
       });
-      handleNav(`#/matter-detail/${result.matterId ?? result.sessionId}`);
+      // new=1 opens the file on its Documents tab with a one-time pointer.
+      handleNav(`#/matter-detail/${result.matterId ?? result.sessionId}?new=1`);
     } catch {
       // error is already set by the hook
     }
-  }, [createMatter, clientName, employerName, situation, rawFiles, startDate, terminationDate, jobTitle, salary, justCause, constructiveDismissal, terminationReason, handleNav]);
+  }, [createMatter, clientName, employerName, situation, startDate, terminationDate, jobTitle, salary, justCause, constructiveDismissal, terminationReason, handleNav]);
 
   return (
     <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
@@ -469,127 +434,19 @@ export default function NewMatterView() {
             </div>
           </div>
 
-          {/* Upload documents */}
-          <div style={{ marginBottom: 22 }}>
-            <label style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: navy, marginBottom: 7 }}>
-              Upload documents{' '}
-              <span
-                style={{
-                  fontWeight: 400,
-                  color: muted,
-                  fontSize: 12,
-                  background: cream,
-                  border: `1px solid ${border}`,
-                  padding: '1px 7px',
-                  borderRadius: 2,
-                  marginLeft: 6,
-                }}
-              >
-                optional
-              </span>
-            </label>
-
-            {/* Drop zone */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={handleDrop}
-              style={{
-                border: `1.5px dashed ${isDragOver ? orange : border}`,
-                borderRadius: 2,
-                background: cream,
-                padding: 24,
-                textAlign: 'center',
-                color: isDragOver ? ink : muted,
-                cursor: 'pointer',
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label="Drop files here or click to browse"
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
-            >
-              {/* Upload icon as SVG */}
-              <div style={{ fontSize: 24, marginBottom: 8, opacity: 0.7 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-              </div>
-              <div style={{ fontSize: 14, color: ink, fontWeight: 600, marginBottom: 4 }}>
-                Drop files here or click to browse
-              </div>
-              <div style={{ fontSize: 12.5 }}>
-                Employment agreement, termination letter, ROE, pay stubs, severance offer, intake notes
-              </div>
+          {/* Documents are NOT uploaded here. They were parsed and then
+              discarded, so the box promised something it never did. Uploading
+              happens on the matter's Documents tab, where extraction proposes
+              facts for the lawyer to review and apply. */}
+          <div style={{ marginBottom: 22, background: cream, border: `1px solid ${border}`, borderRadius: 2, padding: '14px 16px' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: navy, marginBottom: 4 }}>
+              Documents come next
             </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              style={{ display: 'none' }}
-              onChange={(e) => addFiles(e.target.files)}
-              accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-            />
-
-            {/* File list */}
-            {files.length > 0 && (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {files.map(f => (
-                  <div
-                    key={f.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      fontSize: 13,
-                      border: `1px solid ${border}`,
-                      borderRadius: 2,
-                      padding: '8px 11px',
-                      background: '#fff',
-                    }}
-                  >
-                    {/* Document icon */}
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                    <span>{f.name}</span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: muted,
-                        background: cream,
-                        padding: '1px 6px',
-                        borderRadius: 2,
-                        border: `1px solid ${border}`,
-                      }}
-                    >
-                      {f.type}
-                    </span>
-                    <span style={{ color: green, fontSize: 12 }}>
-                      {/* Checkmark */}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={green} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      {' '}ready
-                    </span>
-                    <span
-                      style={{ marginLeft: 'auto', color: muted, cursor: 'pointer', fontSize: 14 }}
-                      onClick={() => removeFile(f.id)}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Remove ${f.name}`}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); removeFile(f.id); } }}
-                    >
-                      x
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ fontSize: 12.5, color: muted }}>
+              Open the file first, then add the termination letter, employment agreement, pay records and
+              anything else on its Documents tab. Starling reads each one and proposes the facts it finds,
+              with the quote it came from, for you to check before anything is saved to the file.
+            </div>
           </div>
 
           {/* Key dates */}

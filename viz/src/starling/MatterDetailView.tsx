@@ -728,7 +728,13 @@ function SourceTag({ label, type }: { label: string; type: 'verified' | 'statute
 export default function MatterDetailView() {
   // Lawyer/firm details from the Starling Profile — flow into generated documents
   const { profile } = useUserProfile();
-  const [activeTab, setActiveTab] = useState<TabKey>('issues');
+  // A matter opened straight after creation lands on Documents, because the
+  // next real step is adding the client's paperwork. The New Matter form no
+  // longer takes uploads, so without this the lawyer is left on Issues with
+  // nothing to act on and no hint where the documents go.
+  const openedFresh = window.location.hash.includes('new=1');
+  const [activeTab, setActiveTab] = useState<TabKey>(openedFresh ? 'docs' : 'issues');
+  const [showDocsHint, setShowDocsHint] = useState(openedFresh);
   const [editingFileNumber, setEditingFileNumber] = useState(false);
   const [fileNumberDraft, setFileNumberDraft] = useState('');
   const [keyDate, setKeyDate] = useState({ date: '', label: '', category: 'legal', courtDeadline: true });
@@ -1448,6 +1454,41 @@ export default function MatterDetailView() {
           {/* Documents */}
           {activeTab === 'docs' && (
             <div id="panel-docs" role="tabpanel" style={{ paddingTop: 22 }}>
+              {/* One-time pointer for a just-created file: says what to do
+                  next and what will happen, then dismisses for good. */}
+              {showDocsHint && (
+                <div
+                  role="status"
+                  style={{
+                    background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2,
+                    padding: '14px 18px', marginBottom: 16,
+                    display: 'flex', alignItems: 'flex-start', gap: 14,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: ink, marginBottom: 4 }}>
+                      Start here: add {String(employment.data?.intake?.client_first_name ?? 'the client')}&rsquo;s documents
+                    </div>
+                    <div style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>
+                      Upload the termination letter, employment agreement, ROE, pay records and severance offer.
+                      Starling reads each one and proposes the facts it finds, quoting the line it took them from.
+                      You review each proposal and choose what to apply, so nothing reaches the file until you say so.
+                      Then run the analysis from the Issues tab.
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowDocsHint(false)}
+                    style={{
+                      background: 'none', border: 'none', color: muted, cursor: 'pointer',
+                      fontSize: 12.5, fontFamily: sans, padding: '2px 4px', flexShrink: 0,
+                    }}
+                    aria-label="Dismiss this tip"
+                  >
+                    Got it
+                  </button>
+                </div>
+              )}
+
               {/* Generated documents and their lifecycle */}
               <GeneratedDocsPanel docs={employment.generatedDocuments} onSetStatus={employment.setDocumentStatus} />
 
