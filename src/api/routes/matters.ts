@@ -53,7 +53,7 @@ function ensureLoaded(userId: string): void {
         try {
           const matter = JSON.parse(row.data_json) as MatterRecord;
           matterStore.set(row.id, matter);
-          matterOwners.set(row.id, userId);
+          matterOwners.set(row.id, row.user_id);
         } catch (err) { logger.warn('Skipping corrupt matter row', { id: row.id, error: err instanceof Error ? err.message : err }); }
       }
     }
@@ -209,18 +209,24 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
     if (!userId) return;
     ensureLoaded(userId);
 
-    // Return only this user's matters
-    const matters = Array.from(matterStore.entries())
-      .filter(([id]) => matterOwners.get(id) === userId)
-      .map(([, m]) => m);
+    // Firm-wide: the DB query is the visibility authority (own matters
+    // plus the firm's); the memory store is only a parse cache.
+    const rows = getMattersByUser(userId);
+    const matters = rows.flatMap(row => {
+      const m = matterStore.get(row.id);
+      return m ? [{ m, row }] : [];
+    });
     return reply.send({
-      matters: matters.map(m => ({
+      matters: matters.map(({ m, row }) => ({
         matterId: m.matterId,
         matterNumber: m.matterNumber,
         clientId: m.clientId,
         status: m.status,
         assignedTeam: m.assignedTeam,
         openedAt: m.openedAt,
+        openedById: row.user_id,
+        openedBy: row.owner_name ?? '',
+        lastModifiedBy: row.last_modified_by ?? '',
       })),
       total: matters.length,
     });
@@ -233,15 +239,19 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
     if (!userId) return;
     ensureLoaded(userId);
 
-    // Ownership check — in-memory owner map first, then the DB row
-    const inMemoryOwner = matterOwners.get(id);
-    if (inMemoryOwner && inMemoryOwner !== userId) {
-      return reply.status(403).send({ error: 'Access denied' });
+    // Deleting is narrower than reading: a colleague can work a firm
+    // file but only the lawyer who opened it can remove it.
+    const visible = dbGetMatterById(id, userId);
+    if (visible && visible.user_id !== userId) {
+      return reply.status(403).send({
+        error: 'Only the lawyer who opened this file can delete it.',
+        openedBy: visible.owner_name ?? '',
+      });
     }
 
     const removed = dbDeleteMatter(id, userId);
-    const hadInMemory = matterStore.delete(id);
-    matterOwners.delete(id);
+    const hadInMemory = removed || !visible ? matterStore.delete(id) : false;
+    if (removed || hadInMemory) matterOwners.delete(id);
 
     if (!removed && !hadInMemory) {
       return reply.status(404).send({ error: `Matter not found: ${id}` });
@@ -263,12 +273,17 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
       return reply.status(404).send({ error: `Matter not found: ${id}` });
     }
 
-    // Ownership check — prevent horizontal privilege escalation
-    if (matterOwners.get(id) !== userId) {
-      return reply.status(403).send({ error: 'Access denied' });
+    // Visibility check — the DB decides (owner or same firm). An
+    // invisible matter reads as not found so ids do not leak across firms.
+    const dbRow = dbGetMatterById(id, userId);
+    if (!dbRow) {
+      return reply.status(404).send({ error: `Matter not found: ${id}` });
     }
 
     return reply.send({
+      openedById: dbRow.user_id,
+      openedBy: dbRow.owner_name ?? '',
+      lastModifiedBy: dbRow.last_modified_by ?? '',
       matterId: matter.matterId,
       matterNumber: matter.matterNumber,
       clientId: matter.clientId,
@@ -304,8 +319,8 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
       return reply.status(404).send({ error: `Matter not found: ${id}` });
     }
 
-    if (matterOwners.get(id) !== userId) {
-      return reply.status(403).send({ error: 'Access denied' });
+    if (!dbGetMatterById(id, userId)) {
+      return reply.status(404).send({ error: `Matter not found: ${id}` });
     }
 
     if (matter.status !== 'pre-engagement') {
@@ -354,8 +369,8 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
       return reply.status(404).send({ error: `Matter not found: ${id}` });
     }
 
-    if (matterOwners.get(id) !== userId) {
-      return reply.status(403).send({ error: 'Access denied' });
+    if (!dbGetMatterById(id, userId)) {
+      return reply.status(404).send({ error: `Matter not found: ${id}` });
     }
 
     if (!matter.engagementLetter?.accepted) {

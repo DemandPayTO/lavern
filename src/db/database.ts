@@ -586,6 +586,24 @@ function runMigrations(db: Database.Database): void {
     logger.info('Backfilled firm_id for accounts without one', { count: orphanFirms.length });
   }
 
+  // Firm-wide matters (2026-08-04): a matter belongs to the firm's file
+  // room, not the drawer of the lawyer who opened it. firm_id is stamped
+  // from the opener's server-assigned firm at insert and backfilled here
+  // for existing rows; user_id remains "opened by" and never changes.
+  // last_modified_by records which lawyer wrote last, for attribution.
+  try {
+    db.exec(`ALTER TABLE matters ADD COLUMN firm_id TEXT`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE matters ADD COLUMN last_modified_by TEXT`);
+  } catch { /* column already exists */ }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_matters_firm ON matters(firm_id)`);
+  // Runs after the users.firm_id backfill above, so every owner has a firm.
+  db.exec(`
+    UPDATE matters SET firm_id = (SELECT firm_id FROM users WHERE users.id = matters.user_id)
+    WHERE firm_id IS NULL OR TRIM(firm_id) = ''
+  `);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_tokens (
       token      TEXT PRIMARY KEY,
@@ -1407,31 +1425,67 @@ export function getReputationMetrics(): ReputationMetrics {
 }
 
 // ── Matter Queries ───────────────────────────────────────────────────────
+//
+// Matters are FIRM-WIDE (2026-08-04): visible to their owner and to every
+// user whose server-assigned firm_id matches the matter's. The firm clause
+// is deliberately null-safe in one direction only — a matter with no firm
+// is private to its owner, and a user with no firm sees only their own
+// matters. NULL never acts as a wildcard. Deleting stays owner-only.
+
+/** Row shape returned by the matter queries. owner_name/last_modified_by feed the "Opened by" attribution. */
+export interface MatterRow {
+  id: string;
+  data_json: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  /** The lawyer who opened the file. Never changes. */
+  user_id: string;
+  owner_name: string | null;
+  last_modified_by: string | null;
+}
+
+const FIRM_VISIBLE = `(m.user_id = ? OR (m.firm_id IS NOT NULL AND TRIM(m.firm_id) != ''
+  AND m.firm_id = (SELECT firm_id FROM users WHERE id = ?)))`;
 
 export function saveMatter(userId: string, matterId: string, dataJson: string, status: string): void {
   const now = new Date().toISOString();
 
+  // INSERT stamps the opener's firm so colleagues can see the file. The
+  // upsert arm is guarded: only the owner or a same-firm colleague may
+  // overwrite — defence in depth underneath the routes' own getMatterById
+  // checks. user_id (opened by) is never rewritten by an update.
   getDb().prepare(`
-    INSERT INTO matters (id, user_id, data_json, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO matters (id, user_id, firm_id, data_json, status, created_at, updated_at, last_modified_by)
+    VALUES (?, ?, (SELECT firm_id FROM users WHERE id = ?), ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       data_json = excluded.data_json,
       status = excluded.status,
-      updated_at = excluded.updated_at
-  `).run(matterId, userId, dataJson, status, now, now);
+      updated_at = excluded.updated_at,
+      last_modified_by = excluded.last_modified_by
+    WHERE matters.user_id = excluded.user_id
+       OR (matters.firm_id IS NOT NULL AND TRIM(matters.firm_id) != ''
+           AND matters.firm_id = (SELECT firm_id FROM users WHERE id = excluded.last_modified_by))
+  `).run(matterId, userId, userId, dataJson, status, now, now, userId);
 }
 
-export function getMattersByUser(userId: string): Array<{ id: string; data_json: string; status: string; created_at: string; updated_at: string }> {
+export function getMattersByUser(userId: string): MatterRow[] {
   return getDb().prepare(`
-    SELECT id, data_json, status, created_at, updated_at FROM matters
-    WHERE user_id = ? ORDER BY created_at DESC
-  `).all(userId) as Array<{ id: string; data_json: string; status: string; created_at: string; updated_at: string }>;
+    SELECT m.id, m.data_json, m.status, m.created_at, m.updated_at,
+           m.user_id, u.display_name AS owner_name, m.last_modified_by
+    FROM matters m LEFT JOIN users u ON u.id = m.user_id
+    WHERE ${FIRM_VISIBLE}
+    ORDER BY m.created_at DESC
+  `).all(userId, userId) as MatterRow[];
 }
 
-export function getMatterById(matterId: string, userId: string): { id: string; data_json: string; status: string } | undefined {
+export function getMatterById(matterId: string, userId: string): MatterRow | undefined {
   return getDb().prepare(`
-    SELECT id, data_json, status FROM matters WHERE id = ? AND user_id = ?
-  `).get(matterId, userId) as { id: string; data_json: string; status: string } | undefined;
+    SELECT m.id, m.data_json, m.status, m.created_at, m.updated_at,
+           m.user_id, u.display_name AS owner_name, m.last_modified_by
+    FROM matters m LEFT JOIN users u ON u.id = m.user_id
+    WHERE m.id = ? AND ${FIRM_VISIBLE}
+  `).get(matterId, userId, userId) as MatterRow | undefined;
 }
 
 /** Distinct user IDs that own matters — used by the admin deadline digest. */
@@ -1440,7 +1494,11 @@ export function getAllUserIds(): string[] {
   return rows.map(r => r.user_id).filter(Boolean);
 }
 
-/** Delete a matter (ownership enforced by the WHERE clause). Returns true if a row was removed. */
+/**
+ * Delete a matter. OWNER-ONLY, deliberately narrower than visibility: a
+ * colleague can read and work a firm file but cannot remove it.
+ * Returns true if a row was removed.
+ */
 export function deleteMatter(matterId: string, userId: string): boolean {
   const result = getDb().prepare(`
     DELETE FROM matters WHERE id = ? AND user_id = ?
