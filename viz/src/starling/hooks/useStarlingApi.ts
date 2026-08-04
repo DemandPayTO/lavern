@@ -1462,6 +1462,10 @@ export interface GenerateDocumentResult {
   error?: string;
   citations?: SourceCitation[];
   reviewFlags?: string[];
+  /** Timetable dates written to the matter's docket by this generation. */
+  docketedDates?: number;
+  /** Non-blocking warnings, e.g. setting down past the Rule 48.14 deadline. */
+  cautions?: string[];
 }
 
 export interface GeneratedDocSummary {
@@ -1676,13 +1680,26 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       });
 
       const json = await res.json();
-      if (!res.ok) return { ok: false, error: json.error ?? 'Generation failed' };
+      if (!res.ok) {
+        // A rejected timetable names each problem (ordering, a past date, an
+        // unreadable one). Showing only "Generation failed" would leave the
+        // lawyer guessing which date to fix.
+        const issues = Array.isArray(json.issues) ? (json.issues as string[]) : [];
+        return {
+          ok: false,
+          error: issues.length > 0
+            ? `${json.error ?? 'Generation failed'} ${issues.join(' ')}`
+            : json.error ?? 'Generation failed',
+        };
+      }
       refresh();
       return {
         ok: true,
         html: json.html,
         citations: Array.isArray(json.citations) ? json.citations : [],
         reviewFlags: Array.isArray(json.lawyerReviewFlags) ? json.lawyerReviewFlags : [],
+        docketedDates: typeof json.docketedDates === 'number' ? json.docketedDates : undefined,
+        cautions: Array.isArray(json.cautions) ? (json.cautions as string[]) : undefined,
       };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Generation failed' };

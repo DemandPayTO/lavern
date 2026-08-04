@@ -449,7 +449,24 @@ interface CourtFieldDef {
   required?: boolean;
 }
 
+// The timetable steps, in the order they must occur. Unlike a deponent's
+// name, these dates carry consequences: Starling checks their ordering and
+// the Rule 48.14 window, writes them into Schedule A, and puts them on the
+// docket, so they are worth collecting rather than leaving as placeholders.
+const TIMETABLE_FIELDS: CourtFieldDef[] = [
+  { key: 'affidavits_of_documents', label: 'Affidavits of documents exchanged', type: 'date' },
+  { key: 'productions', label: 'Documentary productions delivered', type: 'date' },
+  { key: 'examinations', label: 'Examinations for discovery completed', type: 'date' },
+  { key: 'mediation', label: 'Mediation completed', type: 'date' },
+  { key: 'set_down', label: 'Action set down for trial', type: 'date' },
+  { key: 'pre_trial', label: 'Pre-trial conference', type: 'date' },
+  { key: 'trial', label: 'Trial', type: 'date' },
+];
+
 const COURT_FORM_FIELDS: Record<string, CourtFieldDef[]> = {
+  sptimetable: TIMETABLE_FIELDS,
+  consenttimetable: TIMETABLE_FIELDS,
+  timetableorder: TIMETABLE_FIELDS,
   aos: [
     { key: 'document_served', label: 'Document served', placeholder: 'e.g., Statement of Claim', required: true },
     { key: 'served_party', label: 'Party served', placeholder: 'e.g., the defendant corporation', required: true },
@@ -747,6 +764,7 @@ export default function MatterDetailView() {
   const [genReviewFlags, setGenReviewFlags] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [genNotice, setGenNotice] = useState<string | null>(null);
   const [genTone, setGenTone] = useState('professional');
   const [genDemandAmount, setGenDemandAmount] = useState('');
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
@@ -2036,8 +2054,18 @@ export default function MatterDetailView() {
                       setGeneratedHtml(result.html);
                       setGenCitations(result.citations ?? []);
                       setGenReviewFlags(result.reviewFlags ?? []);
+                      // Tell the lawyer their dates reached the docket, and
+                      // pass on any Rule 48.14 caution.
+                      const notes: string[] = [];
+                      if (result.docketedDates) {
+                        notes.push(`${result.docketedDates} timetable date${result.docketedDates === 1 ? '' : 's'} added to your docket.`);
+                      }
+                      if (result.cautions?.length) notes.push(...result.cautions);
+                      setGenNotice(notes.length > 0 ? notes.join(' ') : null);
+                      void employment.refresh();
                       refreshDraftHistory();
                     } else {
+                      setGenNotice(null);
                       setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
                     }
                   }}
@@ -2061,6 +2089,11 @@ export default function MatterDetailView() {
                 </button>
               )}
 
+              {genNotice && (
+                <div role="status" style={{ background: '#e7f6ec', border: `1px solid ${green}`, borderRadius: 2, padding: '10px 14px', fontSize: 12.5, color: ink, marginBottom: 12 }}>
+                  {genNotice}
+                </div>
+              )}
               {genError && (
                 <div style={{ marginTop: 12, padding: '12px 16px', border: '1px solid #dc2626', borderRadius: 2, background: '#fce8e6', color: '#dc2626', fontSize: 13.5 }}>
                   {genError}

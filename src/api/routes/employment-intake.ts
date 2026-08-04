@@ -1552,6 +1552,34 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       }
     }
 
+    // Timetable documents: the lawyer's proposed dates are validated here
+    // (readable, future, correctly ordered, Rule 48.14 checked) and passed
+    // into the generator so Schedule A carries real dates rather than
+    // [DATE] placeholders. They are docketed after a successful generation.
+    const TIMETABLE_TYPES = ['sp_timetable_motion', 'consent_timetable_order', 'timetable_order'];
+    let timetableContext: string | undefined;
+    let timetableDates: import('../../employment/timetable.js').TimetableDates | undefined;
+    let timetableCautions: string[] = [];
+    if (TIMETABLE_TYPES.includes(parsed.data.documentType)) {
+      const tt = await import('../../employment/timetable.js');
+      const raw = Object.fromEntries(
+        Object.entries(parsed.data.formFields ?? {}).map(([k, v]) => [k, String(v ?? '')]),
+      );
+      const check = tt.validateTimetable(raw, { claimIssuedDate: tt.claimIssuedDate(employment.intake) });
+      if (!check.ok) {
+        return reply.status(400).send({
+          ok: false,
+          error: 'The proposed timetable needs fixing before the document can be drafted.',
+          issues: check.issues.filter(i => i.severity === 'error').map(i => i.message),
+        });
+      }
+      if (Object.keys(check.dates).length > 0) {
+        timetableContext = tt.timetableForPrompt(check.dates);
+        timetableDates = check.dates;
+      }
+      timetableCautions = check.issues.filter(i => i.severity === 'caution').map(i => i.message);
+    }
+
     let result;
     try {
       result = await generateLitigationDocument({
@@ -1564,7 +1592,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         firmName: parsed.data.firmName,
         firmAddress: parsed.data.firmAddress,
         courtLocation: parsed.data.courtLocation,
-        additionalContext: parsed.data.additionalContext,
+        additionalContext: timetableContext
+          ? [parsed.data.additionalContext, timetableContext].filter(Boolean).join('\n\n')
+          : parsed.data.additionalContext,
         formFields: parsed.data.formFields,
         comparables,
         comparableRange,
@@ -1596,6 +1626,22 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       status: 'draft',
     };
 
+    // Docket the proposed timetable. These are the lawyer's own dates, not
+    // yet ordered by a court, so they go on as ordinary docket items rather
+    // than court deadlines and are replaced (not duplicated) if the document
+    // is regenerated with different dates.
+    let docketed = 0;
+    if (timetableDates && Object.keys(timetableDates).length > 0) {
+      const tt = await import('../../employment/timetable.js');
+      const events = tt.timetableTimelineEvents(timetableDates);
+      const proposedLabels = new Set(events.map(e => e.label));
+      employment.timeline = [
+        ...employment.timeline.filter(ev => !proposedLabels.has(ev.label)),
+        ...events,
+      ].sort((a, b) => a.date.localeCompare(b.date));
+      docketed = events.length;
+    }
+
     await saveEmploymentData(userId, matterId, matter, employment);
 
     return reply.send({
@@ -1606,6 +1652,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       lawyerReviewFlags: result.lawyerReviewFlags,
       citations: result.citations,
       costUsd: result.costUsd,
+      ...(docketed > 0 ? { docketedDates: docketed } : {}),
+      ...(timetableCautions.length > 0 ? { cautions: timetableCautions } : {}),
     });
   });
 

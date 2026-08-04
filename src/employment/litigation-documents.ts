@@ -464,7 +464,7 @@ STRUCTURE:
 3. THE MOTION IS FOR: (a) an order fixing a timetable for the remaining steps in the action, in the terms set out in Schedule A; (b) if necessary, an order extending the time to set the action down for trial under Rule 48.14; (c) costs of the motion only if opposed; (d) such further relief as counsel may advise.
 4. THE GROUNDS FOR THE MOTION ARE: the action proceeds under the simplified procedure; the steps completed to date and the dates on which they occurred, taken from the matter timeline; the steps remaining; why the proposed dates are reasonable and proportionate to a simplified-procedure action; the prejudice to the plaintiff of continued delay (a dismissed employee is without income while the action is pending); and, where the other side has not consented, the requests made and the response received.
 5. THE FOLLOWING DOCUMENTARY EVIDENCE will be used: the pleadings, correspondence between counsel, and the affidavit of [LAWYER: deponent].
-6. SCHEDULE A: PROPOSED TIMETABLE as a table with two columns, Step and Date, using [DATE] placeholders where the intake does not supply a date. Steps: affidavits of documents exchanged; documentary productions delivered; examinations for discovery completed (or a note that examinations are limited under the simplified procedure); mediation completed; action set down for trial; pre-trial conference; trial.
+6. SCHEDULE A: PROPOSED TIMETABLE as a table with two columns, Step and Date. Where a PROPOSED TIMETABLE is supplied in the context below, use those exact dates, in that order, and do not alter or reformat them. Use a [DATE] placeholder ONLY for a step the supplied timetable leaves blank. Steps: affidavits of documents exchanged; documentary productions delivered; examinations for discovery completed (or a note that examinations are limited under the simplified procedure); mediation completed; action set down for trial; pre-trial conference; trial.
 7. Date and the lawyer's name, firm, and contact block; TO: the defendant's lawyer placeholder.
 
 RULES:
@@ -481,7 +481,7 @@ STRUCTURE:
 3. The recital block: "THIS MOTION, made on consent of the parties, for an order fixing a timetable for the remaining steps in this action, was read this [DATE] without the appearance of counsel." Include "[LAWYER: confirm the local practice for submitting consent orders in this region, including whether a requisition or a basket motion is required.]".
 4. ON READING the consent of the parties, filed.
 5. THE COURT ORDERS as numbered paragraphs: (1) the timetable in the attached schedule is fixed for the remaining steps; (2) where applicable, the time to set the action down for trial is extended to the date in the schedule; (3) any party may move to vary the timetable on notice; (4) no costs of this motion.
-6. THE TIMETABLE as a table with two columns, Step and Date, drawn from the matter timeline where dates exist and [DATE] placeholders where they do not.
+6. THE TIMETABLE as a table with two columns, Step and Date. Where a PROPOSED TIMETABLE is supplied in the context below, use those exact dates unchanged; otherwise draw from the matter timeline, and use [DATE] only where no date exists.
 7. A signature block for the judge or associate judge ([LAWYER: judge or associate judge, per the region]), and a consent block listing each party's counsel with name, firm, LSO number placeholder, and a signature line.
 
 RULES:
@@ -498,7 +498,7 @@ STRUCTURE:
 3. The recital block: "THIS MOTION, made by the plaintiff for an order fixing a timetable for the remaining steps in this action, was heard this [DATE] at [COURT ADDRESS]."
 4. ON READING the motion record of the plaintiff and the materials filed by the responding party, and on hearing the submissions of counsel for the parties.
 5. THE COURT ORDERS as numbered paragraphs: (1) the timetable set out below is fixed for the remaining steps; (2) where applicable, the time to set the action down for trial is extended to the date stated; (3) a party who fails to comply may be subject to the consequences the court considers just, including costs; (4) any party may move to vary the timetable on notice; (5) costs of the motion, with "[LAWYER: costs disposition sought]".
-6. THE TIMETABLE as a table with two columns, Step and Date, drawn from the matter timeline where dates exist and [DATE] placeholders where they do not.
+6. THE TIMETABLE as a table with two columns, Step and Date. Where a PROPOSED TIMETABLE is supplied in the context below, use those exact dates unchanged; otherwise draw from the matter timeline, and use [DATE] only where no date exists.
 7. Signature line for the judge or associate judge ([LAWYER: judge or associate judge, per the region]).
 
 RULES:
