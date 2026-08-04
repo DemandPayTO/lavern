@@ -1513,7 +1513,7 @@ export interface UseEmploymentDataResult {
   /** Extract from already-parsed content with the confirmed kind. */
   extractParsed: (content: string, name: string, documentKind: string, definedTerms?: string[]) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
   /** Apply the lawyer's selected extracted fields to the intake (deterministic). */
-  applyExtraction: (extractionId: string, fields: string[], overwrite: string[]) => Promise<ApplyExtractionResult>;
+  applyExtraction: (extractionId: string, fields: string[], overwrite: string[], offers?: Array<{ index: number; date: string }>) => Promise<ApplyExtractionResult>;
   /** Cross-document chronology + conflicts over all stored extractions. */
   getCaseReview: () => Promise<{ ok: boolean; error?: string; chronology?: ChronologyEntry[]; conflicts?: FieldConflict[]; extractionCount?: number }>;
   /** Add approved chronology entries to the matter timeline. */
@@ -1552,6 +1552,16 @@ export interface DocumentExtraction {
     verified?: boolean;
   }>;
   keyFindings: string[];
+  /** Settlement offers detected in the document, proposed for the negotiation ledger. */
+  offers?: Array<{
+    date: string | null;
+    party: 'employer' | 'client';
+    kind: 'offer' | 'counter' | 'demand' | 'acceptance' | 'rejection';
+    amountCad: number | null;
+    terms: string | null;
+    sourceQuote?: string;
+    verified?: boolean;
+  }>;
   confirmed: boolean;
   /** Set once the lawyer applied fields to the intake. */
   appliedAt?: string;
@@ -1567,6 +1577,8 @@ export interface ApplyExtractionResult {
   skippedNotBlank?: string[];
   unmapped?: string[];
   analysisStale?: boolean;
+  appliedOffers?: string[];
+  skippedDuplicateOffers?: number;
   timelineDiff?: { added: Array<{ date: string; label: string }>; removed: Array<{ date: string; label: string }> };
 }
 
@@ -1927,14 +1939,14 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
-  const applyExtraction = useCallback(async (extractionId: string, fields: string[], overwrite: string[]): Promise<ApplyExtractionResult> => {
+  const applyExtraction = useCallback(async (extractionId: string, fields: string[], overwrite: string[], offers: Array<{ index: number; date: string }> = []): Promise<ApplyExtractionResult> => {
     if (!matterId) return { ok: false, error: 'No matter ID' };
     try {
       const res = await fetch(`/api/employment/${matterId}/apply-extraction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ extractionId, fields, overwrite }),
+        body: JSON.stringify({ extractionId, fields, overwrite, offers }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, ...(json as object) } as ApplyExtractionResult;

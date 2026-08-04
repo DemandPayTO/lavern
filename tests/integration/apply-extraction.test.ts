@@ -65,6 +65,14 @@ beforeAll(async () => {
         },
         keyFindings: [], confirmed: false,
       }, {
+        id: 'ext-resp', documentType: 'correspondence', filename: 'employer-response.pdf',
+        extractedFields: {},
+        offers: [
+          { date: '2026-06-01', party: 'client', kind: 'demand', amountCad: 80000, terms: '12 months notice demanded', sourceQuote: 'we demand payment of $80,000', verified: true },
+          { date: null, party: 'employer', kind: 'counter', amountCad: 35000, terms: '16 weeks, release required', sourceQuote: 'prepared to offer $35,000', verified: true },
+        ],
+        keyFindings: [], confirmed: false,
+      }, {
         id: 'ext-ca', documentType: 'collective_agreement', filename: 'ca.pdf',
         extractedFields: { termination_date: { value: '2026-01-01', confidence: 'high' } },
         keyFindings: [], confirmed: false,
@@ -141,5 +149,71 @@ describe('POST /:matterId/apply-extraction', () => {
       extractionId: 'ext-t1', fields: ['termination_date'], overwrite: [],
     });
     expect(other.status).toBe(404);
+  });
+});
+
+
+describe('approved offers land on the negotiation ledger', () => {
+  it('applies approved offers with lawyer-supplied dates, values from the stored proposal', async () => {
+    const { status, body } = await post(`/api/employment/${MID}/apply-extraction`, {
+      extractionId: 'ext-resp',
+      fields: [],
+      offers: [
+        { index: 0, date: '2026-06-01' },
+        { index: 1, date: '2026-06-20' },   // the document did not state it; the lawyer did
+      ],
+    });
+    expect(status).toBe(200);
+    expect(body.appliedOffers).toHaveLength(2);
+
+    const row = getMatterById(MID, USER)!;
+    const matter = JSON.parse(row.data_json) as Record<string, unknown>;
+    const ledger = matter.negotiation as Array<Record<string, unknown>>;
+    expect(ledger).toHaveLength(2);
+    expect(ledger[0]).toMatchObject({ date: '2026-06-01', party: 'client', kind: 'demand', amountCad: 80000 });
+    expect(ledger[1]).toMatchObject({ date: '2026-06-20', party: 'employer', kind: 'counter', amountCad: 35000, terms: '16 weeks, release required' });
+    expect(String(ledger[1].note)).toContain('employer-response.pdf');
+  });
+
+  it('skips duplicates on re-apply so the history never doubles', async () => {
+    const { status, body } = await post(`/api/employment/${MID}/apply-extraction`, {
+      extractionId: 'ext-resp',
+      fields: [],
+      offers: [{ index: 0, date: '2026-06-01' }],
+    });
+    expect(status).toBe(200);
+    expect(body.appliedOffers).toEqual([]);
+    expect(body.skippedDuplicateOffers).toBe(1);
+
+    const row = getMatterById(MID, USER)!;
+    const ledger = (JSON.parse(row.data_json) as Record<string, unknown>).negotiation as unknown[];
+    expect(ledger).toHaveLength(2);
+  });
+
+  it('refuses an offer index that is not on the stored extraction', async () => {
+    const { status } = await post(`/api/employment/${MID}/apply-extraction`, {
+      extractionId: 'ext-resp',
+      fields: [],
+      offers: [{ index: 5, date: '2026-06-01' }],
+    });
+    expect(status).toBe(400);
+  });
+
+  it('refuses an empty apply (no fields, no offers)', async () => {
+    const { status } = await post(`/api/employment/${MID}/apply-extraction`, {
+      extractionId: 'ext-resp', fields: [], offers: [],
+    });
+    expect(status).toBe(400);
+  });
+
+  it('feeds the mediation brief negotiation table from the applied ledger', async () => {
+    const row = getMatterById(MID, USER)!;
+    const ledger = (JSON.parse(row.data_json) as Record<string, unknown>).negotiation as import('../../src/employment/negotiation.js').NegotiationEntry[];
+    const { buildNegotiationTable } = await import('../../src/employment/mediation-brief-tables.js');
+    const table = buildNegotiationTable(ledger);
+    expect(table.html).toContain('Negotiation History');
+    expect(table.html).toContain('$80,000');
+    expect(table.html).toContain('$35,000');
+    expect(table.html).toContain('2026-06-20');
   });
 });

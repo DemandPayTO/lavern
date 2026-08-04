@@ -28,10 +28,14 @@ interface Props {
   extraction: DocumentExtraction;
   /** The matter's current intake values (for the side-by-side + blank detection). */
   intake: Record<string, unknown>;
-  onApply: (extractionId: string, fields: string[], overwrite: string[]) => Promise<ApplyExtractionResult>;
+  onApply: (extractionId: string, fields: string[], overwrite: string[], offers?: Array<{ index: number; date: string }>) => Promise<ApplyExtractionResult>;
   /** Called when the lawyer dismisses the result summary (parent refreshes the matter). */
   onDone?: () => void;
 }
+
+const KIND_LABEL: Record<string, string> = {
+  offer: 'Offer', counter: 'Counter-offer', demand: 'Demand', acceptance: 'Acceptance', rejection: 'Rejection',
+};
 
 function isBlank(v: unknown): boolean {
   return v === undefined || v === null || v === '';
@@ -53,6 +57,14 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
   const [checked, setChecked] = useState<Set<string>>(() =>
     new Set(rows.filter(([k]) => isBlank(intake[k])).map(([k]) => k)));
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
+  const proposedOffers = extraction.offers ?? [];
+  // Offers with a verified quote come pre-checked; an unverified proposal
+  // needs the lawyer's deliberate tick. Missing dates need supplying.
+  const [offerChecked, setOfferChecked] = useState<Set<number>>(() =>
+    new Set(proposedOffers.map((o, i) => (o.verified ? i : -1)).filter(i => i >= 0)));
+  const [offerDates, setOfferDates] = useState<Record<number, string>>(() =>
+    Object.fromEntries(proposedOffers.map((o, i) => [i, o.date ?? ''])));
+  const [offerQuoteOpen, setOfferQuoteOpen] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ApplyExtractionResult | null>(null);
   const [quoteOpen, setQuoteOpen] = useState<string | null>(null);
@@ -65,19 +77,25 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
     updater(next);
   };
 
+  const readyOffers = [...offerChecked].filter(i => /^\d{4}-\d{2}-\d{2}$/.test(offerDates[i] ?? ''));
+
   const apply = async () => {
     setBusy(true);
     try {
-      const res = await onApply(extractionId, [...checked], [...overwrite]);
+      const res = await onApply(
+        extractionId, [...checked], [...overwrite],
+        readyOffers.map(i => ({ index: i, date: offerDates[i] })),
+      );
       setResult(res);
     } finally {
       setBusy(false);
     }
   };
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && proposedOffers.length === 0) return null;
 
   const applyCount = [...checked].filter(k => isBlank(intake[k]) || overwrite.has(k)).length;
+  const totalCount = applyCount + readyOffers.length;
 
   return (
     <div style={{ fontFamily: sans, marginTop: 12, border: `1px solid ${border}`, background: '#fff' }}>
@@ -173,17 +191,76 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
         </table>
       </div>
 
+      {proposedOffers.length > 0 && (
+        <div style={{ padding: '10px 14px', borderTop: `1px solid ${border}` }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: navy, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+            Offers to settle found in this document
+          </div>
+          <div style={{ fontSize: 12.5, color: muted, marginBottom: 8 }}>
+            Approved offers go on the Negotiation ledger, which the mediation brief presents as the negotiation history. A missing date must be supplied before an offer can be applied.
+          </div>
+          {proposedOffers.map((o, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderTop: `1px solid ${border}`, flexWrap: 'wrap' }}>
+              <input
+                type="checkbox"
+                checked={offerChecked.has(i)}
+                onChange={() => { const next = new Set(offerChecked); if (next.has(i)) next.delete(i); else next.add(i); setOfferChecked(next); }}
+                aria-label={`Apply ${KIND_LABEL[o.kind] ?? o.kind} to the negotiation ledger`}
+                style={{ accentColor: navy, marginTop: 3 }}
+              />
+              <div style={{ flex: 1, minWidth: 240 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>
+                  {o.party === 'employer' ? 'Employer' : 'Client'} · {KIND_LABEL[o.kind] ?? o.kind}
+                  {o.amountCad != null && ` · $${o.amountCad.toLocaleString('en-CA')}`}
+                </span>
+                {o.terms && <div style={{ fontSize: 12.5, color: muted, marginTop: 2 }}>{o.terms}</div>}
+                {o.sourceQuote && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setOfferQuoteOpen(offerQuoteOpen === i ? null : i)}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: o.verified ? green : red, fontWeight: 600, marginTop: 2 }}
+                    >
+                      {o.verified ? '✓ verified in document' : '⚠ not found in document'}
+                    </button>
+                    {offerQuoteOpen === i && (
+                      <div style={{ marginTop: 4, fontSize: 12, color: muted, fontStyle: 'italic', borderLeft: `2px solid ${border}`, paddingLeft: 8 }}>
+                        "{o.sourceQuote}"
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <label style={{ fontSize: 12, color: offerChecked.has(i) && !/^\d{4}-\d{2}-\d{2}$/.test(offerDates[i] ?? '') ? red : muted, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Date
+                <input
+                  type="date"
+                  value={offerDates[i] ?? ''}
+                  onChange={e => setOfferDates(prev => ({ ...prev, [i]: e.target.value }))}
+                  aria-label={`Date of ${KIND_LABEL[o.kind] ?? o.kind}`}
+                  style={{ fontFamily: sans, fontSize: 12.5, padding: '4px 7px', border: `1px solid ${border}`, borderRadius: 2 }}
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ padding: '10px 14px', borderTop: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button
           type="button"
-          disabled={busy || applyCount === 0 || Boolean(result?.ok)}
+          disabled={busy || totalCount === 0 || Boolean(result?.ok)}
           onClick={() => { void apply(); }}
           style={{
-            background: applyCount > 0 && !result?.ok ? navy : '#9aa2ad', color: '#fff', fontSize: 13.5, fontWeight: 600,
-            padding: '8px 16px', borderRadius: 2, border: 'none', cursor: applyCount > 0 && !result?.ok ? 'pointer' : 'default',
+            background: totalCount > 0 && !result?.ok ? navy : '#9aa2ad', color: '#fff', fontSize: 13.5, fontWeight: 600,
+            padding: '8px 16px', borderRadius: 2, border: 'none', cursor: totalCount > 0 && !result?.ok ? 'pointer' : 'default',
           }}
         >
-          {busy ? 'Applying…' : result?.ok ? 'Applied' : `Apply ${applyCount} field${applyCount === 1 ? '' : 's'} to the intake`}
+          {busy ? 'Applying…'
+            : result?.ok ? 'Applied'
+            : readyOffers.length > 0 && applyCount > 0 ? `Apply ${applyCount} field${applyCount === 1 ? '' : 's'} and ${readyOffers.length} offer${readyOffers.length === 1 ? '' : 's'}`
+            : readyOffers.length > 0 ? `Apply ${readyOffers.length} offer${readyOffers.length === 1 ? '' : 's'} to the ledger`
+            : `Apply ${applyCount} field${applyCount === 1 ? '' : 's'} to the intake`}
         </button>
         <span style={{ fontSize: 12, color: muted }}>
           Blank fields fill in; a checked field with an existing value changes only when its "replace" box is also ticked.
@@ -194,10 +271,20 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
         <div style={{ padding: '10px 14px', borderTop: `1px solid ${border}`, fontSize: 13 }} role="status">
           {result.ok ? (
             <>
-              <div style={{ color: green, fontWeight: 600 }}>
-                Applied {(result.applied?.length ?? 0) + (result.overwritten?.length ?? 0)} field{((result.applied?.length ?? 0) + (result.overwritten?.length ?? 0)) === 1 ? '' : 's'} to the intake.
-                {(result.overwritten?.length ?? 0) > 0 && ` Replaced: ${result.overwritten!.join(', ')}.`}
-              </div>
+              {((result.applied?.length ?? 0) + (result.overwritten?.length ?? 0)) > 0 && (
+                <div style={{ color: green, fontWeight: 600 }}>
+                  Applied {(result.applied?.length ?? 0) + (result.overwritten?.length ?? 0)} field{((result.applied?.length ?? 0) + (result.overwritten?.length ?? 0)) === 1 ? '' : 's'} to the intake.
+                  {(result.overwritten?.length ?? 0) > 0 && ` Replaced: ${result.overwritten!.join(', ')}.`}
+                </div>
+              )}
+              {(result.appliedOffers?.length ?? 0) > 0 && (
+                <div style={{ color: green, marginTop: 3 }}>
+                  On the negotiation ledger: {result.appliedOffers!.join('; ')}. The mediation brief presents these as the negotiation history.
+                </div>
+              )}
+              {(result.skippedDuplicateOffers ?? 0) > 0 && (
+                <div style={{ color: muted, marginTop: 3 }}>Skipped {result.skippedDuplicateOffers} offer{result.skippedDuplicateOffers === 1 ? '' : 's'} already on the ledger.</div>
+              )}
               {(result.skippedNotBlank?.length ?? 0) > 0 && (
                 <div style={{ color: muted, marginTop: 3 }}>Kept your existing values for: {result.skippedNotBlank!.join(', ')}.</div>
               )}

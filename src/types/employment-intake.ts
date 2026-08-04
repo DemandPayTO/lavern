@@ -338,6 +338,21 @@ export interface DocumentExtractionResult {
     /** True when the sourceQuote was found verbatim in the document. */
     verified?: boolean;
   }>;
+  /**
+   * Settlement offers detected in the document, PROPOSED for the
+   * negotiation ledger. Nothing reaches the ledger until the lawyer
+   * approves each one in the review panel (same gate as the fields).
+   */
+  offers?: Array<{
+    /** YYYY-MM-DD when stated in the document; null when the lawyer must supply it. */
+    date: string | null;
+    party: 'employer' | 'client';
+    kind: 'offer' | 'counter' | 'demand' | 'acceptance' | 'rejection';
+    amountCad: number | null;
+    terms: string | null;
+    sourceQuote?: string;
+    verified?: boolean;
+  }>;
   /** Key findings / notable clauses / red flags. */
   keyFindings: string[];
   /** Whether the lawyer has confirmed the extraction. */

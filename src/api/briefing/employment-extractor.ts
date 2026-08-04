@@ -31,9 +31,20 @@ const extractedFieldSchema = z.object({
   sourceQuote: z.string().max(600).optional(),
 });
 
+const extractedOfferSchema = z.object({
+  /** YYYY-MM-DD, or null when the document does not state the date. */
+  date: z.string().max(40).nullable(),
+  party: z.enum(['employer', 'client']),
+  kind: z.enum(['offer', 'counter', 'demand', 'acceptance', 'rejection']),
+  amountCad: z.number().nonnegative().max(100_000_000).nullable(),
+  terms: z.string().max(2000).nullable(),
+  sourceQuote: z.string().max(600).optional(),
+});
+
 const extractionOutputSchema = z.object({
   extractedFields: z.record(z.string(), extractedFieldSchema),
   keyFindings: z.array(z.string().max(500)).max(20),
+  offers: z.array(extractedOfferSchema).max(12).optional(),
 }).strict();
 
 // ── Document-type-specific prompts ───────────────────────────────────────
@@ -94,7 +105,16 @@ Extract these fields from the termination letter:
 - working_notice_given (boolean): Whether working notice was provided
 - working_notice_weeks (number): Weeks of working notice
 
-Also provide keyFindings: notable observations (e.g. "Release required as condition of severance", "No mention of benefits continuation").`,
+Also provide keyFindings: notable observations (e.g. "Release required as condition of severance", "No mention of benefits continuation").
+
+OFFERS TO SETTLE: If the document contains any settlement offer, counter-offer, demand, acceptance, or rejection (including a severance offer), also list each one in "offers". For each:
+- date (string YYYY-MM-DD, or null if the document does not state when the offer was made; the letter's own date counts as the offer date)
+- party: "employer" if made by or for the employer, "client" if made by or for the employee/plaintiff
+- kind: "offer" (a first offer from that party), "counter" (responds to a prior offer), "demand" (a demand letter's demand), "acceptance", or "rejection"
+- amountCad (number): the total dollar value, or null if expressed only in weeks or months of pay (describe that in terms instead)
+- terms (string): a short factual description: weeks or months offered, conditions, release required, deadline to accept
+- sourceQuote: the sentence stating the offer, copied exactly
+Include offers this document RECOUNTS from earlier correspondence (for example a response letter reciting the demand it answers), using the date the document states for that earlier offer. List ONLY offers explicitly stated or recounted in this document. Do not infer offers from context. Omit "offers" entirely or use an empty array when there are none.`,
 
     roe: `
 Extract these fields from the Record of Employment:
@@ -135,7 +155,16 @@ Extract these fields from the correspondence/emails:
 - tone_assessment (string): The tone of the communication (hostile, neutral, conciliatory)
 - termination_reasons (string): Any reasons given for termination
 
-Also provide keyFindings: notable observations (e.g. "Employer acknowledges employee's strong performance in email dated March 1, contradicting just cause allegation").`,
+Also provide keyFindings: notable observations (e.g. "Employer acknowledges employee's strong performance in email dated March 1, contradicting just cause allegation").
+
+OFFERS TO SETTLE: If the document contains any settlement offer, counter-offer, demand, acceptance, or rejection (including a severance offer), also list each one in "offers". For each:
+- date (string YYYY-MM-DD, or null if the document does not state when the offer was made; the letter's own date counts as the offer date)
+- party: "employer" if made by or for the employer, "client" if made by or for the employee/plaintiff
+- kind: "offer" (a first offer from that party), "counter" (responds to a prior offer), "demand" (a demand letter's demand), "acceptance", or "rejection"
+- amountCad (number): the total dollar value, or null if expressed only in weeks or months of pay (describe that in terms instead)
+- terms (string): a short factual description: weeks or months offered, conditions, release required, deadline to accept
+- sourceQuote: the sentence stating the offer, copied exactly
+Include offers this document RECOUNTS from earlier correspondence (for example a response letter reciting the demand it answers), using the date the document states for that earlier offer. List ONLY offers explicitly stated or recounted in this document. Do not infer offers from context. Omit "offers" entirely or use an empty array when there are none.`,
 
     performance_review: `
 Extract these fields from the performance review:
@@ -185,7 +214,16 @@ Extract any employment-relevant facts from this document:
 - key_facts (string): Any employment-relevant facts
 - key_amounts (string): Any monetary amounts mentioned
 
-Also provide keyFindings: notable observations.`,
+Also provide keyFindings: notable observations.
+
+OFFERS TO SETTLE: If the document contains any settlement offer, counter-offer, demand, acceptance, or rejection (including a severance offer), also list each one in "offers". For each:
+- date (string YYYY-MM-DD, or null if the document does not state when the offer was made; the letter's own date counts as the offer date)
+- party: "employer" if made by or for the employer, "client" if made by or for the employee/plaintiff
+- kind: "offer" (a first offer from that party), "counter" (responds to a prior offer), "demand" (a demand letter's demand), "acceptance", or "rejection"
+- amountCad (number): the total dollar value, or null if expressed only in weeks or months of pay (describe that in terms instead)
+- terms (string): a short factual description: weeks or months offered, conditions, release required, deadline to accept
+- sourceQuote: the sentence stating the offer, copied exactly
+Include offers this document RECOUNTS from earlier correspondence (for example a response letter reciting the demand it answers), using the date the document states for that earlier offer. List ONLY offers explicitly stated or recounted in this document. Do not infer offers from context. Omit "offers" entirely or use an empty array when there are none.`,
   };
 
   return `${base}
@@ -198,8 +236,10 @@ Output ONLY a JSON object with this shape:
     "field_name": { "value": <string|number|boolean|null>, "confidence": "high"|"medium"|"low", "sourceQuote": "verbatim sentence copied EXACTLY from the document that states this value" },
     ...
   },
-  "keyFindings": ["string", ...]
+  "keyFindings": ["string", ...],
+  "offers": [ { "date": "YYYY-MM-DD"|null, "party": "employer"|"client", "kind": "offer"|"counter"|"demand"|"acceptance"|"rejection", "amountCad": <number|null>, "terms": "string"|null, "sourceQuote": "..." }, ... ]
 }
+Include "offers" only when the instructions above ask for it; otherwise omit the key.
 
 sourceQuote rules: copy the sentence character for character from the document, no paraphrasing, no corrections; keep it under 600 characters (trim to the clause containing the value); omit sourceQuote entirely when value is null or when no single passage states the value.
 
@@ -286,6 +326,7 @@ Extract the structured fields from the document above. Remember: extract only wh
           filename: documentName,
           extractedFields: verifySourceQuotes(retryValidated.data.extractedFields, content),
           keyFindings: retryValidated.data.keyFindings,
+          ...(retryValidated.data.offers?.length ? { offers: verifyOfferQuotes(retryValidated.data.offers, content) } : {}),
           confirmed: false,
           costUsd: cost + retryCost,
         };
@@ -299,6 +340,7 @@ Extract the structured fields from the document above. Remember: extract only wh
       filename: documentName,
       extractedFields: verifySourceQuotes(validated.data.extractedFields, content),
       keyFindings: validated.data.keyFindings,
+      ...(validated.data.offers?.length ? { offers: verifyOfferQuotes(validated.data.offers, content) } : {}),
       confirmed: false,
       costUsd: cost,
     };
@@ -335,6 +377,27 @@ export function verifySourceQuotes<T extends Record<string, { value: unknown; co
     }
   }
   return fields;
+}
+
+/**
+ * Quote grounding for proposed offers, same property as the fields: the
+ * model cannot make a string search find a sentence that is not in the
+ * document. A date that is not YYYY-MM-DD is nulled rather than kept, so
+ * the lawyer supplies it in the review panel instead of a malformed value
+ * reaching the ledger.
+ */
+export function verifyOfferQuotes<T extends Array<{ date: string | null; sourceQuote?: string; verified?: boolean }>>(
+  offers: T,
+  documentContent: string,
+): T {
+  const haystack = normalizeForMatch(documentContent);
+  for (const offer of offers) {
+    if (offer.sourceQuote) {
+      offer.verified = haystack.includes(normalizeForMatch(offer.sourceQuote));
+    }
+    if (offer.date && !/^\d{4}-\d{2}-\d{2}$/.test(offer.date)) offer.date = null;
+  }
+  return offers;
 }
 
 /** Parse JSON from an LLM response, handling markdown fences and extra text. */

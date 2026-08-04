@@ -1158,9 +1158,17 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
   const applyExtractionBodySchema = z.object({
     extractionId: z.string().min(1).max(100),
-    fields: z.array(z.string().min(1).max(100)).min(1).max(80),
+    fields: z.array(z.string().min(1).max(100)).max(80).default([]),
     overwrite: z.array(z.string().min(1).max(100)).max(80).default([]),
-  }).strict();
+    // Approved settlement offers, by index into the STORED extraction's
+    // offers array. Only the date is client-supplied (the document may not
+    // state it); party, kind, amount and terms come from the stored
+    // proposal so the client cannot smuggle arbitrary ledger entries.
+    offers: z.array(z.object({
+      index: z.number().int().min(0).max(11),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    })).max(12).default([]),
+  }).strict().refine(b => b.fields.length + b.offers.length > 0, { message: 'Nothing selected' });
 
   fastify.post('/api/employment/:matterId/apply-extraction', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
@@ -1181,18 +1189,62 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(400).send({ ok: false, error: 'Collective agreements apply automatically at extraction time.' });
     }
 
-    const outcome = applyExtractionSelections(
-      employment.intake,
-      extraction,
-      parsed.data.fields,
-      new Set(parsed.data.overwrite),
-    );
+    const outcome = parsed.data.fields.length > 0
+      ? applyExtractionSelections(
+          employment.intake,
+          extraction,
+          parsed.data.fields,
+          new Set(parsed.data.overwrite),
+        )
+      : { intake: employment.intake, applied: [] as string[], overwritten: [] as string[], skippedNotBlank: [] as string[], unmapped: [] as string[], analysisStale: false };
     if ('error' in outcome) {
       return reply.status(400).send({ ok: false, error: outcome.error, invalidFields: outcome.invalidFields });
     }
+
+    // Approved offers land on the negotiation ledger. Values come from the
+    // stored proposal; duplicates (same date, party, kind and amount as an
+    // existing entry) are skipped so re-applying an extraction never
+    // doubles the history the mediation brief presents.
+    const appliedOffers: string[] = [];
+    let skippedDuplicateOffers = 0;
+    if (parsed.data.offers.length > 0) {
+      const proposals = extraction.offers ?? [];
+      const ledger = (((matter as Record<string, unknown>).negotiation ?? []) as Array<Record<string, unknown>>);
+      const keyOf = (o: { date?: unknown; party?: unknown; kind?: unknown; amountCad?: unknown }) =>
+        `${o.date}|${o.party}|${o.kind}|${o.amountCad ?? ''}`;
+      const existing = new Set(ledger.map(e => keyOf(e)));
+      for (const sel of parsed.data.offers) {
+        const proposal = proposals[sel.index];
+        if (!proposal) {
+          return reply.status(400).send({ ok: false, error: `Offer ${sel.index + 1} is not on this extraction.` });
+        }
+        const entry = {
+          id: `neg-${Date.now()}-${sel.index}-${Math.random().toString(36).slice(2, 7)}`,
+          date: sel.date,
+          party: proposal.party,
+          kind: proposal.kind,
+          amountCad: proposal.amountCad,
+          ...(proposal.terms ? { terms: proposal.terms } : {}),
+          note: `From ${extraction.filename}`,
+          recordedAt: new Date().toISOString(),
+        };
+        if (existing.has(keyOf(entry))) { skippedDuplicateOffers++; continue; }
+        existing.add(keyOf(entry));
+        ledger.push(entry);
+        appliedOffers.push(`${entry.party} ${entry.kind} (${entry.date})`);
+      }
+      (matter as Record<string, unknown>).negotiation = ledger;
+    }
+
     const changed = [...outcome.applied, ...outcome.overwritten];
+    if (changed.length === 0 && appliedOffers.length === 0 && skippedDuplicateOffers === 0) {
+      return reply.send({ ok: true, ...outcome, appliedOffers: [], timelineDiff: { added: [], removed: [] } });
+    }
     if (changed.length === 0) {
-      return reply.send({ ok: true, ...outcome, timelineDiff: { added: [], removed: [] } });
+      // Offers only: no intake mutation, so gates and timeline stand.
+      await saveEmploymentData(userId, matterId, matter, employment);
+      logger.info('Extraction offers applied', { userId, matterId, extractionId: extraction.id, offers: appliedOffers.length, skippedDuplicateOffers });
+      return reply.send({ ok: true, ...outcome, appliedOffers, skippedDuplicateOffers, timelineDiff: { added: [], removed: [] } });
     }
 
     const timelineBefore = employment.timeline ?? [];
@@ -1224,6 +1276,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       skippedNotBlank: outcome.skippedNotBlank,
       unmapped: outcome.unmapped,
       analysisStale: outcome.analysisStale,
+      appliedOffers,
+      skippedDuplicateOffers,
       timelineDiff,
       gates: employment.gates,
     });
