@@ -13,6 +13,7 @@ import { UserContext, type AuthUser, type UserContextValue } from '../auth/UserC
 
 // Stub the data hooks so the dashboard renders without a backend.
 vi.mock('../starling/hooks/useStarlingApi.js', () => ({
+  useApprovalsEnabled: () => false,
   useMatterList: () => ({ matters: [], loading: false, refresh: vi.fn() }),
   usePracticeMode: () => 'employment',
 }));

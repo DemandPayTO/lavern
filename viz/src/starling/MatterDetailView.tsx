@@ -405,8 +405,6 @@ const DEMO_TIMELINE: TimelineEvent[] = [
   },
 ];
 
-const DEMO_NOTES = `Client call Jun 20: Jane very keen to avoid litigation if possible \u2014 prefers a strong demand letter first, mediation second. Confirm accommodation request was emailed to her manager (Rajiv) on May 28, 3 days before termination \u2014 pull the email for the HRC claim. Acme's HR contact is Susan Bell.`;
-
 // ── Draft card → backend document type / download slug ─────────────────
 
 const DRAFT_TO_DOCTYPE: Record<string, string> = {
@@ -756,7 +754,7 @@ export default function MatterDetailView() {
   const [fileNumberDraft, setFileNumberDraft] = useState('');
   const [keyDate, setKeyDate] = useState({ date: '', label: '', category: 'legal', courtDeadline: true });
   const [keyDateSaving, setKeyDateSaving] = useState(false);
-  const [notes, setNotes] = useState(DEMO_NOTES);
+  const [notes, setNotes] = useState('');
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
@@ -777,7 +775,7 @@ export default function MatterDetailView() {
   const [pendingClient, setPendingClient] = useState<{ data?: Record<string, unknown>; submittedAt?: string; appliedAt?: string } | null>(null);
   const [portalMessage, setPortalMessage] = useState<string | null>(null);
   const refreshPendingClient = useCallback(() => {
-    const sid = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1]?.replace(/\s+/g, '');
+    const sid = window.location.hash.split('?')[0].match(/#\/matter-detail\/(.+)/)?.[1]?.replace(/\s+/g, '');
     if (!sid) return;
     fetch(`/api/employment/${sid}/client-intake`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
@@ -802,7 +800,7 @@ export default function MatterDetailView() {
   interface DraftHistoryEntry { docType: string; title: string; html: string; costUsd: number; generatedAt: string; meta?: Record<string, unknown> }
   const [draftHistory, setDraftHistory] = useState<DraftHistoryEntry[]>([]);
   const refreshDraftHistory = useCallback(() => {
-    const sid = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1]?.replace(/\s+/g, '');
+    const sid = window.location.hash.split('?')[0].match(/#\/matter-detail\/(.+)/)?.[1]?.replace(/\s+/g, '');
     if (!sid) return;
     fetch(`/api/employment/${sid}/drafts`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
@@ -822,7 +820,7 @@ export default function MatterDetailView() {
   }, []);
 
   // Extract sessionId from hash
-  const rawSid = window.location.hash.match(/#\/matter-detail\/(.+)/)?.[1] ?? null;
+  const rawSid = window.location.hash.split('?')[0].match(/#\/matter-detail\/(.+)/)?.[1] ?? null;
   const sessionId = rawSid?.replace(/\s+/g, '') ?? null;
 
   // Wire hook data
@@ -833,10 +831,10 @@ export default function MatterDetailView() {
   const labour = useLabourData(sessionId);
   const isLabourMatter = Boolean(labour.data && Object.keys(labour.data.intake ?? {}).length > 0);
 
-  // Sync lawyer notes from the server once loaded (demo text remains the
-  // fallback until real data arrives)
+  // Sync lawyer notes from the server once loaded. Notes start empty: a new
+  // file must never open pre-filled with another client's facts.
   useEffect(() => {
-    if (employment.lawyerNotes !== null && employment.lawyerNotes !== '') {
+    if (employment.lawyerNotes !== null) {
       setNotes(employment.lawyerNotes);
     }
   }, [employment.lawyerNotes]);

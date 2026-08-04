@@ -818,6 +818,18 @@ export function useMatterDetail(sessionId: string | null): MatterDetailResult {
         const intake = employment.intake ?? {};
         const hireDate = intake.hire_date as string | undefined;
         const termDate = intake.termination_date as string | undefined;
+        // The file header must agree with the dashboard list: the same
+        // limitation-driven urgency, not a hardcoded "active".
+        const analysis = (employment.analysis ?? {}) as Record<string, unknown>;
+        const limitation = (analysis.limitationDeadline as { date?: string } | undefined)?.date;
+        const rawStatus = String(raw.status ?? '');
+        const daysToLimitation = limitation
+          ? Math.floor((new Date(limitation).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : Infinity;
+        const detailStatus: MatterDetail['status'] =
+          rawStatus === 'closed' || rawStatus === 'complete' ? 'complete'
+          : daysToLimitation <= 30 && daysToLimitation > 0 ? 'urgent'
+          : 'active';
         setMatter({
           name: `${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}`.trim() || 'Employment Matter',
           number: raw.matterNumber ?? `DP-${sessionId.slice(-6)}`,
@@ -826,8 +838,9 @@ export function useMatterDetail(sessionId: string | null): MatterDetailResult {
           dates: {
             start: hireDate,
             termination: termDate,
+            limitation,
           },
-          status: 'active',
+          status: detailStatus,
           issues: (employment.gates ?? [])
             .filter((g: Record<string, unknown>) => g.triggered)
             .map((g: Record<string, unknown>) => ({

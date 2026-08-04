@@ -18,6 +18,7 @@ function isoDaysFromNow(days: number): string {
 }
 
 vi.mock('../starling/hooks/useStarlingApi.js', () => ({
+  useApprovalsEnabled: () => false,
   useMatterList: () => ({
     matters: [
       { id: 'm1', name: 'Ana Reyes', number: 'SL-441', status: 'active', statusColour: '#16a34a', flagText: '', flagColour: 'navy', description: '', metaLabel: '', metaValue: '' },
