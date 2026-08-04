@@ -314,11 +314,22 @@ async function crossProviderChatOnce(
   // compounding to up to ~12 attempts on a stalled call. Callers pass
   // maxRetries: 0 to opt out entirely (e.g. intrinsically-slow /revise calls,
   // where a single timeout is genuine, not transient).
-  const res = await withRetry(
-    () => client.messages.create(requestBody, {
-      timeout: opts.timeoutMs ?? 120_000,
-      maxRetries: 0,
-    }),
+  // The SDK refuses non-streaming requests whose output budget implies a
+  // possible >10-minute run ("Streaming is required for operations that
+  // may take longer than 10 minutes") — which a firm-depth brief's budget
+  // does. Large budgets therefore stream and assemble server-side;
+  // finalMessage() returns the same shape (content, usage, stop_reason).
+  const useStreaming = opts.maxTokens > 8_192;
+  const res: Anthropic.Message = await withRetry(
+    async () => useStreaming
+      ? await client.messages.stream(requestBody, {
+          timeout: opts.timeoutMs ?? 120_000,
+          maxRetries: 0,
+        }).finalMessage()
+      : await client.messages.create(requestBody, {
+          timeout: opts.timeoutMs ?? 120_000,
+          maxRetries: 0,
+        }),
     { label: `anthropic:${model}`, maxRetries: opts.maxRetries ?? 3 },
   );
 
