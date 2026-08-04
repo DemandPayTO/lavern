@@ -80,6 +80,7 @@ export default function ApprovalsView() {
   const [toReview, setToReview] = useState<QueueRow[]>([]);
   const [mine, setMine] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [disabled, setDisabled] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [role, setRole] = useState<'review' | 'mine'>('review');
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
@@ -93,8 +94,10 @@ export default function ApprovalsView() {
 
   const loadQueue = useCallback(() => {
     fetch('/api/reviews', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => {
+      .then(async r => {
+        // The routes refuse with 404 while the lane is switched off.
+        if (r.status === 404) { setDisabled(true); setLoading(false); return; }
+        const d = await r.json();
         if (d.ok) { setToReview(d.toReview ?? []); setMine(d.mine ?? []); }
         setLoading(false);
       })
@@ -240,7 +243,15 @@ export default function ApprovalsView() {
           Documents routed for firm approval. Starling never sends or files; approval here unlocks the submitting lawyer to send.
         </p>
 
-        {loading ? (
+        {!loading && disabled ? (
+          <div style={{ background: '#fff', border: `1px solid ${border}`, borderRadius: 2, padding: '20px 22px', maxWidth: 620 }}>
+            <h2 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 6px' }}>Partner approval is turned off</h2>
+            <p style={{ fontSize: 13.5, color: muted, margin: 0 }}>
+              It needs a second lawyer at the firm, because nobody can review their own submission. Once a
+              colleague is set up, this can be switched back on and drafts can be routed here for sign-off.
+            </p>
+          </div>
+        ) : loading ? (
           <p style={{ color: muted }}>Loading the queue…</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: detail ? 'minmax(280px, 380px) 1fr' : '1fr', gap: 24, alignItems: 'start' }}>

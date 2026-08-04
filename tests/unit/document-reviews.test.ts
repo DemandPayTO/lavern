@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initDatabase } from '../../src/db/database.js';
+import { config } from '../../src/config.js';
 import {
   createReview, claimReview, approveReview, requestChanges, addVersion,
   resubmitReview, withdrawReview, getOpenReviewForDoc, getReviewById,
@@ -36,6 +37,8 @@ function makeReview(matterId: string, docType = 'demand_letter') {
 }
 
 beforeAll(() => {
+  // The approval lane ships OFF; this suite tests the lane itself.
+  config.starling = { ...(config.starling ?? {}), approvalsEnabled: true } as typeof config.starling;
   initDatabase(':memory:');
 });
 

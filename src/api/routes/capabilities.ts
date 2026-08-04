@@ -41,6 +41,7 @@ export function registerCapabilitiesRoutes(fastify: FastifyInstance): void {
       billing: config.authEnabled,
       googleOauth: config.authEnabled && Boolean(config.google.clientId),
       practiceMode: config.starling?.practiceMode ?? 'employment',
+      approvals: config.starling?.approvalsEnabled ?? false,
       provider: config.provider,
       version: config.version,
 

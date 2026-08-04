@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useMatterDetail, useEmploymentData, useFirmTemplates } from './hooks/useStarlingApi.js';
+import { useMatterDetail, useEmploymentData, useFirmTemplates, useApprovalsEnabled } from './hooks/useStarlingApi.js';
 import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
 import { CaseFileDropPanel } from './CaseFileDropPanel.js';
 import { PrecedentAlignPanel } from './PrecedentAlignPanel.js';
@@ -917,6 +917,7 @@ export default function MatterDetailView() {
     : [];
   const [chosenVariantId, setChosenVariantId] = useState<string | null>(null);
   const [buildingTemplate, setBuildingTemplate] = useState(false);
+  const approvalsEnabled = useApprovalsEnabled();
   const [revising, setRevising] = useState<null | { source: 'client' | 'partner'; initial?: string }>(null);
 
   // Reset the choice when the document type changes, and keep a stale id
@@ -2106,7 +2107,7 @@ export default function MatterDetailView() {
                           </span>
                         )}
                       </div>
-                      {dt && cur && sessionId && <ReviewLaneControls matterId={sessionId} docType={dt} onApplyFeedback={(text) => setRevising({ source: 'partner', initial: text })} />}
+                      {approvalsEnabled && dt && cur && sessionId && <ReviewLaneControls matterId={sessionId} docType={dt} onApplyFeedback={(text) => setRevising({ source: 'partner', initial: text })} />}
                       {revising && dt && sessionId && (
                         <RevisionPanel
                           matterId={sessionId}

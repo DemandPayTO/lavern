@@ -178,6 +178,17 @@ export const config = {
       ? process.env.STARLING_PRACTICE_MODE
       : 'employment') as 'employment' | 'labour' | 'both',
     /**
+     * Partner approval lane. Default OFF: a firm with one provisioned lawyer
+     * cannot use it, because nobody may review their own submission, and a
+     * document accidentally sent for approval then blocks itself from being
+     * marked sent or filed until it is withdrawn. Turn on when a second
+     * lawyer exists (STARLING_APPROVALS_ENABLED=true).
+     *
+     * The switch is display AND enforcement: the routes refuse while it is
+     * off, so the sent/filed guard cannot strand a document either.
+     */
+    approvalsEnabled: process.env.STARLING_APPROVALS_ENABLED === 'true',
+    /**
      * Master switch for the weekly digest email. Default OFF: the digest is
      * disabled for the pilot (it emails a firm-wide docket containing client
      * matter labels, which is more risk than value at this stage). When

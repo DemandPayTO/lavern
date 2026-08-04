@@ -17,6 +17,7 @@ import type { FastifyInstance } from 'fastify';
 import { initDatabase, saveMatter, getMatterById, createUser } from '../../src/db/database.js';
 import { registerEmploymentIntakeRoutes } from '../../src/api/routes/employment-intake.js';
 import { registerDocumentReviewRoutes } from '../../src/api/routes/document-reviews.js';
+import { config } from '../../src/config.js';
 import { htmlToDocx } from '../../src/employment/docx-export.js';
 
 let app: FastifyInstance;
@@ -36,6 +37,9 @@ async function call(method: 'GET' | 'POST' | 'DELETE', url: string, headers: Rec
 }
 
 beforeAll(async () => {
+  // The approval lane ships OFF (a one-lawyer firm cannot use it). These
+  // tests exercise the lane itself, so switch it on for this suite.
+  config.starling = { ...(config.starling ?? {}), approvalsEnabled: true } as typeof config.starling;
   initDatabase(':memory:');
   drafterId = createUser('drafter@a.test', 'x', 'Drafter', 'Firm A').id;
   DRAFTER['x-test-user'] = drafterId;

@@ -16,6 +16,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import sanitizeHtmlLib from 'sanitize-html';
+import { config } from '../../config.js';
 import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/employment-intake.js';
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
@@ -2232,7 +2233,10 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
 
     // Review lane guard: a document with an open review cannot be marked
     // sent or filed until the review is approved or withdrawn.
-    if (parsed.data.status === 'sent' || parsed.data.status === 'filed') {
+    // Only while the approval lane is switched ON. Otherwise a review left
+    // open before it was turned off would strand the document forever, with
+    // no queue in the UI to withdraw it from.
+    if (config.starling?.approvalsEnabled && (parsed.data.status === 'sent' || parsed.data.status === 'filed')) {
       const { getOpenReviewForDoc } = await import('../../employment/document-reviews.js');
       const open = getOpenReviewForDoc(matterId, parsed.data.docType);
       if (open && open.status !== 'approved') {

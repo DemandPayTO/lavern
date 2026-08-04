@@ -783,6 +783,22 @@ export function usePracticeMode(): PracticeMode {
   return mode;
 }
 
+/**
+ * Whether the partner approval lane is switched on for this firm.
+ * Off by default: a firm with one lawyer cannot use it (nobody may review
+ * their own submission), so the UI stays hidden until a colleague exists.
+ */
+export function useApprovalsEnabled(): boolean {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    fetch('/api/capabilities', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setEnabled(Boolean(d?.approvals)))
+      .catch(() => setEnabled(false));
+  }, []);
+  return enabled;
+}
+
 export function useMatterDetail(sessionId: string | null): MatterDetailResult {
   const [matter, setMatter] = useState<MatterDetail | null>(null);
   const [loading, setLoading] = useState(false);

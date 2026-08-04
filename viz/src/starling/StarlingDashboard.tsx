@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useEffect, useContext } from 'react';
-import { useMatterList, usePracticeMode } from './hooks/useStarlingApi.js';
+import { useMatterList, usePracticeMode, useApprovalsEnabled } from './hooks/useStarlingApi.js';
 import { UserContext } from '../auth/UserContext.js';
 
 // ── Design Tokens (CSS variable references) ─────────────────────────────
@@ -174,6 +174,7 @@ export default function StarlingDashboard() {
   // Nullable on purpose: no provider in LOCAL MODE, where there is no auth
   // session to end, so the logout control simply does not render.
   const userCtx = useContext(UserContext);
+  const approvalsEnabled = useApprovalsEnabled();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(25);
@@ -374,19 +375,21 @@ export default function StarlingDashboard() {
               </span>
             )}
           </a>
-          <a
-            href="#/approvals"
-            style={{
-              padding: '8px 14px',
-              borderRadius: 2,
-              fontSize: 14,
-              color: '#cfd6e0',
-              border: '1px solid transparent',
-              textDecoration: 'none',
-            }}
-          >
-            Approvals
-          </a>
+          {approvalsEnabled && (
+            <a
+              href="#/approvals"
+              style={{
+                padding: '8px 14px',
+                borderRadius: 2,
+                fontSize: 14,
+                color: '#cfd6e0',
+                border: '1px solid transparent',
+                textDecoration: 'none',
+              }}
+            >
+              Approvals
+            </a>
+          )}
           <a
             href="#/new-matter"
             style={{

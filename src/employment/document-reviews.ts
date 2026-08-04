@@ -20,6 +20,7 @@ import { randomUUID } from 'node:crypto';
 import sanitizeHtmlLib from 'sanitize-html';
 import { getDb } from '../db/database.js';
 import { createLogger } from '../utils/logger.js';
+import { config } from '../config.js';
 import { priorityBand, type DeadlineItem } from './deadlines.js';
 
 const logger = createLogger('DOC-REVIEWS');
@@ -366,6 +367,9 @@ export function currentVersion(review: DocumentReview): ReviewVersion {
  *  reviews awaiting their action, plus their own submissions needing
  *  revision. Labels carry file numbers only (feed discipline). */
 export function reviewDeadlineItems(firmId: string, userId: string): DeadlineItem[] {
+  // Nothing reaches the docket, the task list or the calendar feed while the
+  // approval lane is switched off, so turning it off leaves no residue.
+  if (!config.starling?.approvalsEnabled) return [];
   const out: DeadlineItem[] = [];
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const push = (r: DocumentReview, label: string, dueDate: string) => {
