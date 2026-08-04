@@ -30,6 +30,10 @@ const logger = createLogger('DEMAND-LETTER');
 export type DemandLetterTone = typeof TONE_OPTIONS[number];
 
 export interface DemandLetterRequest {
+  /** The firm's style context from a style profile, folded into the prompt. */
+  styleContext?: string;
+  /** Firm depth from the style profile; scales the output budget. */
+  styleTypicalWords?: number;
   intake: EmploymentIntakeData;
   gates: GateResult[];
   approvedIssues: string[];
@@ -302,7 +306,7 @@ export async function generateDemandLetter(
   definedTerms?: string[],
 ): Promise<DemandLetterResult> {
   const systemPrompt = buildSystemPrompt(req.tone);
-  const userPrompt = buildUserPrompt(req);
+  const userPrompt = req.styleContext ? `${buildUserPrompt(req)}\n\n${req.styleContext}` : buildUserPrompt(req);
 
   logger.info('Generating demand letter', {
     tone: req.tone,
@@ -317,7 +321,7 @@ export async function generateDemandLetter(
     system: systemPrompt,
     user: userPrompt,
     tier: 'opus',    // Use strongest model for legal drafting
-    maxTokens: 8192,
+    maxTokens: req.styleTypicalWords ? Math.min(28_000, Math.max(8192, Math.ceil(req.styleTypicalWords * 2.2))) : 8192,
     maxRetries: 2,
     definedTerms: definedTerms ?? undefined,
   });

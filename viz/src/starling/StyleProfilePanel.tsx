@@ -40,6 +40,16 @@ interface BuiltGuide {
   recurringLanguage: string[];
 }
 
+interface FullGuide {
+  flow: Array<{ heading: string; purpose: string }>;
+  voice: string;
+  recurringLanguage: string[];
+  factWeaving: string;
+  notes: string[];
+  typicalWords?: number;
+  profileTableRows?: string[];
+}
+
 async function fileToBase64(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = '';
@@ -61,9 +71,11 @@ export function useStyleProfiles(documentType: string | undefined) {
   return { profiles, refresh };
 }
 
-export function StyleProfilePanel({ documentType, documentLabel, onChanged, onClose }: {
+export function StyleProfilePanel({ documentType, documentLabel, profiles, onChanged, onClose }: {
   documentType: string;
   documentLabel: string;
+  /** Existing profiles for this document type, for the tweak-and-save editor. */
+  profiles: StyleProfileSummary[];
   onChanged: () => void;
   onClose: () => void;
 }) {
@@ -73,6 +85,37 @@ export function StyleProfilePanel({ documentType, documentLabel, onChanged, onCl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [built, setBuilt] = useState<{ label: string; guide: BuiltGuide; costUsd: number } | null>(null);
+  // The editor: the tweak that persists. Load the full guide, edit any
+  // part of it, save; the profile improves for every later draft.
+  const [editing, setEditing] = useState<{ id: string; label: string; guide: FullGuide } | null>(null);
+  const [editStatus, setEditStatus] = useState<string | null>(null);
+
+  const openEditor = async (id: string) => {
+    setError(null); setEditStatus(null);
+    const res = await fetch(`/api/employment/style-profiles/${encodeURIComponent(id)}`, { credentials: 'include' });
+    const d = await res.json();
+    if (!d.ok || !d.profile?.guide) { setError(d.error ?? 'The profile could not be loaded.'); return; }
+    setEditing({ id, label: d.profile.label, guide: d.profile.guide as FullGuide });
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch(`/api/employment/style-profiles/${encodeURIComponent(editing.id)}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: editing.label.trim(), guide: editing.guide }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setError(d.error ?? 'The changes could not be saved.'); return; }
+      setEditStatus('Saved. Every draft from now on uses the tweaked style.');
+      onChanged();
+    } finally { setBusy(false); }
+  };
+
+  const setGuide = (patch: Partial<FullGuide>) =>
+    setEditing(e => (e ? { ...e, guide: { ...e.guide, ...patch } } : e));
 
   const build = async () => {
     setBusy(true);
@@ -98,6 +141,89 @@ export function StyleProfilePanel({ documentType, documentLabel, onChanged, onCl
     }
   };
 
+  const ta = (rows: number) => ({ width: '100%', fontFamily: sans, fontSize: 12.5, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, boxSizing: 'border-box' as const, resize: 'vertical' as const, minHeight: rows * 18 });
+
+  if (editing) {
+    return (
+      <div style={{ fontFamily: sans, border: `1px solid ${border}`, background: '#fff', padding: '16px 20px', marginBottom: 16 }}>
+        <h3 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 4px', color: navy }}>Tweak “{editing.label}”</h3>
+        <p style={{ fontSize: 13, color: muted, margin: '0 0 12px' }}>
+          Change anything below and save. The tweak persists: every later draft in this style uses it,
+          so a correction never has to be repeated.
+        </p>
+
+        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Name</label>
+        <input value={editing.label} onChange={e => setEditing({ ...editing, label: e.target.value })}
+          style={{ width: '100%', fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, boxSizing: 'border-box', marginBottom: 10 }} />
+
+        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Flow (one section per line: Heading — purpose)</label>
+        <textarea
+          value={editing.guide.flow.map(f => `${f.heading} — ${f.purpose}`).join('\n')}
+          onChange={e => setGuide({ flow: e.target.value.split('\n').map(l => {
+            const idx = l.indexOf('—');
+            const heading = (idx >= 0 ? l.slice(0, idx) : l).trim();
+            const purpose = (idx >= 0 ? l.slice(idx + 1) : '').trim();
+            return heading ? { heading, purpose } : null;
+          }).filter((x): x is { heading: string; purpose: string } => x !== null) })}
+          style={{ ...ta(editing.guide.flow.length + 1), marginBottom: 10 }}
+        />
+
+        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Voice</label>
+        <textarea value={editing.guide.voice} onChange={e => setGuide({ voice: e.target.value })} style={{ ...ta(3), marginBottom: 10 }} />
+
+        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Recurring firm language (one phrasing per line)</label>
+        <textarea
+          value={editing.guide.recurringLanguage.join('\n')}
+          onChange={e => setGuide({ recurringLanguage: e.target.value.split('\n').map(l => l.trim()).filter(Boolean) })}
+          style={{ ...ta(Math.max(3, editing.guide.recurringLanguage.length)), marginBottom: 10 }}
+        />
+
+        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>How facts are woven in</label>
+        <textarea value={editing.guide.factWeaving} onChange={e => setGuide({ factWeaving: e.target.value })} style={{ ...ta(2), marginBottom: 10 }} />
+
+        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Other habits (one per line)</label>
+        <textarea
+          value={(editing.guide.notes ?? []).join('\n')}
+          onChange={e => setGuide({ notes: e.target.value.split('\n').map(l => l.trim()).filter(Boolean) })}
+          style={{ ...ta(2), marginBottom: 10 }}
+        />
+
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 10 }}>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: navy }}>
+            Typical length (words)
+            <input
+              type="number" min={100} max={30000}
+              value={editing.guide.typicalWords ?? ''}
+              onChange={e => setGuide({ typicalWords: e.target.value ? Math.max(100, Math.min(30000, parseInt(e.target.value))) : undefined })}
+              style={{ display: 'block', marginTop: 4, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2, width: 140 }}
+            />
+          </label>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: navy, flex: 1, minWidth: 240 }}>
+            Opening table rows (one label per line)
+            <textarea
+              value={(editing.guide.profileTableRows ?? []).join('\n')}
+              onChange={e => setGuide({ profileTableRows: e.target.value.split('\n').map(l => l.trim()).filter(Boolean) })}
+              style={{ ...ta(Math.max(3, (editing.guide.profileTableRows ?? []).length)), marginTop: 4 }}
+            />
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => void saveEdit()} disabled={busy || !editing.label.trim()}
+            style={{ fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, fontFamily: sans, background: navy, color: '#fff', border: 'none', cursor: 'pointer' }}>
+            {busy ? 'Saving…' : 'Save the tweaks'}
+          </button>
+          <button onClick={() => { setEditing(null); setEditStatus(null); }}
+            style={{ fontSize: 13, padding: '8px 14px', fontFamily: sans, background: 'none', color: muted, border: `1px solid ${border}`, borderRadius: 2, cursor: 'pointer' }}>
+            Back
+          </button>
+          {editStatus && <span role="status" style={{ fontSize: 12.5, color: green, fontWeight: 600 }}>{editStatus}</span>}
+        </div>
+        {error && <p role="alert" style={{ fontSize: 12.5, color: red, margin: '8px 0 0' }}>{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div style={{ fontFamily: sans, border: `1px solid ${border}`, background: '#fff', padding: '16px 20px', marginBottom: 16 }}>
       <h3 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 4px', color: navy }}>Teach Starling your {documentLabel.toLowerCase()} style</h3>
@@ -108,6 +234,34 @@ export function StyleProfilePanel({ documentType, documentLabel, onChanged, onCl
         using only this matter's facts, and every draft is scanned so no name or figure from the
         precedents can slip through unflagged. Redacted copies work.
       </p>
+
+      {profiles.length > 0 && (
+        <div style={{ marginBottom: 12, borderBottom: `1px solid ${border}`, paddingBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+            Your saved styles
+          </div>
+          {profiles.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
+              <span style={{ fontSize: 13, color: ink, flex: 1 }}>
+                <b>{p.label}</b> <span style={{ color: muted, fontSize: 12 }}>from {p.sourceCount} precedents</span>
+              </span>
+              <button onClick={() => void openEditor(p.id)}
+                style={{ fontSize: 12, fontWeight: 600, color: navy, background: '#fff', border: `1px solid ${border}`, borderRadius: 2, padding: '4px 10px', cursor: 'pointer' }}>
+                Tweak
+              </button>
+              <button
+                onClick={async () => {
+                  const res = await fetch(`/api/employment/style-profiles/${encodeURIComponent(p.id)}`, { method: 'DELETE', credentials: 'include' });
+                  if (res.ok) onChanged();
+                }}
+                style={{ fontSize: 12, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <input
         ref={inputRef}

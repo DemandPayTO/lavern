@@ -29,6 +29,10 @@ const logger = createLogger('SOC-GEN');
 export type ProcedureType = typeof PROCEDURE_TYPES[number];
 
 export interface SOCRequest {
+  /** The firm's style context from a style profile, folded into the prompt. */
+  styleContext?: string;
+  /** Firm depth from the style profile; scales the output budget. */
+  styleTypicalWords?: number;
   intake: EmploymentIntakeData;
   approvedIssues: string[];
   analysis: IntakeAnalysisResult;
@@ -262,7 +266,7 @@ export async function generateStatementOfClaim(
   definedTerms?: string[],
 ): Promise<SOCResult> {
   const systemPrompt = buildSystemPrompt(req.procedureType);
-  const userPrompt = buildUserPrompt(req);
+  const userPrompt = req.styleContext ? `${buildUserPrompt(req)}\n\n${req.styleContext}` : buildUserPrompt(req);
 
   logger.info('Generating SOC', {
     procedureType: req.procedureType,
@@ -277,7 +281,7 @@ export async function generateStatementOfClaim(
       system: systemPrompt,
       user: userPrompt,
       tier: 'opus',
-      maxTokens: 12288,
+      maxTokens: req.styleTypicalWords ? Math.min(28_000, Math.max(12288, Math.ceil(req.styleTypicalWords * 2.2))) : 12288,
       maxRetries: 2,
       definedTerms: definedTerms ?? undefined,
     });

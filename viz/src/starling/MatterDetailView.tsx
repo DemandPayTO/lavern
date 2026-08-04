@@ -776,7 +776,7 @@ export default function MatterDetailView() {
   const [keyDateSaving, setKeyDateSaving] = useState(false);
   const [notes, setNotes] = useState('');
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [selectedDraft, setSelectedDraft] = useState<string | null>('soc');
+  const [selectedDraft, setSelectedDraft] = useState<string | null>(null);
   const [draftFilter, setDraftFilter] = useState('');
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
   const [genCitations, setGenCitations] = useState<SourceCitation[]>([]);
@@ -1777,10 +1777,25 @@ export default function MatterDetailView() {
           {/* Draft */}
           {activeTab === 'draft' && (
             <div id="panel-draft" role="tabpanel" style={{ paddingTop: 22 }}>
-              <p style={{ fontSize: 13.5, color: muted, marginBottom: 16 }}>
-                Pick a document type. Starling drafts it, stress-tests it from the employer's perspective,
-                runs 8 verification passes, and returns a court-ready draft with inline source attribution.
-              </p>
+              {!selectedDraft && (
+                <p style={{ fontSize: 13.5, color: muted, marginBottom: 16 }}>
+                  Pick a document. It opens in its own workspace: templates and styles for that document,
+                  the drafting options, the draft itself, and the revision tools, all in one place.
+                </p>
+              )}
+              {selectedDraft && (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => { setSelectedDraft(null); setBuildingTemplate(false); setBuildingStyle(false); }}
+                    style={{ fontSize: 13, fontWeight: 600, color: navy, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: sans }}
+                  >
+                    ← All documents
+                  </button>
+                  <h2 style={{ fontFamily: serif, fontSize: 22, margin: 0, color: navy }}>
+                    {DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'Document'}
+                  </h2>
+                </div>
+              )}
 
               {/* HRTO Form 1 data file — populates the official SmartForm */}
               {selectedDraft === 'schedulea' && (
@@ -2004,10 +2019,12 @@ export default function MatterDetailView() {
                 <StyleProfilePanel
                   documentType={selectedTemplateDocType}
                   documentLabel={DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'document'}
+                  profiles={styleProfiles.profiles}
                   onChanged={() => styleProfiles.refresh()}
                   onClose={() => setBuildingStyle(false)}
                 />
               )}
+              {!selectedDraft && (<>
               <input
                 type="search"
                 value={draftFilter}
@@ -2075,6 +2092,7 @@ export default function MatterDetailView() {
                   </div>
                 </div>
               );})}
+              </>)}
 
               {/* Court-form inputs: the deterministic forms are data, and
                   these fields are that data */}

@@ -1560,6 +1560,12 @@ export function getStyleProfile(firmId: string, id: string): FirmStyleProfileRow
   `).get(firmId, id) as FirmStyleProfileRow | undefined;
 }
 
+export function updateStyleProfile(firmId: string, id: string, label: string, guideJson: string): boolean {
+  return getDb().prepare(`
+    UPDATE firm_style_profiles SET label = ?, guide_json = ? WHERE firm_id = ? AND id = ?
+  `).run(label, guideJson, firmId, id).changes > 0;
+}
+
 export function deleteStyleProfile(firmId: string, id: string): boolean {
   return getDb().prepare(`
     DELETE FROM firm_style_profiles WHERE firm_id = ? AND id = ?

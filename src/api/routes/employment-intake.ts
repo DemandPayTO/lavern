@@ -22,7 +22,7 @@ import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, Documen
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
 import type { MatterFacts } from '../../employment/precedent-alignment.js';
 import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
-import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, saveStyleProfile, getStyleProfiles, getStyleProfile, deleteStyleProfile, recordUsageEvent, getUserById } from '../../db/database.js';
+import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, saveStyleProfile, getStyleProfiles, getStyleProfile, updateStyleProfile, deleteStyleProfile, recordUsageEvent, getUserById } from '../../db/database.js';
 import { collectDeadlines } from '../../employment/deadlines.js';
 import { createLogger } from '../../utils/logger.js';
 import { extractEmploymentDocument } from '../briefing/employment-extractor.js';
@@ -219,6 +219,63 @@ export function collectGeneratedDocuments(matter: Record<string, unknown>): Gene
   }
   out.sort((a, b) => String(b.generatedAt ?? '').localeCompare(String(a.generatedAt ?? '')));
   return out;
+}
+
+/**
+ * Load a firm style profile for a generation request: the prompt context,
+ * the identifier list for the bleed scan, and the structured fields.
+ * Returns an error string instead of throwing so routes can 4xx cleanly.
+ */
+async function loadStyleForGeneration(
+  req: unknown,
+  styleProfileId: string,
+  documentType: string,
+): Promise<
+  | { error: string; status: number }
+  | { context: string; identifiers: string[]; label: string; typicalWords?: number; profileTableRows?: string[] }
+> {
+  const firmId = resolveFirmId(req);
+  const profile = firmId ? getStyleProfile(firmId, styleProfileId) : undefined;
+  if (!profile) return { error: 'Style profile not found.', status: 404 };
+  if (profile.document_type !== documentType) {
+    return { error: 'That style profile is for a different document type.', status: 400 };
+  }
+  const { styleContextForPrompt, styleGuideSchema } = await import('../../employment/style-profile.js');
+  const guide = styleGuideSchema.safeParse(JSON.parse(profile.guide_json));
+  if (!guide.success) return { error: 'The stored style profile is unreadable. Rebuild it.', status: 500 };
+  let identifiers: string[] = [];
+  try { identifiers = JSON.parse(profile.identifiers_json) as string[]; } catch { identifiers = []; }
+  return {
+    context: styleContextForPrompt(guide.data, profile.label),
+    identifiers,
+    label: profile.label,
+    typicalWords: guide.data.typicalWords,
+    profileTableRows: guide.data.profileTableRows,
+  };
+}
+
+/**
+ * The precedent-bleed review flags for a styled generation, plus the
+ * standing read-it-against-an-example reminder.
+ */
+async function styleReviewFlags(
+  html: string,
+  identifiers: string[],
+  label: string,
+  intake: Record<string, unknown>,
+  amount?: number,
+): Promise<string[]> {
+  const { checkPrecedentBleed } = await import('../../employment/style-profile.js');
+  const matterValues = [
+    [intake.client_first_name, intake.client_last_name].filter(Boolean).join(' '),
+    String(intake.employer_legal_name ?? ''),
+    String(intake.employer_operating_name ?? ''),
+    ...(amount ? [`$${Number(amount).toLocaleString('en-CA')}`] : []),
+  ];
+  return [
+    ...checkPrecedentBleed(html, identifiers, matterValues),
+    `Drafted in the firm style "${label}". Read it against a recent example: style profiles guide the draft, they do not guarantee it.`,
+  ];
 }
 
 /**
@@ -1321,6 +1378,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     firmName: z.string().trim().min(1).max(200),
     firmAddress: z.string().trim().max(500).optional(),
     responseDeadlineDays: z.number().int().min(1).max(90).default(14),
+    /** Draft in the firm's style, learned from its precedents. */
+    styleProfileId: z.string().trim().max(100).optional(),
   });
 
   fastify.post('/api/employment/:matterId/demand-letter', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -1359,6 +1418,15 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (employment.intake.employer_legal_name) definedTerms.push(employment.intake.employer_legal_name);
     if (employment.intake.employer_operating_name) definedTerms.push(employment.intake.employer_operating_name);
 
+    // The firm's style, when picked: context into the prompt, identifiers
+    // into the bleed scan afterwards.
+    let dlStyle: { context: string; identifiers: string[]; label: string; typicalWords?: number } | undefined;
+    if (parsed.data.styleProfileId) {
+      const style = await loadStyleForGeneration(req, parsed.data.styleProfileId, 'demand_letter');
+      if ('error' in style) return reply.status(style.status).send({ ok: false, error: style.error });
+      dlStyle = style;
+    }
+
     // Generate the demand letter
     const result = await generateDemandLetter({
       intake: employment.intake,
@@ -1371,7 +1439,15 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       firmName: parsed.data.firmName,
       firmAddress: parsed.data.firmAddress,
       responseDeadlineDays: parsed.data.responseDeadlineDays,
+      styleContext: dlStyle?.context,
+      styleTypicalWords: dlStyle?.typicalWords,
     }, definedTerms);
+    if (dlStyle) {
+      result.lawyerReviewFlags = [
+        ...result.lawyerReviewFlags,
+        ...await styleReviewFlags(result.html, dlStyle.identifiers, dlStyle.label, employment.intake as Record<string, unknown>, parsed.data.demandAmount),
+      ];
+    }
 
     // Store the generated letter on the matter
     recordDraftHistory(matter as Record<string, unknown>, {
@@ -1435,6 +1511,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     firmName: z.string().trim().min(1).max(200),
     firmAddress: z.string().trim().max(500).optional(),
     courtLocation: z.string().trim().min(1).max(200),
+    /** Draft in the firm's style, learned from its precedents. */
+    styleProfileId: z.string().trim().max(100).optional(),
   });
 
   fastify.post('/api/employment/:matterId/statement-of-claim', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -1464,6 +1542,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
     if (employment.intake.employer_legal_name) definedTerms.push(employment.intake.employer_legal_name);
 
+    let socStyle: { context: string; identifiers: string[]; label: string; typicalWords?: number } | undefined;
+    if (parsed.data.styleProfileId) {
+      const style = await loadStyleForGeneration(req, parsed.data.styleProfileId, 'statement_of_claim');
+      if ('error' in style) return reply.status(style.status).send({ ok: false, error: style.error });
+      socStyle = style;
+    }
+
     const result = await generateStatementOfClaim({
       intake: employment.intake,
       approvedIssues: employment.approvedIssues,
@@ -1474,7 +1559,15 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       firmName: parsed.data.firmName,
       firmAddress: parsed.data.firmAddress,
       courtLocation: parsed.data.courtLocation,
+      styleContext: socStyle?.context,
+      styleTypicalWords: socStyle?.typicalWords,
     }, definedTerms);
+    if (socStyle) {
+      result.lawyerReviewFlags = [
+        ...result.lawyerReviewFlags,
+        ...await styleReviewFlags(result.html, socStyle.identifiers, socStyle.label, employment.intake as Record<string, unknown>, parsed.data.claimAmount),
+      ];
+    }
 
     recordDraftHistory(matter as Record<string, unknown>, {
       docType: 'statement_of_claim', title: 'Statement of Claim', html: sanitiseHtml(result.html),
@@ -1697,20 +1790,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let styleTypicalWords: number | undefined;
     let styleProfileTableRows: string[] | undefined;
     if (parsed.data.styleProfileId) {
-      const firmIdForStyle = resolveFirmId(req);
-      const profile = firmIdForStyle ? getStyleProfile(firmIdForStyle, parsed.data.styleProfileId) : undefined;
-      if (!profile) return reply.status(404).send({ ok: false, error: 'Style profile not found.' });
-      if (profile.document_type !== parsed.data.documentType) {
-        return reply.status(400).send({ ok: false, error: 'That style profile is for a different document type.' });
-      }
-      const { styleContextForPrompt, styleGuideSchema } = await import('../../employment/style-profile.js');
-      const guide = styleGuideSchema.safeParse(JSON.parse(profile.guide_json));
-      if (!guide.success) return reply.status(500).send({ ok: false, error: 'The stored style profile is unreadable. Rebuild it.' });
-      styleContext = styleContextForPrompt(guide.data, profile.label);
-      try { styleIdentifiers = JSON.parse(profile.identifiers_json) as string[]; } catch { styleIdentifiers = []; }
-      styleLabel = profile.label;
-      styleTypicalWords = guide.data.typicalWords;
-      styleProfileTableRows = guide.data.profileTableRows;
+      const style = await loadStyleForGeneration(req, parsed.data.styleProfileId, parsed.data.documentType);
+      if ('error' in style) return reply.status(style.status).send({ ok: false, error: style.error });
+      styleContext = style.context;
+      styleIdentifiers = style.identifiers;
+      styleLabel = style.label;
+      styleTypicalWords = style.typicalWords;
+      styleProfileTableRows = style.profileTableRows;
     }
 
     // Mediation logistics: the date is validated like every other
@@ -1761,18 +1847,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // amounts must not surface in this matter's draft. This matter's own
     // parties and figures are excluded first.
     if (styleIdentifiers.length > 0) {
-      const { checkPrecedentBleed } = await import('../../employment/style-profile.js');
-      const intakeVals = employment.intake as Record<string, unknown>;
-      const matterValues = [
-        [intakeVals.client_first_name, intakeVals.client_last_name].filter(Boolean).join(' '),
-        String(intakeVals.employer_legal_name ?? ''),
-        String(intakeVals.employer_operating_name ?? ''),
-        ...(parsed.data.claimAmount ? [`$${Number(parsed.data.claimAmount).toLocaleString('en-CA')}`] : []),
-      ];
       result.lawyerReviewFlags = [
         ...result.lawyerReviewFlags,
-        ...checkPrecedentBleed(result.html, styleIdentifiers, matterValues),
-        `Drafted in the firm style "${styleLabel}". Read it against a recent example: style profiles guide the draft, they do not guarantee it.`,
+        ...await styleReviewFlags(result.html, styleIdentifiers, styleLabel, employment.intake as Record<string, unknown>, parsed.data.claimAmount),
       ];
     }
 
@@ -2102,6 +2179,50 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         sourceCount: r.source_count, createdAt: r.created_at,
       })),
     });
+  });
+
+  fastify.get('/api/employment/style-profiles/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { id } = req.params as { id: string };
+    const row = getStyleProfile(firmId, id);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Style profile not found.' });
+    let guide: unknown = null;
+    try { guide = JSON.parse(row.guide_json); } catch { /* shown as unreadable below */ }
+    return reply.send({
+      ok: true,
+      profile: {
+        id: row.id, documentType: row.document_type, label: row.label,
+        guide, sourceCount: row.source_count, createdAt: row.created_at,
+      },
+    });
+  });
+
+  // The tweak that persists: the lawyer edits the guide (flow, voice,
+  // language, depth, table rows) and the SAME profile improves for every
+  // later draft — no rebuilding, no repeating the same correction.
+  fastify.put('/api/employment/style-profiles/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { id } = req.params as { id: string };
+    const existing = getStyleProfile(firmId, id);
+    if (!existing) return reply.status(404).send({ ok: false, error: 'Style profile not found.' });
+
+    const { styleGuideSchema } = await import('../../employment/style-profile.js');
+    const bodySchema = z.object({
+      label: z.string().trim().min(1).max(120),
+      guide: styleGuideSchema,
+    });
+    const parsed = bodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: 'The edited style profile is invalid: ' + parsed.error.issues.map(i => `${i.path.join('.')} ${i.message}`).slice(0, 3).join('; '),
+      });
+    }
+    updateStyleProfile(firmId, id, parsed.data.label, JSON.stringify(parsed.data.guide));
+    logger.info('Style profile edited', { firmId, id });
+    return reply.send({ ok: true });
   });
 
   fastify.delete('/api/employment/style-profiles/:id', async (req: FastifyRequest, reply: FastifyReply) => {
