@@ -207,7 +207,7 @@ IMPORTANT: The document already begins with deterministic tables prepared from t
 
 RULES:
 - CONCISE. The narrative must not exceed roughly 2,000 words; mediators say they stop absorbing long briefs. Every sentence earns its place.
-- SHORT NUMBERED PARAGRAPHS: one point per paragraph, two to four sentences, each in its own <p>. NEVER merge several points into one long paragraph; the paragraphs are numbered and cited by number, so a merged paragraph breaks the convention counsel relies on.
+- SHORT NUMBERED PARAGRAPHS: one point per paragraph, two to four sentences, each in its own <p>. NEVER merge several points into one long paragraph; the paragraphs are numbered and cited by number, so a merged paragraph breaks the convention counsel relies on. Do NOT write paragraph numbers yourself; numbering is applied automatically after generation.
 - Candid about weaknesses; mediators reward honest assessments and discount inflated ones.
 - Credible, measured register. Inflammatory language impedes settlement.
 - Do not fabricate facts, offers, or mitigation details not provided. If something material is unknown, note it for counsel in square brackets [LAWYER: ...].

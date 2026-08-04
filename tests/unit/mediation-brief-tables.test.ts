@@ -296,3 +296,21 @@ describe('firm table never states one fact twice', () => {
     expect(html).not.toContain('>Age<');
   });
 });
+
+
+describe('numberNarrativeParagraphs strips model self-numbering', () => {
+  it('replaces the model\'s numbers with the consecutive sequence', () => {
+    const html = '<p>1. The case.</p>\n<p>4.&nbsp;&nbsp;Skipped by the model.</p>\n<p>Unnumbered point.</p>';
+    const out = numberNarrativeParagraphs(html);
+    expect(out).toContain('<p>1.&nbsp;&nbsp;The case.</p>');
+    expect(out).toContain('<p>2.&nbsp;&nbsp;Skipped by the model.</p>');
+    expect(out).toContain('<p>3.&nbsp;&nbsp;Unnumbered point.</p>');
+    // Never doubled.
+    expect(out).not.toMatch(/\d+\.&nbsp;&nbsp;\s*\d+[.)]/);
+  });
+
+  it('does not eat a paragraph that legitimately starts with a year', () => {
+    const out = numberNarrativeParagraphs('<p>2020 ONCA 391 changed the analysis.</p>');
+    expect(out).toContain('2020 ONCA 391 changed the analysis');
+  });
+});

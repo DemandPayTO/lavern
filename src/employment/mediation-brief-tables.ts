@@ -327,9 +327,13 @@ export function buildMediationSignOff(args: {
  */
 export function numberNarrativeParagraphs(html: string): string {
   let n = 0;
-  return html.replace(/<p(\s[^>]*)?>/g, (match) => {
+  // The model sometimes numbers paragraphs itself despite instruction.
+  // Its number is stripped and OURS applied, so the sequence is always
+  // consecutive; keeping the model's would double-number ("12. 12. ...")
+  // and trusting it would let the sequence skip or repeat.
+  return html.replace(/<p(\s[^>]*)?>(\s*(?:&nbsp;|\u00a0|\s)*\d{1,3}[.)](?:&nbsp;|\u00a0|\s)+)?/g, (_m, attrs) => {
     n += 1;
-    return `${match}${n}.&nbsp;&nbsp;`;
+    return `<p${attrs ?? ''}>${n}.&nbsp;&nbsp;`;
   });
 }
 
