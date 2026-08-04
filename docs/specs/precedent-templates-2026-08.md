@@ -90,11 +90,24 @@ usable on a law firm's precedents:
 optional labelling step (4c) costs anything, and it sees fragments rather
 than documents.
 
-**Redaction, revisited.** The 2026-07-20 finding was that black-box
-redactions defeat SINGLE-document inference, and that stands. Alignment may
-survive them: it needs to know WHERE the case-specific text is, not what it
-says, and a redacted region simply presents as a varying span. Unverified
-against real redaction styles — test before relying on it.
+**Redaction: TESTED 2026-08-04, and the answer is NO.** The hope was that
+alignment only needs to know WHERE the case-specific text is, not what it
+says. Tested against every redaction style a firm produces, that is wrong:
+
+- Identical marker in every copy ([REDACTED], block characters): the marker
+  RECURS, so it reads as firm boilerplate and is written into the template
+  as though it were the firm's own wording. Zero slots found.
+- Block characters of differing length: slots are found, but they hold
+  censor characters, and unless the lawyer names each one the markers land
+  in the template.
+- Text deleted outright: reads as identical everywhere, producing silent
+  gaps rather than placeholders.
+- Only the case where a "black box" is drawn OVER live text works, and that
+  works precisely because the document is not really redacted.
+
+Alignment now detects redaction markers and warns, so the failure is loud
+rather than a clean-looking template with the client's name replaced by a
+block of censor characters. Unredacted precedents are required.
 
 **Requirement:** three or more precedents of the same type and fact
 pattern. Two works but is weaker, since a coincidentally shared phrase

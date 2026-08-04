@@ -224,3 +224,54 @@ describe('end to end on realistic precedents', () => {
     expect(verifyNoInventedText(result, rendered, precedents).ok).toBe(true);
   });
 });
+
+describe('redacted precedents (verified 2026-08-04)', () => {
+  const boiler = 'At the time of termination our client was on an approved medical leave of absence.';
+  const letter = (client: string, employer: string) => [
+    'EVANS LAW FIRM', 'WITHOUT PREJUDICE',
+    `We are counsel to ${client}. Our client was employed by ${employer}.`,
+    boiler, 'Yours truly,',
+  ].join('\n');
+
+  it('warns when the same redaction marker appears in every precedent', () => {
+    // The dangerous case: an identical marker RECURS, so it reads as firm
+    // boilerplate and would be written into the template as though it were
+    // the firm's own wording.
+    const result = alignPrecedents([
+      { name: 'a', text: letter('[REDACTED]', '[REDACTED]') },
+      { name: 'b', text: letter('[REDACTED]', '[REDACTED]') },
+      { name: 'c', text: letter('[REDACTED]', '[REDACTED]') },
+    ]);
+    expect(result.slots).toHaveLength(0);
+    expect(result.warnings.join(' ')).toMatch(/redacted/i);
+    expect(result.warnings.join(' ')).toMatch(/unredacted precedents/i);
+  });
+
+  it('warns for block-character redaction too', () => {
+    const result = alignPrecedents([
+      { name: 'a', text: letter('███████', '█████████') },
+      { name: 'b', text: letter('█████', '███████████') },
+      { name: 'c', text: letter('█████████', '███████') },
+    ]);
+    expect(result.warnings.join(' ')).toMatch(/redact/i);
+  });
+
+  it('warns when only some precedents are redacted', () => {
+    const result = alignPrecedents([
+      { name: 'a', text: letter('[REDACTED]', '[REDACTED]') },
+      { name: 'b', text: letter('[REDACTED]', '[REDACTED]') },
+      { name: 'c', text: letter('Marcus Diallo', 'Lakeshore Foundry Inc') },
+    ]);
+    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.warnings.join(' ')).toMatch(/redact/i);
+  });
+
+  it('stays quiet for clean precedents', () => {
+    const result = alignPrecedents([
+      { name: 'a', text: letter('Vera Nunes', 'Halcyon Retail Inc') },
+      { name: 'b', text: letter('Tess Vega', 'Northwind Freight Inc') },
+      { name: 'c', text: letter('Marcus Diallo', 'Lakeshore Foundry Inc') },
+    ]);
+    expect(result.warnings.join(' ')).not.toMatch(/redact/i);
+  });
+});

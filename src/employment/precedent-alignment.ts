@@ -7,10 +7,16 @@
  * placeholder. The signal is structural, so nothing has to infer what the
  * firm's language is, and no model can rewrite it.
  *
- * This replaces single-document placeholder inference, which had to guess,
- * and which the 2026-07-20 finding showed was unreliable on redacted
- * precedents. Alignment needs to know WHERE the case-specific text sits, not
- * what it says, so a redacted span simply reads as a varying span.
+ * This replaces single-document placeholder inference, which had to guess.
+ *
+ * REDACTED PRECEDENTS DO NOT WORK (tested 2026-08-04). The hope was that
+ * alignment only needs to know WHERE the case-specific text sits, not what
+ * it says. That is wrong in the common case: firms redact consistently, so
+ * the SAME marker appears in every copy, recurs, and is therefore read as
+ * firm boilerplate and written into the template verbatim. Only precedents
+ * whose redaction VARIES between copies produce slots at all, and those
+ * slots hold censor characters rather than values. The alignment warns
+ * loudly when it sees redaction markers; the fix is unredacted source.
  *
  * Every function here is deterministic and free: no model calls.
  */
@@ -81,6 +87,12 @@ export interface MatterFacts {
   termination_date?: string;
   annual_salary?: number | null;
 }
+
+/**
+ * Redaction markers, as firms actually produce them: block/censor
+ * characters, [REDACTED] tags, and runs of X used as a mask.
+ */
+const REDACTION_RE = /[█▮▬■]{2,}|\[\s*REDACTED\s*\]|\bX{5,}\b|\bREDACTED\b/i;
 
 const SLOT_OPEN = '‹slot:';
 const SLOT_CLOSE = '›';
@@ -321,6 +333,28 @@ export function alignPrecedents(
 
   const stableLineCount = lines.filter(l => l.stable).length;
   const optionalLineCount = lines.filter(l => !l.stable && l.presentIn.length < docs.length).length;
+
+  // Redaction detection. Alignment cannot recover redacted precedents, and
+  // the failure is SILENT unless we say so: when every precedent carries the
+  // same redaction marker, that marker recurs, so it reads as firm
+  // boilerplate and is kept verbatim in the template. The lawyer would get a
+  // clean-looking template with the client's name permanently replaced by a
+  // block of censor characters. Verified against real redaction styles
+  // 2026-08-04.
+  const redactionInStable = lines.filter(l => l.stable && REDACTION_RE.test(l.skeleton)).length;
+  const redactionInSlots = slots.filter(s => s.observedValues.some(v => REDACTION_RE.test(v))).length;
+  if (redactionInStable > 0) {
+    warnings.push(
+      `These precedents appear to be redacted, and ${redactionInStable} redacted passage${redactionInStable === 1 ? '' : 's'} `
+      + 'will be treated as your firm’s standard wording because the same marker appears in every copy. '
+      + 'Use unredacted precedents: the comparison needs to see what differs between cases.',
+    );
+  } else if (redactionInSlots > 0) {
+    warnings.push(
+      `${redactionInSlots} of the spots below hold redaction markers rather than real values. `
+      + 'Choose a field for each, or the markers will be written into the template.',
+    );
+  }
 
   if (stableLineCount === 0) {
     warnings.push('No text recurred across every precedent. Check that these are the same document type and from the same firm.');
