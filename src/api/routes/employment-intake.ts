@@ -116,6 +116,14 @@ function recordDraftHistory(
 // Each carries a lifecycle status: draft → reviewed → sent or filed.
 
 export const DOCUMENT_STATUSES = ['draft', 'reviewed', 'sent', 'filed'] as const;
+
+/** Revision item kinds, as a zod-friendly literal tuple. */
+const REVISION_KIND_VALUES = ['factual_correction', 'position_change', 'wording', 'needs_lawyer'] as const;
+
+/** Rejoin revised paragraphs into document html. */
+function fromParagraphsSafe(rl: { fromParagraphs: (p: string[]) => string }, paragraphs: string[]): string {
+  return rl.fromParagraphs(paragraphs);
+}
 export type DocumentStatus = typeof DOCUMENT_STATUSES[number];
 
 const LEGACY_DOC_KEYS: Record<string, string> = {
@@ -2248,6 +2256,233 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
       status: parsed.data.status,
       statusDate,
       generatedDocuments: collectGeneratedDocuments(matter as Record<string, unknown>),
+    });
+  });
+
+  // ── POST /api/employment/:matterId/revision/plan ───────────────────────
+  // Map feedback (a client's email, or the reviewing partner's comments)
+  // onto the paragraphs of a generated document. Returns a PLAN only:
+  // nothing is modified until the lawyer approves items and calls apply.
+
+  const revisionPlanSchema = z.object({
+    docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    feedback: z.string().trim().min(1).max(20_000),
+    source: z.enum(['client', 'partner']).default('client'),
+  });
+
+  fastify.post('/api/employment/:matterId/revision/plan', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = revisionPlanSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter } = loadEmploymentData(row.data_json);
+    const key = findGeneratedDocKey(matter, parsed.data.docType);
+    if (!key) return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
+    const doc = matter[key] as Record<string, unknown>;
+    const html = typeof doc.html === 'string' ? doc.html : '';
+    if (!html) return reply.status(409).send({ ok: false, error: 'That document has no content to revise.' });
+
+    const rl = await import('../../employment/revision-loop.js');
+    const paragraphs = rl.toParagraphs(html);
+
+    const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+    let text: string;
+    let cost = 0;
+    try {
+      const result = await crossProviderChat({
+        system: rl.buildPlannerSystemPrompt(),
+        user: rl.buildPlannerUserPrompt({
+          documentTitle: String(doc.documentTitle ?? parsed.data.docType),
+          paragraphs, feedback: parsed.data.feedback, source: parsed.data.source,
+        }),
+        tier: 'sonnet',
+        maxTokens: 4096,
+        maxRetries: 2,
+      });
+      text = result.text; cost = result.cost;
+    } catch (err) {
+      logger.error('Revision planning failed', { error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'Could not read that feedback. Please try again.' });
+    }
+
+    let payload: { items?: unknown[] };
+    try {
+      const fenced = text.trim().match(/```(?:json)?\s*([\s\S]*?)```/);
+      payload = JSON.parse(fenced ? fenced[1] : text.trim()) as { items?: unknown[] };
+    } catch {
+      return reply.status(502).send({ ok: false, error: 'Could not read that feedback. Please try again.' });
+    }
+
+    const rawItems = (Array.isArray(payload.items) ? payload.items : []) as Array<Record<string, unknown>>;
+    const typed = rawItems.slice(0, 60).map((it, i) => ({
+      id: `rev-${i}`,
+      feedback: String(it.feedback ?? '').slice(0, 2000),
+      kind: (rl.REVISION_KINDS as readonly string[]).includes(String(it.kind))
+        ? String(it.kind) as (typeof rl.REVISION_KINDS)[number]
+        : 'needs_lawyer' as const,
+      paragraphIndices: Array.isArray(it.paragraphIndices)
+        ? (it.paragraphIndices as unknown[]).map(Number).filter(Number.isInteger) : [],
+      proposal: String(it.proposal ?? '').slice(0, 2000),
+      intakeField: it.intakeField ? String(it.intakeField).slice(0, 60) : undefined,
+      intakeValue: it.intakeValue as string | number | boolean | undefined,
+      reason: it.reason ? String(it.reason).slice(0, 1000) : undefined,
+    }));
+
+    const grounded = rl.groundPlan({ items: typed }, paragraphs, rl.CORRECTABLE_INTAKE_FIELDS);
+
+    try { recordUsageEvent(userId, matterId, 'analysis', `revision_plan_${parsed.data.docType}`, cost); }
+    catch { /* metering must never fail the request */ }
+
+    logger.info('Revision plan built', {
+      userId, matterId, docType: parsed.data.docType,
+      items: grounded.items.length, source: parsed.data.source,
+    });
+    return reply.send({
+      ok: true,
+      docType: parsed.data.docType,
+      paragraphs: paragraphs.map((p, i) => ({ index: i, text: rl.paragraphText(p) })),
+      items: grounded.items,
+      warnings: grounded.warnings,
+      costUsd: cost,
+    });
+  });
+
+  // ── POST /api/employment/:matterId/revision/apply ──────────────────────
+  // Apply the approved items. Refuses outright if the revision altered any
+  // paragraph the lawyer did not approve. Factual corrections also write
+  // the intake and recompute the timeline and gates, because a correction
+  // that lives only in one sentence leaves the matter wrong.
+
+  const revisionApplySchema = z.object({
+    docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    approved: z.array(z.object({
+      id: z.string().max(40),
+      feedback: z.string().max(2000),
+      kind: z.enum(REVISION_KIND_VALUES),
+      paragraphIndices: z.array(z.number().int().min(0).max(5000)).max(50),
+      proposal: z.string().max(2000),
+      intakeField: z.string().max(60).optional(),
+      intakeValue: z.union([z.string().max(500), z.number(), z.boolean()]).optional(),
+    })).min(1).max(60),
+  });
+
+  fastify.post('/api/employment/:matterId/revision/apply', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = revisionApplySchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const key = findGeneratedDocKey(matter, parsed.data.docType);
+    if (!key) return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
+    const doc = matter[key] as Record<string, unknown>;
+    const html = typeof doc.html === 'string' ? doc.html : '';
+    if (!html) return reply.status(409).send({ ok: false, error: 'That document has no content to revise.' });
+
+    const rl = await import('../../employment/revision-loop.js');
+    const paragraphs = rl.toParagraphs(html);
+    // A needs_lawyer item is a question for the lawyer, never an instruction
+    // to the model: it cannot be approved into an edit.
+    const editable = parsed.data.approved.filter(i => i.kind !== 'needs_lawyer' && i.paragraphIndices.length > 0);
+
+    let revised: Record<number, string> = {};
+    let cost = 0;
+    if (editable.length > 0) {
+      const instructions = editable.map(i =>
+        `Paragraphs [${i.paragraphIndices.join(', ')}]: ${i.proposal}\n  (client said: ${i.feedback})`).join('\n\n');
+      const targets = [...new Set(editable.flatMap(i => i.paragraphIndices))].sort((a, b) => a - b);
+      const shown = targets.map(i => `[${i}] ${paragraphs[i]}`).join('\n');
+
+      const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+      try {
+        const result = await crossProviderChat({
+          system: rl.buildApplySystemPrompt(),
+          user: `PARAGRAPHS TO REVISE:\n${shown}\n\nAPPROVED INSTRUCTIONS:\n${instructions}`,
+          tier: 'opus',
+          maxTokens: 8192,
+          maxRetries: 2,
+        });
+        const fenced = result.text.trim().match(/```(?:json)?\s*([\s\S]*?)```/);
+        const payload = JSON.parse(fenced ? fenced[1] : result.text.trim()) as { revised?: Record<string, string> };
+        revised = Object.fromEntries(
+          Object.entries(payload.revised ?? {}).map(([k, v]) => [Number(k), sanitiseHtml(String(v))]),
+        );
+        cost = result.cost;
+      } catch (err) {
+        logger.error('Revision apply failed', { error: err instanceof Error ? err.message : String(err) });
+        return reply.status(502).send({ ok: false, error: 'Could not apply the revisions. Please try again.' });
+      }
+    }
+
+    const outcome = rl.applyRevisions(paragraphs, editable as never, revised);
+    if (!outcome.ok) {
+      logger.warn('Revision refused', { userId, matterId, drifted: outcome.drifted });
+      return reply.status(409).send({ ok: false, error: outcome.error, drifted: outcome.drifted });
+    }
+
+    // Keep the previous version: the lawyer must be able to see what the
+    // client actually commented on.
+    recordDraftHistory(matter, {
+      docType: parsed.data.docType,
+      title: String(doc.documentTitle ?? parsed.data.docType),
+      html: fromParagraphsSafe(rl, outcome.paragraphs!),
+      costUsd: cost,
+      meta: { source: 'revision', changedParagraphs: outcome.changedIndices },
+    }, { userId, matterId });
+    doc.html = fromParagraphsSafe(rl, outcome.paragraphs!);
+    doc.revisedAt = new Date().toISOString();
+
+    // Phase 2: a factual correction updates the matter, not just the text.
+    const intakeUpdates = outcome.intakeUpdates ?? {};
+    let intakeApplied: string[] = [];
+    let analysisStale = false;
+    if (Object.keys(intakeUpdates).length > 0 && employment.intake) {
+      const nextIntake = { ...(employment.intake as Record<string, unknown>) };
+      for (const [field, value] of Object.entries(intakeUpdates)) {
+        if (!rl.CORRECTABLE_INTAKE_FIELDS.has(field)) continue;
+        nextIntake[field] = value;
+        intakeApplied.push(field);
+      }
+      if (intakeApplied.length > 0) {
+        employment.intake = nextIntake as EmploymentIntakeData;
+        employment.intakeRevisedAt = new Date().toISOString();
+        employment.timeline = rebuildTimelinePreserving(employment.timeline, employment.intake);
+        employment.gates = evaluateGates(employment.intake);
+        analysisStale = rl.correctionMakesAnalysisStale(intakeUpdates);
+      }
+    }
+
+    employment.timeline = [
+      ...employment.timeline,
+      {
+        date: new Date().toISOString().slice(0, 10),
+        label: 'Feedback applied',
+        description: `${outcome.changedIndices!.length} paragraph${outcome.changedIndices!.length === 1 ? '' : 's'} revised`
+          + `${intakeApplied.length > 0 ? `; intake corrected (${intakeApplied.join(', ')})` : ''}.`,
+        category: 'legal' as const, source: 'system' as const,
+      },
+    ].sort((a, b) => a.date.localeCompare(b.date));
+
+    await saveEmploymentData(userId, matterId, matter, employment);
+
+    logger.info('Revisions applied', {
+      userId, matterId, docType: parsed.data.docType,
+      changed: outcome.changedIndices!.length, intakeApplied, analysisStale,
+    });
+    return reply.send({
+      ok: true,
+      changedParagraphs: outcome.changedIndices,
+      intakeApplied,
+      analysisStale,
+      html: doc.html,
+      costUsd: cost,
     });
   });
 

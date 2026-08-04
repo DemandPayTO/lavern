@@ -16,6 +16,7 @@ import { useMatterDetail, useEmploymentData, useFirmTemplates } from './hooks/us
 import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
 import { CaseFileDropPanel } from './CaseFileDropPanel.js';
 import { PrecedentAlignPanel } from './PrecedentAlignPanel.js';
+import { RevisionPanel } from './RevisionPanel.js';
 import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
 import { useUserProfile } from '../my-page/hooks/useUserProfile.js';
 import { useLabourData } from './hooks/useLabourApi.js';
@@ -529,7 +530,7 @@ interface ReviewRowLite {
   dueDate: string;
 }
 
-function ReviewLaneControls({ matterId, docType }: { matterId: string; docType: string }) {
+function ReviewLaneControls({ matterId, docType, onApplyFeedback }: { matterId: string; docType: string; onApplyFeedback?: (feedback: string) => void }) {
   const [review, setReview] = useState<ReviewRowLite | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -602,6 +603,17 @@ function ReviewLaneControls({ matterId, docType }: { matterId: string; docType: 
       {review?.status === 'changes_requested' && review.changesDescription && (
         <span style={{ flexBasis: '100%', fontSize: 12.5, color: ink, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '8px 12px' }}>
           <b>Reviewer feedback:</b> {review.changesDescription}
+          {onApplyFeedback && (
+            <button
+              onClick={() => onApplyFeedback(review.changesDescription ?? '')}
+              style={{
+                marginLeft: 10, fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 2,
+                fontFamily: sans, background: navy, color: '#fff', border: `1px solid ${navy}`, cursor: 'pointer',
+              }}
+            >
+              Apply this feedback
+            </button>
+          )}
         </span>
       )}
       {error && <span role="alert" style={{ flexBasis: '100%', fontSize: 12.5, color: red }}>{error}</span>}
@@ -905,6 +917,7 @@ export default function MatterDetailView() {
     : [];
   const [chosenVariantId, setChosenVariantId] = useState<string | null>(null);
   const [buildingTemplate, setBuildingTemplate] = useState(false);
+  const [revising, setRevising] = useState<null | { source: 'client' | 'partner'; initial?: string }>(null);
 
   // Reset the choice when the document type changes, and keep a stale id
   // (deleted or renamed variant) from lingering.
@@ -2029,6 +2042,15 @@ export default function MatterDetailView() {
                       >
                         Regenerate
                       </button>
+                      <button
+                        onClick={() => setRevising({ source: 'client' })}
+                        style={{
+                          background: '#fff', color: navy, border: `1px solid ${border}`,
+                          fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                        }}
+                      >
+                        Apply feedback
+                      </button>
                       <a
                         href={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'demand-letter'}${activeVariant ? `?templateVariantId=${encodeURIComponent(activeVariant.variantId)}` : ''}`}
                         download
@@ -2084,7 +2106,18 @@ export default function MatterDetailView() {
                           </span>
                         )}
                       </div>
-                      {dt && cur && sessionId && <ReviewLaneControls matterId={sessionId} docType={dt} />}
+                      {dt && cur && sessionId && <ReviewLaneControls matterId={sessionId} docType={dt} onApplyFeedback={(text) => setRevising({ source: 'partner', initial: text })} />}
+                      {revising && dt && sessionId && (
+                        <RevisionPanel
+                          matterId={sessionId}
+                          docType={dt}
+                          docTitle={DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'document'}
+                          initialFeedback={revising.initial}
+                          source={revising.source}
+                          onApplied={() => { void employment.refresh(); }}
+                          onClose={() => setRevising(null)}
+                        />
+                      )}
                       </>
                     );
                   })()}
