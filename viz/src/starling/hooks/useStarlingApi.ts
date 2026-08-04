@@ -1939,6 +1939,12 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
 export interface FirmTemplateInfo {
   id: string;
   documentType: string;
+  /** Stable id for this variant of the document type. */
+  variantId: string;
+  /** The firm's own label ("Constructive dismissal"). */
+  variantLabel: string;
+  /** The variant used when the lawyer does not pick one. */
+  isDefault: boolean;
   name: string;
   placeholders: string[];
   uploadedAt: string;
@@ -1950,14 +1956,21 @@ export interface UseFirmTemplatesResult {
   loading: boolean;
   error: string | null;
   refresh: () => void;
-  /** Upload a DOCX template for a document type. Becomes the firm default for ALL matters. */
-  upload: (file: File, documentType: string) => Promise<{ ok: boolean; placeholders?: string[]; error?: string }>;
-  remove: (documentType: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Upload a DOCX template. A firm may hold several variants per document
+   *  type; the first uploaded is the default until another is promoted. */
+  upload: (
+    file: File, documentType: string, variant?: { label?: string; isDefault?: boolean },
+  ) => Promise<{ ok: boolean; placeholders?: string[]; error?: string }>;
+  /** Remove one variant, or every variant of a type when none is given. */
+  remove: (documentType: string, variantId?: string) => Promise<{ ok: boolean; error?: string }>;
+  setDefault: (documentType: string, variantId: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 /**
- * Firm DOCX template management. Templates are keyed by (firm, document type):
- * uploading one makes it the default for that document type on every matter.
+ * Firm DOCX template management. Templates are keyed by (firm, document
+ * type, variant): a firm can hold a demand letter for constructive dismissal
+ * and another for termination during medical leave, and the lawyer picks
+ * which to draft on. One variant per type is the default.
  */
 export function useFirmTemplates(): UseFirmTemplatesResult {
   const [templates, setTemplates] = useState<FirmTemplateInfo[]>([]);
@@ -1981,7 +1994,7 @@ export function useFirmTemplates(): UseFirmTemplatesResult {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const upload = useCallback(async (file: File, documentType: string) => {
+  const upload = useCallback(async (file: File, documentType: string, variant?: { label?: string; isDefault?: boolean }) => {
     try {
       const buffer = await file.arrayBuffer();
       // Chunked base64 encoding — String.fromCharCode(...bigArray) overflows the stack
@@ -1997,7 +2010,11 @@ export function useFirmTemplates(): UseFirmTemplatesResult {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ documentType, name: file.name, templateBase64 }),
+        body: JSON.stringify({
+          documentType, name: file.name, templateBase64,
+          ...(variant?.label ? { variantLabel: variant.label } : {}),
+          ...(variant?.isDefault ? { isDefault: true } : {}),
+        }),
       });
       const json = await res.json();
       if (!res.ok) return { ok: false, error: json.error ?? 'Upload failed' };
@@ -2008,9 +2025,10 @@ export function useFirmTemplates(): UseFirmTemplatesResult {
     }
   }, [refresh]);
 
-  const remove = useCallback(async (documentType: string) => {
+  const remove = useCallback(async (documentType: string, variantId?: string) => {
     try {
-      const res = await fetch(`/api/employment/templates/${encodeURIComponent(documentType)}`, {
+      const qs = variantId ? `?variantId=${encodeURIComponent(variantId)}` : '';
+      const res = await fetch(`/api/employment/templates/${encodeURIComponent(documentType)}${qs}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -2022,5 +2040,21 @@ export function useFirmTemplates(): UseFirmTemplatesResult {
     }
   }, [refresh]);
 
-  return { templates, loading, error, refresh, upload, remove };
+  const setDefault = useCallback(async (documentType: string, variantId: string) => {
+    try {
+      const res = await fetch(`/api/employment/templates/${encodeURIComponent(documentType)}/default`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ variantId }),
+      });
+      if (!res.ok) return { ok: false, error: 'Failed to set the default template' };
+      refresh();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to set the default template' };
+    }
+  }, [refresh]);
+
+  return { templates, loading, error, refresh, upload, remove, setDefault };
 }

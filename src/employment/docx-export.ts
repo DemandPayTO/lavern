@@ -37,6 +37,9 @@ export interface DocxExportOptions {
   firmId?: string;
   /** Document type for template lookup (demand_letter, statement_of_claim, etc.). */
   documentType?: string;
+  /** Which of the firm's templates for that type to use. Omitted means the
+   *  type's default variant. */
+  templateVariantId?: string;
   /** Intake data for placeholder values (client name, employer name, etc.). */
   intake?: {
     client_first_name?: string;
@@ -238,6 +241,7 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
       options.firmId,
       options.documentType,
       placeholderValues,
+      options.templateVariantId,
     );
 
     if (firmBuffer) {

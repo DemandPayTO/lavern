@@ -101,16 +101,23 @@ function runMigrations(db: Database.Database): void {
       updated_at  TEXT NOT NULL
     );
 
+    -- Firm document templates. A firm may hold SEVERAL templates per
+    -- document type (a demand letter for constructive dismissal, another
+    -- for termination during medical leave); variant_id distinguishes
+    -- them and exactly one per type is the default.
     CREATE TABLE IF NOT EXISTS firm_templates (
       id             TEXT PRIMARY KEY,
       firm_id        TEXT NOT NULL,
       document_type  TEXT NOT NULL,
+      variant_id     TEXT NOT NULL DEFAULT 'standard',
+      variant_label  TEXT NOT NULL DEFAULT 'Standard',
+      is_default     INTEGER NOT NULL DEFAULT 1,
       name           TEXT NOT NULL,
       template_b64   TEXT NOT NULL,
       placeholders   TEXT DEFAULT '[]',
       created_at     TEXT NOT NULL,
       updated_at     TEXT NOT NULL,
-      UNIQUE(firm_id, document_type)
+      UNIQUE(firm_id, document_type, variant_id)
     );
 
     -- Client intake portal tokens: hashed, expiring, one active per matter
@@ -529,6 +536,40 @@ function runMigrations(db: Database.Database): void {
   try {
     db.exec(`ALTER TABLE users ADD COLUMN firm_id TEXT`);
   } catch { /* column already exists */ }
+
+  // Template variants: databases created before variants existed carry
+  // UNIQUE(firm_id, document_type), which allows only one template per
+  // type. SQLite cannot alter a constraint in place, so the table is
+  // rebuilt once. Existing templates become the "Standard" variant and
+  // remain the default, so current behaviour is unchanged.
+  const templateCols = db.prepare(`PRAGMA table_info(firm_templates)`).all() as Array<{ name: string }>;
+  if (templateCols.length > 0 && !templateCols.some(c => c.name === 'variant_id')) {
+    db.exec(`
+      BEGIN;
+      CREATE TABLE firm_templates_migrated (
+        id             TEXT PRIMARY KEY,
+        firm_id        TEXT NOT NULL,
+        document_type  TEXT NOT NULL,
+        variant_id     TEXT NOT NULL DEFAULT 'standard',
+        variant_label  TEXT NOT NULL DEFAULT 'Standard',
+        is_default     INTEGER NOT NULL DEFAULT 1,
+        name           TEXT NOT NULL,
+        template_b64   TEXT NOT NULL,
+        placeholders   TEXT DEFAULT '[]',
+        created_at     TEXT NOT NULL,
+        updated_at     TEXT NOT NULL,
+        UNIQUE(firm_id, document_type, variant_id)
+      );
+      INSERT INTO firm_templates_migrated
+        (id, firm_id, document_type, variant_id, variant_label, is_default, name, template_b64, placeholders, created_at, updated_at)
+      SELECT id, firm_id, document_type, 'standard', 'Standard', 1, name, template_b64, placeholders, created_at, updated_at
+      FROM firm_templates;
+      DROP TABLE firm_templates;
+      ALTER TABLE firm_templates_migrated RENAME TO firm_templates;
+      COMMIT;
+    `);
+    logger.info('Migrated firm_templates to support variants');
+  }
 
   // Backfill: accounts created before firm_id was assigned at signup have a
   // NULL firm_id. They must each get their OWN firm, never a shared one and
@@ -1409,50 +1450,123 @@ export function deleteMatter(matterId: string, userId: string): boolean {
 
 // ── Firm Template Queries ────────────────────────────────────────────────
 
+export interface FirmTemplateRow {
+  id: string; firm_id: string; document_type: string;
+  variant_id: string; variant_label: string; is_default: number;
+  name: string; template_b64: string; placeholders: string;
+  created_at: string; updated_at: string;
+}
+
+const TEMPLATE_COLS = `id, firm_id, document_type, variant_id, variant_label, is_default,
+  name, template_b64, placeholders, created_at, updated_at`;
+
 export function saveFirmTemplate(
   id: string, firmId: string, documentType: string, name: string,
   templateB64: string, placeholders: string[],
+  variant?: { variantId?: string; variantLabel?: string; isDefault?: boolean },
 ): void {
   const now = new Date().toISOString();
-  getDb().prepare(`
-    INSERT INTO firm_templates (id, firm_id, document_type, name, template_b64, placeholders, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(firm_id, document_type) DO UPDATE SET
-      name = excluded.name,
-      template_b64 = excluded.template_b64,
-      placeholders = excluded.placeholders,
-      updated_at = excluded.updated_at
-  `).run(id, firmId, documentType, name, templateB64, JSON.stringify(placeholders), now, now);
+  const variantId = variant?.variantId?.trim() || 'standard';
+  const variantLabel = variant?.variantLabel?.trim() || 'Standard';
+  const db = getDb();
+
+  // The first variant of a type is the default whatever the caller says;
+  // after that the caller decides. A type must never be left with no
+  // default, or generation has nothing to fall back to.
+  const existing = db.prepare(
+    'SELECT COUNT(*) AS n FROM firm_templates WHERE firm_id = ? AND document_type = ?',
+  ).get(firmId, documentType) as { n: number };
+  const isDefault = existing.n === 0 ? true : Boolean(variant?.isDefault);
+
+  const run = db.transaction(() => {
+    if (isDefault) {
+      db.prepare('UPDATE firm_templates SET is_default = 0 WHERE firm_id = ? AND document_type = ?')
+        .run(firmId, documentType);
+    }
+    db.prepare(`
+      INSERT INTO firm_templates (id, firm_id, document_type, variant_id, variant_label, is_default,
+        name, template_b64, placeholders, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(firm_id, document_type, variant_id) DO UPDATE SET
+        variant_label = excluded.variant_label,
+        is_default = excluded.is_default,
+        name = excluded.name,
+        template_b64 = excluded.template_b64,
+        placeholders = excluded.placeholders,
+        updated_at = excluded.updated_at
+    `).run(id, firmId, documentType, variantId, variantLabel, isDefault ? 1 : 0,
+      name, templateB64, JSON.stringify(placeholders), now, now);
+  });
+  run();
 }
 
-export function getFirmTemplates(firmId: string): Array<{
-  id: string; firm_id: string; document_type: string; name: string;
-  template_b64: string; placeholders: string; created_at: string; updated_at: string;
-}> {
+export function getFirmTemplates(firmId: string): FirmTemplateRow[] {
   return getDb().prepare(`
-    SELECT id, firm_id, document_type, name, template_b64, placeholders, created_at, updated_at
-    FROM firm_templates WHERE firm_id = ? ORDER BY document_type
-  `).all(firmId) as Array<{
-    id: string; firm_id: string; document_type: string; name: string;
-    template_b64: string; placeholders: string; created_at: string; updated_at: string;
-  }>;
+    SELECT ${TEMPLATE_COLS} FROM firm_templates WHERE firm_id = ?
+    ORDER BY document_type, is_default DESC, variant_label
+  `).all(firmId) as FirmTemplateRow[];
 }
 
-export function getFirmTemplate(firmId: string, documentType: string): {
-  id: string; firm_id: string; document_type: string; name: string;
-  template_b64: string; placeholders: string; created_at: string; updated_at: string;
-} | undefined {
-  return getDb().prepare(`
-    SELECT id, firm_id, document_type, name, template_b64, placeholders, created_at, updated_at
-    FROM firm_templates WHERE firm_id = ? AND document_type = ?
-  `).get(firmId, documentType) as {
-    id: string; firm_id: string; document_type: string; name: string;
-    template_b64: string; placeholders: string; created_at: string; updated_at: string;
-  } | undefined;
+/**
+ * One template for a document type. With a variantId, that exact variant;
+ * without one, the type's default. Returns undefined when the firm has no
+ * template of that type, and generation falls back to Starling's own.
+ */
+export function getFirmTemplate(
+  firmId: string, documentType: string, variantId?: string,
+): FirmTemplateRow | undefined {
+  const db = getDb();
+  if (variantId?.trim()) {
+    const exact = db.prepare(`
+      SELECT ${TEMPLATE_COLS} FROM firm_templates
+      WHERE firm_id = ? AND document_type = ? AND variant_id = ?
+    `).get(firmId, documentType, variantId.trim()) as FirmTemplateRow | undefined;
+    if (exact) return exact;
+    // A stale variant id (renamed or deleted) must not silently produce a
+    // document on the wrong template: fall back to the default below.
+  }
+  return db.prepare(`
+    SELECT ${TEMPLATE_COLS} FROM firm_templates
+    WHERE firm_id = ? AND document_type = ?
+    ORDER BY is_default DESC, updated_at DESC LIMIT 1
+  `).get(firmId, documentType) as FirmTemplateRow | undefined;
 }
 
-export function deleteFirmTemplate(firmId: string, documentType: string): void {
-  getDb().prepare(`DELETE FROM firm_templates WHERE firm_id = ? AND document_type = ?`).run(firmId, documentType);
+export function setDefaultFirmTemplate(firmId: string, documentType: string, variantId: string): boolean {
+  const db = getDb();
+  const target = db.prepare(
+    'SELECT id FROM firm_templates WHERE firm_id = ? AND document_type = ? AND variant_id = ?',
+  ).get(firmId, documentType, variantId) as { id: string } | undefined;
+  if (!target) return false;
+  const run = db.transaction(() => {
+    db.prepare('UPDATE firm_templates SET is_default = 0 WHERE firm_id = ? AND document_type = ?')
+      .run(firmId, documentType);
+    db.prepare('UPDATE firm_templates SET is_default = 1 WHERE id = ?').run(target.id);
+  });
+  run();
+  return true;
+}
+
+/** Delete one variant, or every variant of a type when no variant is given.
+ *  Deleting the default promotes the most recently updated survivor. */
+export function deleteFirmTemplate(firmId: string, documentType: string, variantId?: string): void {
+  const db = getDb();
+  if (!variantId?.trim()) {
+    db.prepare('DELETE FROM firm_templates WHERE firm_id = ? AND document_type = ?').run(firmId, documentType);
+    return;
+  }
+  const run = db.transaction(() => {
+    db.prepare('DELETE FROM firm_templates WHERE firm_id = ? AND document_type = ? AND variant_id = ?')
+      .run(firmId, documentType, variantId.trim());
+    const remaining = db.prepare(`
+      SELECT id, is_default FROM firm_templates WHERE firm_id = ? AND document_type = ?
+      ORDER BY updated_at DESC
+    `).all(firmId, documentType) as Array<{ id: string; is_default: number }>;
+    if (remaining.length > 0 && !remaining.some(r => r.is_default === 1)) {
+      db.prepare('UPDATE firm_templates SET is_default = 1 WHERE id = ?').run(remaining[0].id);
+    }
+  });
+  run();
 }
 
 // ── Client Intake Portal Tokens ──────────────────────────────────────────

@@ -207,6 +207,13 @@ export function buildPlaceholderValues(args: {
 // ── Template validation ──────────────────────────────────────────────────
 
 export const templateUploadSchema = z.object({
+  /** The lawyer's label for this variant ("Constructive dismissal").
+   *  Omitted means the firm's Standard variant for the type. */
+  variantLabel: z.string().trim().min(1).max(80).optional(),
+  /** Supplied only when replacing a specific existing variant. */
+  variantId: z.string().trim().min(1).max(80).optional(),
+  /** Make this the type's default. The first variant is always default. */
+  isDefault: z.boolean().optional(),
   documentType: z.enum([
     'demand_letter', 'statement_of_claim', 'notice_of_application',
     'hrto_application', 'esa_complaint', 'discovery_plan',

@@ -37,9 +37,12 @@ export async function injectIntoFirmTemplate(
   firmId: string,
   documentType: string,
   values: TemplatePlaceholderValues,
+  variantId?: string,
 ): Promise<Buffer | null> {
-  // Load the firm's template from the database
-  const template = getFirmTemplate(firmId, documentType);
+  // Load the firm's template. Without a variant this is the type's
+  // default; an unknown variant also falls back to the default rather
+  // than silently producing an untemplated document.
+  const template = getFirmTemplate(firmId, documentType, variantId);
   if (!template) {
     logger.info('No firm template found, using default', { firmId, documentType });
     return null;

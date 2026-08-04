@@ -895,18 +895,30 @@ export default function MatterDetailView() {
     }
   }, [employment, uploadKind, pendingUpload]);
 
-  // Firm template upload for the selected draft type
+  // Firm templates for the selected draft type. A firm may hold several
+  // variants per type (constructive dismissal, medical leave, and so on);
+  // the lawyer picks one and the download renders on it.
   const selectedTemplateDocType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
-  const currentTemplate = selectedTemplateDocType
-    ? firmTemplates.templates.find(t => t.documentType === selectedTemplateDocType)
-    : undefined;
+  const variantsForType = selectedTemplateDocType
+    ? firmTemplates.templates.filter(t => t.documentType === selectedTemplateDocType)
+    : [];
+  const [chosenVariantId, setChosenVariantId] = useState<string | null>(null);
 
-  const handleTemplateUpload = useCallback(async (file: File) => {
+  // Reset the choice when the document type changes, and keep a stale id
+  // (deleted or renamed variant) from lingering.
+  useEffect(() => { setChosenVariantId(null); }, [selectedTemplateDocType]);
+
+  const activeVariant = variantsForType.find(t => t.variantId === chosenVariantId)
+    ?? variantsForType.find(t => t.isDefault)
+    ?? variantsForType[0];
+  const currentTemplate = activeVariant;
+
+  const handleTemplateUpload = useCallback(async (file: File, label?: string) => {
     if (!selectedTemplateDocType) return;
     setTemplateStatus('Uploading...');
-    const result = await firmTemplates.upload(file, selectedTemplateDocType);
+    const result = await firmTemplates.upload(file, selectedTemplateDocType, label ? { label } : undefined);
     setTemplateStatus(result.ok
-      ? `Template saved. ${result.placeholders?.length ?? 0} placeholder${(result.placeholders?.length ?? 0) === 1 ? '' : 's'} detected. Used for all matters.`
+      ? `Template saved. ${result.placeholders?.length ?? 0} placeholder${(result.placeholders?.length ?? 0) === 1 ? '' : 's'} detected.`
       : result.error ?? 'Upload failed.');
   }, [firmTemplates, selectedTemplateDocType]);
 
@@ -1660,15 +1672,51 @@ export default function MatterDetailView() {
                       Firm template
                       {currentTemplate && (
                         <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: green, background: '#e7f6ec', padding: '2px 7px', borderRadius: 2 }}>
-                          ACTIVE · {currentTemplate.name}
+                          ACTIVE · {currentTemplate.variantLabel}
                         </span>
                       )}
                     </div>
                     <div style={{ fontSize: 12.5, color: muted }}>
                       {currentTemplate
-                        ? 'Downloads use your firm’s letterhead and formatting for every matter.'
-                        : 'Upload your firm’s DOCX template with {{PLACEHOLDER}} markers. It becomes the default for this document type on all matters.'}
+                        ? 'Downloads use your firm’s letterhead and formatting.'
+                        : 'Upload your firm’s DOCX template with {{PLACEHOLDER}} markers. You can keep several for one document type, for example one for constructive dismissal and one for termination during medical leave.'}
                     </div>
+
+                    {/* Variant picker — hidden when the firm has only one,
+                        so the common case gains no extra step. */}
+                    {variantsForType.length > 1 && (
+                      <div style={{ marginTop: 10 }} role="radiogroup" aria-label="Firm template to draft on">
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>
+                          Draft on
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {variantsForType.map(v => {
+                            const active = activeVariant?.variantId === v.variantId;
+                            return (
+                              <button
+                                key={v.variantId}
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => setChosenVariantId(v.variantId)}
+                                style={{
+                                  fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans,
+                                  background: active ? navy : '#fff',
+                                  color: active ? '#fff' : navy,
+                                  border: `1px solid ${active ? navy : border}`,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {v.variantLabel}
+                                {v.isDefault && !active && (
+                                  <span style={{ marginLeft: 6, fontSize: 10, color: muted }}>default</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {templateStatus && (
                       <div style={{ fontSize: 12.5, color: navy, marginTop: 4 }}>{templateStatus}</div>
                     )}
@@ -1680,7 +1728,15 @@ export default function MatterDetailView() {
                     style={{ display: 'none' }}
                     onChange={e => {
                       const file = e.target.files?.[0];
-                      if (file) handleTemplateUpload(file);
+                      if (file) {
+                        // A second template for the same type needs a label
+                        // so the lawyer can tell them apart in the picker.
+                        const label = variantsForType.length > 0
+                          ? window.prompt('Name this template (for example: Constructive dismissal, Medical leave)', '')
+                          : null;
+                        if (variantsForType.length > 0 && !label) return;
+                        void handleTemplateUpload(file, label ?? undefined);
+                      }
                       if (templateInputRef.current) templateInputRef.current.value = '';
                     }}
                   />
@@ -1692,13 +1748,32 @@ export default function MatterDetailView() {
                         padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
                       }}
                     >
-                      {currentTemplate ? 'Replace template' : 'Upload template'}
+                      {currentTemplate ? 'Add another' : 'Upload template'}
                     </button>
-                    {currentTemplate && (
+                    {currentTemplate && activeVariant && !activeVariant.isDefault && (
                       <button
                         onClick={async () => {
-                          const result = await firmTemplates.remove(selectedTemplateDocType);
-                          setTemplateStatus(result.ok ? 'Template removed. Downloads use Starling default formatting.' : result.error ?? 'Failed to remove.');
+                          const result = await firmTemplates.setDefault(selectedTemplateDocType, activeVariant.variantId);
+                          setTemplateStatus(result.ok
+                            ? `“${activeVariant.variantLabel}” is now the default for this document type.`
+                            : result.error ?? 'Failed to set the default.');
+                        }}
+                        style={{
+                          background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
+                          padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                        }}
+                      >
+                        Make default
+                      </button>
+                    )}
+                    {currentTemplate && activeVariant && (
+                      <button
+                        onClick={async () => {
+                          const result = await firmTemplates.remove(selectedTemplateDocType, activeVariant.variantId);
+                          setChosenVariantId(null);
+                          setTemplateStatus(result.ok
+                            ? `“${activeVariant.variantLabel}” removed.`
+                            : result.error ?? 'Failed to remove.');
                         }}
                         style={{
                           background: '#fff', color: muted, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600,
@@ -1936,7 +2011,7 @@ export default function MatterDetailView() {
                         Regenerate
                       </button>
                       <a
-                        href={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'demand-letter'}`}
+                        href={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'demand-letter'}${activeVariant ? `?templateVariantId=${encodeURIComponent(activeVariant.variantId)}` : ''}`}
                         download
                         style={{
                           background: navy, color: '#fff',

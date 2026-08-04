@@ -19,7 +19,7 @@ import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
 import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
-import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, recordUsageEvent } from '../../db/database.js';
+import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, recordUsageEvent } from '../../db/database.js';
 import { collectDeadlines } from '../../employment/deadlines.js';
 import { createLogger } from '../../utils/logger.js';
 import { extractEmploymentDocument } from '../briefing/employment-extractor.js';
@@ -1669,12 +1669,17 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         .send(Buffer.from(uploaded.b64, 'base64'));
     }
 
+    // The lawyer may pick which of the firm's templates for this document
+    // type to render on; without one, the type's default is used.
+    const { templateVariantId } = (req.query ?? {}) as { templateVariantId?: string };
+
     const buffer = await htmlToDocx(html, {
       title,
       firmName,
       lawyerName,
       firmId,
       documentType: docTypeMap[docType],
+      templateVariantId,
       intake: employment?.intake ? {
         client_first_name: employment.intake.client_first_name,
         client_last_name: employment.intake.client_last_name,
@@ -1701,7 +1706,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(400).send({ ok: false, error: 'Invalid template upload' });
     }
 
-    const { documentType, name, templateBase64 } = parsed.data;
+    const { documentType, name, templateBase64, variantLabel, isDefault } = parsed.data;
     // The firm comes from the authenticated identity ONLY. A body-supplied
     // firmId let any caller overwrite another firm's template (the same
     // tenant-isolation hole the legacy /:firmId routes were removed for).
@@ -1720,16 +1725,41 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
     const placeholders = detectPlaceholders(templateText);
 
-    const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    saveFirmTemplate(id, firmId, documentType, name, templateBase64, placeholders);
+    // The variant id is derived from the lawyer's label so it stays
+    // readable, with a short suffix so two similar labels cannot collide.
+    const label = variantLabel?.trim() || 'Standard';
+    const variantId = parsed.data.variantId?.trim()
+      || `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'variant'}-${Math.random().toString(36).slice(2, 6)}`;
 
-    logger.info('Template uploaded', { firmId, documentType, name, placeholders: placeholders.length });
+    const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    saveFirmTemplate(id, firmId, documentType, name, templateBase64, placeholders,
+      { variantId, variantLabel: label, isDefault });
+
+    logger.info('Template uploaded', { firmId, documentType, name, variantId, placeholders: placeholders.length });
 
     return reply.send({
       ok: true,
       templateId: id,
+      variantId,
+      variantLabel: label,
       placeholders,
     });
+  });
+
+  // ── POST /api/employment/templates/:documentType/default ───────────────
+  // Make one variant the default for its document type.
+
+  fastify.post('/api/employment/templates/:documentType/default', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { documentType } = req.params as { documentType: string };
+    const body = z.object({ variantId: z.string().trim().min(1).max(80) }).safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ ok: false, error: 'A variant is required.' });
+
+    const ok = setDefaultFirmTemplate(firmId, documentType, body.data.variantId);
+    if (!ok) return reply.status(404).send({ ok: false, error: 'That template variant was not found.' });
+    logger.info('Template default changed', { firmId, documentType, variantId: body.data.variantId });
+    return reply.send({ ok: true });
   });
 
   // ── GET /api/employment/templates ──────────────────────────────────────
@@ -1745,6 +1775,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       templates: templates.map(t => ({
         id: t.id,
         documentType: t.document_type,
+        variantId: t.variant_id,
+        variantLabel: t.variant_label,
+        isDefault: t.is_default === 1,
         name: t.name,
         placeholders: JSON.parse(t.placeholders),
         uploadedAt: t.created_at,
@@ -1754,13 +1787,17 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   });
 
   // ── DELETE /api/employment/templates/:documentType ─────────────────────
-  // Remove the requesting user's firm template for a document type.
+  // Remove one variant (?variantId=...), or every variant of a type.
+  // Deleting the default promotes the most recently updated survivor so a
+  // type is never left without one.
 
   fastify.delete('/api/employment/templates/:documentType', async (req: FastifyRequest, reply: FastifyReply) => {
-    const firmId = resolveFirmId(req) ?? '';
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
     const { documentType } = req.params as { documentType: string };
-    deleteFirmTemplate(firmId, documentType);
-    logger.info('Template deleted', { firmId, documentType });
+    const { variantId } = (req.query ?? {}) as { variantId?: string };
+    deleteFirmTemplate(firmId, documentType, variantId);
+    logger.info('Template deleted', { firmId, documentType, variantId: variantId ?? 'ALL' });
     return reply.send({ ok: true });
   });
 
