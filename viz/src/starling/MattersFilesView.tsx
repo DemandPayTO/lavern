@@ -24,7 +24,7 @@ const muted = '#5a6472';
 const serif = "Georgia, 'Palatino Linotype', serif";
 const sans = "system-ui, -apple-system, sans-serif";
 
-interface DirMatter { matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string }
+interface DirMatter { matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string; openedBy?: string }
 interface DirTask {
   matterId: string; dueDate: string | null; isCourt: boolean;
   band: 'overdue' | 'today' | 'week' | 'later' | 'none';
@@ -235,6 +235,9 @@ export default function MattersFilesView() {
                       {c.matterLabel}
                     </div>
                     <div style={{ fontSize: 12, color: muted, marginTop: 2, fontFamily: 'ui-monospace, monospace' }}>{c.fileNumber}</div>
+                    {c.openedBy && (
+                      <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>Opened by {c.openedBy}</div>
+                    )}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: chip.colour, border: `1px solid ${chip.colour}`, borderRadius: 2, padding: '1px 7px' }}>
                         {chip.label}

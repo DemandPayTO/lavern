@@ -61,6 +61,18 @@ function ensureLoaded(userId: string): void {
   } catch (err) { logger.warn('Failed to load matters from DB', { error: err instanceof Error ? err.message : err }); }
 }
 
+/** Lowercased, whitespace-collapsed client name for duplicate matching. */
+function normaliseClientName(name: unknown): string {
+  return String(name ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** Best available client name on a stored matter record. */
+function clientNameOf(record: Record<string, unknown>): string {
+  const intake = ((record.employmentData ?? record.labourData) as { intake?: Record<string, unknown> } | undefined)?.intake;
+  const fromIntake = [intake?.client_first_name, intake?.client_last_name].filter(Boolean).join(' ');
+  return fromIntake || String(record.clientId ?? '');
+}
+
 /** Persist a matter to SQLite (write-through). */
 function persistMatter(userId: string, matter: MatterRecord): void {
   try {
@@ -126,22 +138,39 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
       },
     );
 
-    // Run conflict check (in-memory — checks existing matters)
+    // Duplicate check across the FIRM's file room, not just this lawyer's
+    // drawer: the common collision is a colleague who already opened a file
+    // for the same client. Same client twice can be legitimate (two
+    // dismissals, two employers), so this warns and names the files rather
+    // than blocking.
+    const wanted = normaliseClientName(body.clientName);
+    const duplicates = wanted
+      ? getMattersByUser(userId).flatMap(row => {
+          try {
+            const existing = JSON.parse(row.data_json) as Record<string, unknown>;
+            if (row.status === 'closed') return [];
+            if (normaliseClientName(clientNameOf(existing)) !== wanted) return [];
+            return [{
+              matterId: row.id,
+              matterNumber: String(existing.matterNumber ?? ''),
+              openedBy: row.owner_name ?? '',
+              status: row.status,
+            }];
+          } catch { return []; }
+        })
+      : [];
+
     const conflictCheck: ConflictCheckResult = {
-      conflictFound: false,
-      conflictingMatters: [],
-      conflictType: undefined,
-      resolution: 'No conflicts identified. Clear to proceed.',
+      conflictFound: duplicates.length > 0,
+      conflictingMatters: duplicates.map(d => d.matterId),
+      conflictType: duplicates.length > 0 ? 'direct' : undefined,
+      resolution: duplicates.length > 0
+        ? `The firm already has ${duplicates.length === 1 ? 'an open file' : String(duplicates.length) + ' open files'} for ${body.clientName}: `
+          + duplicates.map(d => `${d.matterNumber || d.matterId}${d.openedBy ? ' (opened by ' + d.openedBy + ')' : ''}`).join(', ')
+          + '. Confirm this is a distinct engagement before proceeding.'
+        : 'No conflicts identified. Clear to proceed.',
       checkedAt: new Date().toISOString(),
     };
-
-    // Check against existing matters for name overlaps
-    for (const [, existingMatter] of matterStore) {
-      if (existingMatter.clientId === body.clientName) {
-        // Same client, multiple matters is normal — not a conflict
-      }
-      // In a real system, check counterparties, related parties, etc.
-    }
 
     matter.conflictCheck = conflictCheck;
 
@@ -226,6 +255,7 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
         openedAt: m.openedAt,
         openedById: row.user_id,
         openedBy: row.owner_name ?? '',
+        openedByMe: row.user_id === userId,
         lastModifiedBy: row.last_modified_by ?? '',
       })),
       total: matters.length,

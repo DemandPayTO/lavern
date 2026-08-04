@@ -82,6 +82,28 @@ export default function NewMatterView() {
     else if (practiceMode === 'labour') setPracticeArea('labour');
   }, [practiceMode]);
   const [clientName, setClientName] = useState('');
+  // Firm-wide duplicate warning: another lawyer may already have this
+  // client. Warns and links rather than blocking, since a second matter
+  // for the same client can be legitimate.
+  const [duplicates, setDuplicates] = useState<Array<{ matterId: string; matterNumber: string; openedBy: string }>>([]);
+
+  const checkForDuplicates = useCallback(async () => {
+    const wanted = clientName.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!wanted) { setDuplicates([]); return; }
+    try {
+      const res = await fetch('/api/matters', { credentials: 'include' });
+      if (!res.ok) return;
+      const json = await res.json() as { matters?: Array<{ matterId: string; matterNumber?: string; clientId?: string; status?: string; openedBy?: string; openedByMe?: boolean }> };
+      setDuplicates((json.matters ?? [])
+        .filter(m => String(m.clientId ?? '').toLowerCase().replace(/\s+/g, ' ').trim() === wanted)
+        .filter(m => m.status !== 'closed')
+        .map(m => ({
+          matterId: m.matterId,
+          matterNumber: m.matterNumber ?? '',
+          openedBy: m.openedByMe === false ? (m.openedBy ?? '') : '',
+        })));
+    } catch { /* the server-side conflict check still records it */ }
+  }, [clientName]);
   const [employerName, setEmployerName] = useState('');
   const [situation, setSituation] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -268,6 +290,7 @@ export default function NewMatterView() {
               placeholder="e.g., Jane Smith"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
+              onBlur={() => { void checkForDuplicates(); }}
               style={{
                 width: '100%',
                 fontFamily: sans,
@@ -280,6 +303,21 @@ export default function NewMatterView() {
                 boxSizing: 'border-box',
               }}
             />
+            {duplicates.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: 12.5, color: '#8a5a00', background: '#fdf4e3', border: '1px solid #e8cf9f', borderRadius: 2, padding: '8px 11px' }}>
+                The firm already has {duplicates.length === 1 ? 'an open file' : `${duplicates.length} open files`} for {clientName.trim()}:{' '}
+                {duplicates.map((d, i) => (
+                  <span key={d.matterId}>
+                    {i > 0 && ', '}
+                    <a href={`#/matter-detail/${d.matterId}`} style={{ color: '#8a5a00', fontWeight: 600 }}>
+                      {d.matterNumber || 'open it'}
+                    </a>
+                    {d.openedBy ? ` (opened by ${d.openedBy})` : ''}
+                  </span>
+                ))}
+                . If this is the same engagement, work on that file instead of creating a second one.
+              </div>
+            )}
           </div>
 
           {/* Employer Name */}

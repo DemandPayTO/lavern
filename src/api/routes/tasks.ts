@@ -129,7 +129,7 @@ const BAND_ORDER: Record<TaskBand, number> = { overdue: 0, today: 1, week: 2, la
  * Compact matter directory for the quick-add picker, filters, and the
  * dashboard's Recent matters glance (updatedAt = last save on the file).
  */
-interface MatterOption { matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string }
+interface MatterOption { matterId: string; matterLabel: string; fileNumber: string; status: string; updatedAt: string; openedBy?: string }
 
 export function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterOption[] } {
   const rows = getMattersByUser(userId);
@@ -143,6 +143,8 @@ export function buildInbox(userId: string): { tasks: TaskRow[]; matters: MatterO
     matters.push({
       matterId: row.id, matterLabel: parsed.matterLabel, fileNumber: parsed.fileNumber,
       status: row.status, updatedAt: row.updated_at,
+      // Colleague files carry the opener's name; your own carry none.
+      ...(row.user_id !== userId && row.owner_name ? { openedBy: row.owner_name } : {}),
     });
     tasks.push(...actionRows(row.id, parsed));
   }

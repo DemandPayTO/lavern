@@ -1276,6 +1276,13 @@ export default function MatterDetailView() {
                   </span>
                 )}
               </h1>
+              {!employment.attribution.openedByMe && employment.attribution.openedBy && (
+                <div style={{ fontSize: 12, color: muted, fontFamily: sans, marginTop: 3 }}>
+                  Opened by {employment.attribution.openedBy}
+                  {employment.attribution.lastModifiedByName && employment.attribution.lastModifiedByName !== employment.attribution.openedBy
+                    ? ` · last updated by ${employment.attribution.lastModifiedByName}` : ''}
+                </div>
+              )}
             </div>
             <span
               style={{

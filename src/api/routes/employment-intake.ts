@@ -231,6 +231,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   const intakeBodySchema = z.object({
     matterId: z.string().min(1).max(200),
     intake: employmentIntakeSchema,
+    // See the notes route: refuse a stale write instead of clobbering.
+    ifUpdatedAt: z.string().max(40).optional(),
   });
 
   fastify.post('/api/employment/intake', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -248,6 +250,19 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const row = await getMatterById(matterId, userId);
     if (!row) {
       return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    }
+    if (
+      parsed.data.ifUpdatedAt && parsed.data.ifUpdatedAt !== row.updated_at
+      && row.last_modified_by && row.last_modified_by !== userId
+    ) {
+      return reply.status(409).send({
+        ok: false,
+        error: row.last_modified_by_name
+          ? `This file changed while you were editing: ${row.last_modified_by_name} saved a newer version. Copy your text, reload the page, and reapply it.`
+          : 'This file changed while you were editing. Copy your text, reload the page, and reapply it.',
+        lastModifiedByName: row.last_modified_by_name ?? '',
+        updatedAt: row.updated_at,
+      });
     }
 
     const { matter, employment } = loadEmploymentData(row.data_json);
@@ -774,6 +789,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       matterNumber: ((matter as Record<string, unknown>).matterNumber as string) ?? '',
       stage,
       nextSteps: recommendEmploymentNextSteps(matter as Record<string, unknown>, employment, stage),
+      updatedAt: row.updated_at,
+      openedBy: row.owner_name ?? '',
+      openedByMe: row.user_id === userId,
+      lastModifiedByName: row.last_modified_by_name ?? '',
     });
   });
 
@@ -2782,6 +2801,9 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
 
   const notesBodySchema = z.object({
     notes: z.string().trim().max(50000),
+    // The matter timestamp the editor loaded. When supplied and stale, the
+    // save is refused rather than silently overwriting a colleague's work.
+    ifUpdatedAt: z.string().max(40).optional(),
   });
 
   fastify.post('/api/employment/:matterId/notes', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -2795,6 +2817,19 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
 
     const row = await getMatterById(matterId, userId);
     if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    if (
+      parsed.data.ifUpdatedAt && parsed.data.ifUpdatedAt !== row.updated_at
+      && row.last_modified_by && row.last_modified_by !== userId
+    ) {
+      return reply.status(409).send({
+        ok: false,
+        error: row.last_modified_by_name
+          ? `This file changed while you were editing: ${row.last_modified_by_name} saved a newer version. Copy your text, reload the page, and reapply it.`
+          : 'This file changed while you were editing. Copy your text, reload the page, and reapply it.',
+        lastModifiedByName: row.last_modified_by_name ?? '',
+        updatedAt: row.updated_at,
+      });
+    }
 
     const { matter, employment } = loadEmploymentData(row.data_json);
     (matter as Record<string, unknown>).lawyerNotes = parsed.data.notes;

@@ -774,6 +774,11 @@ export default function StarlingDashboard() {
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: matter.statusColour, display: 'inline-block', flexShrink: 0 }} aria-hidden="true" />
                   <span style={{ fontFamily: serif, fontSize: 16.5, color: navy, fontWeight: 600 }}>{matter.name}</span>
                   <span style={{ fontSize: 11.5, color: muted, marginLeft: 2 }}>{matter.number}</span>
+                  {matter.openedBy && (
+                    <span style={{ fontSize: 11, color: muted, marginLeft: 6, border: '1px solid #d8dbe2', borderRadius: 2, padding: '1px 6px' }}>
+                      Opened by {matter.openedBy}
+                    </span>
+                  )}
                   <span
                     style={{
                       marginLeft: 'auto',

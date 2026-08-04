@@ -1443,6 +1443,7 @@ export interface MatterRow {
   user_id: string;
   owner_name: string | null;
   last_modified_by: string | null;
+  last_modified_by_name: string | null;
 }
 
 const FIRM_VISIBLE = `(m.user_id = ? OR (m.firm_id IS NOT NULL AND TRIM(m.firm_id) != ''
@@ -1472,8 +1473,10 @@ export function saveMatter(userId: string, matterId: string, dataJson: string, s
 export function getMattersByUser(userId: string): MatterRow[] {
   return getDb().prepare(`
     SELECT m.id, m.data_json, m.status, m.created_at, m.updated_at,
-           m.user_id, u.display_name AS owner_name, m.last_modified_by
+           m.user_id, u.display_name AS owner_name, m.last_modified_by,
+           u2.display_name AS last_modified_by_name
     FROM matters m LEFT JOIN users u ON u.id = m.user_id
+                   LEFT JOIN users u2 ON u2.id = m.last_modified_by
     WHERE ${FIRM_VISIBLE}
     ORDER BY m.created_at DESC
   `).all(userId, userId) as MatterRow[];
@@ -1482,8 +1485,10 @@ export function getMattersByUser(userId: string): MatterRow[] {
 export function getMatterById(matterId: string, userId: string): MatterRow | undefined {
   return getDb().prepare(`
     SELECT m.id, m.data_json, m.status, m.created_at, m.updated_at,
-           m.user_id, u.display_name AS owner_name, m.last_modified_by
+           m.user_id, u.display_name AS owner_name, m.last_modified_by,
+           u2.display_name AS last_modified_by_name
     FROM matters m LEFT JOIN users u ON u.id = m.user_id
+                   LEFT JOIN users u2 ON u2.id = m.last_modified_by
     WHERE m.id = ? AND ${FIRM_VISIBLE}
   `).get(matterId, userId, userId) as MatterRow | undefined;
 }

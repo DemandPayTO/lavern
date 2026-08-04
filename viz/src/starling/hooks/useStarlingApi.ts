@@ -46,6 +46,8 @@ export interface MatterListItem {
   metaLabel: string;
   metaValue: string;
   metaColour?: string;
+  /** Colleague attribution: set when another lawyer at the firm opened the file. */
+  openedBy?: string;
 }
 
 /** An issue/finding with source attribution. */
@@ -543,6 +545,8 @@ export function useMatterList(): MatterListResult {
             _source: 'matter',
             _matterNumber: m.matterNumber,
             _clientName: m.clientId,
+            _openedBy: m.openedBy,
+            _openedByMe: m.openedByMe,
           });
         }
 
@@ -715,6 +719,8 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
     metaLabel: status === 'complete' ? 'Completed' : 'Last activity',
     metaValue: lastEvent ? new Date(lastEvent).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
     metaColour: status === 'urgent' ? '#dc2626' : undefined,
+    // Only a colleague's name is shown; your own files carry no label.
+    openedBy: session._openedByMe === false && session._openedBy ? String(session._openedBy) : undefined,
   };
 }
 
@@ -1520,6 +1526,8 @@ export interface UseEmploymentDataResult {
   approveIssues: (approved: string[], dismissed: string[]) => Promise<void>;
   generateDocument: (docType: string, options: Record<string, unknown>) => Promise<GenerateDocumentResult>;
   saveNotes: (notes: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Who opened the file and who wrote last, for the header attribution line. */
+  attribution: { openedBy: string; openedByMe: boolean; lastModifiedByName: string };
   runAnalysis: () => Promise<{ ok: boolean; error?: string }>;
   /** Extract facts from an uploaded document via Claude (parse → extract). */
   extractDocument: (file: File, documentKind: string) => Promise<{ ok: boolean; extraction?: DocumentExtraction; error?: string }>;
@@ -1601,6 +1609,11 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [stage, setStage] = useState<MatterStage | null>(null);
   const [nextSteps, setNextSteps] = useState<Array<{ action: string; reason: string; urgency: 'urgent' | 'now' | 'soon'; goTo?: string }>>([]);
   const [firmFileNumber, setFirmFileNumber] = useState('');
+  // Who opened the file, and the matter timestamp this editor loaded. The
+  // timestamp rides along on notes/intake saves so a colleague's newer
+  // write is refused instead of silently overwritten.
+  const [attribution, setAttribution] = useState<{ openedBy: string; openedByMe: boolean; lastModifiedByName: string }>({ openedBy: '', openedByMe: true, lastModifiedByName: '' });
+  const loadedUpdatedAt = useRef<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     if (!matterId) return;
@@ -1626,6 +1639,12 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setStage(json.stage && typeof json.stage === 'object' ? json.stage as MatterStage : null);
       setNextSteps(Array.isArray(json.nextSteps) ? json.nextSteps : []);
       setFirmFileNumber(typeof json.firmFileNumber === 'string' ? json.firmFileNumber : '');
+      loadedUpdatedAt.current = typeof json.updatedAt === 'string' ? json.updatedAt : undefined;
+      setAttribution({
+        openedBy: typeof json.openedBy === 'string' ? json.openedBy : '',
+        openedByMe: json.openedByMe !== false,
+        lastModifiedByName: typeof json.lastModifiedByName === 'string' ? json.lastModifiedByName : '',
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load employment data');
     } finally {
@@ -1726,13 +1745,14 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ notes, ifUpdatedAt: loadedUpdatedAt.current }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         return { ok: false, error: (json as { error?: string }).error ?? 'Failed to save notes' };
       }
       setLawyerNotes(notes);
+      refresh();
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Failed to save notes' };
@@ -1913,7 +1933,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ matterId, intake }),
+        body: JSON.stringify({ matterId, intake, ifUpdatedAt: loadedUpdatedAt.current }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
@@ -1954,7 +1974,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────
