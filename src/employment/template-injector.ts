@@ -21,6 +21,7 @@
 import JSZip from 'jszip';
 import { injectPlaceholders, type TemplatePlaceholderValues } from './firm-templates.js';
 import { getFirmTemplate } from '../db/database.js';
+import { buildSectionValues, wantsSectionedFill, WHOLE_DOCUMENT_MARKERS } from './generated-sections.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('TEMPLATE-INJECT');
@@ -70,20 +71,38 @@ export async function injectIntoFirmTemplate(
     // First, try to clean up split placeholders by joining adjacent runs.
     xmlContent = cleanSplitPlaceholders(xmlContent);
 
-    // The generated body is offered under several marker names for
-    // backwards compatibility. A template using more than one would print
-    // the whole document once per marker, so only the highest-priority
-    // marker present receives it; the others resolve to nothing rather
-    // than surviving as visible {{MARKERS}}. This runs on the real document
-    // text (after split runs are rejoined), not on the stored placeholder
-    // list, which is the only reliable source.
-    const CONTENT_MARKERS = ['LEGAL_ANALYSIS', 'FACTS_SECTION'];
-    const usedContentMarkers = CONTENT_MARKERS.filter(m => xmlContent.includes(`{{${m}}}`));
-    if (usedContentMarkers.length > 1) {
-      for (const marker of usedContentMarkers.slice(1)) values[marker] = '';
-      logger.info('Template uses several content markers; body injected once', {
-        firmId, documentType, markers: usedContentMarkers,
+    // Which markers this template actually uses, read from the real
+    // document text after split runs are rejoined (the stored placeholder
+    // list is not reliable enough to decide filling behaviour on).
+    const markersInTemplate = [...new Set(
+      [...xmlContent.matchAll(/\{\{([A-Z_]+)\}\}/g)].map(m => m[1]),
+    )];
+
+    // The whole generated document, as supplied by the caller under either
+    // historical alias.
+    const generatedHtml = values.LEGAL_ANALYSIS ?? values.FACTS_SECTION ?? '';
+
+    if (generatedHtml && wantsSectionedFill(markersInTemplate)) {
+      // Phase 3: the template marks where each part of the document goes,
+      // so split the generated document and fill each marker with its own
+      // section rather than repeating the whole thing.
+      const sectionValues = buildSectionValues(generatedHtml, markersInTemplate);
+      for (const [marker, content] of Object.entries(sectionValues)) values[marker] = content;
+      logger.info('Sectioned template fill', {
+        firmId, documentType, sections: Object.keys(sectionValues),
       });
+    } else {
+      // Letterhead-wrapper behaviour, unchanged: the whole document goes in
+      // one place. A template naming both aliases would otherwise print it
+      // twice, so only the first receives it and the other resolves to
+      // nothing rather than surviving as a visible marker.
+      const usedAliases = WHOLE_DOCUMENT_MARKERS.filter(m => markersInTemplate.includes(m));
+      if (usedAliases.length > 1) {
+        for (const marker of usedAliases.slice(1)) values[marker] = '';
+        logger.info('Template uses several content markers; body injected once', {
+          firmId, documentType, markers: usedAliases,
+        });
+      }
     }
 
     // Now inject the values

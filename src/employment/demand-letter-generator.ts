@@ -251,16 +251,18 @@ ${req.firmAddress ? `- Firm address: ${req.firmAddress}` : ''}
 - Response deadline: ${req.responseDeadlineDays} days from the date of the letter
 ${limitation ? `- Limitation period expires: ${limitation.date} (${limitation.daysRemaining} days remaining${limitation.urgent ? '; URGENT' : ''})` : ''}
 
-STRUCTURE:
-1. Salutation
-2. Opening paragraph: identify the firm, the client, and the purpose
-3. Employment background: brief chronology
-4. Termination facts: what happened
-5. Legal analysis: one section per approved issue (cite relevant case law)
-6. Damages quantification: itemised list with amounts
-7. Demand: state the specific amount and terms
-8. Closing: response deadline, consequences of non-response, without-prejudice reservation
-9. Signature block: lawyer name and firm
+STRUCTURE. Use these EXACT h2 headings, in this order, so that the letter can
+be placed into a firm's own template section by section. Do not rename,
+merge, or omit a heading; where a section does not apply, keep the heading
+and state the position briefly.
+1. Salutation and opening paragraph (no heading): identify the firm, the client, and the purpose
+2. <h2>Employment Background</h2>: brief chronology
+3. <h2>Termination Facts</h2>: what happened
+4. <h2>Legal Analysis</h2>: one subsection per approved issue (cite relevant case law)
+5. <h2>Damages Quantification</h2>: itemised list with amounts
+6. <h2>Demand</h2>: state the specific amount and terms
+7. <h2>Closing</h2>: response deadline, consequences of non-response, without-prejudice reservation
+8. Signature block (no heading): lawyer name and firm
 
 Write the complete letter now.`;
 }

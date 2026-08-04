@@ -179,9 +179,23 @@ with hand-made templates.
 **Phase 2 — auto-conversion.** Proposal, deterministic verification, review
 screen.
 
-**Phase 3 — Model C generated sections.** Per-section insertion points, real
-per-marker value mapping (which also fixes the "every content marker gets the
-whole document" defect in Model A).
+**Phase 3 — Model C generated sections. SHIPPED 2026-08-04.**
+src/employment/generated-sections.ts splits generated output at its section
+headings and maps each part to its own marker, so a firm precedent that says
+WHERE each part belongs receives the parts rather than one block.
+
+- Sectioned mode engages only when a template names two or more distinct
+  sections; a template using one whole-document marker keeps the old
+  letterhead behaviour untouched.
+- Content whose marker the template does not use is folded into the first
+  used section rather than dropped. Losing a damages analysis because the
+  precedent had no heading for it would be a quiet, serious failure.
+- The demand-letter prompt now pins its h2 headings, because sectioning
+  depends on them and the generator's structure had been varying run to
+  run (verified: a run before the change emitted only the h1 title, and
+  everything folded into the first section — safe, but not sectioned).
+  The other generators still vary; pin their headings as each is wanted
+  in sectioned templates.
 
 Phase 1 is roughly half a session, Phase 2 a session, Phase 3 a session.
 Phase 1 alone is worth shipping.
