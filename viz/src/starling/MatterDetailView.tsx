@@ -271,24 +271,10 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     section: 'Motions and hearings',
   },
   {
-    id: 'sptimetable',
-    title: 'Timetable Motion (Simplified Procedure)',
-    description: 'Rule 76 motion to fix dates for the remaining steps, with a proposed timetable schedule.',
-    cost: '~$9 · under 1 min',
-    section: 'Motions and hearings',
-  },
-  {
-    id: 'consenttimetable',
-    title: 'Consent Order (Timetable)',
-    description: 'The order for signature by all counsel on consent, with the agreed dates.',
-    cost: '~$7 · under 1 min',
-    section: 'Motions and hearings',
-  },
-  {
-    id: 'timetableorder',
-    title: 'Order (Timetable)',
-    description: 'The draft order to place before the court on a contested timetable motion.',
-    cost: '~$7 · under 1 min',
+    id: 'timetable',
+    title: 'Timetable Package',
+    description: 'The motion, the consent order and the draft order from one schedule, with the supporting affidavit. Simplified or ordinary procedure.',
+    cost: '~$25 · about 1 min',
     section: 'Motions and hearings',
   },
   {
@@ -426,9 +412,7 @@ const DRAFT_TO_DOCTYPE: Record<string, string> = {
   sjmotion: 'sj_notice_of_motion',
   sjaffidavit: 'sj_affidavit',
   sjfactum: 'sj_factum',
-  sptimetable: 'sp_timetable_motion',
-  consenttimetable: 'consent_timetable_order',
-  timetableorder: 'timetable_order',
+  timetable: 'sp_timetable_motion',
   undertakings: 'undertakings_answers',
   aos: 'affidavit_of_service',
   rule49withdrawal: 'rule49_withdrawal',
@@ -511,9 +495,7 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   sjmotion: 'sj-notice-of-motion',
   sjaffidavit: 'sj-affidavit',
   sjfactum: 'sj-factum',
-  sptimetable: 'sp-timetable-motion',
-  consenttimetable: 'consent-timetable-order',
-  timetableorder: 'timetable-order',
+  timetable: 'sp-timetable-motion',
   undertakings: 'undertakings-answers',
   aos: 'affidavit-of-service',
   rule49withdrawal: 'rule49-withdrawal',
@@ -537,6 +519,14 @@ function downloadSlugFor(docType: string): string | null {
   if (docType === 'statement_of_claim') return 'statement-of-claim';
   return null;
 }
+
+/** The documents the timetable package produces, each taught separately. */
+const PACKAGE_DOCS: Array<{ type: string; label: string }> = [
+  { type: 'sp_timetable_motion', label: 'Notice of Motion (Timetable)' },
+  { type: 'consent_timetable_order', label: 'Consent Order (Timetable)' },
+  { type: 'timetable_order', label: 'Order (Timetable)' },
+  { type: 'motion_affidavit', label: 'Affidavit in support' },
+];
 
 /** Cards that need a dollar amount before Generate makes sense. */
 const DRAFTS_NEEDING_AMOUNT = new Set(['demand', 'soc', 'counter', 'rule49']);
@@ -1032,11 +1022,30 @@ export default function MatterDetailView() {
 
   // The package: the three timetable documents and the supporting
   // affidavit are prepared together in practice, from one schedule.
+  const [pkgProcedure, setPkgProcedure] = useState<'simplified' | 'ordinary'>('simplified');
+  // Which of the package's documents the style teacher is aimed at.
+  const [teachingDocType, setTeachingDocType] = useState<string | null>(null);
   const [pkgAffidavit, setPkgAffidavit] = useState(true);
   const [pkgDeponent, setPkgDeponent] = useState('');
   const [pkgCapacity, setPkgCapacity] = useState<'lawyer' | 'plaintiff' | 'law_clerk'>('lawyer');
   const [pkgBasis, setPkgBasis] = useState<'personal' | 'information_and_belief' | 'mixed'>('information_and_belief');
   const [pkgSource, setPkgSource] = useState('');
+  const [pkgStyleIds, setPkgStyleIds] = useState<Record<string, string>>({});
+  const [pkgProfiles, setPkgProfiles] = useState<Record<string, Array<{ id: string; documentType: string; label: string; sourceCount: number; createdAt: string }>>>({});
+
+  const refreshPkgProfiles = useCallback(() => {
+    Promise.all(PACKAGE_DOCS.map(async doc => {
+      const res = await fetch(`/api/employment/style-profiles?documentType=${encodeURIComponent(doc.type)}`, { credentials: 'include' });
+      if (!res.ok) return [doc.type, []] as const;
+      const d = await res.json();
+      return [doc.type, d.ok ? (d.profiles ?? []) : []] as const;
+    })).then(entries => setPkgProfiles(Object.fromEntries(entries)))
+      .catch(() => { /* the list is best-effort */ });
+  }, []);
+
+  useEffect(() => {
+    if (selectedDraft === 'timetable') refreshPkgProfiles();
+  }, [selectedDraft, refreshPkgProfiles]);
   const [pkgBusy, setPkgBusy] = useState(false);
   const [pkgResult, setPkgResult] = useState<string | null>(null);
 
@@ -1052,7 +1061,9 @@ export default function MatterDetailView() {
           firmName: profile.firmName || 'Firm Name',
           firmAddress: [profile.firmAddress, profile.firmPhone && `Tel: ${profile.firmPhone}`, profile.firmEmail && `Email: ${profile.firmEmail}`].filter(Boolean).join(' · ') || undefined,
           courtLocation: genCourtLocation,
+          procedureType: pkgProcedure,
           timetableRows: ttRows.filter(r => r.label.trim() && r.date.trim()),
+          styleProfileIds: pkgStyleIds,
           includeAffidavit: pkgAffidavit,
           ...(pkgAffidavit ? {
             affidavit: {
@@ -1079,7 +1090,7 @@ export default function MatterDetailView() {
     } catch {
       setGenError('The package could not be generated.');
     } finally { setPkgBusy(false); }
-  }, [sessionId, profile, genCourtLocation, ttRows, pkgAffidavit, pkgDeponent, pkgCapacity, pkgBasis, pkgSource, employment]);
+  }, [sessionId, profile, genCourtLocation, ttRows, pkgProcedure, pkgStyleIds, pkgAffidavit, pkgDeponent, pkgCapacity, pkgBasis, pkgSource, employment]);
 
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
@@ -2045,8 +2056,9 @@ export default function MatterDetailView() {
                 </div>
               )}
 
-              {/* Firm template for the selected document type */}
-              {selectedTemplateDocType && (
+              {/* Firm template for the selected document type. The package
+                  card teaches each of its documents separately below. */}
+              {selectedTemplateDocType && selectedDraft !== 'timetable' && (
                 <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 240 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: ink }}>
@@ -2324,7 +2336,7 @@ export default function MatterDetailView() {
               );})}
               </>)}
 
-              {['sptimetable', 'consenttimetable', 'timetableorder'].includes(selectedDraft ?? '') && !generatedHtml && (
+              {selectedDraft === 'timetable' && !generatedHtml && (
                 <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The timetable</div>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
@@ -2367,7 +2379,66 @@ export default function MatterDetailView() {
                   </button>
 
                   <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Draft the whole package</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>Procedure</div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                      {([['simplified', 'Simplified Procedure (Rule 76)'], ['ordinary', 'Ordinary Procedure']] as const).map(([val, lbl]) => (
+                        <button
+                          key={val}
+                          onClick={() => setPkgProcedure(val)}
+                          role="radio"
+                          aria-checked={pkgProcedure === val}
+                          style={{
+                            fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans,
+                            background: pkgProcedure === val ? navy : '#fff',
+                            color: pkgProcedure === val ? '#fff' : navy,
+                            border: `1px solid ${pkgProcedure === val ? navy : border}`, cursor: 'pointer',
+                          }}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Your firm's wording</div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 8 }}>
+                      Each document has its own precedents and its own style. Teach them one at a time.
+                    </div>
+                    {PACKAGE_DOCS.map(doc => {
+                      const profilesFor = pkgProfiles[doc.type] ?? [];
+                      return (
+                        <div key={doc.type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 13, color: ink, minWidth: 210 }}>{doc.label}</span>
+                          <select
+                            value={pkgStyleIds[doc.type] ?? ''}
+                            onChange={e => setPkgStyleIds(prev => ({ ...prev, [doc.type]: e.target.value }))}
+                            aria-label={`Style for ${doc.label}`}
+                            style={{ fontFamily: sans, fontSize: 12.5, padding: '6px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', minWidth: 190 }}
+                          >
+                            <option value="">Starling's default form</option>
+                            {profilesFor.map(pr => <option key={pr.id} value={pr.id}>{pr.label}</option>)}
+                          </select>
+                          <button
+                            onClick={() => setTeachingDocType(teachingDocType === doc.type ? null : doc.type)}
+                            style={{ fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                          >
+                            {teachingDocType === doc.type ? 'Close' : profilesFor.length ? 'Teach another' : 'Teach from precedents'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {teachingDocType && (
+                      <div style={{ marginTop: 10 }}>
+                        <StyleProfilePanel
+                          documentType={teachingDocType}
+                          documentLabel={PACKAGE_DOCS.find(d => d.type === teachingDocType)?.label ?? 'document'}
+                          profiles={pkgProfiles[teachingDocType] ?? []}
+                          onChanged={() => refreshPkgProfiles()}
+                          onClose={() => setTeachingDocType(null)}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, margin: '14px 0 4px' }}>Draft the whole package</div>
                     <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
                       The motion, the consent order and the draft order from this one schedule, so their
                       terms cannot disagree. Each arrives as its own document on the Documents tab.
@@ -2598,7 +2669,7 @@ export default function MatterDetailView() {
                 </div>
               )}
 
-              {selectedDraft && !generatedHtml && styleProfiles.profiles.length > 0 && (
+              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && styleProfiles.profiles.length > 0 && (
                 <div style={{ margin: '0 0 12px' }}>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Draft in your firm's style</div>
                   <select
@@ -2615,7 +2686,7 @@ export default function MatterDetailView() {
                 </div>
               )}
 
-              {selectedDraft && !generatedHtml && (
+              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && (
                 <button
                   onClick={async () => {
                     setGenerating(true);
@@ -2649,9 +2720,7 @@ export default function MatterDetailView() {
                         courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
                         ...(styleProfileId ? { styleProfileId } : {}),
-                        ...(['sptimetable', 'consenttimetable', 'timetableorder'].includes(selectedDraft ?? '')
-                          ? { timetableRows: ttRows.filter(r => r.label.trim() && r.date.trim()) }
-                          : {}),
+
                         ...(selectedDraft === 'mediation' ? {
                           briefSourceIds: [...selectedSourceIds],
                           includeGeneratedDemand: includeGenDemand,

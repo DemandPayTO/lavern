@@ -80,6 +80,8 @@ export interface LitigationDocumentRequest {
   styleProfileTableRows?: string[] | null;
   /** The firm's own section headings from the style profile flow; when present they replace the pinned h2 list. */
   styleFlowHeadings?: string[] | null;
+  /** Which procedure the action is under; the timetable motion adapts. */
+  procedureType?: 'simplified' | 'ordinary';
   /** Affidavit furniture inputs (motion_affidavit). */
   affidavit?: import('./affidavit-furniture.js').AffidavitFurnitureInput & {
     exhibits?: Array<{ letter?: string; description: string }>;
@@ -497,22 +499,24 @@ RULES:
 - Where a factual reference is needed, use [Affidavit, para X] placeholders for counsel to complete.
 - Persuasive, measured, and short: the best factums in this class are under twenty pages.`,
 
-    sp_timetable_motion: `You are a senior Ontario employment litigation lawyer drafting a MOTION FOR A TIMETABLE ORDER in an action under the SIMPLIFIED PROCEDURE (Rule 76 of the Rules of Civil Procedure), brought by the plaintiff.
+    sp_timetable_motion: `You are a senior Ontario employment litigation lawyer drafting a MOTION FOR A TIMETABLE ORDER, brought by the plaintiff.
 
-CONTEXT: the parties need fixed dates for the remaining steps (documentary discovery, examinations where available, mediation, setting the action down for trial, and the pre-trial). A timetable also protects against dismissal for delay under Rule 48.14.
+{{PROCEDURE_CONTEXT}}
+
+CONTEXT: the parties need fixed dates for the remaining steps (documentary discovery, examinations, mediation, setting the action down for trial, and the pre-trial). A timetable also protects against dismissal for delay under Rule 48.14.
 
 STRUCTURE:
 1. General heading: court, court file number placeholder, parties.
-2. NOTICE OF MOTION heading, the moving party, and the hearing details as placeholders ([DATE], [TIME], [METHOD OF HEARING], [COURT ADDRESS]). Insert "[LAWYER: confirm the motion form and whether the motion proceeds in writing under Rule 76 as amended, or requires an appearance in the region.]".
+2. NOTICE OF MOTION heading, the moving party, and the hearing details as placeholders ([DATE], [TIME], [METHOD OF HEARING], [COURT ADDRESS]). Insert "{{FORM_MARKER}}".
 3. THE MOTION IS FOR: (a) an order fixing a timetable for the remaining steps in the action, in the terms set out in Schedule A; (b) if necessary, an order extending the time to set the action down for trial under Rule 48.14; (c) costs of the motion only if opposed; (d) such further relief as counsel may advise.
-4. THE GROUNDS FOR THE MOTION ARE: the action proceeds under the simplified procedure; the steps completed to date and the dates on which they occurred, taken from the matter timeline; the steps remaining; why the proposed dates are reasonable and proportionate to a simplified-procedure action; the prejudice to the plaintiff of continued delay (a dismissed employee is without income while the action is pending); and, where the other side has not consented, the requests made and the response received.
+4. THE GROUNDS FOR THE MOTION ARE: the procedure the action is under, as stated above; the steps completed to date and the dates on which they occurred, taken from the matter timeline; the steps remaining; why the proposed dates are reasonable and proportionate to a simplified-procedure action; the prejudice to the plaintiff of continued delay (a dismissed employee is without income while the action is pending); and, where the other side has not consented, the requests made and the response received.
 5. THE FOLLOWING DOCUMENTARY EVIDENCE will be used: the pleadings, correspondence between counsel, and the affidavit of [LAWYER: deponent].
 6. SCHEDULE A: PROPOSED TIMETABLE as a table with two columns, Step and Date. Where a PROPOSED TIMETABLE is supplied in the context below, REPRODUCE IT EXACTLY: the same steps, in the same order, with the same dates, adding nothing and omitting nothing. Use a [DATE] placeholder ONLY for a step the supplied timetable leaves blank. Where no timetable is supplied, list the steps a simplified-procedure action requires with [DATE] placeholders. Steps, in this order, including only those the supplied timetable dates or the matter requires: discovery plan agreed (Rule 29.1); affidavits of documents exchanged (Rule 30.03); documentary productions delivered; examinations for discovery completed; answers to undertakings delivered; any motions arising from discovery heard; plaintiff expert reports delivered (Rule 53.03); responding expert reports delivered; mediation completed (Rule 24.1); action set down for trial (Rule 48.14); pre-trial conference scheduled (the date by which the parties request a pre-trial date); pre-trial conference held; trial.
 7. Date and the lawyer's name, firm, and contact block; TO: the defendant's lawyer placeholder.
 
 RULES:
 - Do not invent form numbers or regional practice requirements; where a form number or local practice is needed, use a "[LAWYER: ...]" marker.
-- Proportionality is the theme of the simplified procedure; the tone should be brisk and practical, not adversarial.
+- The tone should be brisk and practical, not adversarial: a timetable motion asks the court to keep the action moving.
 - THE RULES ARE IN TRANSITION: amendments to the Rules of Civil Procedure took effect during 2026 and further phases were expected. Do not assert that a particular step is or is not required by the current rules, and do not state discovery time limits or monetary thresholds as fact. Where currency matters, add "[LAWYER: confirm against the amendments in force and the regional practice direction]".
 
 Output as HTML with h1, h2, p, ol, li, strong, and a table for Schedule A. No inline styles.`,
@@ -721,6 +725,14 @@ export async function generateLitigationDocument(
     : null;
 
   let systemPrompt = buildSystemPrompt(req.documentType);
+  if (req.documentType === 'sp_timetable_motion') {
+    systemPrompt = systemPrompt.replace('{{FORM_MARKER}}', req.procedureType === 'ordinary'
+      ? '[LAWYER: confirm the motion form and whether the motion may proceed in writing or requires an appearance in the region.]'
+      : '[LAWYER: confirm the motion form and whether the motion proceeds in writing under Rule 76 as amended, or requires an appearance in the region.]');
+    systemPrompt = systemPrompt.replace('{{PROCEDURE_CONTEXT}}', req.procedureType === 'ordinary'
+      ? 'THE ACTION IS UNDER THE ORDINARY PROCEDURE. Do not refer to Rule 76, to the simplified procedure, or to any limit on examinations that belongs to it. Title the document "NOTICE OF MOTION".'
+      : 'THE ACTION IS UNDER THE SIMPLIFIED PROCEDURE (Rule 76 of the Rules of Civil Procedure). Say so in the grounds, and keep the relief proportionate to a simplified-procedure action. Note that a step or limit particular to Rule 76 should be marked "[LAWYER: confirm against the amendments in force]" rather than stated as settled.');
+  }
   if (req.documentType === 'mediation_brief') {
     const firmHeadings = (req.styleFlowHeadings ?? []).filter(h => h && h.trim());
     systemPrompt = systemPrompt.replace('{{SECTION_INSTRUCTION}}', firmHeadings.length >= 3
@@ -905,7 +917,7 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'sj_notice_of_motion': return 'Notice of Motion for Summary Judgment (Form 37A)';
     case 'sj_affidavit': return "Plaintiff's Affidavit for Summary Judgment (Form 4D)";
     case 'sj_factum': return "Plaintiff's Factum (Summary Judgment)";
-    case 'sp_timetable_motion': return 'Simplified Procedure Motion (Timetable Order)';
+    case 'sp_timetable_motion': return 'Notice of Motion (Timetable)';
     case 'consent_timetable_order': return 'Consent Order (Timetable)';
     case 'timetable_order': return 'Order (Timetable)';
     case 'undertakings_answers': return 'Answers to Undertakings';

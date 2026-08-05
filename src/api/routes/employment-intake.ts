@@ -1700,6 +1700,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     additionalContext: z.string().trim().max(5000).optional(),
     /** Draft in the firm's style, learned from its precedents. */
     styleProfileId: z.string().trim().max(100).optional(),
+    /** Which procedure the action is under; the timetable motion adapts. */
+    procedureType: z.enum(['simplified', 'ordinary']).optional(),
     /** Structured inputs for the deterministic court forms. */
     formFields: z.record(z.string().max(60), z.union([z.string().max(3000), z.number()])).optional(),
     /**
@@ -1918,6 +1920,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         additionalContext: [parsed.data.additionalContext, timetableContext, styleContext]
           .filter(Boolean).join('\n\n') || undefined,
         formFields: parsed.data.formFields,
+        procedureType: parsed.data.procedureType,
         comparables,
         comparableRange,
         negotiationEntries,
@@ -2289,6 +2292,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       firmName: z.string().trim().min(1).max(200),
       firmAddress: z.string().trim().max(500).optional(),
       courtLocation: z.string().trim().max(200).optional(),
+      /** Which procedure the action is under; the motion adapts. */
+      procedureType: z.enum(['simplified', 'ordinary']).default('simplified'),
       timetableRows: z.array(z.object({
         label: z.string().trim().min(1).max(300),
         date: z.string().trim().min(1).max(40),
@@ -2372,6 +2377,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         firmName: parsed.data.firmName,
         firmAddress: parsed.data.firmAddress,
         courtLocation: parsed.data.courtLocation,
+        procedureType: parsed.data.procedureType,
         additionalContext: [
           timetableContext,
           docType === 'motion_affidavit'
