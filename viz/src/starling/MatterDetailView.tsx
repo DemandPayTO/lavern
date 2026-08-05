@@ -454,30 +454,13 @@ interface CourtFieldDef {
 // docket, so they are worth collecting rather than leaving as placeholders.
 // Every step a timetable might fix. All optional: fill what this action
 // needs and the schedule carries exactly those, in this order.
-const TIMETABLE_FIELDS: CourtFieldDef[] = [
-  { key: 'discovery_plan', label: 'Discovery plan agreed (Rule 29.1)', type: 'date' },
-  { key: 'affidavits_of_documents', label: 'Affidavits of documents exchanged (Rule 30.03)', type: 'date' },
-  { key: 'productions', label: 'Documentary productions delivered', type: 'date' },
-  { key: 'examinations', label: 'Examinations for discovery completed', type: 'date' },
-  { key: 'undertakings', label: 'Answers to undertakings delivered', type: 'date' },
-  { key: 'motions', label: 'Motions arising from discovery heard', type: 'date' },
-  { key: 'expert_reports', label: 'Plaintiff expert reports delivered (Rule 53.03)', type: 'date' },
-  { key: 'responding_expert_reports', label: 'Responding expert reports delivered', type: 'date' },
-  { key: 'mediation', label: 'Mediation completed (Rule 24.1)', type: 'date' },
-  { key: 'set_down', label: 'Action set down for trial (Rule 48.14)', type: 'date' },
-  { key: 'pre_trial_scheduled', label: 'Pre-trial conference scheduled (date requested)', type: 'date' },
-  { key: 'pre_trial', label: 'Pre-trial conference held', type: 'date' },
-  { key: 'trial', label: 'Trial', type: 'date' },
-];
 
 const COURT_FORM_FIELDS: Record<string, CourtFieldDef[]> = {
   mediation: [
     { key: 'mediation_date', label: 'Mediation date (goes on your docket)', type: 'date' },
     { key: 'mediator_name', label: 'Mediator', placeholder: 'e.g., R. Fisher' },
   ],
-  sptimetable: TIMETABLE_FIELDS,
-  consenttimetable: TIMETABLE_FIELDS,
-  timetableorder: TIMETABLE_FIELDS,
+  // The three timetable cards use the custom-rows editor instead.
   aos: [
     { key: 'document_served', label: 'Document served', placeholder: 'e.g., Statement of Claim', required: true },
     { key: 'served_party', label: 'Party served', placeholder: 'e.g., the defendant corporation', required: true },
@@ -1039,6 +1022,13 @@ export default function MatterDetailView() {
       setGenError('That version could not be read.');
     } finally { setReplacing(false); }
   }, [sessionId, employment, refreshDraftHistory]);
+
+  // The lawyer's own timetable rows: their wording, their order. A fixed
+  // step list cannot express a real schedule (mediation often precedes
+  // discovery; firms word steps their own way).
+  const [ttRows, setTtRows] = useState<Array<{ label: string; date: string }>>([
+    { label: '', date: '' },
+  ]);
 
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
@@ -2283,6 +2273,50 @@ export default function MatterDetailView() {
               );})}
               </>)}
 
+              {['sptimetable', 'consenttimetable', 'timetableorder'].includes(selectedDraft ?? '') && !generatedHtml && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The timetable</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                    Write each step in your own words, in the order the schedule should read. Starling
+                    reproduces them exactly, checks the dates are readable, future, and consistent with
+                    the order you listed, and puts them on your docket.
+                  </div>
+                  {ttRows.map((row, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: muted, width: 18, textAlign: 'right' }}>{i + 1}.</span>
+                      <input
+                        type="date"
+                        value={row.date}
+                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
+                        aria-label={`Date for step ${i + 1}`}
+                        style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2 }}
+                      />
+                      <input
+                        type="text"
+                        value={row.label}
+                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
+                        placeholder="e.g. Defendants to deliver Affidavit of Documents"
+                        aria-label={`Step ${i + 1}`}
+                        style={{ flex: 1, minWidth: 260, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
+                      />
+                      <button
+                        onClick={() => setTtRows(rows => rows.length > 1 ? rows.filter((_, j) => j !== i) : rows)}
+                        aria-label={`Remove step ${i + 1}`}
+                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setTtRows(rows => [...rows, { label: '', date: '' }])}
+                    style={{ marginTop: 4, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                  >
+                    Add a step
+                  </button>
+                </div>
+              )}
+
               {/* Court-form inputs: the deterministic forms are data, and
                   these fields are that data */}
               {selectedDraft && COURT_FORM_FIELDS[selectedDraft] && !generatedHtml && (
@@ -2508,6 +2542,9 @@ export default function MatterDetailView() {
                         courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
                         ...(styleProfileId ? { styleProfileId } : {}),
+                        ...(['sptimetable', 'consenttimetable', 'timetableorder'].includes(selectedDraft ?? '')
+                          ? { timetableRows: ttRows.filter(r => r.label.trim() && r.date.trim()) }
+                          : {}),
                         ...(selectedDraft === 'mediation' ? {
                           briefSourceIds: [...selectedSourceIds],
                           includeGeneratedDemand: includeGenDemand,

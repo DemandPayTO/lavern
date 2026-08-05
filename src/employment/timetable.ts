@@ -83,6 +83,112 @@ function addYears(iso: string, years: number): string {
 }
 
 /**
+ * A step the lawyer wrote themselves: their words, their order.
+ *
+ * The fixed step list below imposed a taxonomy on a document that is
+ * bespoke by nature. Real timetables carry firm-specific steps ("Parties
+ * to advise whether they intend on bringing any Refusals motions") and
+ * orders the taxonomy would refuse: mediation often precedes discovery in
+ * an employment action, which the fixed ordering rejected as an error.
+ * The lawyer's order is authoritative; Starling checks what is genuinely
+ * checkable (readable, future, ascending as listed, Rule 48.14).
+ */
+export interface CustomTimetableRow {
+  label: string;
+  date: string;
+}
+
+export interface CustomTimetableValidation {
+  ok: boolean;
+  rows: Array<{ label: string; date: string }>;
+  issues: Array<{ index: number; message: string; severity: 'error' | 'caution' }>;
+}
+
+export function validateCustomTimetable(
+  raw: CustomTimetableRow[],
+  options: { today?: string; claimIssuedDate?: string } = {},
+): CustomTimetableValidation {
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  const rows: Array<{ label: string; date: string }> = [];
+  const issues: CustomTimetableValidation['issues'] = [];
+
+  raw.forEach((row, i) => {
+    const label = String(row.label ?? '').trim();
+    const value = String(row.date ?? '').trim();
+    if (!label && !value) return;
+    if (!label) {
+      issues.push({ index: i, message: `Row ${i + 1} has a date but no step. Name the step or remove the row.`, severity: 'error' });
+      return;
+    }
+    if (!value) {
+      issues.push({ index: i, message: `"${label}" has no date.`, severity: 'error' });
+      return;
+    }
+    const parsed = normaliseDate(value);
+    if (!parsed.value) {
+      issues.push({ index: i, message: `${label}: ${parsed.reason}`, severity: 'error' });
+      return;
+    }
+    if (parsed.value < today) {
+      issues.push({ index: i, message: `${label} is in the past (${parsed.value}). A timetable proposes future dates.`, severity: 'error' });
+      return;
+    }
+    rows.push({ label, date: parsed.value });
+  });
+
+  // Ascending in the order the LAWYER listed them. Their sequence is the
+  // sequence; this only catches a date that contradicts its own position.
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].date < rows[i - 1].date) {
+      issues.push({
+        index: i,
+        message: `"${rows[i].label}" (${rows[i].date}) is listed after "${rows[i - 1].label}" (${rows[i - 1].date}) but falls earlier. Reorder the rows or fix the date.`,
+        severity: 'error',
+      });
+    }
+  }
+
+  // Rule 48.14 still applies to whichever row is the setting down.
+  if (options.claimIssuedDate) {
+    const deadline = addYears(options.claimIssuedDate, RULE_48_14_YEARS);
+    const setDown = rows.find(r => /set(ting)?\s+(the\s+)?(action\s+)?down/i.test(r.label));
+    if (setDown && setDown.date > deadline) {
+      issues.push({
+        index: rows.indexOf(setDown),
+        message: `Setting down on ${setDown.date} is after the Rule 48.14 deadline of ${deadline} (five years from ${options.claimIssuedDate}). The motion must ask for an extension.`,
+        severity: 'caution',
+      });
+    }
+  }
+
+  return { ok: !issues.some(i => i.severity === 'error'), rows, issues };
+}
+
+/** The lawyer's own rows, rendered for the generator. */
+export function customTimetableForPrompt(rows: Array<{ label: string; date: string }>): string {
+  const lines = rows.map(r => `- ${r.label}: ${longForm(r.date)}`);
+  return `PROPOSED TIMETABLE — reproduce EXACTLY these steps, in this order, with these dates and these step descriptions written exactly as shown. Do not add a step, omit a step, reorder them, reword a step, or reformat a date:\n${lines.join('\n')}`;
+}
+
+/** Docket entries for the lawyer's own rows. */
+export function customTimetableEvents(
+  rows: Array<{ label: string; date: string }>,
+  options: { proposed?: boolean } = {},
+): TimelineEvent[] {
+  const proposed = options.proposed ?? true;
+  return rows.map(r => ({
+    date: r.date,
+    label: `${proposed ? 'Proposed: ' : ''}${r.label}`,
+    description: proposed
+      ? 'From the timetable proposed in the motion. Confirm when the order is made.'
+      : 'Fixed by the timetable order.',
+    category: 'legal' as const,
+    source: 'system' as const,
+    courtDeadline: !proposed,
+  }));
+}
+
+/**
  * Validate proposed dates: readable, in the future, in the right order, and
  * within the Rule 48.14 window where the commencement date is known.
  */

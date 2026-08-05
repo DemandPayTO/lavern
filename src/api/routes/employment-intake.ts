@@ -1713,6 +1713,14 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     })).max(6).optional(),
     /** Stored brief sources to include, by id (attach once, reuse). */
     briefSourceIds: z.array(z.string().max(60)).max(6).optional(),
+    /**
+     * The lawyer's own timetable rows: their wording, their order. Takes
+     * precedence over the fixed-step formFields when present.
+     */
+    timetableRows: z.array(z.object({
+      label: z.string().trim().min(1).max(300),
+      date: z.string().trim().min(1).max(40),
+    })).max(30).optional(),
     /** Include the matter's generated positions (default yes, when they exist). */
     includeGeneratedDemand: z.boolean().default(true),
     includeGeneratedSoc: z.boolean().default(true),
@@ -1805,24 +1813,45 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let timetableContext: string | undefined;
     let timetableDates: import('../../employment/timetable.js').TimetableDates | undefined;
     let timetableCautions: string[] = [];
+    let customRows: Array<{ label: string; date: string }> | undefined;
     if (TIMETABLE_TYPES.includes(parsed.data.documentType)) {
       const tt = await import('../../employment/timetable.js');
-      const raw = Object.fromEntries(
-        Object.entries(parsed.data.formFields ?? {}).map(([k, v]) => [k, String(v ?? '')]),
-      );
-      const check = tt.validateTimetable(raw, { claimIssuedDate: tt.claimIssuedDate(employment.intake) });
-      if (!check.ok) {
-        return reply.status(400).send({
-          ok: false,
-          error: 'The proposed timetable needs fixing before the document can be drafted.',
-          issues: check.issues.filter(i => i.severity === 'error').map(i => i.message),
-        });
+      const claimIssued = tt.claimIssuedDate(employment.intake);
+
+      if (parsed.data.timetableRows && parsed.data.timetableRows.length > 0) {
+        // The lawyer wrote their own steps: their wording and their order
+        // govern, and the checks are the ones that stay meaningful.
+        const check = tt.validateCustomTimetable(parsed.data.timetableRows, { claimIssuedDate: claimIssued });
+        if (!check.ok) {
+          return reply.status(400).send({
+            ok: false,
+            error: 'The proposed timetable needs fixing before the document can be drafted.',
+            issues: check.issues.filter(i => i.severity === 'error').map(i => i.message),
+          });
+        }
+        if (check.rows.length > 0) {
+          timetableContext = tt.customTimetableForPrompt(check.rows);
+          customRows = check.rows;
+        }
+        timetableCautions = check.issues.filter(i => i.severity === 'caution').map(i => i.message);
+      } else {
+        const raw = Object.fromEntries(
+          Object.entries(parsed.data.formFields ?? {}).map(([k, v]) => [k, String(v ?? '')]),
+        );
+        const check = tt.validateTimetable(raw, { claimIssuedDate: claimIssued });
+        if (!check.ok) {
+          return reply.status(400).send({
+            ok: false,
+            error: 'The proposed timetable needs fixing before the document can be drafted.',
+            issues: check.issues.filter(i => i.severity === 'error').map(i => i.message),
+          });
+        }
+        if (Object.keys(check.dates).length > 0) {
+          timetableContext = tt.timetableForPrompt(check.dates);
+          timetableDates = check.dates;
+        }
+        timetableCautions = check.issues.filter(i => i.severity === 'caution').map(i => i.message);
       }
-      if (Object.keys(check.dates).length > 0) {
-        timetableContext = tt.timetableForPrompt(check.dates);
-        timetableDates = check.dates;
-      }
-      timetableCautions = check.issues.filter(i => i.severity === 'caution').map(i => i.message);
     }
 
     // The firm's style profile, when the lawyer picked one: its guide is
@@ -1950,6 +1979,16 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         },
       ].sort((a, b) => a.date.localeCompare(b.date));
       docketed += 1;
+    }
+    if (customRows && customRows.length > 0) {
+      const tt = await import('../../employment/timetable.js');
+      const events = tt.customTimetableEvents(customRows);
+      const labels = new Set(events.map(e => e.label));
+      employment.timeline = [
+        ...employment.timeline.filter(ev => !labels.has(ev.label)),
+        ...events,
+      ].sort((a, b) => a.date.localeCompare(b.date));
+      docketed += events.length;
     }
     if (timetableDates && Object.keys(timetableDates).length > 0) {
       const tt = await import('../../employment/timetable.js');

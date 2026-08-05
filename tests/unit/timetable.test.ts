@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateTimetable, timetableForPrompt, timetableTimelineEvents, TIMETABLE_STEPS,
+  validateCustomTimetable, customTimetableForPrompt, customTimetableEvents,
 } from '../../src/employment/timetable.js';
 
 const TODAY = '2026-08-04';
@@ -131,5 +132,69 @@ describe('docketing', () => {
     const [event] = timetableTimelineEvents(dates, { proposed: false });
     expect(event.label).not.toMatch(/Proposed/);
     expect(event.courtDeadline).toBe(true);
+  });
+});
+
+
+describe("the lawyer's own steps", () => {
+  // The pilot's real timetable: their wording, and mediation BEFORE
+  // discovery, which the fixed step order would have rejected.
+  const REAL = [
+    { label: 'Defendants to deliver Affidavit of Documents', date: '2026-08-31' },
+    { label: 'Mediation to be completed', date: '2026-10-16' },
+    { label: 'Examination for Discovery to be completed', date: '2026-11-16' },
+    { label: 'Undertakings, Under Advisements, and Refusals to be completed', date: '2027-01-18' },
+    { label: 'Parties to advise whether they intend on bringing any Refusals motions', date: '2027-02-05' },
+    { label: 'Parties to have scheduled any Refusals motions necessary', date: '2027-02-26' },
+    { label: 'Serve Notice of Readiness for Pre-Trial Conference', date: '2027-03-31' },
+  ];
+
+  it('accepts the firm’s own wording and order, mediation before discovery included', () => {
+    const result = validateCustomTimetable(REAL, { today: TODAY });
+    expect(result.ok).toBe(true);
+    expect(result.issues).toEqual([]);
+    expect(result.rows).toHaveLength(7);
+    expect(result.rows[1].label).toBe('Mediation to be completed');
+  });
+
+  it('reproduces the steps verbatim, in order, in long-form dates', () => {
+    const { rows } = validateCustomTimetable(REAL, { today: TODAY });
+    const prompt = customTimetableForPrompt(rows);
+    expect(prompt).toContain('Defendants to deliver Affidavit of Documents: August 31, 2026');
+    expect(prompt).toContain('Serve Notice of Readiness for Pre-Trial Conference: March 31, 2027');
+    expect(prompt).toContain('reword a step');
+  });
+
+  it('catches a date that contradicts its own position in the list', () => {
+    const out = validateCustomTimetable(
+      [REAL[0], { label: 'Mediation to be completed', date: '2026-08-15' }],
+      { today: TODAY },
+    );
+    expect(out.ok).toBe(false);
+    expect(out.issues[0].message).toMatch(/falls earlier/);
+  });
+
+  it('still refuses past dates, ambiguous dates, and nameless rows', () => {
+    expect(validateCustomTimetable([{ label: 'Mediation', date: '2020-01-01' }], { today: TODAY }).ok).toBe(false);
+    expect(validateCustomTimetable([{ label: 'Mediation', date: '03/04/2027' }], { today: TODAY }).issues[0].message).toMatch(/two ways/);
+    expect(validateCustomTimetable([{ label: '', date: '2027-01-01' }], { today: TODAY }).ok).toBe(false);
+  });
+
+  it('applies Rule 48.14 to whichever row is the setting down', () => {
+    const out = validateCustomTimetable(
+      [{ label: 'Action to be set down for trial', date: '2027-03-01' }],
+      { today: TODAY, claimIssuedDate: '2021-06-01' },
+    );
+    expect(out.ok).toBe(true);
+    expect(out.issues[0].severity).toBe('caution');
+    expect(out.issues[0].message).toMatch(/48\.14/);
+  });
+
+  it('dockets the lawyer’s steps as proposals, not court deadlines', () => {
+    const { rows } = validateCustomTimetable(REAL, { today: TODAY });
+    const events = customTimetableEvents(rows);
+    expect(events).toHaveLength(7);
+    expect(events[0].label).toBe('Proposed: Defendants to deliver Affidavit of Documents');
+    expect(events[0].courtDeadline).toBe(false);
   });
 });
