@@ -25,6 +25,7 @@ import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
 import { buildMediationFrontMatter, buildMediationCover, buildMediationSignOff, numberNarrativeParagraphs, scrubNarrative, esc } from './mediation-brief-tables.js';
+import { buildAffidavitOpening, buildJurat, buildExhibitBlock, scrubAffidavitBody } from './affidavit-furniture.js';
 import type { ComparableCase, CaseBasedRange } from './case-comparables.js';
 import type { NegotiationEntry } from './negotiation.js';
 
@@ -35,6 +36,7 @@ const logger = createLogger('LITIGATION-DOCS');
 export type LitigationDocumentType =
   | 'discovery_plan'
   | 'affidavit_of_documents'
+  | 'motion_affidavit'
   | 'mediation_brief'
   | 'severance_assessment'
   | 'counter_offer'
@@ -78,6 +80,11 @@ export interface LitigationDocumentRequest {
   styleProfileTableRows?: string[] | null;
   /** The firm's own section headings from the style profile flow; when present they replace the pinned h2 list. */
   styleFlowHeadings?: string[] | null;
+  /** Affidavit furniture inputs (motion_affidavit). */
+  affidavit?: import('./affidavit-furniture.js').AffidavitFurnitureInput & {
+    exhibits?: Array<{ letter?: string; description: string }>;
+    title?: string;
+  };
   /** Claim amount (for mediation brief settlement range context). */
   claimAmount?: number;
   lawyerName: string;
@@ -182,6 +189,27 @@ RULES:
 - Canadian English spelling throughout
 
 Output as HTML with h1, h2, tables, and structured lists. No inline styles.`,
+
+    motion_affidavit: `You are a senior Ontario employment litigation lawyer drafting the BODY of an affidavit in support of a motion.
+
+IMPORTANT: The opening block (who is swearing, in what capacity, on what knowledge basis), the jurat, the exhibit index and the exhibit stamps are added automatically. Do NOT write any of them. In particular do NOT open with "I am the solicitor for the plaintiff" or "I have personal knowledge of the matters deposed to": those paragraphs already exist above yours and repeating them reads as carelessness in a sworn document. Do not write "I, [name], MAKE OATH AND SAY", do not write a jurat, do not write "SWORN BEFORE ME", and do not number your paragraphs (numbering is applied automatically). Begin with the first substantive paragraph.
+
+WHAT AN AFFIDAVIT IS: evidence, not argument. Facts the deponent can swear to, in short numbered paragraphs, in chronological order. No submissions, no characterisation of the other side's conduct, no legal conclusions. If a proposition needs argument, it belongs in the factum, not here.
+
+STRUCTURE:
+1. The background the motion needs: the action, the parties, the step the motion concerns, and the dates that matter, drawn from the matter record.
+2. What has happened on the point, in order: what was requested, when, of whom, and what response came back. Where correspondence is relied on, refer to it as an exhibit ("attached as Exhibit "A" is a copy of my letter to opposing counsel dated ...").
+3. Why the relief is needed, expressed as FACTS: what remains outstanding, what the consequence of the delay is. Never as argument.
+4. A closing paragraph in the conventional form: that the affidavit is made in support of the motion and for no improper purpose.
+
+RULES:
+- Only facts the deponent could actually swear to. Where a fact comes from another person or a document, say so in the paragraph itself.
+- Do not invent correspondence, dates, or exhibits. Where the record does not supply something the affidavit needs, write "[LAWYER: ...]" naming what is required.
+- Do not plead law or cite cases.
+- One fact per paragraph, two to four sentences.
+- Canadian English. No em dashes.
+
+Output as HTML with <p> for each paragraph, <strong> only where a defined term needs it. No headings, no tables, no inline styles.`,
 
     mediation_brief: `You are a senior Ontario employment lawyer preparing a plaintiff's mediation brief for mandatory mediation under Rule 24.1. You are writing a persuasive narrative, not filling out Form 24.1C, and not reciting a pleading. The true audience is the opposing party and its counsel; the mediator is being educated. This design follows the published guidance of Ontario's leading employment mediators (Fisher, Rudner, Rose).
 
@@ -755,6 +783,25 @@ ${positions}`;
     html = injectForm14cNotice(html);
   }
 
+  // Affidavit: the model wrote the body; every fixed part is assembled
+  // here so a jurat can never come out malformed.
+  if (req.documentType === 'motion_affidavit') {
+    const a = req.affidavit;
+    const deponent = a?.deponentName ?? '';
+    const sworn = a?.sworn ?? 'sworn';
+    const exhibits = a?.exhibits ?? [];
+    const opening = a
+      ? buildAffidavitOpening(a)
+      : buildAffidavitOpening({ deponentName: '', capacity: 'lawyer', knowledgeBasis: 'mixed', sworn: 'sworn' });
+    const { index, stamps } = buildExhibitBlock(exhibits, deponent, sworn);
+    const title = `<h1>${esc(a?.title ?? 'Affidavit')}</h1>`;
+    // Numbering starts at the capacity paragraph; the "I, NAME ... MAKE
+    // OATH AND SAY:" preamble is not paragraph 1.
+    const numbered = numberNarrativeParagraphs([opening.numbered, scrubAffidavitBody(html)].join('\n'));
+    html = [title, opening.preamble, numbered, index, buildJurat({ sworn, deponentName: deponent }), stamps]
+      .filter(Boolean).join('\n\n');
+  }
+
   // Mediation brief: prepend the deterministic title block and tables.
   // Integrity checks below run on the model narrative only: the tables are
   // deterministic and the comparable cases come from the verified library,
@@ -842,6 +889,7 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
   switch (docType) {
     case 'discovery_plan': return 'Discovery Plan';
     case 'affidavit_of_documents': return 'Affidavit of Documents';
+    case 'motion_affidavit': return 'Affidavit';
     case 'mediation_brief': return 'Mediation Brief';
     case 'severance_assessment': return 'Severance Offer Assessment';
     case 'counter_offer': return 'Counter-Offer Letter';
@@ -872,6 +920,8 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
 
 function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
   switch (docType) {
+    case 'motion_affidavit':
+      return ['deponent_knowledge', 'exhibits_attached', 'swearing_arrangements'];
     case 'discovery_plan':
       return ['document_requests', 'interrogatories', 'examination_topics'];
     case 'affidavit_of_documents':

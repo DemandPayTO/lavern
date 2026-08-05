@@ -1030,6 +1030,57 @@ export default function MatterDetailView() {
     { label: '', date: '' },
   ]);
 
+  // The package: the three timetable documents and the supporting
+  // affidavit are prepared together in practice, from one schedule.
+  const [pkgAffidavit, setPkgAffidavit] = useState(true);
+  const [pkgDeponent, setPkgDeponent] = useState('');
+  const [pkgCapacity, setPkgCapacity] = useState<'lawyer' | 'plaintiff' | 'law_clerk'>('lawyer');
+  const [pkgBasis, setPkgBasis] = useState<'personal' | 'information_and_belief' | 'mixed'>('information_and_belief');
+  const [pkgSource, setPkgSource] = useState('');
+  const [pkgBusy, setPkgBusy] = useState(false);
+  const [pkgResult, setPkgResult] = useState<string | null>(null);
+
+  const generatePackage = useCallback(async () => {
+    if (!sessionId) return;
+    setPkgBusy(true); setGenError(null); setPkgResult(null);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/timetable-package`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lawyerName: profile.displayName || 'Lawyer Name',
+          firmName: profile.firmName || 'Firm Name',
+          firmAddress: [profile.firmAddress, profile.firmPhone && `Tel: ${profile.firmPhone}`, profile.firmEmail && `Email: ${profile.firmEmail}`].filter(Boolean).join(' · ') || undefined,
+          courtLocation: genCourtLocation,
+          timetableRows: ttRows.filter(r => r.label.trim() && r.date.trim()),
+          includeAffidavit: pkgAffidavit,
+          ...(pkgAffidavit ? {
+            affidavit: {
+              deponentName: pkgDeponent || profile.displayName || '',
+              deponentCity: genCourtLocation || undefined,
+              capacity: pkgCapacity,
+              knowledgeBasis: pkgBasis,
+              ...(pkgBasis === 'information_and_belief' && pkgSource ? { informationSource: pkgSource } : {}),
+              sworn: 'sworn',
+            },
+          } : {}),
+        }),
+      });
+      const d = await res.json();
+      if (!d.ok) {
+        setGenError([d.error, ...(d.issues ?? [])].filter(Boolean).join(' '));
+        return;
+      }
+      const names = (d.generated ?? []).map((g: { title: string }) => g.title).join(', ');
+      setPkgResult(`${(d.generated ?? []).length} documents drafted: ${names}. ${d.docketedDates} dates on your docket. Cost $${(d.costUsd ?? 0).toFixed(2)}.`
+        + ((d.failed ?? []).length ? ` ${(d.failed as Array<{ docType: string }>).length} could not be generated; try them individually.` : ''));
+      setActiveTab('docs');
+      void employment.refresh();
+    } catch {
+      setGenError('The package could not be generated.');
+    } finally { setPkgBusy(false); }
+  }, [sessionId, profile, genCourtLocation, ttRows, pkgAffidavit, pkgDeponent, pkgCapacity, pkgBasis, pkgSource, employment]);
+
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
   // rather than retypes.
@@ -2314,6 +2365,62 @@ export default function MatterDetailView() {
                   >
                     Add a step
                   </button>
+
+                  <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Draft the whole package</div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                      The motion, the consent order and the draft order from this one schedule, so their
+                      terms cannot disagree. Each arrives as its own document on the Documents tab.
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 8, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={pkgAffidavit} onChange={() => setPkgAffidavit(v => !v)} style={{ accentColor: navy }} />
+                      Include the supporting affidavit for the motion
+                    </label>
+                    {pkgAffidavit && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <input
+                          value={pkgDeponent}
+                          onChange={e => setPkgDeponent(e.target.value)}
+                          placeholder={`Deponent (default: ${profile.displayName || 'you'})`}
+                          aria-label="Deponent name"
+                          style={{ flex: 1, minWidth: 190, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
+                        />
+                        <select value={pkgCapacity} onChange={e => setPkgCapacity(e.target.value as typeof pkgCapacity)} aria-label="Deponent capacity"
+                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
+                          <option value="lawyer">Lawyer with carriage</option>
+                          <option value="law_clerk">Law clerk</option>
+                          <option value="plaintiff">The plaintiff</option>
+                        </select>
+                        <select value={pkgBasis} onChange={e => setPkgBasis(e.target.value as typeof pkgBasis)} aria-label="Knowledge basis"
+                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
+                          <option value="information_and_belief">Information and belief (Rule 39.01(4))</option>
+                          <option value="personal">Personal knowledge</option>
+                          <option value="mixed">Mixed</option>
+                        </select>
+                        {pkgBasis === 'information_and_belief' && (
+                          <input
+                            value={pkgSource}
+                            onChange={e => setPkgSource(e.target.value)}
+                            placeholder="Source of the information (named, as the rule requires)"
+                            aria-label="Source of information"
+                            style={{ flex: 1, minWidth: 240, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
+                          />
+                        )}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { void generatePackage(); }}
+                      disabled={pkgBusy || ttRows.filter(r => r.label.trim() && r.date.trim()).length === 0}
+                      style={{
+                        fontSize: 13.5, fontWeight: 600, padding: '10px 18px', borderRadius: 2, fontFamily: sans,
+                        background: pkgBusy ? muted : orange, color: '#fff', border: 'none',
+                        cursor: pkgBusy ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {pkgBusy ? 'Drafting the package…' : `Generate the timetable package${pkgAffidavit ? ' (4 documents)' : ' (3 documents)'}`}
+                    </button>
+                    {pkgResult && <div role="status" style={{ fontSize: 12.5, color: green, marginTop: 8 }}>{pkgResult}</div>}
+                  </div>
                 </div>
               )}
 

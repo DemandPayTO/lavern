@@ -198,3 +198,57 @@ describe("the lawyer's own steps", () => {
     expect(events[0].courtDeadline).toBe(false);
   });
 });
+
+
+describe('affidavit furniture', () => {
+  it('keeps the preamble out of the numbering and states the knowledge basis', async () => {
+    const { buildAffidavitOpening } = await import('../../src/employment/affidavit-furniture.js');
+    const opening = buildAffidavitOpening({
+      deponentName: 'Jordan Haworth', deponentCity: 'Toronto', capacity: 'lawyer',
+      knowledgeBasis: 'information_and_belief', informationSource: 'my firm file', sworn: 'sworn',
+    });
+    expect(opening.preamble).toContain('MAKE OATH AND SAY');
+    expect(opening.numbered).toContain('my firm file');
+    expect(opening.numbered).toContain('identified that source');
+
+    const personal = buildAffidavitOpening({
+      deponentName: 'A', capacity: 'plaintiff', knowledgeBasis: 'personal', sworn: 'affirmed',
+    });
+    expect(personal.preamble).toContain('AFFIRM AND SAY');
+    expect(personal.numbered).toContain('personal knowledge');
+    expect(personal.numbered).not.toContain('information');
+
+    const noSource = buildAffidavitOpening({
+      deponentName: 'A', capacity: 'lawyer', knowledgeBasis: 'information_and_belief', sworn: 'sworn',
+    });
+    expect(noSource.numbered).toContain('[LAWYER: name the source');
+  });
+
+  it('builds the jurat and exhibit blocks in fixed form', async () => {
+    const { buildJurat, buildExhibitBlock, exhibitLetter } = await import('../../src/employment/affidavit-furniture.js');
+    expect(buildJurat({ sworn: 'sworn', deponentName: 'Jordan Haworth' })).toContain('SWORN BEFORE ME');
+    expect(buildJurat({ sworn: 'affirmed', deponentName: 'A' })).toContain('AFFIRMED BEFORE ME');
+    const { index, stamps } = buildExhibitBlock(
+      [{ description: 'Letter to counsel' }, { description: 'Reply from counsel' }], 'Jordan Haworth', 'sworn',
+    );
+    expect(index).toContain('Exhibit "A"');
+    expect(index).toContain('Exhibit "B"');
+    expect(stamps).toContain('This is Exhibit "A" referred to in the affidavit of Jordan Haworth');
+    expect(exhibitLetter(0)).toBe('A');
+    expect(exhibitLetter(25)).toBe('Z');
+    expect(exhibitLetter(26)).toBe('AA');
+  });
+
+  it('scrubs a capacity paragraph the model wrote itself, but keeps later ones', async () => {
+    const { scrubAffidavitBody } = await import('../../src/employment/affidavit-furniture.js');
+    const body = [
+      '<p>I am the solicitor for the plaintiff, and I have carriage of this action.</p>',
+      '<p>This action is proceeding in Toronto.</p>',
+      '<p>I am the lawyer who attended the mediation on October 16.</p>',
+    ].join('');
+    const out = scrubAffidavitBody(body);
+    expect(out).not.toContain('carriage of this action');
+    expect(out).toContain('proceeding in Toronto');
+    expect(out).toContain('attended the mediation');
+  });
+});

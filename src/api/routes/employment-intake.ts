@@ -1713,6 +1713,21 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     })).max(6).optional(),
     /** Stored brief sources to include, by id (attach once, reuse). */
     briefSourceIds: z.array(z.string().max(60)).max(6).optional(),
+    /** Affidavit furniture: who swears, in what capacity, on what basis. */
+    affidavit: z.object({
+      deponentName: z.string().trim().max(200),
+      deponentCity: z.string().trim().max(120).optional(),
+      capacity: z.enum(['plaintiff', 'lawyer', 'law_clerk', 'other']),
+      capacityDescription: z.string().trim().max(300).optional(),
+      knowledgeBasis: z.enum(['personal', 'information_and_belief', 'mixed']),
+      informationSource: z.string().trim().max(300).optional(),
+      sworn: z.enum(['sworn', 'affirmed']).default('sworn'),
+      title: z.string().trim().max(200).optional(),
+      exhibits: z.array(z.object({
+        letter: z.string().trim().max(4).optional(),
+        description: z.string().trim().min(1).max(400),
+      })).max(26).optional(),
+    }).optional(),
     /**
      * The lawyer's own timetable rows: their wording, their order. Takes
      * precedence over the fixed-step formFields when present.
@@ -1909,6 +1924,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         styleTypicalWords,
         styleProfileTableRows,
         styleFlowHeadings,
+        affidavit: parsed.data.affidavit,
         positionDocuments: positionDocuments.length > 0 ? positionDocuments : undefined,
         sourceDocuments: positionDocuments.length > 0
           ? positionDocuments.map(d => ({ name: d.title, content: d.text }))
@@ -2253,6 +2269,178 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       paragraphs: paragraphs.map((p, i) => ({ index: i, text: rl.paragraphText(p) })),
       items,
       costUsd: cost,
+    });
+  });
+
+  // ── POST /api/employment/:matterId/timetable-package ───────────────────
+  // The three timetable documents are prepared together in practice, from
+  // one schedule. Generating them separately invites the model-written
+  // parts to drift apart (a consent order saying seven days to vary while
+  // the draft order says ten). One action, one set of inputs, generated in
+  // PARALLEL and stored as SEPARATE documents so each keeps its own
+  // template, review, redraft and download.
+
+  fastify.post('/api/employment/:matterId/timetable-package', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+
+    const packageSchema = z.object({
+      lawyerName: z.string().trim().min(1).max(200),
+      firmName: z.string().trim().min(1).max(200),
+      firmAddress: z.string().trim().max(500).optional(),
+      courtLocation: z.string().trim().max(200).optional(),
+      timetableRows: z.array(z.object({
+        label: z.string().trim().min(1).max(300),
+        date: z.string().trim().min(1).max(40),
+      })).min(1).max(30),
+      /** Style profile per document type, when the firm has taught one. */
+      styleProfileIds: z.record(z.string().max(60), z.string().max(100)).optional(),
+      /** Include the supporting affidavit for the motion. */
+      includeAffidavit: z.boolean().default(true),
+      affidavit: z.object({
+        deponentName: z.string().trim().max(200),
+        deponentCity: z.string().trim().max(120).optional(),
+        capacity: z.enum(['plaintiff', 'lawyer', 'law_clerk', 'other']),
+        capacityDescription: z.string().trim().max(300).optional(),
+        knowledgeBasis: z.enum(['personal', 'information_and_belief', 'mixed']),
+        informationSource: z.string().trim().max(300).optional(),
+        sworn: z.enum(['sworn', 'affirmed']).default('sworn'),
+        exhibits: z.array(z.object({
+          letter: z.string().trim().max(4).optional(),
+          description: z.string().trim().min(1).max(400),
+        })).max(26).optional(),
+      }).optional(),
+    });
+
+    const parsed = packageSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!employment.intake || !employment.analysis) {
+      return reply.status(400).send({ ok: false, error: 'Complete intake and analysis first.' });
+    }
+    ensureAnalysisFresh(employment);
+
+    // Validate the schedule ONCE. Every document in the package carries
+    // the same rows, so they cannot disagree.
+    const tt = await import('../../employment/timetable.js');
+    const check = tt.validateCustomTimetable(parsed.data.timetableRows, {
+      claimIssuedDate: tt.claimIssuedDate(employment.intake),
+    });
+    if (!check.ok) {
+      return reply.status(400).send({
+        ok: false,
+        error: 'The proposed timetable needs fixing before the package can be drafted.',
+        issues: check.issues.filter(i => i.severity === 'error').map(i => i.message),
+      });
+    }
+    const timetableContext = tt.customTimetableForPrompt(check.rows);
+
+    const definedTerms: string[] = [];
+    if (employment.intake.client_first_name && employment.intake.client_last_name) {
+      definedTerms.push(`${employment.intake.client_first_name} ${employment.intake.client_last_name}`);
+    }
+    if (employment.intake.employer_legal_name) definedTerms.push(employment.intake.employer_legal_name);
+
+    const types: LitigationDocumentType[] = [
+      'sp_timetable_motion', 'consent_timetable_order', 'timetable_order',
+      ...(parsed.data.includeAffidavit ? ['motion_affidavit' as LitigationDocumentType] : []),
+    ];
+
+    // Parallel: the package is one wait, not four.
+    const results = await Promise.allSettled(types.map(async docType => {
+      let styleContext: string | undefined;
+      let styleIdentifiers: string[] = [];
+      let styleLabel = '';
+      const styleId = parsed.data.styleProfileIds?.[docType];
+      if (styleId) {
+        const style = await loadStyleForGeneration(req, styleId, docType);
+        if (!('error' in style)) {
+          styleContext = style.context;
+          styleIdentifiers = style.identifiers;
+          styleLabel = style.label;
+        }
+      }
+      const result = await generateLitigationDocument({
+        intake: employment.intake!,
+        approvedIssues: employment.approvedIssues,
+        analysis: employment.analysis!,
+        documentType: docType,
+        lawyerName: parsed.data.lawyerName,
+        firmName: parsed.data.firmName,
+        firmAddress: parsed.data.firmAddress,
+        courtLocation: parsed.data.courtLocation,
+        additionalContext: [
+          timetableContext,
+          docType === 'motion_affidavit'
+            ? 'This affidavit supports a motion for an order fixing the timetable set out above. Depose to the steps taken to agree a timetable and what remains outstanding.'
+            : undefined,
+          styleContext,
+        ].filter(Boolean).join('\n\n'),
+        ...(docType === 'motion_affidavit' && parsed.data.affidavit
+          ? { affidavit: { ...parsed.data.affidavit, title: 'Affidavit (Timetable Motion)' } }
+          : {}),
+      }, definedTerms);
+      if (styleIdentifiers.length > 0) {
+        result.lawyerReviewFlags = [
+          ...result.lawyerReviewFlags,
+          ...await styleReviewFlags(result.html, styleIdentifiers, styleLabel, employment.intake as unknown as Record<string, unknown>),
+        ];
+      }
+      return { docType, result };
+    }));
+
+    const generated: Array<{ docType: string; title: string; costUsd: number }> = [];
+    const failed: Array<{ docType: string; error: string }> = [];
+    let totalCost = 0;
+
+    for (let i = 0; i < results.length; i++) {
+      const settled = results[i];
+      if (settled.status === 'rejected') {
+        failed.push({ docType: types[i], error: settled.reason instanceof Error ? settled.reason.message : 'Generation failed' });
+        continue;
+      }
+      const { docType, result } = settled.value;
+      const html = sanitiseHtml(result.html);
+      recordDraftHistory(matter as Record<string, unknown>, {
+        docType, title: result.documentTitle, html, costUsd: result.costUsd,
+      }, { userId, matterId });
+      (matter as Record<string, unknown>)[`generated_${docType}`] = {
+        html,
+        documentType: result.documentType,
+        documentTitle: result.documentTitle,
+        lawyerReviewFlags: result.lawyerReviewFlags,
+        citations: result.citations,
+        generatedAt: new Date().toISOString(),
+        costUsd: result.costUsd,
+        status: 'draft',
+      };
+      generated.push({ docType, title: result.documentTitle, costUsd: result.costUsd });
+      totalCost += result.costUsd;
+    }
+
+    // Docket the schedule once, from the shared rows.
+    const events = tt.customTimetableEvents(check.rows);
+    const labels = new Set(events.map(e => e.label));
+    employment.timeline = [
+      ...employment.timeline.filter(ev => !labels.has(ev.label)),
+      ...events,
+    ].sort((a, b) => a.date.localeCompare(b.date));
+
+    await saveEmploymentData(userId, matterId, matter, employment);
+    logger.info('Timetable package generated', {
+      userId, matterId, generated: generated.map(g => g.docType), failed: failed.map(f => f.docType), costUsd: totalCost.toFixed(4),
+    });
+
+    return reply.send({
+      ok: generated.length > 0,
+      generated,
+      failed,
+      docketedDates: events.length,
+      cautions: check.issues.filter(i => i.severity === 'caution').map(i => i.message),
+      costUsd: totalCost,
     });
   });
 
