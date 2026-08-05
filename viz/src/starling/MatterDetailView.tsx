@@ -529,6 +529,15 @@ const PACKAGE_DOCS: Array<{ type: string; label: string }> = [
 ];
 
 /** Cards that need a dollar amount before Generate makes sense. */
+const DEMAND_SOURCE_KIND_LABELS: Record<string, string> = {
+  employment_agreement: 'Employment agreement',
+  termination_letter: 'Termination letter',
+  roe: 'Record of employment',
+  correspondence: 'Correspondence',
+  policy_document: 'Policy document',
+  other: 'Other',
+};
+
 const DRAFTS_NEEDING_AMOUNT = new Set(['demand', 'soc', 'counter', 'rule49']);
 
 // ── Review lane controls ────────────────────────────────────────────────
@@ -774,6 +783,13 @@ export default function MatterDetailView() {
   const [dlRecipient, setDlRecipient] = useState('');
   const [dlPaid, setDlPaid] = useState<Array<{ label: string; amount: string }>>([]);
   const [dlMitigation, setDlMitigation] = useState('');
+  // Which attached documents this letter reads, and what the next upload
+  // is. The kind is the lawyer's to state: a file called "final.docx"
+  // tells the model nothing, and a policy manual read as the employment
+  // agreement quotes the wrong words with confidence.
+  const [dlSourceIds, setDlSourceIds] = useState<Set<string>>(new Set());
+  const [dlUploadKind, setDlUploadKind] = useState('employment_agreement');
+  const dlSourceInputRef = useRef<HTMLInputElement | null>(null);
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
   // Structured inputs for the deterministic court forms
@@ -960,7 +976,7 @@ export default function MatterDetailView() {
   // list of authorities), parsed to text before the request.
   // Stored sources come from the matter (attach once, reuse); selection
   // is which of them this generation uses.
-  const [storedSources, setStoredSources] = useState<Array<{ id: string; name: string; words: number }>>([]);
+  const [storedSources, setStoredSources] = useState<Array<{ id: string; name: string; words: number; kind?: string }>>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [includeGenDemand, setIncludeGenDemand] = useState(true);
   const [includeGenSoc, setIncludeGenSoc] = useState(true);
@@ -1112,18 +1128,23 @@ export default function MatterDetailView() {
   }, [selectedDraft, employment.mediationLogistics]);
 
   useEffect(() => {
-    if (selectedDraft !== 'mediation' || !sessionId) { setReadiness([]); return; }
-    fetch(`/api/employment/${sessionId}/brief-readiness`, { credentials: 'include' })
+    // Each document has its own preflight: what a mediation brief needs is
+    // not what a demand letter needs.
+    const endpoint = selectedDraft === 'mediation' ? 'brief-readiness'
+      : selectedDraft === 'demand' ? 'demand-readiness'
+      : null;
+    if (!endpoint || !sessionId) { setReadiness([]); return; }
+    fetch(`/api/employment/${sessionId}/${endpoint}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.ok) setReadiness(d.items ?? []); })
       .catch(() => { /* the checklist is advisory */ });
-  }, [selectedDraft, sessionId, employment.data]);
+  }, [selectedDraft, sessionId, employment.data, employment.briefSources]);
   const briefSourceInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load stored sources whenever the matter data refreshes; new ones
   // arrive pre-selected.
   useEffect(() => {
-    const list = (employment.briefSources ?? []) as Array<{ id: string; name: string; words: number }>;
+    const list = (employment.briefSources ?? []) as Array<{ id: string; name: string; words: number; kind?: string }>;
     setStoredSources(list);
     setSelectedSourceIds(prev => {
       const next = new Set([...prev].filter(id => list.some(sd => sd.id === id)));
@@ -1132,9 +1153,15 @@ export default function MatterDetailView() {
       if (prev.size === 0) for (const sd of list) next.add(sd.id);
       return next;
     });
+    setDlSourceIds(prev => {
+      const list2 = (employment.briefSources ?? []) as Array<{ id: string }>;
+      const next = new Set([...prev].filter(id => list2.some(sd => sd.id === id)));
+      for (const sd of list2) next.add(sd.id);
+      return next;
+    });
   }, [employment.briefSources]);
 
-  const attachBriefSource = useCallback(async (file: File) => {
+  const attachBriefSource = useCallback(async (file: File, kind?: string) => {
     if (!sessionId) return;
     setSourceParsing(true);
     setSourceError(null);
@@ -1149,11 +1176,11 @@ export default function MatterDetailView() {
       const save = await fetch(`/api/employment/${sessionId}/brief-sources`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: file.name, text }),
+        body: JSON.stringify({ name: file.name, text, ...(kind ? { kind } : {}) }),
       });
       const d = await save.json();
       if (!d.ok) { setSourceError(d.error ?? 'The source could not be saved.'); return; }
-      const list = (d.sources ?? []) as Array<{ id: string; name: string; words: number }>;
+      const list = (d.sources ?? []) as Array<{ id: string; name: string; words: number; kind?: string }>;
       setStoredSources(list);
       setSelectedSourceIds(prev => {
         const next = new Set(prev);
@@ -2585,6 +2612,112 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {(selectedDraft === 'mediation' || selectedDraft === 'demand') && !generatedHtml && readiness.length > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                    Before you generate
+                    {readiness.some(r => r.level === 'warn') && (
+                      <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
+                        {readiness.filter(r => r.level === 'warn').length} TO FIX
+                      </span>
+                    )}
+                  </div>
+                  {readiness.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', fontSize: 12.5 }}>
+                      <span aria-hidden="true" style={{ color: r.level === 'ok' ? green : r.level === 'warn' ? amber : muted, fontWeight: 700, minWidth: 14 }}>
+                        {r.level === 'ok' ? '✓' : r.level === 'warn' ? '!' : '·'}
+                      </span>
+                      <span style={{ color: r.level === 'warn' ? ink : muted, flex: 1 }}>
+                        <span style={{ fontWeight: r.level === 'warn' ? 600 : 400 }}>{r.label}</span>
+                        {r.hint && <span> {r.hint}</span>}
+                        {r.goTo && r.level !== 'ok' && (
+                          <button
+                            onClick={() => setActiveTab(r.goTo as TabKey)}
+                            style={{ marginLeft: 6, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
+                          >
+                            fix it
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedDraft === 'demand' && !generatedHtml && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Documents this letter argues from</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+                    A demand letter turns on specific words: the clause the parties signed, the reason the employer put in writing. Attach those documents and the letter quotes them instead of paraphrasing. Say what each one is, because the letter reads the employment agreement differently from a policy manual.
+                  </div>
+
+                  {storedSources.length === 0 && (
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, fontStyle: 'italic' }}>
+                      Nothing attached. The letter will argue from the intake alone.
+                    </div>
+                  )}
+                  {storedSources.map(sd => (
+                    <label key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={dlSourceIds.has(sd.id)}
+                        onChange={() => setDlSourceIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id);
+                          return next;
+                        })}
+                        style={{ accentColor: navy }}
+                      />
+                      <span style={{ flex: 1 }}>
+                        {sd.name}
+                        <span style={{ color: muted, fontSize: 12 }}> · {DEMAND_SOURCE_KIND_LABELS[sd.kind ?? 'other'] ?? 'Other'} · {sd.words.toLocaleString('en-CA')} words</span>
+                      </span>
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          if (!sessionId) return;
+                          await fetch(`/api/employment/${sessionId}/brief-sources/${sd.id}`, { method: 'DELETE', credentials: 'include' });
+                          void employment.refresh();
+                        }}
+                        style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
+                      >
+                        remove
+                      </button>
+                    </label>
+                  ))}
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+                    <select
+                      value={dlUploadKind}
+                      onChange={e => setDlUploadKind(e.target.value)}
+                      aria-label="What kind of document you are attaching"
+                      style={{ fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                    >
+                      {Object.entries(DEMAND_SOURCE_KIND_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                    <input
+                      ref={dlSourceInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.md,.txt"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f, dlUploadKind); e.target.value = ''; }}
+                      aria-label="Attach a document for the demand letter"
+                    />
+                    <button
+                      onClick={() => dlSourceInputRef.current?.click()}
+                      disabled={sourceParsing}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                    >
+                      {sourceParsing ? 'Reading…' : 'Attach a document'}
+                    </button>
+                  </div>
+                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
+                </div>
+              )}
+
               {selectedDraft === 'demand' && !generatedHtml && (
                 <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The figures in the letter</div>
@@ -2653,38 +2786,6 @@ export default function MatterDetailView() {
                       style={{ width: 200, fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
                     />
                   </div>
-                </div>
-              )}
-
-              {selectedDraft === 'mediation' && !generatedHtml && readiness.length > 0 && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                    Before you generate
-                    {readiness.some(r => r.level === 'warn') && (
-                      <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
-                        {readiness.filter(r => r.level === 'warn').length} TO FIX
-                      </span>
-                    )}
-                  </div>
-                  {readiness.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', fontSize: 12.5 }}>
-                      <span aria-hidden="true" style={{ color: r.level === 'ok' ? green : r.level === 'warn' ? amber : muted, fontWeight: 700, minWidth: 14 }}>
-                        {r.level === 'ok' ? '✓' : r.level === 'warn' ? '!' : '·'}
-                      </span>
-                      <span style={{ color: r.level === 'warn' ? ink : muted, flex: 1 }}>
-                        <span style={{ fontWeight: r.level === 'warn' ? 600 : 400 }}>{r.label}</span>
-                        {r.hint && <span> {r.hint}</span>}
-                        {r.goTo && r.level !== 'ok' && (
-                          <button
-                            onClick={() => setActiveTab(r.goTo as TabKey)}
-                            style={{ marginLeft: 6, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
-                          >
-                            fix it
-                          </button>
-                        )}
-                      </span>
-                    </div>
-                  ))}
                 </div>
               )}
 
@@ -2802,6 +2903,7 @@ export default function MatterDetailView() {
                         ...(styleProfileId ? { styleProfileId } : {}),
 
                         ...(selectedDraft === 'demand' ? {
+                          sourceIds: [...dlSourceIds],
                           recipientName: dlRecipient.trim() || undefined,
                           amountsPaid: dlPaid
                             .map(r => ({ label: r.label.trim(), amount: Number(r.amount) }))

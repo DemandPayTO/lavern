@@ -59,6 +59,12 @@ export interface DemandLetterRequest {
   responseDeadlineDays: number;
   /** Uploaded source documents (content + name) for citation tracking. */
   sourceDocuments?: Array<{ name: string; content: string }>;
+  /**
+   * The case documents on the file, already formatted for the prompt by
+   * demand-sources.ts. Lets the letter quote the clause the parties signed
+   * rather than argue from the intake form's paraphrase of it.
+   */
+  caseDocumentContext?: string;
 }
 
 export interface DemandLetterResult {
@@ -341,7 +347,15 @@ export async function generateDemandLetter(
   definedTerms?: string[],
 ): Promise<DemandLetterResult> {
   const systemPrompt = buildSystemPrompt(req.tone);
-  const userPrompt = req.styleContext ? `${buildUserPrompt(req)}\n\n${req.styleContext}` : buildUserPrompt(req);
+  // The case documents come after the instructions and before the style
+  // guide: the words the parties used matter more than the firm's house
+  // voice, and the last thing in the prompt should be how to write, not
+  // what to write about.
+  const userPrompt = [
+    buildUserPrompt(req),
+    req.caseDocumentContext,
+    req.styleContext,
+  ].filter(Boolean).join('\n\n');
 
   logger.info('Generating demand letter', {
     tone: req.tone,

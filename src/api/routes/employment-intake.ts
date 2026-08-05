@@ -20,6 +20,7 @@ import { config } from '../../config.js';
 import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/employment-intake.js';
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
+import { DEMAND_SOURCE_KINDS, isDemandSourceKind } from '../../employment/demand-sources.js';
 import type { MatterFacts } from '../../employment/precedent-alignment.js';
 import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
 import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, saveStyleProfile, getStyleProfiles, getStyleProfile, updateStyleProfile, deleteStyleProfile, recordUsageEvent, getUserById } from '../../db/database.js';
@@ -879,7 +880,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       openedByMe: row.user_id === userId,
       lastModifiedByName: row.last_modified_by_name ?? '',
       briefSources: (((matter as Record<string, unknown>).briefSources ?? []) as Array<Record<string, unknown>>)
-        .map(sd => ({ id: sd.id, name: sd.name, words: sd.words })),
+        .map(sd => ({ id: sd.id, name: sd.name, words: sd.words, kind: sd.kind ?? 'other' })),
       mediationLogistics: (matter as Record<string, unknown>).mediationLogistics ?? null,
     });
   });
@@ -1399,6 +1400,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     })).max(10).optional(),
     /** Mitigation earnings to date, netted off the claim. */
     mitigationEarnings: z.number().nonnegative().max(99_999_999).nullable().optional(),
+    /** Which attached documents this letter reads. Omitted means all of them. */
+    sourceIds: z.array(z.string().trim().max(100)).max(20).optional(),
   });
 
   fastify.post('/api/employment/:matterId/demand-letter', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -1446,6 +1449,25 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       dlStyle = style;
     }
 
+    // The documents on the file. The letter argues about specific words,
+    // so it reads the contract and the termination letter rather than the
+    // intake form's summary of them.
+    const { demandSourceContext } = await import('../../employment/demand-sources.js');
+    const attached = (((matter as Record<string, unknown>).briefSources ?? []) as Array<{
+      name: string; text: string; kind?: string;
+    }>);
+    const requested = parsed.data.sourceIds;
+    const chosen = requested
+      ? attached.filter(sd => requested.includes((sd as { id?: string }).id ?? ''))
+      : attached;
+    const { context: caseDocumentContext, dropped: droppedSources } = demandSourceContext(
+      chosen.map(sd => ({
+        name: sd.name,
+        kind: isDemandSourceKind(sd.kind) ? sd.kind : 'other',
+        text: sd.text,
+      })),
+    );
+
     // Generate the demand letter
     const result = await generateDemandLetter({
       intake: employment.intake,
@@ -1464,9 +1486,16 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       damageHeads: parsed.data.damageHeads,
       amountsPaid: parsed.data.amountsPaid,
       mitigationEarnings: parsed.data.mitigationEarnings,
+      caseDocumentContext: caseDocumentContext || undefined,
       styleContext: dlStyle?.context,
       styleTypicalWords: dlStyle?.typicalWords,
     }, definedTerms);
+    if (droppedSources.length > 0) {
+      result.lawyerReviewFlags = [
+        ...result.lawyerReviewFlags,
+        `More documents are attached than the letter can read at once. These were not used: ${droppedSources.join(', ')}. Detach what the letter does not need.`,
+      ];
+    }
     if (dlStyle) {
       result.lawyerReviewFlags = [
         ...result.lawyerReviewFlags,
@@ -2478,6 +2507,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   const briefSourceSchema = z.object({
     name: z.string().trim().min(1).max(300),
     text: z.string().trim().min(1).max(60_000),
+    /**
+     * What the document IS. The mediation brief reads every source the
+     * same way, but the demand letter argues from specific documents and
+     * has to know which is the contract. Optional, so sources attached
+     * before this existed still load.
+     */
+    kind: z.enum(DEMAND_SOURCE_KINDS).optional(),
   });
 
   fastify.post('/api/employment/:matterId/brief-sources', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -2499,13 +2535,14 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     sources.push({
       id: `src-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name: parsed.data.name,
+      kind: parsed.data.kind ?? 'other',
       text,
       words: text.split(/\s+/).filter(Boolean).length,
       addedAt: new Date().toISOString(),
     });
     (matter as Record<string, unknown>).briefSources = sources;
     await saveEmploymentData(userId, matterId, matter, employment);
-    return reply.send({ ok: true, sources: sources.map(sd => ({ id: sd.id, name: sd.name, words: sd.words })) });
+    return reply.send({ ok: true, sources: sources.map(sd => ({ id: sd.id, name: sd.name, words: sd.words, kind: sd.kind ?? 'other' })) });
   });
 
   fastify.delete('/api/employment/:matterId/brief-sources/:sourceId', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -2520,6 +2557,45 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     (matter as Record<string, unknown>).briefSources = next;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true });
+  });
+
+  // ── GET /api/employment/:matterId/demand-readiness ─────────────────────
+  // What the demand letter will be missing, before generating. A demand
+  // letter is the first thing the other side reads, so the checks are its
+  // own: arguing a clause nobody attached, ignoring known mitigation, a
+  // signed release, a limitation period a letter does not stop.
+
+  fastify.get('/api/employment/:matterId/demand-readiness', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const { demandReadiness } = await import('../../employment/demand-readiness.js');
+    const firmId = resolveFirmId(req);
+
+    const sources = (((matter as Record<string, unknown>).briefSources ?? []) as Array<{ kind?: string }>);
+    // Signature-block details live on the user profile; best-effort, since
+    // a missing profile is a warn in the checklist rather than an error.
+    let profile: Record<string, unknown> = {};
+    try {
+      const { getUserById } = await import('../../db/database.js');
+      const user = getUserById(userId);
+      if (user?.profile_json) profile = JSON.parse(user.profile_json) as Record<string, unknown>;
+    } catch { /* profile is best-effort */ }
+
+    return reply.send({
+      ok: true,
+      items: demandReadiness({
+        intake: employment.intake,
+        analysis: employment.analysis,
+        approvedIssues: employment.approvedIssues ?? [],
+        sourceKinds: sources.map(sd => sd.kind ?? 'other'),
+        styleProfilesCount: firmId ? getStyleProfiles(firmId, 'demand_letter').length : 0,
+        firmContactComplete: Boolean(profile.firmAddress && (profile.firmPhone || profile.firmEmail)),
+      }),
+    });
   });
 
   // ── GET /api/employment/:matterId/brief-readiness ──────────────────────
