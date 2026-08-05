@@ -1984,6 +1984,220 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
   });
 
+  // ── POST /api/employment/:matterId/draft/replace ───────────────────────
+  // The lawyer's own improved version becomes the version of record. Until
+  // now an edited Word file could only donate its comments and tracked
+  // changes; a lawyer who rewrote the prose directly saw their work stay
+  // outside the system. The previous version is kept in draft history.
+
+  const replaceDraftSchema = z.object({
+    docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    docxBase64: z.string().max(20_000_000),
+    filename: z.string().trim().max(300).optional(),
+  });
+
+  fastify.post('/api/employment/:matterId/draft/replace', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = replaceDraftSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const key = findGeneratedDocKey(matter, parsed.data.docType);
+    if (!key) return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
+    const doc = matter[key] as Record<string, unknown>;
+
+    let html: string;
+    try {
+      const buffer = Buffer.from(parsed.data.docxBase64, 'base64');
+      const mammoth = (await import('mammoth')).default;
+      const { value } = await mammoth.convertToHtml({ buffer });
+      html = sanitiseHtml(value ?? '');
+    } catch {
+      return reply.status(400).send({ ok: false, error: 'That file could not be read as a Word document.' });
+    }
+    if (html.replace(/<[^>]+>/g, '').trim().length < 200) {
+      return reply.status(400).send({ ok: false, error: 'That file has too little text to be the document. Is it the right file?' });
+    }
+
+    // Keep what is being replaced: the lawyer must be able to get back.
+    recordDraftHistory(matter, {
+      docType: parsed.data.docType,
+      title: String(doc.documentTitle ?? parsed.data.docType),
+      html: String(doc.html ?? ''),
+      costUsd: 0,
+      meta: { source: 'superseded_by_upload' },
+    }, { userId, matterId });
+
+    doc.html = html;
+    doc.revisedAt = new Date().toISOString();
+    doc.lawyerEdited = { at: new Date().toISOString(), filename: parsed.data.filename ?? 'edited.docx' };
+    // A lawyer-edited version is the version of record; a stale uploaded
+    // DOCX from the approval lane must not keep overriding the download.
+    delete doc.uploadedDocx;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    logger.info('Draft replaced by lawyer version', { userId, matterId, docType: parsed.data.docType });
+    return reply.send({ ok: true, html });
+  });
+
+  // ── POST /api/employment/:matterId/draft/review ────────────────────────
+  // Starling reviews a finished document and reports what would weaken it.
+  // Deterministic checks (figures against the record, missing firm
+  // sections, length divergence) run first and are labelled "checked";
+  // the model pass adds judgment findings, labelled as judgment. Every
+  // finding is returned in the revision loop's item shape, so the lawyer
+  // approves them through the same gate with the same byte-identity
+  // guarantee.
+
+  const draftReviewSchema = z.object({
+    docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
+    /** Stored brief sources to weigh in the review. */
+    briefSourceIds: z.array(z.string().max(60)).max(6).optional(),
+    /** Review against this firm style as well as the record. */
+    styleProfileId: z.string().trim().max(100).optional(),
+  });
+
+  fastify.post('/api/employment/:matterId/draft/review', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = draftReviewSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const key = findGeneratedDocKey(matter, parsed.data.docType);
+    if (!key) return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
+    const doc = matter[key] as Record<string, unknown>;
+    const html = typeof doc.html === 'string' ? doc.html : '';
+    if (!html) return reply.status(409).send({ ok: false, error: 'That document has no content to review.' });
+
+    const rl = await import('../../employment/revision-loop.js');
+    const dr = await import('../../employment/draft-review.js');
+    const paragraphs = rl.toParagraphs(html);
+    const draftText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // Sources the lawyer chose, plus the served positions.
+    const stored = (((matter as Record<string, unknown>).briefSources ?? []) as Array<{ id: string; name: string; text: string }>);
+    const chosen = parsed.data.briefSourceIds
+      ? stored.filter(sd => parsed.data.briefSourceIds!.includes(sd.id))
+      : stored;
+    const sources = chosen.map(sd => ({ title: sd.name, text: sd.text }));
+
+    // The firm's style, when the lawyer picked one.
+    let guide: import('../../employment/style-profile.js').StyleGuide | null = null;
+    if (parsed.data.styleProfileId) {
+      const firmId = resolveFirmId(req);
+      const profile = firmId ? getStyleProfile(firmId, parsed.data.styleProfileId) : undefined;
+      if (profile) {
+        const { styleGuideSchema, clampStyleGuide } = await import('../../employment/style-profile.js');
+        const validated = styleGuideSchema.safeParse(clampStyleGuide(JSON.parse(profile.guide_json)));
+        if (validated.success) guide = validated.data;
+      }
+    }
+
+    // Deterministic first: these are checked, not opined.
+    const draftHeadings = [...html.matchAll(/<h[123][^>]*>([^<]{1,120})<\/h[123]>/gi)].map(m => m[1]);
+    const checked = [
+      ...dr.checkFigures(
+        draftText, employment.intake, employment.analysis, sources.map(s => s.text),
+        (((matter as Record<string, unknown>).negotiation ?? []) as Array<{ amountCad?: number | null }>)
+          .map(e => e.amountCad ?? 0).filter(n => n > 0),
+      ),
+      ...dr.checkStyleDivergence(draftHeadings, guide),
+      ...dr.reviewLengthFinding(draftText.split(/\s+/).filter(Boolean).length, guide),
+    ];
+
+    // The model pass.
+    const intake = employment.intake as Record<string, unknown> | null;
+    const analysis = employment.analysis;
+    const intakeSummary = [
+      `Client: ${[intake?.client_first_name, intake?.client_last_name].filter(Boolean).join(' ') || 'unknown'}`,
+      `Employer: ${intake?.employer_legal_name ?? intake?.employer_operating_name ?? 'unknown'}`,
+      `Position: ${intake?.job_title ?? 'unknown'}; hired ${intake?.hire_date ?? 'unknown'}; terminated ${intake?.termination_date ?? 'unknown'}`,
+      `Salary: ${intake?.annual_salary ? `$${Number(intake.annual_salary).toLocaleString('en-CA')}` : 'unknown'}`,
+      analysis ? `Assessed range: $${Math.round(analysis.damagesEstimate.totalEstimateLow).toLocaleString('en-CA')} to $${Math.round(analysis.damagesEstimate.totalEstimateHigh).toLocaleString('en-CA')} (${analysis.damagesEstimate.commonLawLowMonths} to ${analysis.damagesEstimate.commonLawHighMonths} months)` : 'No analysis on file.',
+      `Approved issues: ${(employment.approvedIssues ?? []).join(', ') || 'none'}`,
+    ].join('\n');
+
+    const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+    let judgment: Array<Record<string, unknown>> = [];
+    let cost = 0;
+    try {
+      const result = await crossProviderChat({
+        system: dr.buildReviewSystemPrompt(),
+        user: dr.buildReviewUserPrompt({
+          documentTitle: String(doc.documentTitle ?? parsed.data.docType),
+          paragraphs: paragraphs.map(p => rl.paragraphText(p)),
+          intakeSummary,
+          sources,
+          styleSummary: guide
+            ? `Flow: ${guide.flow.map(f => f.heading).join(' | ')}\nVoice: ${guide.voice}\nHabits: ${guide.notes.join('; ')}`
+            : undefined,
+        }),
+        tier: 'opus',
+        maxTokens: 8192,
+        maxRetries: 2,
+        extendOnTruncation: true,
+      });
+      cost = result.cost;
+      const raw = result.text.trim();
+      const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const payload = JSON.parse(fenced ? fenced[1] : raw) as { findings?: Array<Record<string, unknown>> };
+      judgment = Array.isArray(payload.findings) ? payload.findings : [];
+    } catch (err) {
+      logger.warn('Draft review model pass failed; returning checked findings only', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    // Everything becomes a revision item the lawyer approves. Checked
+    // findings first: they are verifiable, the rest are opinion.
+    const maxIdx = paragraphs.length - 1;
+    const items = [
+      ...checked.map((f, i) => ({
+        id: `rev-chk-${i}`,
+        feedback: f.observation,
+        kind: 'needs_lawyer' as const,
+        paragraphIndices: f.paragraphIndices.filter(n => n >= 0 && n <= maxIdx),
+        proposal: f.suggestion,
+        reason: 'Checked against the matter record.',
+        category: f.category,
+        basis: 'checked' as const,
+      })),
+      ...judgment.slice(0, 20).map((f, i) => {
+        const indices = Array.isArray(f.paragraphIndices)
+          ? (f.paragraphIndices as unknown[]).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= maxIdx)
+          : [];
+        return {
+          id: `rev-obs-${i}`,
+          feedback: String(f.observation ?? '').slice(0, 2000),
+          kind: 'needs_lawyer' as const,
+          paragraphIndices: indices,
+          proposal: String(f.suggestion ?? '').slice(0, 2000),
+          reason: "Starling's judgment, not a checked fact.",
+          category: (dr.REVIEW_CATEGORIES as readonly string[]).includes(String(f.category))
+            ? String(f.category) : 'unsupported_assertion',
+          basis: 'judgment' as const,
+        };
+      }),
+    ].filter(it => it.feedback);
+
+    try { recordUsageEvent(userId, matterId, 'analysis', `draft_review_${parsed.data.docType}`, cost); }
+    catch { /* metering must never fail the request */ }
+
+    logger.info('Draft reviewed', { userId, matterId, docType: parsed.data.docType, checked: checked.length, judgment: judgment.length, costUsd: cost.toFixed(4) });
+    return reply.send({
+      ok: true,
+      docType: parsed.data.docType,
+      paragraphs: paragraphs.map((p, i) => ({ index: i, text: rl.paragraphText(p) })),
+      items,
+      costUsd: cost,
+    });
+  });
+
   // ── Brief sources, persisted on the matter ─────────────────────────────
   // Attach once, reuse for every regeneration: an externally-drafted SOC
   // or a case list should not need re-attaching after each revision.

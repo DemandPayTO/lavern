@@ -21,7 +21,20 @@ interface RevisionItem {
   intakeField?: string;
   intakeValue?: string | number | boolean;
   reason?: string;
+  /** Review findings only: what kind of problem it is. */
+  category?: string;
+  /** checked = computed from the record; judgment = Starling's opinion. */
+  basis?: 'checked' | 'judgment';
 }
+
+const CATEGORY_LABEL: Record<string, string> = {
+  figure_mismatch: 'Figure not supported by the file',
+  record_contradiction: 'Contradicts the record',
+  unsupported_assertion: 'Unsupported assertion',
+  missing_point: 'Missing point',
+  thin_section: 'Thin section',
+  style_divergence: 'Departs from your style',
+};
 
 interface Plan {
   docType: string;
@@ -56,14 +69,17 @@ export interface RevisionPanelProps {
   sections?: string[];
   /** Preselects a section for redraft. */
   initialSection?: string;
+  /** Review the draft against this firm style as well as the record. */
+  styleProfileId?: string;
   onApplied: (revisedHtml?: string) => void;
   onClose: () => void;
 }
 
 export function RevisionPanel({
-  matterId, docType, docTitle, initialFeedback, source = 'client', sections, initialSection, onApplied, onClose,
+  matterId, docType, docTitle, initialFeedback, source = 'client', sections, initialSection, styleProfileId, onApplied, onClose,
 }: RevisionPanelProps) {
   const [feedback, setFeedback] = useState(initialFeedback ?? '');
+  const [reviewing, setReviewing] = useState(false);
   const [section, setSection] = useState(initialSection ?? '');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [approved, setApproved] = useState<Record<string, boolean>>({});
@@ -105,6 +121,31 @@ export function RevisionPanel({
       setError('Could not read that file.');
     } finally { setBusy(false); }
   }, [matterId, docType]);
+
+  // Ask Starling what is wrong with the document as it stands. The
+  // findings arrive in the same item shape, so the approval gate below is
+  // unchanged: Starling proposes, the lawyer decides.
+  const runReview = useCallback(async () => {
+    setReviewing(true); setError(null);
+    try {
+      const res = await fetch(`/api/employment/${matterId}/draft/review`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docType, ...(styleProfileId ? { styleProfileId } : {}) }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setError(d.error ?? 'The review could not be completed.'); return; }
+      if ((d.items as RevisionItem[]).length === 0) {
+        setError('Starling found nothing to raise. That is a real answer, not a failure.');
+        return;
+      }
+      setPlan({ docType, paragraphs: d.paragraphs ?? [], items: d.items ?? [], warnings: [], costUsd: d.costUsd ?? 0 });
+      setApproved({});
+      setConfirmedJudgment({});
+    } catch {
+      setError('The review could not be completed.');
+    } finally { setReviewing(false); }
+  }, [matterId, docType, styleProfileId]);
 
   const buildPlan = useCallback(async () => {
     setBusy(true); setError(null);
@@ -232,7 +273,11 @@ export function RevisionPanel({
             )}
           </div>
         )}
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => void runReview()} disabled={busy || reviewing} style={{ ...btn(true), background: reviewing ? muted : navy }}>
+            {reviewing ? 'Reading the document…' : 'Ask Starling to review it'}
+          </button>
+          <span style={{ fontSize: 12.5, color: muted }}>or</span>
           <button onClick={() => fileRef.current?.click()} disabled={busy} style={btn()}>
             Upload the edited Word file
           </button>
@@ -296,11 +341,20 @@ export function RevisionPanel({
                 )}
                 <div style={{ flex: 1 }}>
                   <span style={{
-                    fontSize: 10.5, fontWeight: 700, color: KIND_COLOUR[it.kind], textTransform: 'uppercase' as const,
+                    fontSize: 10.5, fontWeight: 700, color: it.basis === 'checked' ? navy : KIND_COLOUR[it.kind], textTransform: 'uppercase' as const,
                     letterSpacing: 0.4,
                   }}>
-                    {KIND_LABEL[it.kind]}
+                    {it.category ? (CATEGORY_LABEL[it.category] ?? it.category) : KIND_LABEL[it.kind]}
                   </span>
+                  {it.basis && (
+                    <span style={{
+                      marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 2,
+                      background: it.basis === 'checked' ? '#e7f6ec' : '#f4f1ec',
+                      color: it.basis === 'checked' ? green : muted,
+                    }}>
+                      {it.basis === 'checked' ? 'CHECKED' : 'JUDGMENT'}
+                    </span>
+                  )}
                   <div style={{ fontSize: 13, color: ink, marginTop: 4, fontFamily: serif }}>
                     &ldquo;{it.feedback}&rdquo;
                   </div>

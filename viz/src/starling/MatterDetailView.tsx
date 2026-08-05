@@ -978,6 +978,35 @@ export default function MatterDetailView() {
   const [includeGenSoc, setIncludeGenSoc] = useState(true);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sourceParsing, setSourceParsing] = useState(false);
+  // The lawyer's own improved version becomes the version of record.
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const [replacing, setReplacing] = useState(false);
+
+  const replaceDraftWithUpload = useCallback(async (file: File, docType: string) => {
+    if (!sessionId) return;
+    setReplacing(true);
+    setGenError(null);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      const res = await fetch(`/api/employment/${sessionId}/draft/replace`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docType, docxBase64: btoa(binary), filename: file.name }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setGenError(d.error ?? 'That version could not be read.'); return; }
+      setGeneratedHtml(d.html);
+      setGenNotice('Your version is now the one on file. The previous draft is kept in this document\u2019s history.');
+      refreshDraftHistory();
+      void employment.refresh();
+    } catch {
+      setGenError('That version could not be read.');
+    } finally { setReplacing(false); }
+  }, [sessionId, employment, refreshDraftHistory]);
+
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
   // rather than retypes.
@@ -2545,6 +2574,15 @@ export default function MatterDetailView() {
                       >
                         Redraft a section
                       </button>
+                      <button
+                        onClick={() => replaceInputRef.current?.click()}
+                        style={{
+                          background: '#fff', color: navy, border: `1px solid ${border}`,
+                          fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                        }}
+                      >
+                        {replacing ? 'Reading…' : 'Upload my edited version'}
+                      </button>
                       <a
                         href={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'demand-letter'}${activeVariant ? `?templateVariantId=${encodeURIComponent(activeVariant.variantId)}` : ''}`}
                         download
@@ -2601,6 +2639,14 @@ export default function MatterDetailView() {
                         )}
                       </div>
                       {approvalsEnabled && dt && cur && sessionId && <ReviewLaneControls matterId={sessionId} docType={dt} onApplyFeedback={(text) => setRevising({ source: 'partner', initial: text })} />}
+                      <input
+                        ref={replaceInputRef}
+                        type="file"
+                        accept=".docx"
+                        style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f && dt) void replaceDraftWithUpload(f, dt); e.target.value = ''; }}
+                        aria-label="Upload your edited version of this document"
+                      />
                       {revising && dt && sessionId && (
                         <RevisionPanel
                           matterId={sessionId}
@@ -2608,6 +2654,7 @@ export default function MatterDetailView() {
                           docTitle={DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'document'}
                           initialFeedback={revising.initial}
                           source={revising.source}
+                          styleProfileId={styleProfileId || undefined}
                           sections={(generatedHtml?.match(/<h2[^>]*>([^<]{1,120})<\/h2>/gi) ?? [])
                             .map(h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
                             .filter(Boolean)}
