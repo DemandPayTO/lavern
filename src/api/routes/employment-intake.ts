@@ -2573,6 +2573,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     const { matter, employment } = loadEmploymentData(row.data_json);
     const { demandReadiness } = await import('../../employment/demand-readiness.js');
+    const { defaultDamageHeads } = await import('../../employment/demand-letter-parts.js');
     const firmId = resolveFirmId(req);
 
     const sources = (((matter as Record<string, unknown>).briefSources ?? []) as Array<{ kind?: string }>);
@@ -2587,6 +2588,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     return reply.send({
       ok: true,
+      // What the table will itemise unless the lawyer overrides it. Sent
+      // here so the workspace prefills the real heads rather than its own
+      // approximation of them.
+      defaultHeads: employment.analysis ? defaultDamageHeads(employment.analysis) : [],
       items: demandReadiness({
         intake: employment.intake,
         analysis: employment.analysis,

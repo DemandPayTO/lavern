@@ -787,6 +787,12 @@ export default function MatterDetailView() {
   // is. The kind is the lawyer's to state: a file called "final.docx"
   // tells the model nothing, and a policy manual read as the employment
   // agreement quotes the wrong words with confidence.
+  // The heads of damage the table itemises. Prefilled from the analysis
+  // and then the lawyer's, because the analysis is a starting position and
+  // the letter is theirs. Untouched, they are sent as they arrived, so
+  // what is on screen is what the table will say.
+  const [dlHeads, setDlHeads] = useState<Array<{ label: string; basis: string; amount: string }>>([]);
+  const [dlHeadsTouched, setDlHeadsTouched] = useState(false);
   const [dlSourceIds, setDlSourceIds] = useState<Set<string>>(new Set());
   const [dlUploadKind, setDlUploadKind] = useState('employment_agreement');
   const dlSourceInputRef = useRef<HTMLInputElement | null>(null);
@@ -1136,9 +1142,18 @@ export default function MatterDetailView() {
     if (!endpoint || !sessionId) { setReadiness([]); return; }
     fetch(`/api/employment/${sessionId}/${endpoint}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.ok) setReadiness(d.items ?? []); })
+      .then(d => {
+        if (!d?.ok) return;
+        setReadiness(d.items ?? []);
+        // Prefill only while the lawyer has not edited: a refresh must not
+        // discard heads they have written.
+        if (!dlHeadsTouched) {
+          setDlHeads(((d.defaultHeads ?? []) as Array<{ label: string; basis?: string; amount?: number | null }>)
+            .map(h => ({ label: h.label, basis: h.basis ?? '', amount: h.amount != null ? String(h.amount) : '' })));
+        }
+      })
       .catch(() => { /* the checklist is advisory */ });
-  }, [selectedDraft, sessionId, employment.data, employment.briefSources]);
+  }, [selectedDraft, sessionId, employment.data, employment.briefSources, dlHeadsTouched]);
   const briefSourceInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load stored sources whenever the matter data refreshes; new ones
@@ -2738,6 +2753,73 @@ export default function MatterDetailView() {
                     <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>Left blank, the letter is marked for you to complete rather than addressed to a guess.</div>
                   </div>
 
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 5 }}>
+                      <div style={{ fontSize: 12.5, color: muted, fontWeight: 600 }}>Heads of damage claimed</div>
+                      {dlHeadsTouched && (
+                        <button
+                          onClick={() => { setDlHeadsTouched(false); void employment.refresh(); }}
+                          style={{ fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
+                        >
+                          reset to the analysis
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: muted, marginBottom: 7, lineHeight: 1.5 }}>
+                      Prefilled from the analysis. Edit the wording, the basis or the figure and the table says what you wrote. A head left without an amount is shown as one for you to quantify, not dropped.
+                    </div>
+                    {dlHeads.map((row, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <input
+                            type="text"
+                            placeholder="Head, e.g. Pay in lieu of reasonable notice"
+                            value={row.label}
+                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r)); }}
+                            aria-label={`Head of damage ${i + 1}`}
+                            style={{ fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Basis, e.g. eight to twelve months at the plaintiff's compensation"
+                            value={row.basis}
+                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, basis: e.target.value } : r)); }}
+                            aria-label={`Basis for head ${i + 1}`}
+                            style={{ fontFamily: sans, fontSize: 12.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: muted, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Amount"
+                          value={row.amount}
+                          onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r)); }}
+                          aria-label={`Amount for head ${i + 1}`}
+                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                        <button
+                          onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => rows.filter((_, j) => j !== i)); }}
+                          aria-label={`Remove head ${i + 1}`}
+                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '9px 4px 0' }}
+                        >
+                          remove
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 2 }}>
+                      <button
+                        onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => [...rows, { label: '', basis: '', amount: '' }]); }}
+                        style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                      >
+                        Add a head
+                      </button>
+                      {dlHeads.length > 0 && (
+                        <span style={{ fontSize: 12, color: muted }}>
+                          Subtotal {dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0).toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Already paid by the employer</div>
                     {dlPaid.map((row, i) => (
@@ -2904,6 +2986,13 @@ export default function MatterDetailView() {
 
                         ...(selectedDraft === 'demand' ? {
                           sourceIds: [...dlSourceIds],
+                          damageHeads: dlHeads
+                            .filter(h => h.label.trim() !== '')
+                            .map(h => ({
+                              label: h.label.trim(),
+                              basis: h.basis.trim() || undefined,
+                              amount: h.amount ? Number(h.amount) : null,
+                            })),
                           recipientName: dlRecipient.trim() || undefined,
                           amountsPaid: dlPaid
                             .map(r => ({ label: r.label.trim(), amount: Number(r.amount) }))

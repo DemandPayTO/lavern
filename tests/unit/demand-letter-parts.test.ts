@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildDemandOpening, buildDemandSignature, buildDemandDamagesTable, scrubDemandBody,
-  insertDamagesTable,
+  insertDamagesTable, defaultDamageHeads,
 } from '../../src/employment/demand-letter-parts.js';
 
 const intake = {
@@ -224,5 +224,40 @@ describe('empty headings', () => {
   it('drops a trailing empty heading at the end of the letter', () => {
     const out = scrubDemandBody('<p>Body.</p><h2>Closing</h2>');
     expect(out).not.toContain('Closing');
+  });
+});
+
+
+describe('the default heads', () => {
+  it('are what the table itemises when the lawyer says nothing', () => {
+    // The workspace prefills from THIS function, so what the lawyer edits
+    // is what the table would otherwise have said, not an approximation.
+    const heads = defaultDamageHeads(analysis);
+    const { html } = buildDemandDamagesTable({ intake, analysis, demandAmount: 135000 });
+    for (const head of heads) {
+      expect(html).toContain(head.label);
+      if (head.basis) expect(html).toContain(head.basis);
+    }
+    expect(heads[0].label).toBe('Pay in lieu of reasonable notice');
+    expect(heads[0].amount).toBe(110000);
+    expect(heads[0].basis).toContain('8 to 12 months');
+  });
+
+  it('carries the analysis’s additional heads, including unquantified ones', () => {
+    const heads = defaultDamageHeads({
+      ...(analysis as object),
+      damagesEstimate: {
+        ...(analysis as { damagesEstimate: object }).damagesEstimate,
+        additionalHeads: [
+          { name: 'Moral damages', basis: 'manner of dismissal', estimatedAmount: null },
+        ],
+      },
+    } as never);
+    expect(heads).toHaveLength(2);
+    expect(heads[1]).toEqual({ label: 'Moral damages', basis: 'manner of dismissal', amount: null });
+  });
+
+  it('offers nothing to prefill when there is no estimate to prefill from', () => {
+    expect(defaultDamageHeads({ damagesEstimate: undefined } as never)).toEqual([]);
   });
 });

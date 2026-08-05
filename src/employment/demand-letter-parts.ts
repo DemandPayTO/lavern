@@ -144,12 +144,40 @@ export interface DemandDamagesInput {
   intake: EmploymentIntakeData;
   analysis: IntakeAnalysisResult;
   /** Heads the lawyer chose, when they overrode the analysis. */
-  heads?: Array<{ label: string; amount?: number | null; basis?: string }>;
+  heads?: DamageHead[];
   /** Amounts the employer has already paid, netted off the total. */
   amountsPaid?: Array<{ label: string; amount: number }>;
   /** Mitigation earnings to date, netted off the total. */
   mitigationEarnings?: number | null;
   demandAmount: number;
+}
+
+export interface DamageHead {
+  label: string;
+  amount?: number | null;
+  basis?: string;
+}
+
+/**
+ * What the table itemises when the lawyer has not said otherwise.
+ *
+ * Exported so the workspace can PREFILL the heads from the analysis rather
+ * than describing them in a second place that drifts. The lawyer edits
+ * what the letter will actually say, not an approximation of it.
+ */
+export function defaultDamageHeads(analysis: IntakeAnalysisResult): DamageHead[] {
+  const d = analysis.damagesEstimate;
+  if (!d || d.commonLawHighAmount <= 0) return [];
+  return [
+    {
+      label: 'Pay in lieu of reasonable notice',
+      amount: d.commonLawHighAmount,
+      basis: `${d.commonLawLowMonths} to ${d.commonLawHighMonths} months at the plaintiff's compensation, claimed at the higher end`,
+    },
+    ...(d.additionalHeads ?? []).map(h => ({
+      label: h.name, amount: h.estimatedAmount ?? null, basis: h.basis,
+    })),
+  ];
 }
 
 /**
@@ -172,18 +200,7 @@ export function buildDemandDamagesTable(input: DemandDamagesInput): { html: stri
   const rows: string[] = [];
   rows.push('<tr><th>Head</th><th>Basis</th><th>Amount</th></tr>');
 
-  const heads = input.heads?.length
-    ? input.heads
-    : [
-        {
-          label: 'Pay in lieu of reasonable notice',
-          amount: d.commonLawHighAmount,
-          basis: `${d.commonLawLowMonths} to ${d.commonLawHighMonths} months at the plaintiff's compensation, claimed at the higher end`,
-        },
-        ...(d.additionalHeads ?? []).map(h => ({
-          label: h.name, amount: h.estimatedAmount ?? null, basis: h.basis,
-        })),
-      ];
+  const heads = input.heads?.length ? input.heads : defaultDamageHeads(input.analysis);
 
   let gross = 0;
   for (const head of heads) {
