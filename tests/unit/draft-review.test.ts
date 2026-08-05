@@ -70,6 +70,28 @@ describe('checkFigures', () => {
   });
 });
 
+describe('derived figures are supported, not flagged', () => {
+  it('accepts weeks and months of pay computed from the salary', () => {
+    // $110,000/yr: seven weeks is $14,808; eight months is $73,333.
+    const findings = checkFigures(
+      '<p>Seven weeks\' pay, being $14,808, and eight months being $73,333. Range to $110,000.</p>',
+      intake, analysis, [],
+    );
+    expect(findings.filter(f => f.observation.includes('nothing on the file supports'))).toHaveLength(0);
+  });
+
+  it('accepts a total of two known heads', () => {
+    // ESA notice 12,692 + ESA severance 13,962 = 26,654.
+    const findings = checkFigures('<p>Statutory entitlements total $26,654. Range to $110,000.</p>', intake, analysis, []);
+    expect(findings.filter(f => f.observation.includes('nothing on the file supports'))).toHaveLength(0);
+  });
+
+  it('still flags a figure that is not derivable at all', () => {
+    const findings = checkFigures('<p>We seek $317,412 in damages. Range to $110,000.</p>', intake, analysis, []);
+    expect(findings.some(f => f.observation.includes('$317,412'))).toBe(true);
+  });
+});
+
 describe('style divergence', () => {
   const guide = styleGuideSchema.parse({
     flow: [

@@ -90,6 +90,30 @@ export function checkFigures(
   // this the check flags the employer's own counter as unsupported.
   for (const a of ledgerAmounts) if (typeof a === 'number' && a > 0) known.add(Math.round(a));
 
+  // DERIVED figures are supported too. A demand letter properly computes
+  // "seven weeks' pay, being $11,727" from the salary; flagging arithmetic
+  // the file implies would make the checked column cry wolf, and a checked
+  // finding that is wrong costs more trust than one that is missing.
+  const salary = typeof intake?.annual_salary === 'number' ? intake.annual_salary : 0;
+  if (salary > 0) {
+    const weekly = salary / 52;
+    const monthly = salary / 12;
+    for (let w = 1; w <= 104; w++) known.add(Math.round(weekly * w));
+    for (let m = 1; m <= 24; m++) {
+      known.add(Math.round(monthly * m));
+      // Half-month steps: notice is often expressed as 4.5 or 7.5 months.
+      known.add(Math.round(monthly * (m + 0.5)));
+    }
+    // Common per-period figures quoted in their own right.
+    known.add(Math.round(weekly));
+    known.add(Math.round(monthly));
+  }
+  // Sums of the analysis figures: a letter totals heads of damage.
+  const base = [...known];
+  for (let i = 0; i < base.length && i < 40; i++) {
+    for (let j = i + 1; j < base.length && j < 40; j++) known.add(base[i] + base[j]);
+  }
+
   // A figure is "vouched for" if it is within 1% of a known figure
   // (rounding in prose is normal: $110,000 for $109,998).
   const vouched = (n: number) => [...known].some(k => Math.abs(k - n) <= Math.max(1, k * 0.01));

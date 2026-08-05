@@ -1992,9 +1992,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
   const replaceDraftSchema = z.object({
     docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
-    docxBase64: z.string().max(20_000_000),
+    /** A Word file... */
+    docxBase64: z.string().max(20_000_000).optional(),
     filename: z.string().trim().max(300).optional(),
-  });
+    /** ...or the revised text pasted straight in. */
+    pastedText: z.string().max(400_000).optional(),
+  }).refine(b => Boolean(b.docxBase64 || b.pastedText), { message: 'Provide a file or pasted text' });
 
   fastify.post('/api/employment/:matterId/draft/replace', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
@@ -2010,13 +2013,26 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const doc = matter[key] as Record<string, unknown>;
 
     let html: string;
-    try {
-      const buffer = Buffer.from(parsed.data.docxBase64, 'base64');
-      const mammoth = (await import('mammoth')).default;
-      const { value } = await mammoth.convertToHtml({ buffer });
-      html = sanitiseHtml(value ?? '');
-    } catch {
-      return reply.status(400).send({ ok: false, error: 'That file could not be read as a Word document.' });
+    if (parsed.data.pastedText) {
+      // Pasted text arrives as plain paragraphs (or as HTML the lawyer
+      // copied from the preview); sanitising covers both, and blank lines
+      // become paragraph breaks so the structure survives.
+      const raw = parsed.data.pastedText;
+      html = /<(p|h[1-6]|div|table)[\s>]/i.test(raw)
+        ? sanitiseHtml(raw)
+        : sanitiseHtml(raw
+            .split(/\n\s*\n/)
+            .map(block => `<p>${block.trim().replace(/\n/g, '<br>')}</p>`)
+            .join('\n'));
+    } else {
+      try {
+        const buffer = Buffer.from(parsed.data.docxBase64!, 'base64');
+        const mammoth = (await import('mammoth')).default;
+        const { value } = await mammoth.convertToHtml({ buffer });
+        html = sanitiseHtml(value ?? '');
+      } catch {
+        return reply.status(400).send({ ok: false, error: 'That file could not be read as a Word document.' });
+      }
     }
     if (html.replace(/<[^>]+>/g, '').trim().length < 200) {
       return reply.status(400).send({ ok: false, error: 'That file has too little text to be the document. Is it the right file?' });
@@ -2033,7 +2049,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     doc.html = html;
     doc.revisedAt = new Date().toISOString();
-    doc.lawyerEdited = { at: new Date().toISOString(), filename: parsed.data.filename ?? 'edited.docx' };
+    doc.lawyerEdited = {
+      at: new Date().toISOString(),
+      filename: parsed.data.pastedText ? 'pasted by the lawyer' : (parsed.data.filename ?? 'edited.docx'),
+    };
     // A lawyer-edited version is the version of record; a stale uploaded
     // DOCX from the approval lane must not keep overriding the download.
     delete doc.uploadedDocx;

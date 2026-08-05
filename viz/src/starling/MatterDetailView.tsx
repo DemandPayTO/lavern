@@ -989,6 +989,31 @@ export default function MatterDetailView() {
   // The lawyer's own improved version becomes the version of record.
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const [replacing, setReplacing] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  const [pastedText, setPastedText] = useState('');
+
+  const replaceDraftWithPaste = useCallback(async (text: string, docType: string) => {
+    if (!sessionId) return;
+    setReplacing(true);
+    setGenError(null);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/draft/replace`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docType, pastedText: text }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setGenError(d.error ?? 'That version could not be saved.'); return; }
+      setGeneratedHtml(d.html);
+      setPasting(false);
+      setPastedText('');
+      setGenNotice('Your version is now the one on file. The previous draft is kept in this document\u2019s history.');
+      refreshDraftHistory();
+      void employment.refresh();
+    } catch {
+      setGenError('That version could not be saved.');
+    } finally { setReplacing(false); }
+  }, [sessionId, employment, refreshDraftHistory]);
 
   const replaceDraftWithUpload = useCallback(async (file: File, docType: string) => {
     if (!sessionId) return;
@@ -2591,6 +2616,15 @@ export default function MatterDetailView() {
                       >
                         {replacing ? 'Reading…' : 'Upload my edited version'}
                       </button>
+                      <button
+                        onClick={() => { setPasting(v => !v); setPastedText(''); }}
+                        style={{
+                          background: '#fff', color: navy, border: `1px solid ${border}`,
+                          fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
+                        }}
+                      >
+                        {pasting ? 'Cancel paste' : 'Paste my version'}
+                      </button>
                       <a
                         href={`/api/employment/${sessionId}/download/${DRAFT_TO_DOWNLOAD[selectedDraft ?? ''] ?? 'demand-letter'}${activeVariant ? `?templateVariantId=${encodeURIComponent(activeVariant.variantId)}` : ''}`}
                         download
@@ -2647,6 +2681,35 @@ export default function MatterDetailView() {
                         )}
                       </div>
                       {approvalsEnabled && dt && cur && sessionId && <ReviewLaneControls matterId={sessionId} docType={dt} onApplyFeedback={(text) => setRevising({ source: 'partner', initial: text })} />}
+                      {pasting && dt && (
+                        <div style={{ marginTop: 12, background: '#fff', border: `1px solid ${border}`, padding: '14px 16px' }}>
+                          <div style={{ fontSize: 13, color: ink, marginBottom: 6 }}>
+                            Paste your revised document. It becomes the version on file; the current draft is kept in history.
+                          </div>
+                          <textarea
+                            value={pastedText}
+                            onChange={e => setPastedText(e.target.value)}
+                            placeholder="Paste the full text of your version here"
+                            style={{ width: '100%', minHeight: 200, fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, boxSizing: 'border-box', resize: 'vertical' }}
+                          />
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                            <button
+                              disabled={replacing || pastedText.trim().length < 200}
+                              onClick={() => { void replaceDraftWithPaste(pastedText, dt); }}
+                              style={{
+                                fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans,
+                                background: pastedText.trim().length >= 200 ? navy : '#c8ccd4', color: '#fff', border: 'none',
+                                cursor: pastedText.trim().length >= 200 ? 'pointer' : 'default',
+                              }}
+                            >
+                              {replacing ? 'Saving…' : 'Use this as the version on file'}
+                            </button>
+                            <span style={{ fontSize: 12, color: muted }}>
+                              {pastedText.trim().split(/\s+/).filter(Boolean).length.toLocaleString('en-CA')} words
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <input
                         ref={replaceInputRef}
                         type="file"
