@@ -767,6 +767,13 @@ export default function MatterDetailView() {
   const [genNotice, setGenNotice] = useState<string | null>(null);
   const [genTone, setGenTone] = useState('professional');
   const [genDemandAmount, setGenDemandAmount] = useState('');
+  // Demand letter figures. The table that itemises them is built in code,
+  // so what is netted off has to be entered rather than inferred: a demand
+  // that ignores the statutory pay already made invites the reply that the
+  // letter is unserious.
+  const [dlRecipient, setDlRecipient] = useState('');
+  const [dlPaid, setDlPaid] = useState<Array<{ label: string; amount: string }>>([]);
+  const [dlMitigation, setDlMitigation] = useState('');
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
   // Structured inputs for the deterministic court forms
@@ -2569,9 +2576,82 @@ export default function MatterDetailView() {
                       </div>
                     </>
                   )}
+                  {selectedDraft !== 'demand' && (
+                    <div>
+                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
+                      <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedDraft === 'demand' && !generatedHtml && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The figures in the letter</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 12, lineHeight: 1.5 }}>
+                    Starling builds the itemised damages table from the analysis rather than writing the numbers into prose. Enter what the employer has already paid and what your client has earned since, and the table nets them off.
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Addressed to</div>
+                    <input
+                      type="text"
+                      placeholder="Opposing counsel, or the employer where counsel is unknown"
+                      value={dlRecipient}
+                      onChange={e => setDlRecipient(e.target.value)}
+                      aria-label="Recipient of the demand letter"
+                      style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                    />
+                    <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>Left blank, the letter is marked for you to complete rather than addressed to a guess.</div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Already paid by the employer</div>
+                    {dlPaid.map((row, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                        <input
+                          type="text"
+                          placeholder="e.g., ESA notice and severance"
+                          value={row.label}
+                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
+                          aria-label={`Payment ${i + 1} description`}
+                          style={{ flex: 1, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Amount"
+                          value={row.amount}
+                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r))}
+                          aria-label={`Payment ${i + 1} amount`}
+                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                        <button
+                          onClick={() => setDlPaid(rows => rows.filter((_, j) => j !== i))}
+                          aria-label={`Remove payment ${i + 1}`}
+                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
+                        >
+                          remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setDlPaid(rows => [...rows, { label: '', amount: '' }])}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                    >
+                      Add a payment
+                    </button>
+                  </div>
+
                   <div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
-                    <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Mitigation earnings to date (CAD)</div>
+                    <input
+                      type="text"
+                      placeholder="Leave blank if none"
+                      value={dlMitigation}
+                      onChange={e => setDlMitigation(e.target.value.replace(/[^\d]/g, ''))}
+                      aria-label="Mitigation earnings to date"
+                      style={{ width: 200, fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                    />
                   </div>
                 </div>
               )}
@@ -2720,6 +2800,14 @@ export default function MatterDetailView() {
                         courtLocation: genCourtLocation,
                         responseDeadlineDays: 14,
                         ...(styleProfileId ? { styleProfileId } : {}),
+
+                        ...(selectedDraft === 'demand' ? {
+                          recipientName: dlRecipient.trim() || undefined,
+                          amountsPaid: dlPaid
+                            .map(r => ({ label: r.label.trim(), amount: Number(r.amount) }))
+                            .filter(r => r.label !== '' && r.amount > 0),
+                          mitigationEarnings: dlMitigation ? Number(dlMitigation) : undefined,
+                        } : {}),
 
                         ...(selectedDraft === 'mediation' ? {
                           briefSourceIds: [...selectedSourceIds],

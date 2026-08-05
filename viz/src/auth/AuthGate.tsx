@@ -23,7 +23,15 @@ export function AuthGate({ children }: Props) {
 
   // Check for existing session on mount (API mode only)
   useEffect(() => {
-    if (IS_STANDALONE) return;
+    // Standalone has no backend to ask, so there is nothing to check. It
+    // still has to SAY so: returning without clearing the flag leaves the
+    // gate on its loading mark forever, which is what `vite dev` at / and
+    // any static deploy did. Production escapes it only because it is
+    // served from /dashboard/.
+    if (IS_STANDALONE) {
+      setChecking(false);
+      return;
+    }
 
     // 5-second timeout prevents indefinite loading on slow/unresponsive server
     const controller = new AbortController();

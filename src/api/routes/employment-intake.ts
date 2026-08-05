@@ -1384,6 +1384,21 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     responseDeadlineDays: z.number().int().min(1).max(90).default(14),
     /** Draft in the firm's style, learned from its precedents. */
     styleProfileId: z.string().trim().max(100).optional(),
+    /** Who the letter is addressed to; counsel where known. */
+    recipientName: z.string().trim().max(300).optional(),
+    /** Heads of damage the lawyer chose, overriding the analysis defaults. */
+    damageHeads: z.array(z.object({
+      label: z.string().trim().min(1).max(200),
+      amount: z.number().nonnegative().max(99_999_999).nullable().optional(),
+      basis: z.string().trim().max(300).optional(),
+    })).max(20).optional(),
+    /** Amounts already paid, netted off the claim. */
+    amountsPaid: z.array(z.object({
+      label: z.string().trim().min(1).max(200),
+      amount: z.number().nonnegative().max(99_999_999),
+    })).max(10).optional(),
+    /** Mitigation earnings to date, netted off the claim. */
+    mitigationEarnings: z.number().nonnegative().max(99_999_999).nullable().optional(),
   });
 
   fastify.post('/api/employment/:matterId/demand-letter', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -1443,6 +1458,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       firmName: parsed.data.firmName,
       firmAddress: parsed.data.firmAddress,
       responseDeadlineDays: parsed.data.responseDeadlineDays,
+      recipientName: parsed.data.recipientName,
+      fileNumber: ((matter as Record<string, unknown>).firmFileNumber as string)
+        || ((matter as Record<string, unknown>).matterNumber as string) || undefined,
+      damageHeads: parsed.data.damageHeads,
+      amountsPaid: parsed.data.amountsPaid,
+      mitigationEarnings: parsed.data.mitigationEarnings,
       styleContext: dlStyle?.context,
       styleTypicalWords: dlStyle?.typicalWords,
     }, definedTerms);

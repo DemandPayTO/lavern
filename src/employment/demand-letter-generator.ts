@@ -21,6 +21,7 @@ import { TONE_OPTIONS } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
+import { buildDemandOpening, buildDemandSignature, buildDemandDamagesTable, scrubDemandBody, insertDamagesTable } from './demand-letter-parts.js';
 import { checkCanonTextIntegrity } from './canon-verifier.js';
 
 const logger = createLogger('DEMAND-LETTER');
@@ -30,6 +31,16 @@ const logger = createLogger('DEMAND-LETTER');
 export type DemandLetterTone = typeof TONE_OPTIONS[number];
 
 export interface DemandLetterRequest {
+  /** Who the letter is addressed to; counsel where known. */
+  recipientName?: string;
+  /** The firm's own file number for the Re: block. */
+  fileNumber?: string;
+  /** Heads of damage the lawyer chose, overriding the analysis defaults. */
+  damageHeads?: Array<{ label: string; amount?: number | null; basis?: string }>;
+  /** Amounts already paid, netted off the claim. */
+  amountsPaid?: Array<{ label: string; amount: number }>;
+  /** Mitigation earnings to date, netted off the claim. */
+  mitigationEarnings?: number | null;
   /** The firm's style context from a style profile, folded into the prompt. */
   styleContext?: string;
   /** Firm depth from the style profile; scales the output budget. */
@@ -103,7 +114,9 @@ Produce the letter in HTML format. Use semantic HTML:
 - <ol> and <li> for numbered lists (e.g. damages particulars)
 - No inline styles, no classes; clean semantic HTML only.
 
-Do NOT include letterhead, date, or address block; those come from the firm's template. Start with the salutation ("Dear [name/counsel]") and end with the signature block.`;
+Do NOT include letterhead, the date, the address block, the "Without prejudice" marking, the "Re:" line, the salutation, or the signature block: every one of those is added automatically. Do not write "Dear ...", do not write "Yours truly", do not write "Re: ...". Begin with the first substantive paragraph of the letter and end with the last.
+
+THE DAMAGES TABLE IS ALSO ADDED AUTOMATICALLY, built from the matter record. Under the Damages Quantification heading, write NOTHING: the heading and the table are inserted for you. Refer to the figures elsewhere in the letter naturally ("as itemised below"), but never restate the itemisation and never state a total of your own.`;
 }
 
 function buildUserPrompt(req: DemandLetterRequest): string {
@@ -261,37 +274,57 @@ STRUCTURE. Use these EXACT h2 headings, in this order, so that the letter can
 be placed into a firm's own template section by section. Do not rename,
 merge, or omit a heading; where a section does not apply, keep the heading
 and state the position briefly.
-1. Salutation and opening paragraph (no heading): identify the firm, the client, and the purpose
+1. Opening paragraph (no heading): who acts, for whom, and the purpose of the letter
 2. <h2>Employment Background</h2>: brief chronology
 3. <h2>Termination Facts</h2>: what happened
 4. <h2>Legal Analysis</h2>: one subsection per approved issue (cite relevant case law)
-5. <h2>Damages Quantification</h2>: itemised list with amounts
-6. <h2>Demand</h2>: state the specific amount and terms
-7. <h2>Closing</h2>: response deadline, consequences of non-response, without-prejudice reservation
-8. Signature block (no heading): lawyer name and firm
+5. <h2>Demand</h2>: the terms on which the client will resolve, and the response deadline as a calendar date. State the demand figure once; the itemisation is in the table above it.
+6. <h2>Closing</h2>: consequences of non-response, and the without-prejudice reservation
+
+Do NOT write a Damages Quantification section: the heading and its table are inserted automatically between Legal Analysis and Demand.
 
 Write the complete letter now.`;
 }
 
 // ── Lawyer review flag detection ─────────────────────────────────────────
 
-/** Issues that always require lawyer review before the letter is sent. */
-const REVIEW_REQUIRED_ISSUES = new Set([
-  'termination_clause_invalidity',
-  'waksdale_at_any_time',
-  'machtinger_below_esa',
-  'no_fresh_consideration',
-  'termination_for_cause',
-  'constructive_dismissal',
-  'human_rights_overlay',
-  'disability_accommodation',
-  'bad_faith_dismissal',
-  'punitive_damages',
-  'ohsa_reprisal',
-]);
+/**
+ * Issues that always require lawyer review before the letter is sent, and
+ * what to check for each.
+ *
+ * The flag is the last thing between a draft and a served letter, so it
+ * says what to look at. A bare issue name ("constructive_dismissal") tells
+ * the lawyer only what they already told Starling.
+ */
+const REVIEW_REQUIRED_ISSUES: Record<string, string> = {
+  termination_clause_invalidity:
+    'The letter argues the termination clause is unenforceable. Read the clause against the contract itself before sending, since the argument stands or falls on its exact words.',
+  waksdale_at_any_time:
+    'The letter relies on a Waksdale argument. Confirm the for cause provision in the contract actually contravenes the ESA, and that the version you are reading is the operative one.',
+  machtinger_below_esa:
+    'The letter argues the clause contracts below the ESA minimum. Verify the entitlement calculation against the ESA before asserting it.',
+  no_fresh_consideration:
+    'The letter argues the clause fails for want of fresh consideration. Confirm the timing of the signature against the start of employment and any promotion.',
+  termination_for_cause:
+    'Cause is alleged on the file. Confirm what the employer has actually asserted in writing before the letter answers it.',
+  constructive_dismissal:
+    'The letter pleads constructive dismissal. Confirm the client did not condone the change by continuing to work beyond a reasonable period, and check the date they treated the employment as at an end.',
+  human_rights_overlay:
+    'The letter asserts a Human Rights Code claim. Confirm the protected ground and the connection to the termination, and consider whether an Application to the Tribunal is being preserved.',
+  disability_accommodation:
+    'The letter asserts a failure to accommodate. Confirm what the employer knew about the restriction and when, and that the medical documentation on file supports it.',
+  bad_faith_dismissal:
+    'The letter claims moral damages for the manner of dismissal. Confirm the conduct alleged is documented, since these damages are compensatory and require evidence of the harm.',
+  punitive_damages:
+    'The letter claims punitive damages. Confirm the conduct alleged meets the independent actionable wrong threshold before asserting it.',
+  ohsa_reprisal:
+    'The letter alleges a reprisal. Confirm the protected activity and its proximity to the termination, and note the Board has exclusive jurisdiction over an OHSA reprisal complaint.',
+};
 
 function computeReviewFlags(approvedIssues: string[]): string[] {
-  return approvedIssues.filter(i => REVIEW_REQUIRED_ISSUES.has(i));
+  return approvedIssues
+    .map(i => REVIEW_REQUIRED_ISSUES[i])
+    .filter((f): f is string => Boolean(f));
 }
 
 // ── Main generation function ─────────────────────────────────────────────
@@ -340,13 +373,45 @@ export async function generateDemandLetter(
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
 
+  // The integrity checks read the MODEL's prose. The furniture and the
+  // damages table are deterministic, so canon-checking them would only
+  // produce noise.
+  const narrativeHtml = html;
+
+  // Assemble: furniture, body, deterministic table, signature. The table
+  // is inserted before the Demand section so the letter reads
+  // itemisation-then-demand, as a demand letter does.
+  const damages = buildDemandDamagesTable({
+    intake: req.intake,
+    analysis: req.analysis,
+    heads: req.damageHeads,
+    amountsPaid: req.amountsPaid,
+    mitigationEarnings: req.mitigationEarnings,
+    demandAmount: req.demandAmount,
+  });
+  const furnitureInput = {
+    intake: req.intake,
+    lawyerName: req.lawyerName,
+    firmName: req.firmName,
+    firmAddress: req.firmAddress,
+    recipientName: req.recipientName,
+    fileNumber: req.fileNumber,
+  };
+  const withTable = insertDamagesTable(scrubDemandBody(html), damages.html);
+  html = [
+    buildDemandOpening(furnitureInput),
+    withTable,
+    buildDemandSignature(furnitureInput),
+  ].filter(Boolean).join('\n\n');
+
   // Compute review flags + citation integrity check (flags any case name
   // outside the known canon, and canon cases with mismatched citations)
   const lawyerReviewFlags = [
     ...computeReviewFlags(req.approvedIssues),
-    ...checkCitationIntegrity(html, definedTerms ?? []),
-    ...checkCanonTextIntegrity(html),
-    ...checkFillInPlaceholders(html),
+    ...damages.flags,
+    ...checkCitationIntegrity(narrativeHtml, definedTerms ?? []),
+    ...checkCanonTextIntegrity(narrativeHtml),
+    ...checkFillInPlaceholders(narrativeHtml),
   ];
   // Every AI draft carries at least one review reminder — Rule 26 posture
   if (lawyerReviewFlags.length === 0) {
