@@ -25,6 +25,7 @@ const ink = '#0f1a2e';
 const muted = '#5a6472';
 const sans = "system-ui, -apple-system, sans-serif";
 const serif = "'Cormorant Garamond', Georgia, serif";
+const cream = '#faf8f5';
 
 export interface StyleProfileSummary {
   id: string;
@@ -92,6 +93,7 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [typeIssues, setTypeIssues] = useState<string[]>([]);
   const [built, setBuilt] = useState<{ label: string; guide: BuiltGuide; costUsd: number } | null>(null);
   // The editor: the tweak that persists. Load the full guide, edit any
   // part of it, save; the profile improves for every later draft.
@@ -125,18 +127,23 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
   const setGuide = (patch: Partial<FullGuide>) =>
     setEditing(e => (e ? { ...e, guide: { ...e.guide, ...patch } } : e));
 
-  const build = async () => {
+  const build = async (ignoreTypeMismatch = false) => {
     setBusy(true);
     setError(null);
+    if (!ignoreTypeMismatch) setTypeIssues([]);
     try {
       const precedents = await Promise.all(files.map(async f => ({ name: f.name, docxBase64: await fileToBase64(f) })));
       const res = await fetch('/api/employment/style-profiles/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ documentType, label: label.trim(), precedents }),
+        body: JSON.stringify({ documentType, label: label.trim(), precedents, ...(ignoreTypeMismatch ? { ignoreTypeMismatch: true } : {}) }),
       });
       const d = await res.json();
+      if (res.status === 409 && Array.isArray(d.typeIssues)) {
+        setTypeIssues(d.typeIssues as string[]);
+        return;
+      }
       if (!res.ok || !d.ok) { setError(d.error ?? 'The precedents could not be analysed.'); return; }
       setBuilt({ label: d.label, guide: d.guide, costUsd: d.costUsd ?? 0 });
       setFiles([]);
@@ -234,7 +241,13 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
 
   return (
     <div style={{ fontFamily: sans, border: `1px solid ${border}`, background: '#fff', padding: '16px 20px', marginBottom: 16 }}>
-      <h3 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 4px', color: navy }}>Teach Starling your {documentLabel.toLowerCase()} style</h3>
+      <h3 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 4px', color: navy }}>
+        Teach Starling your {documentLabel.toLowerCase()} style
+      </h3>
+      <div style={{ fontSize: 12.5, color: ink, background: cream, border: `1px solid ${border}`, borderRadius: 2, padding: '7px 11px', margin: '0 0 10px' }}>
+        Upload precedents of this document only: <b>{documentLabel}</b>. Each document type has its own
+        style, so the other timetable documents are taught on their own cards.
+      </div>
       <p style={{ fontSize: 13, color: muted, margin: '0 0 10px' }}>
         {FORM_DOCUMENT_TYPES.has(documentType) ? (
           <>
@@ -315,7 +328,7 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
           style={{ flex: 1, minWidth: 240, fontSize: 13, fontFamily: sans, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2 }}
         />
         <button
-          onClick={() => void build()}
+          onClick={() => void build(false)}
           disabled={files.length < 2 || !label.trim() || busy}
           style={{
             fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans,
@@ -352,6 +365,28 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
         <p style={{ fontSize: 12.5, color: amber, margin: '8px 0 0' }}>Add at least one more; a single document shows a draft, not a style.</p>
       )}
       {error && <p role="alert" style={{ fontSize: 12.5, color: red, margin: '8px 0 0' }}>{error}</p>}
+
+      {typeIssues.length > 0 && (
+        <div role="alert" style={{ marginTop: 10, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '10px 13px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: amber, marginBottom: 4 }}>
+            {typeIssues.length === 1 ? 'One file does not look like this document' : 'Some files do not look like this document'}
+          </div>
+          <ul style={{ margin: '0 0 8px', paddingLeft: 18, fontSize: 12.5, color: ink }}>
+            {typeIssues.map((m, i) => <li key={i}>{m}</li>)}
+          </ul>
+          <div style={{ fontSize: 12.5, color: muted, marginBottom: 8 }}>
+            Teaching this style from the wrong document would shape every later draft of
+            <b> {documentLabel}</b>. Remove them, or continue if the reading is wrong.
+          </div>
+          <button
+            onClick={() => { setTypeIssues([]); void build(true); }}
+            disabled={busy}
+            style={{ fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+          >
+            These are the right precedents; continue
+          </button>
+        </div>
+      )}
 
       {built && (
         <div style={{ marginTop: 12, borderTop: `1px solid ${border}`, paddingTop: 10 }} role="status">

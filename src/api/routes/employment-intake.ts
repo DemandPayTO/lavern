@@ -2729,6 +2729,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     label: z.string().trim().min(1).max(120),
     /** Override the automatic prose/form choice. */
     documentKind: z.enum(['prose', 'form']).optional(),
+    /** Proceed even though a precedent looks like a different document. */
+    ignoreTypeMismatch: z.boolean().optional(),
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
       docxBase64: z.string().max(7_000_000),
@@ -2756,6 +2758,22 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       } catch {
         return reply.status(400).send({ ok: false, error: `"${p.name}" could not be read as a Word document.` });
       }
+    }
+
+    // Does each precedent look like the document it is being taught for?
+    // The firm's timetable materials are three documents in one folder;
+    // teaching the motion from consent orders would shape every later
+    // motion, silently. Checked BEFORE the model call, so a mistake costs
+    // nothing.
+    const { checkPrecedentTypes } = await import('../../employment/precedent-type-check.js');
+    const typeIssues = checkPrecedentTypes(texts, parsed.data.documentType);
+    if (typeIssues.length > 0 && !parsed.data.ignoreTypeMismatch) {
+      return reply.status(409).send({
+        ok: false,
+        error: 'Some of those precedents look like a different document.',
+        typeIssues: typeIssues.map(i => i.message),
+        canOverride: true,
+      });
     }
 
     const { analyseStyle, extractIdentifiers } = await import('../../employment/style-profile.js');
