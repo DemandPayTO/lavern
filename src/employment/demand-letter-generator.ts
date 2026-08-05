@@ -84,14 +84,16 @@ CRITICAL RULES:
    - Potter v New Brunswick Legal Aid, 2015 SCC 10 (constructive dismissal)
    - Matthews v Ocean Nutrition Canada Ltd, 2020 SCC 26 (bonus through notice)
    - Machtinger v HOJ Industries Ltd, [1992] 1 SCR 986 (below-ESA clauses void)
-   - Ceccol v Ontario Gymnastics Federation, 2001 CanLII 8589 (ONCA) (inducement)
-   - Wallace v United Grain Growers Ltd, [1997] 3 SCR 701 (inducement factor)
+   - Ceccol v Ontario Gymnastics Federation, 2001 CanLII 8589 (ONCA) (successive fixed-term contracts treated as indefinite employment)
+   - Wallace v United Grain Growers Ltd, [1997] 3 SCR 701 (inducement as a notice factor; on bad-faith DAMAGES it is superseded by Honda v Keays, so do not cite Wallace for a damages award)
    - Shafron v KRG Insurance Brokers, 2009 SCC 6 (restrictive covenant enforceability)
 3. Do NOT invent case citations. If unsure about a citation, omit it rather than guess.
 4. Use Canadian English spelling throughout (honour, labour, behaviour, etc.).
 5. Reference specific ESA sections by number (e.g. "section 57 of the Employment Standards Act, 2000").
 6. All monetary amounts in Canadian dollars.
 7. Write in the professional register of Ontario legal practice. Do not use em dashes anywhere in the document; use commas, colons, semicolons, or parentheses instead.
+8. ESA SEVERANCE PAY is not automatic: it requires five or more years of employment AND an employer payroll of $2.5 million or more (or a severance of 50 or more employees in six months). If the payroll condition is not established in the facts given, claim it conditionally ("if the employer's payroll meets the threshold in section 64") rather than asserting entitlement, or mark it "[LAWYER: confirm payroll threshold]".
+9. Cite an authority only for what it actually decides. Do not attach a case to a proposition it does not support.
 
 OUTPUT FORMAT:
 Produce the letter in HTML format. Use semantic HTML:
@@ -252,7 +254,7 @@ LETTER METADATA:
 - Lawyer: ${req.lawyerName}
 - Firm: ${req.firmName}
 ${req.firmAddress ? `- Firm address: ${req.firmAddress}` : ''}
-- Response deadline: ${req.responseDeadlineDays} days from the date of the letter
+- Response deadline: ${req.responseDeadlineDays} days from today, which is ${new Date(Date.now() + req.responseDeadlineDays * 86_400_000).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}. STATE THAT CALENDAR DATE in the closing demand, not only the number of days: a date cannot be argued about later, and it is the date the file is diarised against.
 ${limitation ? `- Limitation period expires: ${limitation.date} (${limitation.daysRemaining} days remaining${limitation.urgent ? '; URGENT' : ''})` : ''}
 
 STRUCTURE. Use these EXACT h2 headings, in this order, so that the letter can

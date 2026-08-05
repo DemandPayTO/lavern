@@ -45,6 +45,9 @@ const HEADING_TO_MARKER: Array<[RegExp, string]> = [
   [/^closing$/, 'CLOSING'],
   [/^terms$/, 'CLOSING'],
   [/^title of proceedings$/, 'TITLE_OF_PROCEEDINGS'],
+  [/^simplified procedure statement$/, 'PROCEDURE_STATEMENT'],
+  [/^date and place of issue$/, 'PROCEDURE_STATEMENT'],
+  [/^lawyer of record$/, 'LAWYER_BLOCK'],
 
   // Severance assessment and counter-offer sections. These name parts of a
   // document rather than data fields, so they take content from the
@@ -84,6 +87,7 @@ export const SECTION_MARKERS = new Set([
   'EMPLOYMENT_BACKGROUND', 'TERMINATION_FACTS', 'FACTS_SECTION', 'LEGAL_ANALYSIS',
   'LEGAL_BASIS', 'DAMAGES_SECTION', 'DAMAGES_PARTICULARS', 'DEMAND',
   'RELIEF_SOUGHT', 'CLAIM', 'CLOSING', 'TITLE_OF_PROCEEDINGS',
+  'PROCEDURE_STATEMENT', 'LAWYER_BLOCK',
   // Severance assessment and counter-offer
   'OFFER_SUMMARY', 'STATUTORY_FLOOR', 'NOTICE_RANGE', 'CLAUSE_ANALYSIS',
   'GAP_ANALYSIS', 'OTHER_FACTORS', 'RECOMMENDATION',

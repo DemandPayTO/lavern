@@ -69,7 +69,7 @@ function buildSystemPrompt(procedureType: ProcedureType): string {
     small_claims: `You are drafting a Plaintiff's Claim (Form 7A) for the Small Claims Court of Ontario.
 
 PROCEDURE-SPECIFIC RULES:
-- Maximum claim: $50,000 (exclusive of interest and costs)
+- Maximum claim: $50,000 exclusive of interest and costs (raised from $35,000 in October 2025)
 - Language should be clear and accessible (the Small Claims Court is designed to be accessible to self-represented parties, although counsel also appear there)
 - No discovery, no jury
 - Numbered paragraphs for facts
@@ -80,11 +80,11 @@ PROCEDURE-SPECIFIC RULES:
     simplified: `You are drafting a Statement of Claim (Form 14A) under the Simplified Procedure (Rule 76) of the Ontario Rules of Civil Procedure.
 
 PROCEDURE-SPECIFIC RULES:
-- Claims between $50,001 and $200,000
-- Must include a Rule 76 compliance statement
-- Affidavit of documents due within 10 days of close of pleadings
-- No examinations for discovery without leave of the court
-- Jury notice may be filed
+- Claims between $50,001 and $200,000 (Small Claims Court took claims to $50,000 from October 2025)
+- The claim must state that the action is brought under the simplified procedure
+- Affidavit of documents is due within 10 days after the close of pleadings
+- Oral examination for discovery IS available and is time-limited per party (the limit rose from two hours to three in the 2020 amendments). Do NOT plead or imply that discovery requires leave.
+- JURY TRIALS ARE NOT AVAILABLE in a simplified procedure action, except for claims in slander, libel, malicious arrest, malicious prosecution or false imprisonment. Do NOT include a jury notice or refer to a jury unless the claim is one of those.
 - Numbered paragraphs for facts
 - Use "Statement of Claim" as the document title
 - Court: Ontario Superior Court of Justice, [location]`,
@@ -115,6 +115,8 @@ CRITICAL RULES:
 7. Plead material facts, not evidence. State WHAT happened, not HOW you will prove it.
 8. The prayer for relief should be specific and itemised.
 9. Write in the professional register of Ontario legal practice. Do not use em dashes anywhere in the document; use commas, colons, semicolons, or parentheses instead.
+10. THE RULES ARE IN TRANSITION: amendments to the Rules of Civil Procedure took effect during 2026, including new mandatory court forms and stricter venue requirements, with further phases expected. Do not assert a form number, a venue requirement, or a procedural deadline as current without marking it: use "[LAWYER: confirm the form and venue requirements in force]" where it matters. Never invent a form number.
+11. Do not plead a fact about the client that the intake does not contain. Where a material fact is missing and the pleading needs it, insert "[LAWYER: ...]" naming what is required, rather than a plausible guess.
 
 OUTPUT FORMAT:
 Produce the document in HTML format. Use semantic HTML:
@@ -250,8 +252,8 @@ heading.
 3. <h2>Facts</h2>: Numbered paragraphs setting out the material facts in chronological order
 4. <h2>Legal Basis</h2>: Statutory and common law grounds for each claim
 5. <h2>Damages Particulars</h2>: Itemised breakdown with amounts
-6. ${req.procedureType === 'simplified' ? 'RULE 76 COMPLIANCE STATEMENT' : 'DATE AND PLACE OF ISSUE'}
-7. Lawyer/firm information and service address
+6. ${req.procedureType === 'simplified' ? '<h2>Simplified Procedure Statement</h2>: the statement that the action is brought under the simplified procedure' : '<h2>Date and Place of Issue</h2>'}
+7. <h2>Lawyer of Record</h2>: the lawyer, firm, address for service, telephone, and LSO number placeholder
 
 Draft the complete document now.`;
 }
