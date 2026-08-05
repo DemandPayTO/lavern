@@ -2465,9 +2465,24 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // needs three to tell boilerplate from coincidence), because the model
   // describes rather than diffs.
 
+  /**
+   * Document types that are FORMS, not prose: orders, notices of motion,
+   * court forms. Their precedents are read for fixed wording and part
+   * order, never for voice.
+   */
+  const FORM_DOCUMENT_TYPES = new Set([
+    'sp_timetable_motion', 'consent_timetable_order', 'timetable_order',
+    'sj_notice_of_motion', 'affidavit_of_service', 'rule49_offer',
+    'rule49_withdrawal', 'rule49_acceptance', 'costs_outline',
+    'esa_filing_sheet', 'scc_filing_sheet', 'notice_of_action',
+    'settlement_minutes', 'undertakings_answers',
+  ]);
+
   const styleBuildSchema = z.object({
     documentType: z.string().regex(/^[a-z0-9_]{1,60}$/),
     label: z.string().trim().min(1).max(120),
+    /** Override the automatic prose/form choice. */
+    documentKind: z.enum(['prose', 'form']).optional(),
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
       docxBase64: z.string().max(7_000_000),
@@ -2488,7 +2503,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       try {
         const buffer = Buffer.from(p.docxBase64, 'base64');
         const { value } = await mammoth.extractRawText({ buffer });
-        if (!value || value.trim().length < 300) {
+        if (!value || value.trim().length < 150) {
           return reply.status(400).send({ ok: false, error: `"${p.name}" has too little text to learn from. Is it the right file?` });
         }
         texts.push({ name: p.name, text: value });
@@ -2498,10 +2513,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
 
     const { analyseStyle, extractIdentifiers } = await import('../../employment/style-profile.js');
+    const documentKind = parsed.data.documentKind
+      ?? (FORM_DOCUMENT_TYPES.has(parsed.data.documentType) ? 'form' : 'prose');
     let guide;
     let costUsd = 0;
     try {
-      const analysed = await analyseStyle(texts);
+      const analysed = await analyseStyle(texts, documentKind);
       guide = analysed.guide;
       costUsd = analysed.costUsd;
     } catch (err) {
@@ -2522,7 +2539,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
     try { recordUsageEvent(userId, 'firm', 'analysis', `style_profile_${parsed.data.documentType}`, costUsd); } catch { /* metering is best-effort */ }
     logger.info('Style profile built', { userId, firmId, documentType: parsed.data.documentType, sources: texts.length, costUsd: costUsd.toFixed(4) });
-    return reply.send({ ok: true, id, label: parsed.data.label, guide, sourceCount: texts.length, costUsd });
+    return reply.send({ ok: true, id, label: parsed.data.label, guide, documentKind, sourceCount: texts.length, costUsd });
   });
 
   fastify.get('/api/employment/style-profiles', async (req: FastifyRequest, reply: FastifyReply) => {

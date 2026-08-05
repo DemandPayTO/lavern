@@ -92,18 +92,19 @@ describe('validation', () => {
 });
 
 describe('rendering for the generator', () => {
-  it('gives the generator the real dates', () => {
+  it('gives the generator the dates in the form a court document uses', () => {
     const { dates } = validateTimetable(goodDates, { today: TODAY });
     const prompt = timetableForPrompt(dates);
-    expect(prompt).toContain('Mediation completed: 2027-01-20');
-    expect(prompt).toContain('Trial: 2027-09-13');
+    expect(prompt).toContain('January 20, 2027');
+    expect(prompt).toContain('September 13, 2027');
+    expect(prompt).toContain('reproduce EXACTLY');
   });
 
-  it('leaves a placeholder where no date was given', () => {
+  it('lists only the steps the lawyer dated', () => {
     const { dates } = validateTimetable({ mediation: '2027-01-20' }, { today: TODAY });
     const prompt = timetableForPrompt(dates);
-    expect(prompt).toContain('Mediation completed: 2027-01-20');
-    expect(prompt).toContain('Trial: [DATE]');
+    expect(prompt).toContain('January 20, 2027');
+    expect(prompt).not.toContain('Trial:');
   });
 });
 
@@ -111,7 +112,8 @@ describe('docketing', () => {
   it('puts every supplied date on the docket', () => {
     const { dates } = validateTimetable(goodDates, { today: TODAY });
     const events = timetableTimelineEvents(dates);
-    expect(events).toHaveLength(TIMETABLE_STEPS.length);
+    // Only the steps the lawyer actually dated are docketed.
+    expect(events).toHaveLength(Object.keys(goodDates).length);
     expect(events.map(e => e.date)).toEqual([...events.map(e => e.date)].sort());
   });
 

@@ -71,6 +71,14 @@ export function useStyleProfiles(documentType: string | undefined) {
   return { profiles, refresh };
 }
 
+const FORM_DOCUMENT_TYPES = new Set([
+  'sp_timetable_motion', 'consent_timetable_order', 'timetable_order',
+  'sj_notice_of_motion', 'affidavit_of_service', 'rule49_offer',
+  'rule49_withdrawal', 'rule49_acceptance', 'costs_outline',
+  'esa_filing_sheet', 'scc_filing_sheet', 'notice_of_action',
+  'settlement_minutes', 'undertakings_answers',
+]);
+
 export function StyleProfilePanel({ documentType, documentLabel, profiles, onChanged, onClose }: {
   documentType: string;
   documentLabel: string;
@@ -228,11 +236,23 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
     <div style={{ fontFamily: sans, border: `1px solid ${border}`, background: '#fff', padding: '16px 20px', marginBottom: 16 }}>
       <h3 style={{ fontFamily: serif, fontSize: 18, margin: '0 0 4px', color: navy }}>Teach Starling your {documentLabel.toLowerCase()} style</h3>
       <p style={{ fontSize: 13, color: muted, margin: '0 0 10px' }}>
-        Add two or more of your own {documentLabel.toLowerCase()}s for the same kind of case, from any
-        folders, one pick at a time. Starling studies how they flow, the voice they use, and the
-        language that recurs, and saves that as a named style. New drafts then follow your style while
-        using only this matter's facts, and every draft is scanned so no name or figure from the
-        precedents can slip through unflagged. Redacted copies work.
+        {FORM_DOCUMENT_TYPES.has(documentType) ? (
+          <>
+            This is a court form, so Starling reads your precedents differently: it takes the parts in
+            your order and your fixed wording <b>verbatim</b>, clause by clause, and fills only the
+            values from this matter. Add two or more of your own {documentLabel.toLowerCase()}s. Any
+            party name or figure inside a clause is replaced with a placeholder, and every draft is
+            scanned so nothing from another client can slip through unflagged.
+          </>
+        ) : (
+          <>
+            Add two or more of your own {documentLabel.toLowerCase()}s for the same kind of case, from any
+            folders, one pick at a time. Starling studies how they flow, the voice they use, and the
+            language that recurs, and saves that as a named style. New drafts then follow your style while
+            using only this matter's facts, and every draft is scanned so no name or figure from the
+            precedents can slip through unflagged. Redacted copies work.
+          </>
+        )}
       </p>
 
       {profiles.length > 0 && (

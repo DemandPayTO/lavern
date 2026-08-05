@@ -452,13 +452,21 @@ interface CourtFieldDef {
 // name, these dates carry consequences: Starling checks their ordering and
 // the Rule 48.14 window, writes them into Schedule A, and puts them on the
 // docket, so they are worth collecting rather than leaving as placeholders.
+// Every step a timetable might fix. All optional: fill what this action
+// needs and the schedule carries exactly those, in this order.
 const TIMETABLE_FIELDS: CourtFieldDef[] = [
-  { key: 'affidavits_of_documents', label: 'Affidavits of documents exchanged', type: 'date' },
+  { key: 'discovery_plan', label: 'Discovery plan agreed (Rule 29.1)', type: 'date' },
+  { key: 'affidavits_of_documents', label: 'Affidavits of documents exchanged (Rule 30.03)', type: 'date' },
   { key: 'productions', label: 'Documentary productions delivered', type: 'date' },
   { key: 'examinations', label: 'Examinations for discovery completed', type: 'date' },
-  { key: 'mediation', label: 'Mediation completed', type: 'date' },
-  { key: 'set_down', label: 'Action set down for trial', type: 'date' },
-  { key: 'pre_trial', label: 'Pre-trial conference', type: 'date' },
+  { key: 'undertakings', label: 'Answers to undertakings delivered', type: 'date' },
+  { key: 'motions', label: 'Motions arising from discovery heard', type: 'date' },
+  { key: 'expert_reports', label: 'Plaintiff expert reports delivered (Rule 53.03)', type: 'date' },
+  { key: 'responding_expert_reports', label: 'Responding expert reports delivered', type: 'date' },
+  { key: 'mediation', label: 'Mediation completed (Rule 24.1)', type: 'date' },
+  { key: 'set_down', label: 'Action set down for trial (Rule 48.14)', type: 'date' },
+  { key: 'pre_trial_scheduled', label: 'Pre-trial conference scheduled (date requested)', type: 'date' },
+  { key: 'pre_trial', label: 'Pre-trial conference held', type: 'date' },
   { key: 'trial', label: 'Trial', type: 'date' },
 ];
 
