@@ -1,7 +1,7 @@
 /**
  * StyleProfilePanel — teach Starling how the firm writes a document type.
  *
- * The lawyer gathers two or more precedents (added across several picks,
+ * The lawyer gathers three or more precedents (added across several picks,
  * since they live in different matter folders), names the profile for the
  * kind of case it represents ("Termination on medical leave"), and
  * Starling reads them ONCE into a style guide: section flow, voice,
@@ -39,6 +39,11 @@ interface BuiltGuide {
   flow: Array<{ heading: string; purpose: string }>;
   voice: string;
   recurringLanguage: string[];
+  /** A letter style also returns the boilerplate it will reproduce. */
+  documentKind?: 'prose' | 'form' | 'letter';
+  openingBlock?: string[];
+  closingBlock?: string[];
+  fixedClauses?: Array<{ part: string; text: string }>;
 }
 
 interface FullGuide {
@@ -49,6 +54,12 @@ interface FullGuide {
   notes: string[];
   typicalWords?: number;
   profileTableRows?: string[];
+  /** Letter styles carry the firm's boilerplate, reproduced word for word. */
+  documentKind?: 'prose' | 'form' | 'letter';
+  openingBlock?: string[];
+  closingBlock?: string[];
+  fixedClauses?: Array<{ part: string; text: string }>;
+  formStructure?: string[];
 }
 
 async function fileToBase64(file: File): Promise<string> {
@@ -183,6 +194,52 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
           style={{ ...ta(editing.guide.flow.length + 1), marginBottom: 10 }}
         />
 
+        {/* The boilerplate. For a letter style these are the fields with
+            direct effect on the page: they are reproduced word for word
+            into a document that gets sent, so they are the ones most worth
+            reading before the first draft and correcting after it. */}
+        {editing.guide.documentKind === 'letter' && (
+          <div style={{ border: `1px solid ${border}`, padding: '12px 14px', marginBottom: 12, background: '#fbfaf8' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>
+              Your boilerplate, reproduced word for word
+            </div>
+            <div style={{ fontSize: 11.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+              These go into every letter exactly as written, with [SLOT] markers filled from the matter. Read them before you draft: what is here is what gets sent. Pronoun slots ([SUBJECT], [OBJECT], [POSSESSIVE]) fill from the pronouns recorded on each client.
+            </div>
+
+            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Opening block (one line per line of the letter)</label>
+            <textarea
+              value={(editing.guide.openingBlock ?? []).join('\n')}
+              onChange={e => setGuide({ openingBlock: e.target.value.split('\n').map(l => l.trim()).filter(Boolean) })}
+              style={{ ...ta(Math.max(4, (editing.guide.openingBlock ?? []).length)), marginBottom: 10 }}
+            />
+
+            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Closing block</label>
+            <textarea
+              value={(editing.guide.closingBlock ?? []).join('\n')}
+              onChange={e => setGuide({ closingBlock: e.target.value.split('\n').map(l => l.trim()).filter(Boolean) })}
+              style={{ ...ta(Math.max(3, (editing.guide.closingBlock ?? []).length)), marginBottom: 10 }}
+            />
+
+            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>
+              Standard passages (one per block, first line is the part it belongs to)
+            </label>
+            <textarea
+              value={(editing.guide.fixedClauses ?? []).map(c => `${c.part}\n${c.text}`).join('\n\n')}
+              onChange={e => setGuide({
+                fixedClauses: e.target.value.split(/\n\s*\n/).map(blockText => {
+                  const [part, ...rest] = blockText.split('\n');
+                  return { part: (part ?? '').trim().slice(0, 120), text: rest.join(' ').trim().slice(0, 2000) };
+                }).filter(c => c.part && c.text),
+              })}
+              style={{ ...ta(Math.max(6, (editing.guide.fixedClauses ?? []).length * 3)), marginBottom: 4 }}
+            />
+            <div style={{ fontSize: 11.5, color: muted }}>
+              Separate passages with a blank line. Delete a passage you have outgrown and it stops appearing.
+            </div>
+          </div>
+        )}
+
         <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Voice</label>
         <textarea value={editing.guide.voice} onChange={e => setGuide({ voice: e.target.value })} style={{ ...ta(3), marginBottom: 10 }} />
 
@@ -253,13 +310,13 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
           <>
             This is a court form, so Starling reads your precedents differently: it takes the parts in
             your order and your fixed wording <b>verbatim</b>, clause by clause, and fills only the
-            values from this matter. Add two or more of your own {documentLabel.toLowerCase()}s. Any
+            values from this matter. Add three or more of your own {documentLabel.toLowerCase()}s. Any
             party name or figure inside a clause is replaced with a placeholder, and every draft is
             scanned so nothing from another client can slip through unflagged.
           </>
         ) : (
           <>
-            Add two or more of your own {documentLabel.toLowerCase()}s for the same kind of case, from any
+            Add three or more of your own {documentLabel.toLowerCase()}s for the same kind of case, from any
             folders, one pick at a time. Starling studies how they flow, the voice they use, and the
             language that recurs, and saves that as a named style. New drafts then follow your style while
             using only this matter's facts, and every draft is scanned so no name or figure from the
@@ -329,13 +386,13 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
         />
         <button
           onClick={() => void build(false)}
-          disabled={files.length < 2 || !label.trim() || busy}
+          disabled={files.length < 3 || !label.trim() || busy}
           style={{
             fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans,
-            background: files.length >= 2 && label.trim() && !busy ? navy : '#fff',
-            color: files.length >= 2 && label.trim() && !busy ? '#fff' : muted,
-            border: `1px solid ${files.length >= 2 && label.trim() && !busy ? navy : border}`,
-            cursor: files.length >= 2 && label.trim() && !busy ? 'pointer' : 'default',
+            background: files.length >= 3 && label.trim() && !busy ? navy : '#fff',
+            color: files.length >= 3 && label.trim() && !busy ? '#fff' : muted,
+            border: `1px solid ${files.length >= 3 && label.trim() && !busy ? navy : border}`,
+            cursor: files.length >= 3 && label.trim() && !busy ? 'pointer' : 'default',
           }}
         >
           {busy ? 'Reading your precedents…' : 'Learn the style'}
@@ -402,8 +459,46 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
               {built.guide.recurringLanguage.length > 3 ? ' …' : ''}
             </div>
           )}
+          {built.guide.documentKind === 'letter' && (
+            <div style={{ marginTop: 10, border: `1px solid ${border}`, padding: '10px 12px', background: '#fbfaf8' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: ink, marginBottom: 5 }}>
+                Read this before you draft: it goes into every letter word for word
+              </div>
+              {(built.guide.openingBlock ?? []).length > 0 && (
+                <>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: navy, marginTop: 6 }}>Opening</div>
+                  <pre style={{ fontSize: 12, color: ink, whiteSpace: 'pre-wrap', margin: '3px 0 0', fontFamily: sans }}>
+                    {(built.guide.openingBlock ?? []).join('\n')}
+                  </pre>
+                </>
+              )}
+              {(built.guide.fixedClauses ?? []).length > 0 && (
+                <>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: navy, marginTop: 8 }}>
+                    Standard passages ({(built.guide.fixedClauses ?? []).length})
+                  </div>
+                  {(built.guide.fixedClauses ?? []).map((c, i) => (
+                    <div key={i} style={{ fontSize: 12, color: ink, marginTop: 4 }}>
+                      <b>{c.part}:</b> {c.text.length > 220 ? `${c.text.slice(0, 220)}…` : c.text}
+                    </div>
+                  ))}
+                </>
+              )}
+              {(built.guide.closingBlock ?? []).length > 0 && (
+                <>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: navy, marginTop: 8 }}>Closing</div>
+                  <pre style={{ fontSize: 12, color: ink, whiteSpace: 'pre-wrap', margin: '3px 0 0', fontFamily: sans }}>
+                    {(built.guide.closingBlock ?? []).join('\n')}
+                  </pre>
+                </>
+              )}
+              <div style={{ fontSize: 11.5, color: muted, marginTop: 8, lineHeight: 1.5 }}>
+                Anything wrong here reaches a letter you send. Use Edit above to fix wording, delete a passage you have outgrown, or correct a [SLOT] that means something different at your firm.
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: 12.5, color: muted, marginTop: 6 }}>
-            Pick this style beside the Generate button whenever it fits the case.
+            Pick this style beside the Generate button whenever it fits the case. It stays on the firm and applies to every future matter without re-teaching.
           </div>
         </div>
       )}

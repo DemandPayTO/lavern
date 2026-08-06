@@ -96,6 +96,17 @@ export const employmentIntakeSchema = z.object({
   client_city:            optString,
   client_province:        z.string().max(50).optional().or(z.literal('')),
   client_postal_code:     optString,
+  /**
+   * How documents refer to the client. Set by the lawyer, never inferred
+   * from the name, and deliberately NOT read from gender_identity: that
+   * field exists as a protected ground for a human rights claim and must
+   * not do double duty as a drafting preference.
+   *
+   * "name" means the documents use the client's name and "our client"
+   * throughout and no pronouns at all, which is how much correspondence is
+   * already written.
+   */
+  client_pronouns: z.enum(['she', 'he', 'they', 'name']).optional().nullable(),
 
   // ── Employer information ───────────────────────────────────────────────
   employer_legal_name:    optString,

@@ -37,6 +37,11 @@ const logger = createLogger('TEMPLATE-INJECT');
 /** Set when the last injection treated the template as letterhead only. */
 export interface TemplateInjectionNotes {
   usedAsLetterhead: boolean;
+  /** The firm's own markers we could fill, and those we left standing. */
+  firmMarkersFilled?: string[];
+  firmMarkersUnresolved?: string[];
+  /** True when the template carries the letter's opening itself. */
+  templateSuppliesOpening?: boolean;
 }
 
 export async function injectIntoFirmTemplate(
@@ -118,9 +123,25 @@ export async function injectIntoFirmTemplate(
     // "<p><strong>WITHOUT PREJUDICE</strong></p>" printed on the page.
     const {
       renderHtmlAsWordXml, spliceIntoParagraph, looksLikeHtml, escapeXml,
-      hasBodyMarker, replaceBodyContent,
+      hasBodyMarker, replaceBodyContent, fillFirmMarkers, templateHasOwnOpening,
+      stripLeadingFurniture,
     } = await import('./docx-splice.js');
     const { htmlToParagraphs } = await import('./docx-export.js');
+
+    // Where the firm's template carries its own opening, Starling's would
+    // be the second one on the page. The template wins: the firm wrote the
+    // opening it wanted, and it is already filled from the matter above.
+    const templateText = xmlContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const templateOwnsOpening = templateHasOwnOpening(templateText);
+    if (templateOwnsOpening) {
+      for (const [marker, value] of Object.entries(values)) {
+        if (typeof value === 'string' && looksLikeHtml(value)) {
+          values[marker] = stripLeadingFurniture(value);
+        }
+      }
+      if (notes) notes.templateSuppliesOpening = true;
+      logger.info('Template supplies the opening; the generated one was removed', { firmId, documentType });
+    }
 
     const scalars: TemplatePlaceholderValues = {};
     for (const [marker, value] of Object.entries(values)) {
@@ -134,6 +155,24 @@ export async function injectIntoFirmTemplate(
       // A plain value goes in as text, escaped: a client named
       // "Smith & Jones" would otherwise produce XML Word cannot open.
       scalars[marker] = typeof value === 'string' ? escapeXml(value) : value;
+    }
+
+    // The firm's OWN notation, filled where we can resolve it. A precedent
+    // is already marked up as [CLIENT NAME] and [DATE]; ignoring that threw
+    // away an opening the firm had already written.
+    if (values.__firmSlots) {
+      const firmFill = fillFirmMarkers(xmlContent, values.__firmSlots as never);
+      xmlContent = firmFill.xml;
+      if (firmFill.filled.length > 0) {
+        logger.info('Filled the firm\'s own markers', {
+          firmId, documentType, filled: firmFill.filled.length, unresolved: firmFill.unresolved.length,
+        });
+      }
+      if (notes) {
+        notes.firmMarkersFilled = firmFill.filled;
+        notes.firmMarkersUnresolved = firmFill.unresolved;
+      }
+      delete (values as Record<string, unknown>).__firmSlots;
     }
 
     // A template with no body marker is a firm precedent: a letterhead and

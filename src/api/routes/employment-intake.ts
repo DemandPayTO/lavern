@@ -1574,6 +1574,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       openingHtml?: string; closingHtml?: string; context?: string;
     } | undefined;
     const houseFlags: string[] = [];
+    let houseFitIssues: Array<{ part: string; message: string }> = [];
     if (dlStyle?.guide && dlStyle.guide.documentKind === 'letter') {
       const hf = await import('../../employment/house-form.js');
       const guide = dlStyle.guide;
@@ -1607,6 +1608,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
           formStructure: guide.formStructure,
           voice: guide.voice,
           factWeaving: guide.factWeaving,
+          pronouns: employment.intake.client_pronouns,
+          // The firm's own median letter length, measured from its
+          // precedents at teaching time. The house form dropped this
+          // signal, which is why the first letters ran long.
+          typicalWords: guide.typicalWords,
         }) || undefined,
       };
 
@@ -1614,11 +1620,14 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (missing.length > 0) {
         houseFlags.push(`Your standard opening needs ${missing.map(m => m.toLowerCase()).join(', ')}, which this file does not have. Each is marked in the letter for you to complete.`);
       }
-      // Standard language carries assumptions. One written for a dismissal,
-      // used where the client resigned, is fluent, confident and wrong.
-      for (const issue of hf.checkHouseFormFit(guide.fixedClauses ?? [], employment.intake)) {
-        houseFlags.push(issue.message);
-      }
+      // Standard language carries assumptions: one written for a dismissal,
+      // used where the client resigned, is fluent, confident and wrong. The
+      // drafter is told to rewrite such a passage, so this is the backstop
+      // for the case where it did not. It goes to the audit bundle rather
+      // than the review flags, at the lawyer's direction: every letter here
+      // is read before it is sent, and a flag on every letter is a flag
+      // nobody reads.
+      houseFitIssues = hf.checkHouseFormFit(guide.fixedClauses ?? [], employment.intake);
     }
 
     // What the partner said to do on this file, and on this letter.
@@ -1690,7 +1699,16 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // Store the generated letter on the matter
     recordDraftHistory(matter as Record<string, unknown>, {
       docType: 'demand_letter', title: 'Demand Letter', html: sanitiseHtml(result.html),
-      costUsd: result.costUsd, meta: { tone: parsed.data.tone, demandAmount: parsed.data.demandAmount },
+      costUsd: result.costUsd,
+      meta: {
+        tone: parsed.data.tone,
+        demandAmount: parsed.data.demandAmount,
+        // Recorded rather than surfaced: where the firm's standard language
+        // assumed facts this file does not have. Kept retrievable so a
+        // letter can be explained later, without adding a warning to a
+        // review the lawyer performs on every draft anyway.
+        ...(houseFitIssues.length > 0 ? { houseFormFitIssues: houseFitIssues } : {}),
+      },
     }, { userId, matterId });
     (matter as Record<string, unknown>).generatedDemandLetter = {
       html: sanitiseHtml(result.html),
@@ -1702,6 +1720,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,
       status: 'draft', // lawyer must review before finalising
+      // Recorded, not surfaced: where the firm's standard language assumed
+      // facts this file does not have. Kept so a letter can be explained
+      // later without adding a warning the lawyer sees on every draft.
+      ...(houseFitIssues.length > 0 ? { houseFormFitIssues: houseFitIssues } : {}),
     };
     employment.selectedTone = parsed.data.tone;
     employment.demandAmount = parsed.data.demandAmount;
@@ -3186,10 +3208,14 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     documentKind: z.enum(['prose', 'form', 'letter']).optional(),
     /** Proceed even though a precedent looks like a different document. */
     ignoreTypeMismatch: z.boolean().optional(),
+    // Three, not two. The extractor treats a passage as fixed when it
+    // appears in more than one letter, and with exactly two letters from
+    // one scenario nearly everything appears in both, including phrasing
+    // that is actually particular to those files.
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
       docxBase64: z.string().max(7_000_000),
-    })).min(2).max(8),
+    })).min(3).max(8),
   });
 
   fastify.post('/api/employment/style-profiles/build', async (req: FastifyRequest, reply: FastifyReply) => {

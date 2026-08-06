@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   resolveSlots, fillSlots, renderHouseOpening, renderHouseClosing,
-  checkHouseFormFit, houseFormContext,
+  checkHouseFormFit, houseFormContext, pronounInstruction,
 } from '../../src/employment/house-form.js';
 
 const intake = {
@@ -186,9 +186,16 @@ describe('houseFormContext', () => {
     expect(context).toContain('The opening block and the closing are supplied already');
   });
 
-  it('gives the drafter a way to say the firm’s language does not fit', () => {
-    expect(context).toContain('do not force it');
-    expect(context).toContain('Note to the lawyer');
+  it('rewrites language that does not fit rather than dropping it', () => {
+    // Changed at the lawyer's direction: every letter here is read before
+    // it is sent, so a passage that does not fit should arrive rewritten
+    // rather than removed with a note explaining its absence.
+    expect(context).toContain('rewrite it');
+    expect(context).toContain('smallest change the facts require');
+  });
+
+  it('still drops language for a point the file does not raise at all', () => {
+    expect(context).toContain('leave that passage out');
   });
 
   it('is empty when there is no form to reproduce', () => {
@@ -225,5 +232,84 @@ describe('the firm’s heading casing', () => {
 
   it('does not conclude anything from a single heading', () => {
     expect(firmUsesCaps('<h2>BACKGROUND</h2>')).toBe(false);
+  });
+});
+
+
+describe('pronouns', () => {
+  // The precedents were written for particular clients and carry their
+  // pronouns. Another client's letter must not inherit them, and the
+  // opening block is deterministic so the model cannot correct it there.
+  const opening = ['We act on the termination of [POSSESSIVE] employment.', '[SUBJECT] was advised on [DATE OF TERMINATION].'];
+  const forClient = (pronouns?: string) => resolveSlots({
+    intake: { ...(intake as object), client_pronouns: pronouns } as never, analysis,
+  });
+
+  it('fills the possessive and the subject differently, which is the whole point', () => {
+    // "her" is possessive in "her employment" and object in "advised her";
+    // that is why the slot is chosen when the letter is learned, not now.
+    const { html } = renderHouseOpening(opening, forClient('he'));
+    expect(html).toContain('the termination of his employment');
+    expect(html).toContain('he was advised');
+  });
+
+  it('carries she/her through unchanged', () => {
+    const { html } = renderHouseOpening(opening, forClient('she'));
+    expect(html).toContain('the termination of her employment');
+    expect(html).toContain('she was advised');
+  });
+
+  it('uses their for they/them', () => {
+    const { html } = renderHouseOpening(opening, forClient('they'));
+    expect(html).toContain('the termination of their employment');
+  });
+
+  it('falls back to the client’s name rather than guessing', () => {
+    // Never inferred from the name, so with nothing recorded the name
+    // itself carries every position.
+    const { html } = renderHouseOpening(opening, forClient(undefined));
+    expect(html).toContain("the termination of Aisha Osei's employment");
+    expect(html).not.toMatch(/\b(his|her|their) employment/);
+  });
+
+  it('does the same for name-only, which is how much correspondence is written', () => {
+    const { html } = renderHouseOpening(opening, forClient('name'));
+    expect(html).toContain("Aisha Osei's employment");
+  });
+});
+
+describe('pronounInstruction', () => {
+  it('tells the drafter what to use, and warns about singular they agreement', () => {
+    expect(pronounInstruction('she')).toContain('she, her, hers');
+    expect(pronounInstruction('they')).toContain('they were advised');
+    expect(pronounInstruction('they')).toContain('not to be avoided');
+  });
+
+  it('forbids guessing when nothing is recorded', () => {
+    expect(pronounInstruction(undefined)).toContain('never infer pronouns from a name');
+    expect(pronounInstruction('name')).toContain('Do not use pronouns');
+  });
+});
+
+describe('the reproduction rule', () => {
+  const context = houseFormContext({
+    label: 'x',
+    fixedClauses: [{ part: 'Background', text: 'The employer terminated the employment.' }],
+    pronouns: 'he',
+    typicalWords: 900,
+  });
+
+  it('says rewrite at minimum, not rewrite freely', () => {
+    expect(context).toContain('smallest change the facts require');
+    expect(context).toContain('Do not take the mismatch as licence to rewrite the letter');
+  });
+
+  it('refuses to bend the facts to keep a sentence', () => {
+    expect(context).toContain('Never state a fact the file does not support');
+  });
+
+  it('carries the pronouns and the firm’s own length', () => {
+    expect(context).toContain('he, him, his');
+    expect(context).toContain('900 words');
   });
 });

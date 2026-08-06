@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   spliceIntoParagraph, looksLikeHtml, escapeXml, renderHtmlAsWordXml,
   hasBodyMarker, replaceBodyContent, detectForeignMarkerStyle,
+  fillFirmMarkers, templateHasOwnOpening, stripLeadingFurniture,
 } from '../../src/employment/docx-splice.js';
 import { htmlToParagraphs } from '../../src/employment/docx-export.js';
 
@@ -190,5 +191,72 @@ describe('a template that IS marked up for Starling', () => {
     const markers = [...marked.matchAll(/\{\{([A-Z_]+)\}\}/g)].map(m => m[1]);
     expect(markers).toEqual(['CLIENT_NAME', 'LAWYER_NAME']);
     expect(markers.length === 0 && !hasBodyMarker(marked)).toBe(false);
+  });
+});
+
+
+describe('the firm’s own notation in its own template', () => {
+  const slots = {
+    'CLIENT NAME': 'Aisha Osei', CLIENT: 'Aisha Osei',
+    'EMPLOYER NAME': 'Brightpath Financial Group Inc', EMPLOYER: 'Brightpath Financial Group Inc',
+    DATE: 'August 6, 2026',
+  };
+
+  it('fills the markers the firm already wrote, so its opening is not rebuilt', () => {
+    const xml = '<w:t>RE: [CLIENT NAME] v. [EMPLOYER NAME]</w:t><w:t>[DATE]</w:t>';
+    const out = fillFirmMarkers(xml, slots);
+    expect(out.xml).toContain('RE: Aisha Osei v. Brightpath Financial Group Inc');
+    expect(out.xml).toContain('August 6, 2026');
+    expect(out.filled).toContain('CLIENT NAME');
+  });
+
+  it('leaves a marker it cannot resolve exactly as the firm wrote it', () => {
+    // Better a visible marker than a wrong value or a blank.
+    const out = fillFirmMarkers('<w:t>[MANAGING PARTNER]</w:t>', slots);
+    expect(out.xml).toContain('[MANAGING PARTNER]');
+    expect(out.unresolved).toContain('MANAGING PARTNER');
+  });
+
+  it('escapes what it fills, since a firm name can carry an ampersand', () => {
+    const out = fillFirmMarkers('<w:t>[EMPLOYER]</w:t>', { EMPLOYER: 'Smith & Jones Inc' });
+    expect(out.xml).toContain('Smith &amp; Jones Inc');
+  });
+
+  it('leaves prose that merely uses brackets alone', () => {
+    const out = fillFirmMarkers('<w:t>Waksdale [2020] ONCA 391</w:t>', slots);
+    expect(out.xml).toContain('[2020]');
+  });
+});
+
+describe('templateHasOwnOpening', () => {
+  it('recognises a template that carries the letter’s opening', () => {
+    expect(templateHasOwnOpening('[DATE] [EMPLOYER] Dear Sirs/Mesdames: RE: [CLIENT] v. [EMPLOYER]')).toBe(true);
+  });
+
+  it('does not mistake bare letterhead for an opening', () => {
+    expect(templateHasOwnOpening('EVANS LAW FIRM 1 King Street West Toronto')).toBe(false);
+  });
+});
+
+describe('stripLeadingFurniture', () => {
+  it('removes the generated opening when the template supplies its own', () => {
+    const letter = [
+      '<p>WITHOUT PREJUDICE</p>',
+      '<p>Brightpath Financial Group Inc</p>',
+      '<p>Dear Sirs/Mesdames:</p>',
+      '<p>RE: Aisha Osei v. Brightpath</p>',
+      '<p>We are the solicitors for Aisha Osei in respect of the termination of her employment.</p>',
+      '<h2>BACKGROUND</h2>',
+    ].join('');
+    const out = stripLeadingFurniture(letter);
+    expect(out).not.toContain('WITHOUT PREJUDICE');
+    expect(out).not.toContain('Dear Sirs/Mesdames');
+    expect(out).toContain('We are the solicitors');
+    expect(out).toContain('BACKGROUND');
+  });
+
+  it('keeps a without-prejudice reservation in the closing, which is substantive', () => {
+    const letter = '<h2>CLOSING</h2><p>This letter is written without prejudice to our client\'s rights.</p>';
+    expect(stripLeadingFurniture(letter)).toContain('without prejudice to our client');
   });
 });

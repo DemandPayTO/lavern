@@ -294,7 +294,7 @@ ${limitation ? `- Limitation period expires: ${limitation.date} (${limitation.da
 
 ${req.houseForm?.context ? `STRUCTURE. This firm's own letter is set out below, and ITS parts and ITS headings govern. Use the firm's headings exactly as the firm writes them, including their capitalisation, in the firm's order. Do not impose the section names a demand letter usually carries, and do not add a title heading: the firm's letters do not have one.
 
-Every approved issue still has to be argued, within whichever of the firm's parts it belongs to.` : `STRUCTURE. Use these EXACT h2 headings, in this order, so that the letter can
+HOW MUCH TO SAY. A demand letter of this kind ASSERTS the client's position. It does not argue it out. Recite the facts that matter, state the position, and stop. Do not give each approved issue its own section, do not work through the case law, and do not commit the client to a line of argument that has to be maintained later: a position asserted can be developed, and a position argued in detail can be answered. Less is more here, and the firm's own length below is the measure.` : `STRUCTURE. Use these EXACT h2 headings, in this order, so that the letter can
 be placed into a firm's own template section by section. Do not rename,
 merge, or omit a heading; where a section does not apply, keep the heading
 and state the position briefly.

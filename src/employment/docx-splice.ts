@@ -161,3 +161,91 @@ export function detectForeignMarkerStyle(text: string): string | null {
   for (const c of conventions) if (c.re.test(text)) return c.label;
   return null;
 }
+
+// ── The firm's own notation ──────────────────────────────────────────────
+
+/**
+ * Fill the firm's OWN placeholders in its template.
+ *
+ * A firm precedent is already marked up, just not in Starling's notation:
+ * [CLIENT NAME], [DATE], [NAME OF RECIPIENT]. Ignoring them meant the
+ * template's carefully built opening was thrown away and rebuilt from
+ * Starling's format, when the firm had already written the one it wanted.
+ *
+ * Only names that RESOLVE are touched. A bracket the resolver does not
+ * know is left exactly as the firm wrote it, so an unrecognised marker
+ * stays visible for the lawyer rather than becoming a wrong value or an
+ * empty space. Prose that merely uses brackets, like a citation year, is
+ * left alone for the same reason.
+ */
+export function fillFirmMarkers(
+  documentXml: string,
+  slots: Record<string, string | undefined>,
+): { xml: string; filled: string[]; unresolved: string[] } {
+  const filled = new Set<string>();
+  const unresolved = new Set<string>();
+
+  const xml = documentXml.replace(/\[([A-Z][A-Z0-9 _'-]{1,40})\]/g, (whole, rawName: string) => {
+    const name = rawName.trim().toUpperCase();
+    const value = slots[name] ?? slots[name.replace(/\s+NAME$/, '')] ?? slots[`${name} NAME`];
+    if (!value) { unresolved.add(name); return whole; }
+    filled.add(name);
+    return escapeXml(value);
+  });
+
+  return { xml, filled: [...filled], unresolved: [...unresolved] };
+}
+
+/**
+ * Does the template already carry the letter's opening?
+ *
+ * Where it does, Starling's opening would be the second one on the page.
+ * Judged from the markings a letter opening has and a bare letterhead does
+ * not: a salutation, a subject line, or a without-prejudice marking in the
+ * BODY rather than the header.
+ */
+export function templateHasOwnOpening(bodyText: string): boolean {
+  const head = bodyText.slice(0, 1_500);
+  // Anchored patterns are wrong here: the template's text arrives with its
+  // newlines collapsed, so a line-start "RE:" never matched and the check
+  // was leaning on the other marks alone.
+  const marks = [
+    /\bdear\b/i,
+    /\bre:\s/i,
+    /without prejudice/i,
+    /\battention:/i,
+  ];
+  return marks.filter(m => m.test(head)).length >= 2;
+}
+
+/**
+ * Remove the letter's opening from generated content.
+ *
+ * Used when the firm's template carries its own opening: without this the
+ * page shows two, the template's and Starling's. Only the LEADING run of
+ * furniture paragraphs goes, so a "without prejudice" reservation in the
+ * closing, which is substantive, survives.
+ */
+export function stripLeadingFurniture(html: string): string {
+  const FURNITURE = [
+    /^without prejudice\.?$/i,
+    /^dear\b/i,
+    /^re:\s/i,
+    /^attention:/i,
+    /^our file no/i,
+    // An address block: a short line with no sentence in it.
+    /^[^.!?]{1,60}$/,
+  ];
+  const blocks = html.split(/(?=<p[\s>])/i);
+  let stillOpening = true;
+  return blocks.filter(block => {
+    if (!stillOpening) return true;
+    const text = block.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!text) return true;
+    // A heading means the body has started, whatever it says.
+    if (/^<h[1-6]/i.test(block.trim())) { stillOpening = false; return true; }
+    if (FURNITURE.some(re => re.test(text))) return false;
+    stillOpening = false;
+    return true;
+  }).join('');
+}

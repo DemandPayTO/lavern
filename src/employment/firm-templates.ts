@@ -181,6 +181,8 @@ function formatMoney(amount: number): string {
 }
 
 export function buildPlaceholderValues(args: {
+  /** Slot values for the firm's own bracket notation in its template. */
+  firmSlots?: Record<string, string | undefined>;
   intake: {
     client_first_name?: string;
     client_last_name?: string;
@@ -237,6 +239,10 @@ export function buildPlaceholderValues(args: {
     // Individual sections can be parsed out if the template uses section-level placeholders
     LEGAL_ANALYSIS: args.generatedHtml || undefined,
     FACTS_SECTION: args.generatedHtml || undefined,
+    // The resolver for the firm's OWN notation, carried through so the
+    // injector can fill [CLIENT NAME] and the rest in the firm's template.
+    // Stripped before the plain-text pass; never rendered itself.
+    ...(args.firmSlots ? { __firmSlots: args.firmSlots as never } : {}),
   };
 }
 

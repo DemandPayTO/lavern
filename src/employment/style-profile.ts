@@ -178,6 +178,15 @@ Copy the firm's wording character for character. Do not improve it, shorten it, 
 Wherever a case-specific value sits inside otherwise fixed wording, replace THAT VALUE ONLY with a slot marker, keeping everything around it exactly as written. Use these slot names where they fit, and invent clearly named ones where they do not:
 [CLIENT], [EMPLOYER], [RECIPIENT], [RECIPIENT ADDRESS], [SALUTATION], [DATE], [DATE OF HIRE], [DATE OF TERMINATION], [POSITION], [YEARS OF SERVICE], [SALARY], [DEMAND AMOUNT], [RESPONSE DEADLINE], [FILE NUMBER], [LAWYER], [FIRM]
 
+PRONOUNS ARE SLOTS TOO, and this matters more than it looks. These letters were written for particular clients, so they carry that client's pronouns. Another client's letter must not inherit them. Replace EVERY pronoun referring to the client with the slot for its grammatical position, and choose the position from the sentence, since the same word does different work in different places:
+- [SUBJECT] where the word is the subject: "she resigned" becomes "[SUBJECT] resigned".
+- [OBJECT] where it receives the action: "advised her" becomes "advised [OBJECT]".
+- [POSSESSIVE] before a noun: "her employment" becomes "[POSSESSIVE] employment".
+- [POSSESSIVE PRONOUN] standing alone: "the decision was hers" becomes "the decision was [POSSESSIVE PRONOUN]".
+- [REFLEXIVE]: "she found herself" becomes "[SUBJECT] found [REFLEXIVE]".
+
+"Her" is the one to be careful with: it is possessive in "her employment" and object in "advised her". Read the sentence and pick the right one. Leave pronouns referring to anyone OTHER than the client exactly as they are.
+
 Describe:
 1. openingBlock: every line of the opening, in order, from the first line down to and including the first line of the letter's own text if that first line is standard. Copy each line exactly, with slots. This is the most important field: it is what makes the letter recognisably the firm's.
 2. fixedClauses: every other passage the letters share near-verbatim, in order, each with the part it belongs to ("Opening paragraph", "Background recitation", "Entitlement", "Demand", "Response deadline", "Reservation of rights"). Copy each exactly, with slots. A passage that appears in only one letter is NOT fixed and does not belong here.

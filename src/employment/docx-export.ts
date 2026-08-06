@@ -26,6 +26,8 @@ const logger = createLogger('DOCX-EXPORT');
 // ── Types ────────────────────────────────────────────────────────────────
 
 export interface DocxExportOptions {
+  /** Who the letter is addressed to, for the firm's own [RECIPIENT] markers. */
+  recipientName?: string;
   /** Document title (e.g. "Demand Letter — Smith v. Acme Corp"). */
   title: string;
   /** Firm name for the header. */
@@ -338,6 +340,19 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
       courtName: options.courtName,
       date: options.date,
       generatedHtml: html,
+      // The firm's own notation in its template resolves from the same
+      // values the house form uses, so [CLIENT NAME] in a precedent means
+      // what [CLIENT] means in a taught letter style.
+      firmSlots: options.intake
+        ? (await import('./house-form.js')).resolveSlots({
+            intake: options.intake as never,
+            recipientName: options.recipientName,
+            lawyerName: options.lawyerName,
+            firmName: options.firmName,
+            fileNumber: options.matterNumber,
+            demandAmount: options.demandAmount ?? undefined,
+          })
+        : undefined,
     });
 
     const firmBuffer = await injectIntoFirmTemplate(

@@ -677,6 +677,20 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
   { key: 'client_first_name', label: 'Client first name' },
   { key: 'client_last_name', label: 'Client last name' },
   { key: 'client_age', label: 'Client age', type: 'number' },
+  // Set by the lawyer, never inferred from the name. Every generated
+  // document reads it; before this each one was picking for itself.
+  {
+    key: 'client_pronouns',
+    label: 'How documents refer to the client',
+    type: 'select',
+    options: [
+      ['', 'Not recorded (uses the name)'],
+      ['she', 'she / her'],
+      ['he', 'he / him'],
+      ['they', 'they / them'],
+      ['name', 'Name only, no pronouns'],
+    ],
+  },
   { key: 'employer_legal_name', label: 'Employer legal name' },
   { key: 'job_title', label: 'Job title' },
   { key: 'annual_salary', label: 'Annual salary (CAD)', type: 'number' },
