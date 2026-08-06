@@ -1507,8 +1507,11 @@ export default function MatterDetailView() {
     if (!selectedTemplateDocType) return;
     setTemplateStatus('Uploading...');
     const result = await firmTemplates.upload(file, selectedTemplateDocType, label ? { label } : undefined);
+    // "0 placeholders detected" read as success and was not. Where the
+    // template carries no markers, say what will happen to it instead.
     setTemplateStatus(result.ok
-      ? `Template saved. ${result.placeholders?.length ?? 0} placeholder${(result.placeholders?.length ?? 0) === 1 ? '' : 's'} detected.`
+      ? (result.notice
+          ?? `Template saved. ${result.placeholders?.length ?? 0} placeholder${(result.placeholders?.length ?? 0) === 1 ? '' : 's'} detected.`)
       : result.error ?? 'Upload failed.');
   }, [firmTemplates, selectedTemplateDocType]);
 

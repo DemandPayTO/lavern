@@ -1989,7 +1989,7 @@ export interface UseFirmTemplatesResult {
    *  type; the first uploaded is the default until another is promoted. */
   upload: (
     file: File, documentType: string, variant?: { label?: string; isDefault?: boolean },
-  ) => Promise<{ ok: boolean; placeholders?: string[]; error?: string }>;
+  ) => Promise<{ ok: boolean; placeholders?: string[]; notice?: string | null; error?: string }>;
   /** Remove one variant, or every variant of a type when none is given. */
   remove: (documentType: string, variantId?: string) => Promise<{ ok: boolean; error?: string }>;
   setDefault: (documentType: string, variantId: string) => Promise<{ ok: boolean; error?: string }>;
@@ -2048,7 +2048,7 @@ export function useFirmTemplates(): UseFirmTemplatesResult {
       const json = await res.json();
       if (!res.ok) return { ok: false, error: json.error ?? 'Upload failed' };
       refresh();
-      return { ok: true, placeholders: json.placeholders as string[] };
+      return { ok: true, placeholders: json.placeholders as string[], notice: json.notice as string | null };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Upload failed' };
     }

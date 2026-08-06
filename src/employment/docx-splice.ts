@@ -107,3 +107,57 @@ export function spliceIntoParagraph(documentXml: string, marker: string, bodyXml
 
   return documentXml.slice(0, start) + bodyXml + documentXml.slice(closeAt + '</w:p>'.length);
 }
+
+// ── Templates with no markers ────────────────────────────────────────────
+
+/** Markers that mean "the generated document goes here". */
+const BODY_MARKERS = ['LEGAL_ANALYSIS', 'FACTS_SECTION', 'DOCUMENT_BODY', 'BODY'];
+
+/** Does this template say anywhere that the generated document goes in it? */
+export function hasBodyMarker(documentXml: string): boolean {
+  return BODY_MARKERS.some(m => documentXml.includes(`{{${m}}}`));
+}
+
+/**
+ * Put the generated document on a template that carries no markers.
+ *
+ * A firm precedent is usually a letterhead and a skeleton, not a file with
+ * our markers in it. Uploading one produced a download that was the
+ * precedent, unchanged, with none of the letter in it: the template had
+ * nothing to fill, so nothing was filled, and the result looked like a
+ * finished document. A lawyer could send an empty letter.
+ *
+ * Treated as letterhead: the body is replaced by the generated document
+ * and everything that makes it the firm's is kept, which is what a lawyer
+ * means by "put my letter on this". The section properties stay, since
+ * they carry the page size, the margins and the header and footer links.
+ * The caller is told this happened; it is never silent.
+ */
+export function replaceBodyContent(documentXml: string, bodyXml: string): string {
+  const body = /(<w:body>)([\s\S]*)(<\/w:body>)/.exec(documentXml);
+  if (!body || !bodyXml) return documentXml;
+
+  const sectPr = /<w:sectPr[\s\S]*?<\/w:sectPr>/.exec(body[2]);
+  const kept = sectPr ? sectPr[0] : '';
+  return documentXml.slice(0, body.index)
+    + body[1] + bodyXml + kept + body[3]
+    + documentXml.slice(body.index + body[0].length);
+}
+
+/**
+ * Placeholder conventions a firm precedent might already use.
+ *
+ * A template full of [CLIENT NAME] or «Client Name» is a template someone
+ * has already marked up, just not in the notation Starling reads. Saying
+ * so beats reporting zero placeholders and leaving the lawyer to guess.
+ */
+export function detectForeignMarkerStyle(text: string): string | null {
+  const conventions: Array<{ label: string; re: RegExp }> = [
+    { label: 'square brackets, for example [CLIENT NAME]', re: /\[[A-Z][A-Z \-_/]{2,40}\]/ },
+    { label: 'guillemets, for example \u00abClient Name\u00bb', re: /\u00ab[^\u00bb]{2,40}\u00bb/ },
+    { label: 'angle brackets, for example <<Client Name>>', re: /<<[^>]{2,40}>>/ },
+    { label: 'underscores, for example ____________', re: /_{6,}/ },
+  ];
+  for (const c of conventions) if (c.re.test(text)) return c.label;
+  return null;
+}

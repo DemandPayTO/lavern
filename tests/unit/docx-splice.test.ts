@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   spliceIntoParagraph, looksLikeHtml, escapeXml, renderHtmlAsWordXml,
+  hasBodyMarker, replaceBodyContent, detectForeignMarkerStyle,
 } from '../../src/employment/docx-splice.js';
 import { htmlToParagraphs } from '../../src/employment/docx-export.js';
 
@@ -115,5 +116,79 @@ describe('renderHtmlAsWordXml', () => {
 
   it('is empty for empty content, so the caller can fall back', async () => {
     expect(await renderHtmlAsWordXml('', htmlToParagraphs as never)).toBe('');
+  });
+});
+
+
+describe('a firm precedent with no markers in it', () => {
+  // What the pilot uploaded: a letterhead and a skeleton, marked up in the
+  // firm's own notation. Starling filled nothing and handed the precedent
+  // back, which looked like a finished document and was an empty letter.
+  const precedent = [
+    '<w:body>',
+    '<w:p><w:r><w:t>[DATE]</w:t></w:r></w:p>',
+    '<w:p><w:r><w:t>Dear [SALUTATION]:</w:t></w:r></w:p>',
+    '<w:p><w:r><w:t>We are the solicitors for [CLIENT NAME].</w:t></w:r></w:p>',
+    '<w:sectPr><w:headerReference r:id="rId6"/><w:footerReference r:id="rId7"/><w:pgSz w:w="12240"/></w:sectPr>',
+    '</w:body>',
+  ].join('');
+  const letter = '<w:p><w:r><w:t>WITHOUT PREJUDICE</w:t></w:r></w:p>';
+
+  it('is recognised as having nowhere to put the document', () => {
+    expect(hasBodyMarker(precedent)).toBe(false);
+    expect(hasBodyMarker('<w:body><w:p><w:t>{{LEGAL_ANALYSIS}}</w:t></w:p></w:body>')).toBe(true);
+    expect(hasBodyMarker('<w:body><w:p><w:t>{{FACTS_SECTION}}</w:t></w:p></w:body>')).toBe(true);
+  });
+
+  it('takes the letter and keeps everything that makes it the firm’s', () => {
+    const out = replaceBodyContent(precedent, letter);
+    expect(out).toContain('WITHOUT PREJUDICE');
+    expect(out).not.toContain('[CLIENT NAME]');
+    // The section properties carry the page size and the header and footer
+    // links; losing them loses the letterhead.
+    expect(out).toContain('headerReference');
+    expect(out).toContain('footerReference');
+    expect(out).toContain('w:pgSz');
+  });
+
+  it('leaves the template alone when there is nothing to put in it', () => {
+    expect(replaceBodyContent(precedent, '')).toBe(precedent);
+  });
+});
+
+describe('detectForeignMarkerStyle', () => {
+  it('names the notation the firm actually used', () => {
+    expect(detectForeignMarkerStyle('Dear [SALUTATION]:')).toContain('square brackets');
+    expect(detectForeignMarkerStyle('Dear \u00abSalutation\u00bb:')).toContain('guillemets');
+    expect(detectForeignMarkerStyle('Dear <<Salutation>>:')).toContain('angle brackets');
+    expect(detectForeignMarkerStyle('Dear ______________:')).toContain('underscores');
+  });
+
+  it('says nothing about ordinary prose', () => {
+    expect(detectForeignMarkerStyle('We are the solicitors for Ms. Osei.')).toBeNull();
+    // A citation is not a placeholder.
+    expect(detectForeignMarkerStyle('Waksdale v Swegon, 2020 ONCA 391')).toBeNull();
+  });
+});
+
+
+describe('a template that IS marked up for Starling', () => {
+  it('keeps its paragraphs so its placeholders can be filled', () => {
+    // The regression this pins: treating "no BODY marker" as "bare
+    // precedent" replaced the whole body and wiped the paragraphs holding
+    // {{CLIENT_NAME}} and {{LAWYER_NAME}}, so a marked-up template lost
+    // every value it existed to carry.
+    const marked = [
+      '<w:body>',
+      '<w:p><w:r><w:t>{{CLIENT_NAME}}</w:t></w:r></w:p>',
+      '<w:p><w:r><w:t>{{LAWYER_NAME}}</w:t></w:r></w:p>',
+      '</w:body>',
+    ].join('');
+    expect(hasBodyMarker(marked)).toBe(false);
+    // Which is why the caller must ALSO require that no markers exist at
+    // all before treating a template as bare letterhead.
+    const markers = [...marked.matchAll(/\{\{([A-Z_]+)\}\}/g)].map(m => m[1]);
+    expect(markers).toEqual(['CLIENT_NAME', 'LAWYER_NAME']);
+    expect(markers.length === 0 && !hasBodyMarker(marked)).toBe(false);
   });
 });

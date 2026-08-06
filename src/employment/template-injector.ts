@@ -34,12 +34,19 @@ const logger = createLogger('TEMPLATE-INJECT');
  * @param values       Placeholder values to inject.
  * @returns            A Buffer containing the finished DOCX, or null if no template exists.
  */
+/** Set when the last injection treated the template as letterhead only. */
+export interface TemplateInjectionNotes {
+  usedAsLetterhead: boolean;
+}
+
 export async function injectIntoFirmTemplate(
   firmId: string,
   documentType: string,
   values: TemplatePlaceholderValues,
   variantId?: string,
+  notes?: TemplateInjectionNotes,
 ): Promise<Buffer | null> {
+  let usedAsLetterhead = false;
   // Load the firm's template. Without a variant this is the type's
   // default; an unknown variant also falls back to the default rather
   // than silently producing an untemplated document.
@@ -109,8 +116,10 @@ export async function injectIntoFirmTemplate(
     // paragraph holding its marker. Before this, the letter's HTML went
     // into a single text run, so a firm that uploaded its letterhead got
     // "<p><strong>WITHOUT PREJUDICE</strong></p>" printed on the page.
-    const { renderHtmlAsWordXml, spliceIntoParagraph, looksLikeHtml, escapeXml } =
-      await import('./docx-splice.js');
+    const {
+      renderHtmlAsWordXml, spliceIntoParagraph, looksLikeHtml, escapeXml,
+      hasBodyMarker, replaceBodyContent,
+    } = await import('./docx-splice.js');
     const { htmlToParagraphs } = await import('./docx-export.js');
 
     const scalars: TemplatePlaceholderValues = {};
@@ -125,6 +134,23 @@ export async function injectIntoFirmTemplate(
       // A plain value goes in as text, escaped: a client named
       // "Smith & Jones" would otherwise produce XML Word cannot open.
       scalars[marker] = typeof value === 'string' ? escapeXml(value) : value;
+    }
+
+    // A template with no body marker is a firm precedent: a letterhead and
+    // a skeleton, not a file marked up for us. Without this it filled
+    // nothing and returned the precedent unchanged, which looks like a
+    // finished document and is one a lawyer could send empty.
+    // NO markers at all, not merely no body marker: a template carrying
+    // {{CLIENT_NAME}} and the rest is marked up for Starling and its
+    // paragraphs must survive to be filled. Replacing the body wholesale
+    // there wiped the very placeholders it was meant to fill.
+    if (generatedHtml && markersInTemplate.length === 0 && !hasBodyMarker(xmlContent)) {
+      const bodyXml = await renderHtmlAsWordXml(generatedHtml, htmlToParagraphs as never);
+      if (bodyXml) {
+        xmlContent = replaceBodyContent(xmlContent, bodyXml);
+        usedAsLetterhead = true;
+        logger.info('Template had no body marker; used as letterhead', { firmId, documentType });
+      }
     }
 
     // Now inject what is left, which is plain text
@@ -157,6 +183,7 @@ export async function injectIntoFirmTemplate(
       sizeBytes: buffer.length,
     });
 
+    if (notes) notes.usedAsLetterhead = usedAsLetterhead;
     return buffer;
   } catch (err) {
     logger.error('Template injection failed', {

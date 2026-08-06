@@ -3435,6 +3435,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // document body plus any headers and footers, which is where letterhead
     // markers usually live.
     let placeholders: string[] = [];
+    let templateNotice: string | null = null;
     try {
       const JSZip = (await import('jszip')).default;
       const zip = await JSZip.loadAsync(Buffer.from(templateBase64, 'base64'));
@@ -3449,6 +3450,18 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       // strip the tags between braces before detecting.
       const joined = chunks.join('\n').replace(/(\{\{[A-Z_]*)(<[^>]+>)+([A-Z_]*\}\})/g, '$1$3');
       placeholders = detectPlaceholders(joined);
+      // A template with no markers is about to behave in a way the lawyer
+      // has to know about, and reporting "0 placeholders detected" is not
+      // telling them. Say what will happen, and name the notation they
+      // appear to be using where there is one.
+      if (placeholders.length === 0) {
+        const { detectForeignMarkerStyle } = await import('../../employment/docx-splice.js');
+        const plainText = joined.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+        const foreign = detectForeignMarkerStyle(plainText);
+        templateNotice = foreign
+          ? `No Starling markers found. This template appears to use ${foreign}, which Starling does not read. It will be used as letterhead: your header, footer, fonts and margins are kept, and the generated document replaces the body. To place content yourself, put {{LEGAL_ANALYSIS}} where the body should go.`
+          : 'No Starling markers found. This template will be used as letterhead: your header, footer, fonts and margins are kept, and the generated document replaces the body. To control placement, put {{LEGAL_ANALYSIS}} where the body should go.';
+      }
     } catch {
       // Not a readable DOCX: store it anyway, but report no placeholders
       // rather than guessing from the raw bytes.
@@ -3473,6 +3486,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       variantId,
       variantLabel: label,
       placeholders,
+      notice: templateNotice,
     });
   });
 
