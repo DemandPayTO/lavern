@@ -17,6 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
+import { pronounInstruction } from './house-form.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
@@ -739,7 +740,9 @@ export async function generateLitigationDocument(
       ? `Use the FIRM'S OWN section headings, in this order, each as an <h2> with the EXACT wording given:\n${firmHeadings.map((h, i) => `${i + 1}. ${h}`).join('\n')}\nCover the substance of the numbered components below within that structure (a component may live inside whichever firm section fits it; omit none):`
       : 'Write these sections, each as an <h2> using the EXACT heading wording given\n(without the number), so each section can be placed into a firm template:');
   }
-  let userPrompt = buildUserPrompt(req);
+  // How to refer to the client, from the client file rather than guessed.
+  // Every document on a matter has to agree with every other one.
+  let userPrompt = `${buildUserPrompt(req)}\n\nREFERRING TO THE CLIENT: ${pronounInstruction(req.intake.client_pronouns)}`;
   if (frontMatter) {
     userPrompt += `\n\nTABLES ALREADY IN THE DOCUMENT (do not reproduce): ${frontMatter.included.join(', ') || 'none'}.`;
   }

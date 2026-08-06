@@ -15,6 +15,7 @@
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { enforceHouseStyle } from '../utils/house-style.js';
 import { createLogger } from '../utils/logger.js';
+import { pronounInstruction } from './house-form.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { PROCEDURE_TYPES } from '../types/employment-intake.js';
 import { computeBardalFactors, computeLimitationDeadline } from './timeline-generator.js';
@@ -242,6 +243,9 @@ FILING DETAILS:
 - Lawyer: ${req.lawyerName}, ${req.firmName}
 ${req.firmAddress ? `- Firm address: ${req.firmAddress}` : ''}
 ${limitation ? `- Limitation: ${limitation.date} (${limitation.daysRemaining} days remaining)` : ''}
+
+REFERRING TO THE PLAINTIFF. ${pronounInstruction(req.intake.client_pronouns)}
+Where the pleading refers to the Plaintiff by role rather than by pronoun, that is preferred: "the Plaintiff" is always correct.
 
 DOCUMENT STRUCTURE. Emit each numbered section below as an <h2> heading
 using the EXACT wording given, so that the pleading can be placed into a
