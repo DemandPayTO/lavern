@@ -1001,6 +1001,27 @@ export default function MatterDetailView() {
   // Firm templates for the selected draft type. A firm may hold several
   // variants per type (constructive dismissal, medical leave, and so on);
   // the lawyer picks one and the download renders on it.
+  /**
+   * Why Generate cannot be pressed, in the lawyer's words. Null when it
+   * can. A dead button that looks alive is a bug report, so the reason is
+   * shown and the button is greyed from the same value.
+   */
+  const blockedReason: string | null = (() => {
+    if (!selectedDraft) return null;
+    if (DRAFTS_NEEDING_AMOUNT.has(selectedDraft) && !genDemandAmount) {
+      return selectedDraft === 'demand'
+        ? 'Enter the Demand Amount above. It is the figure the letter demands, which is your judgment and not the total of the heads.'
+        : 'Enter the Claim Amount above before generating.';
+    }
+    const missing = (COURT_FORM_FIELDS[selectedDraft] ?? [])
+      .filter(f => f.required && !(courtFields[f.key] ?? '').trim())
+      .map(f => f.label);
+    if (missing.length > 0) {
+      return `Fill in ${missing.join(', ')} before generating.`;
+    }
+    return null;
+  })();
+
   const selectedTemplateDocType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
   const styleProfiles = useStyleProfiles(selectedTemplateDocType);
   // Changing document type invalidates the picked style.
@@ -3066,11 +3087,26 @@ export default function MatterDetailView() {
                       >
                         Add a head
                       </button>
-                      {dlHeads.length > 0 && (
-                        <span style={{ fontSize: 12, color: muted }}>
-                          Subtotal {dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0).toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })}
-                        </span>
-                      )}
+                      {dlHeads.length > 0 && (() => {
+                        const subtotal = dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+                        const asCad = subtotal.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
+                        return (
+                          <span style={{ fontSize: 12, color: muted }}>
+                            Subtotal {asCad}
+                            {/* The demand is a judgment call, so it is never
+                                filled in silently. Offered, once, when the
+                                figures are on screen and the field is empty. */}
+                            {subtotal > 0 && !genDemandAmount && (
+                              <button
+                                onClick={() => setGenDemandAmount(String(Math.round(subtotal)))}
+                                style={{ marginLeft: 8, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
+                              >
+                                demand this amount
+                              </button>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -3204,6 +3240,7 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && (
+                <div>
                 <button
                   onClick={async () => {
                     setGenerating(true);
@@ -3287,24 +3324,32 @@ export default function MatterDetailView() {
                       setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
                     }
                   }}
-                  disabled={generating
-                    || (DRAFTS_NEEDING_AMOUNT.has(selectedDraft ?? '') && !genDemandAmount)
-                    || Boolean(COURT_FORM_FIELDS[selectedDraft ?? '']?.some(f => f.required && !(courtFields[f.key] ?? '').trim()))}
+                  disabled={generating || blockedReason !== null}
                   style={{
-                    background: generating ? '#b0b0b0' : orange,
+                    // A disabled button has to LOOK disabled. This one stayed
+                    // orange with a pointer cursor whenever the amount was
+                    // missing, so it read as working and did nothing: the
+                    // pilot clicked it and reported a dead button.
+                    background: generating || blockedReason ? '#b0b0b0' : orange,
                     color: '#fff',
                     fontSize: 13.5,
                     fontWeight: 600,
                     padding: '11px 18px',
                     borderRadius: 2,
                     border: 'none',
-                    cursor: generating ? 'not-allowed' : 'pointer',
+                    cursor: generating || blockedReason ? 'not-allowed' : 'pointer',
                     marginTop: 8,
                     fontFamily: sans,
                   }}
                 >
                   {generating ? 'Generating...' : 'Generate Draft'}
                 </button>
+                {blockedReason && !generating && (
+                  <div style={{ fontSize: 12.5, color: amber, marginTop: 7, fontWeight: 600 }}>
+                    {blockedReason}
+                  </div>
+                )}
+                </div>
               )}
 
               {genNotice && (
