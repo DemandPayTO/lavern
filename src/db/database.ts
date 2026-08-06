@@ -120,6 +120,28 @@ function runMigrations(db: Database.Database): void {
       UNIQUE(firm_id, document_type, variant_id)
     );
 
+    CREATE TABLE IF NOT EXISTS firm_soc_nodes (
+      firm_id     TEXT NOT NULL,
+      block_id    TEXT NOT NULL,
+      content     TEXT NOT NULL,
+      provenance  TEXT NOT NULL DEFAULT 'edited',
+      version     INTEGER NOT NULL DEFAULT 1,
+      updated_at  TEXT NOT NULL,
+      updated_by  TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (firm_id, block_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS firm_soc_node_versions (
+      firm_id     TEXT NOT NULL,
+      block_id    TEXT NOT NULL,
+      version     INTEGER NOT NULL,
+      content     TEXT NOT NULL,
+      provenance  TEXT NOT NULL,
+      saved_at    TEXT NOT NULL,
+      saved_by    TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (firm_id, block_id, version)
+    );
+
     CREATE TABLE IF NOT EXISTS firm_style_profiles (
       id             TEXT PRIMARY KEY,
       firm_id        TEXT NOT NULL,
@@ -1534,6 +1556,54 @@ export interface FirmStyleProfileRow {
   id: string; firm_id: string; document_type: string; label: string;
   guide_json: string; identifiers_json: string;
   source_count: number; source_names: string; cost_usd: number; created_at: string;
+}
+
+// ── Firm SOC node overrides ─────────────────────────────────────────────
+// The pleading nodes ship with a ported default set; a firm's own language
+// overrides content only. Triggers, order and headers stay in code, which
+// is what keeps an edit from changing which claims plead what. Every save
+// keeps the prior version: a claim issued in August must be explainable in
+// December, and "what did the node say then" is an audit question.
+
+export interface FirmSocNodeRow {
+  firm_id: string; block_id: string; content: string;
+  provenance: 'edited' | 'learned'; version: number;
+  updated_at: string; updated_by: string;
+}
+
+export function getFirmSocNodes(firmId: string): FirmSocNodeRow[] {
+  return getDb().prepare('SELECT * FROM firm_soc_nodes WHERE firm_id = ?').all(firmId) as FirmSocNodeRow[];
+}
+
+export function saveFirmSocNode(
+  firmId: string, blockId: string, content: string,
+  provenance: 'edited' | 'learned', updatedBy: string,
+): number {
+  const existing = getDb().prepare('SELECT version, content, provenance, updated_at, updated_by FROM firm_soc_nodes WHERE firm_id = ? AND block_id = ?')
+    .get(firmId, blockId) as { version: number; content: string; provenance: string; updated_at: string; updated_by: string } | undefined;
+  const now = new Date().toISOString();
+  if (existing) {
+    getDb().prepare('INSERT OR REPLACE INTO firm_soc_node_versions (firm_id, block_id, version, content, provenance, saved_at, saved_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(firmId, blockId, existing.version, existing.content, existing.provenance, existing.updated_at, existing.updated_by);
+    const version = existing.version + 1;
+    getDb().prepare('UPDATE firm_soc_nodes SET content = ?, provenance = ?, version = ?, updated_at = ?, updated_by = ? WHERE firm_id = ? AND block_id = ?')
+      .run(content, provenance, version, now, updatedBy, firmId, blockId);
+    return version;
+  }
+  getDb().prepare('INSERT INTO firm_soc_nodes (firm_id, block_id, content, provenance, version, updated_at, updated_by) VALUES (?, ?, ?, ?, 1, ?, ?)')
+    .run(firmId, blockId, content, provenance, now, updatedBy);
+  return 1;
+}
+
+/** Back to the ported default. The history keeps what the firm had. */
+export function deleteFirmSocNode(firmId: string, blockId: string): boolean {
+  const existing = getDb().prepare('SELECT version, content, provenance, updated_at, updated_by FROM firm_soc_nodes WHERE firm_id = ? AND block_id = ?')
+    .get(firmId, blockId) as { version: number; content: string; provenance: string; updated_at: string; updated_by: string } | undefined;
+  if (existing) {
+    getDb().prepare('INSERT OR REPLACE INTO firm_soc_node_versions (firm_id, block_id, version, content, provenance, saved_at, saved_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(firmId, blockId, existing.version, existing.content, existing.provenance, existing.updated_at, existing.updated_by);
+  }
+  return getDb().prepare('DELETE FROM firm_soc_nodes WHERE firm_id = ? AND block_id = ?').run(firmId, blockId).changes > 0;
 }
 
 export function saveStyleProfile(row: Omit<FirmStyleProfileRow, 'created_at'>): void {

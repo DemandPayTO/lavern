@@ -1811,6 +1811,14 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     const socDirection = directionForGeneration(matter, 'statement_of_claim');
     const socOverrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    // The firm's own node language where it has taught or edited any;
+    // the ported defaults otherwise.
+    const socFirmId = resolveFirmId(req);
+    const { loadSocNodes: loadDefaults, mergeFirmNodes } = await import('../../employment/soc-nodes.js');
+    const { getFirmSocNodes } = await import('../../db/database.js');
+    const customNodes = socFirmId
+      ? mergeFirmNodes(loadDefaults(), getFirmSocNodes(socFirmId))
+      : undefined;
     let socLso = '';
     try {
       const { getUserById } = await import('../../db/database.js');
@@ -1831,6 +1839,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       styleTypicalWords: socStyle?.typicalWords,
       gates: employment.gates,
       nodeOverrides: socOverrides,
+      customNodes,
       courtFileNumber: ((matter as Record<string, unknown>).courtFileNumber as string) || undefined,
       lsoNumber: socLso || undefined,
     }, definedTerms);
@@ -2979,6 +2988,135 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     (matter as Record<string, unknown>).socNodeOverrides = overrides;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true, overrides });
+  });
+
+  // ── The node library: the firm's pleading language ─────────────────────
+  // Content only: triggers, order and headers stay in code, which is what
+  // keeps a language edit from changing which claims plead what. Every
+  // change passes the validation gate, and prior versions are kept.
+
+  fastify.get('/api/employment/soc-node-library', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { loadSocNodes } = await import('../../employment/soc-nodes.js');
+    const { getFirmSocNodes } = await import('../../db/database.js');
+    const overrides = new Map(getFirmSocNodes(firmId).map(r => [r.block_id, r]));
+    return reply.send({
+      ok: true,
+      nodes: loadSocNodes().map(n => {
+        const o = overrides.get(n.blockId);
+        return {
+          blockId: n.blockId,
+          sectionHeader: n.sectionHeader,
+          tier: n.tier,
+          triggerCondition: n.triggerCondition,
+          lawyerReview: n.lawyerReview,
+          content: o?.content ?? n.content,
+          provenance: o ? o.provenance : 'default',
+          version: o?.version ?? 0,
+          updatedAt: o?.updated_at,
+          updatedByName: o?.updated_by || undefined,
+        };
+      }),
+    });
+  });
+
+  fastify.put('/api/employment/soc-node-library/:blockId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { blockId } = req.params as { blockId: string };
+    const parsed = z.object({
+      content: z.string().min(1).max(30_000),
+      provenance: z.enum(['edited', 'learned']).default('edited'),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid node content' });
+
+    const { loadSocNodes } = await import('../../employment/soc-nodes.js');
+    if (!loadSocNodes().some(n => n.blockId === blockId)) {
+      return reply.status(404).send({ ok: false, error: 'Unknown node.' });
+    }
+
+    // The gate. Structural failures do not save, whatever door they came
+    // through: an unclosed conditional or an unanswerable condition field
+    // fails silently on every future claim, which is the one failure a
+    // pleading system must not allow.
+    const { validateNodeContent } = await import('../../employment/soc-node-validator.js');
+    const validation = validateNodeContent(blockId, parsed.data.content);
+    if (!validation.ok) {
+      return reply.status(422).send({ ok: false, error: 'The edited language would break the node.', validation });
+    }
+
+    let updatedBy = '';
+    try {
+      const { getUserById } = await import('../../db/database.js');
+      updatedBy = getUserById(userId)?.display_name ?? '';
+    } catch { /* attribution is best-effort */ }
+    const { saveFirmSocNode } = await import('../../db/database.js');
+    const version = saveFirmSocNode(firmId, blockId, parsed.data.content, parsed.data.provenance, updatedBy);
+    logger.info('SOC node updated', { firmId, blockId, version, provenance: parsed.data.provenance });
+    return reply.send({ ok: true, version, validation });
+  });
+
+  fastify.delete('/api/employment/soc-node-library/:blockId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { blockId } = req.params as { blockId: string };
+    const { deleteFirmSocNode } = await import('../../db/database.js');
+    const removed = deleteFirmSocNode(firmId, blockId);
+    if (!removed) return reply.status(404).send({ ok: false, error: 'No firm version of that node.' });
+    return reply.send({ ok: true });
+  });
+
+  // ── POST /api/employment/soc-node-library/teach ────────────────────────
+  // Upload the firm's own claims; get back a proposal per node in the
+  // firm's wording, validated, for approval. Nothing binds here.
+
+  fastify.post('/api/employment/soc-node-library/teach', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const parsed = z.object({
+      precedents: z.array(z.object({
+        name: z.string().trim().min(1).max(300),
+        docxBase64: z.string().max(7_000_000),
+      })).min(2).max(12),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Upload between two and twelve claims.' });
+
+    const mammoth = (await import('mammoth')).default;
+    const claims: Array<{ name: string; text: string }> = [];
+    for (const p of parsed.data.precedents) {
+      try {
+        const result = await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64, 'base64') });
+        const text = (result.value ?? '').trim();
+        if (text) claims.push({ name: p.name, text });
+      } catch {
+        return reply.status(400).send({ ok: false, error: `"${p.name}" could not be read as a Word document.` });
+      }
+    }
+    if (claims.length < 2) return reply.status(400).send({ ok: false, error: 'At least two readable claims are needed.' });
+
+    const { proposeNodeUpdates } = await import('../../employment/soc-teach.js');
+    const { mergeFirmNodes, loadSocNodes } = await import('../../employment/soc-nodes.js');
+    const { getFirmSocNodes } = await import('../../db/database.js');
+    const nodes = mergeFirmNodes(loadSocNodes(), getFirmSocNodes(firmId));
+    try {
+      const result = await proposeNodeUpdates(claims, nodes);
+      logger.info('Node teaching complete', {
+        firmId, claims: claims.length,
+        proposals: result.proposals.filter(p => p.proposed).length,
+        costUsd: result.totalCostUsd.toFixed(4),
+      });
+      return reply.send({
+        ok: true,
+        proposals: result.proposals,
+        unmatched: result.unmatched.map(u => ({ heading: u.heading, sourceName: u.sourceName })),
+        costUsd: result.totalCostUsd,
+      });
+    } catch (err) {
+      logger.error('Node teaching failed', { error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'The claims could not be analysed. Please try again.' });
+    }
   });
 
   // ── GET /api/employment/:matterId/demand-readiness ─────────────────────

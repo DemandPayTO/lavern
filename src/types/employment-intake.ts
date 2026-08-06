@@ -307,6 +307,13 @@ export const employmentIntakeSchema = z.object({
   // Covenants, beyond presence and text.
   noncompete_post_oct2021: optBool,
   covenant_enforcement_threat: optBool,
+  is_executive_noncompete: optBool,
+  noncompete_common_law:  optBool,
+
+  // Successor employer and constructive dismissal framing.
+  prior_related_employer: optBool,
+  cd_cumulative:          optBool,
+  cd_remote:              optBool,
 
   // Compensation particulars the relief block conditions on.
   has_benefits:           optBool,

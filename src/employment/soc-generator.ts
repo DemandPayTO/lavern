@@ -60,6 +60,8 @@ export interface SOCRequest {
   nodeOverrides?: Record<string, 'on' | 'off'>;
   courtFileNumber?: string;
   lsoNumber?: string;
+  /** The firm's node set where it has one; the ported defaults otherwise. */
+  customNodes?: import('./soc-nodes.js').SocNode[];
 }
 
 export interface SOCResult {
@@ -424,7 +426,7 @@ async function generateNodeAssembledSoc(
   req: SOCRequest,
   definedTerms?: string[],
 ): Promise<SOCResult> {
-  const nodes = loadSocNodes();
+  const nodes = req.customNodes ?? loadSocNodes();
   const ctx = buildSocEvalContext({
     intake: req.intake,
     analysis: req.analysis,

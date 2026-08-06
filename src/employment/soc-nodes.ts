@@ -64,6 +64,21 @@ export function loadSocNodes(): SocNode[] {
   })).sort((a, b) => a.assemblyOrder - b.assemblyOrder);
 }
 
+/**
+ * The firm's own language over the ported defaults.
+ *
+ * Overrides carry CONTENT ONLY. Trigger, order, header and review marking
+ * stay from the default set, which is what keeps a language edit from
+ * changing which claims plead what.
+ */
+export function mergeFirmNodes(
+  defaults: SocNode[],
+  overrides: Array<{ block_id: string; content: string }>,
+): SocNode[] {
+  const byId = new Map(overrides.map(o => [o.block_id, o.content]));
+  return defaults.map(n => byId.has(n.blockId) ? { ...n, content: byId.get(n.blockId)! } : n);
+}
+
 /** The one block whose body is written by the model, never from template. */
 export const AI_NARRATIVE_BLOCK = 'SOC_FACTS_01';
 
@@ -149,6 +164,7 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     // Gate references, straight from Starling's own gate evaluation.
     gate_G9_fired: gateFired('G9') || approvedGates.has('G9'),
     gate_G10_fired: gateFired('G10') || approvedGates.has('G10'),
+    gate_G14_fired: gateFired('G14') || approvedGates.has('G14'),
 
     // Separation.
     separation_type: separationType,
@@ -189,6 +205,20 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     has_nonsolicit: intake.has_non_solicitation,
     noncompete_post_oct2021: intake.noncompete_post_oct2021,
     covenant_enforcement_threat: intake.covenant_enforcement_threat,
+    is_executive_noncompete: intake.is_executive_noncompete,
+    noncompete_common_law: intake.noncompete_common_law,
+
+    // Successor employer and the constructive dismissal framings. The
+    // primary and alternative framings derive from how the file ended; the
+    // cumulative and remote framings are the lawyer's own fields.
+    prior_related_employer: intake.prior_related_employer,
+    cd_primary: intake.is_constructive_dismissal === true || undefined,
+    cd_alternative: (intake.was_terminated === true && cdChanges) ? true : undefined,
+    cd_cumulative: intake.cd_cumulative,
+    cd_remote: intake.cd_remote,
+    shared_management: intake.shared_management,
+    shared_payroll: intake.shared_payroll,
+    shared_branding: intake.shared_branding,
 
     // Compensation conditionals.
     has_bonus: intake.bonus_amount ? true : (intake.bonus_type ? true : undefined),
@@ -249,6 +279,12 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     implied_term_conduct: intake.implied_term_conduct ?? '',
     common_employer_documentation: intake.common_employer_documentation ?? '',
     hrc_conduct_description: intake.hrc_conduct_description ?? '',
+    // Compensation particulars the employment history block prints.
+    bonus_amount: intake.bonus_amount ? cad(intake.bonus_amount) : '',
+    commission_amount: intake.commission_amount ? cad(intake.commission_amount) : '',
+    equity_type: Array.isArray(intake.equity_types) && intake.equity_types.length > 0 ? intake.equity_types.join(', ') : '',
+    predecessor: intake.prior_employer_name ?? '',
+    bad_faith_termination_particulars: intake.bad_faith_details ?? '',
   };
 
   // Pronouns: from the client file, the same three positions the letters
