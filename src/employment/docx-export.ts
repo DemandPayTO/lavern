@@ -26,6 +26,8 @@ const logger = createLogger('DOCX-EXPORT');
 // ── Types ────────────────────────────────────────────────────────────────
 
 export interface DocxExportOptions {
+  /** Small Claims filings keep the templated path; Superior Court does not. */
+  smallClaims?: boolean;
   /** Who the letter is addressed to, for the firm's own [RECIPIENT] markers. */
   recipientName?: string;
   /** Document title (e.g. "Demand Letter — Smith v. Acme Corp"). */
@@ -154,6 +156,12 @@ function htmlTableToDocx(tableHtml: string, face?: string, cellSize?: number): T
 
 export interface HtmlToParagraphsOptions {
   /**
+   * Court filing format: the type is PRESCRIBED, not inherited. 12-point
+   * Times New Roman, double-spaced, whatever any firm template says. Cuts
+   * deliberately against inheritFont, which is for correspondence.
+   */
+  courtFormat?: boolean;
+  /**
    * Omit the font and size on every run so the surrounding document's
    * defaults apply. Used when splicing into a firm's own template: a
    * letter on the firm's letterhead should be in the firm's typeface, not
@@ -168,8 +176,10 @@ export function htmlToParagraphs(
 ): Array<Paragraph | Table> {
   // When inheriting, font and size are left undefined rather than set,
   // which is how the docx library says "use the document default".
-  const face = options.inheritFont ? undefined : 'Times New Roman';
-  const body = options.inheritFont ? undefined : 24;
+  const face = options.courtFormat ? 'Times New Roman' : options.inheritFont ? undefined : 'Times New Roman';
+  const body = options.courtFormat ? 24 : options.inheritFont ? undefined : 24;
+  // Double spacing for court documents: 480 twentieths of a point.
+  const lineSpacing = options.courtFormat ? { line: 480 } : {};
   const paragraphs: Array<Paragraph | Table> = [];
 
   // Split into blocks by major HTML elements
@@ -204,7 +214,7 @@ export function htmlToParagraphs(
       if (table) {
         paragraphs.push(table);
         // Breathing room after the table.
-        paragraphs.push(new Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
+        paragraphs.push(new Paragraph({ spacing: { before: 0, after: 120, ...lineSpacing }, children: [] }));
       }
       // Content after </table> in the same block (rare) falls through as text.
       const rest = tableEnd >= 0 ? trimmed.slice(tableEnd + 8).trim() : '';
@@ -212,7 +222,7 @@ export function htmlToParagraphs(
         const restText = stripTags(rest);
         if (restText) {
           paragraphs.push(new Paragraph({
-            spacing: { before: 120, after: 120 },
+            spacing: { before: 120, after: 120, ...lineSpacing },
             children: [new TextRun({ text: restText, font: face, size: body })],
           }));
         }
@@ -244,7 +254,7 @@ export function htmlToParagraphs(
     // Horizontal rule — subtle black line, not coloured
     if (/^<hr/i.test(trimmed)) {
       paragraphs.push(new Paragraph({
-        spacing: { before: 120, after: 120 },
+        spacing: { before: 120, after: 120, ...lineSpacing },
         border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: '000000' } },
         children: [],
       }));
@@ -262,7 +272,7 @@ export function htmlToParagraphs(
           const firstText = stripTags(liMatch[1]);
           const alreadyNumbered = /^\d+[.)]\s/.test(firstText);
           paragraphs.push(new Paragraph({
-            spacing: { before: 60, after: 120 },
+            spacing: { before: 60, after: 120, ...lineSpacing },
             // Hanging indent: number sits at 0.25", text wraps at 0.75"
             indent: { left: 1080, hanging: 720 },
             children: alreadyNumbered ? runs : [
@@ -272,7 +282,7 @@ export function htmlToParagraphs(
           }));
         } else {
           paragraphs.push(new Paragraph({
-            spacing: { before: 60, after: 60 },
+            spacing: { before: 60, after: 60, ...lineSpacing },
             indent: { left: 720 }, // 0.5 inch indent
             children: runs,
           }));
@@ -293,7 +303,7 @@ export function htmlToParagraphs(
       const centered = /class="[^"]*centered[^"]*"/i.test(pMatch[1]);
       if (runs.length > 0) {
         paragraphs.push(new Paragraph({
-          spacing: { before: 120, after: 120 },
+          spacing: { before: 120, after: 120, ...lineSpacing },
           ...(centered ? { alignment: AlignmentType.CENTER } : {}),
           children: runs,
         }));
@@ -305,7 +315,7 @@ export function htmlToParagraphs(
     const plainText = stripTags(trimmed);
     if (plainText) {
       paragraphs.push(new Paragraph({
-        spacing: { before: 120, after: 120 },
+        spacing: { before: 120, after: 120, ...lineSpacing },
         children: [new TextRun({ text: plainText, font: face, size: body })],
       }));
     }
@@ -328,8 +338,12 @@ export function htmlToParagraphs(
  * @returns       A Buffer containing the DOCX file.
  */
 export async function htmlToDocx(html: string, options: DocxExportOptions): Promise<Buffer> {
+  // A court filing bypasses the firm template entirely. Its format is
+  // prescribed, not the firm's to choose: 12-point Times New Roman,
+  // double-spaced, and no letterhead in front of a general heading.
+  const courtFormat = options.documentType === 'statement_of_claim' && !options.smallClaims;
   // Try firm template first if firmId and documentType are provided
-  if (options.firmId && options.documentType) {
+  if (!courtFormat && options.firmId && options.documentType) {
     const placeholderValues = buildPlaceholderValues({
       intake: options.intake ?? {},
       firmName: options.firmName,
@@ -377,7 +391,7 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
     year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  const paragraphs = htmlToParagraphs(html);
+  const paragraphs = htmlToParagraphs(html, courtFormat ? { courtFormat: true } : {});
 
   const doc = new Document({
     title: options.title,

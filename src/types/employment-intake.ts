@@ -250,6 +250,89 @@ export const employmentIntakeSchema = z.object({
   new_employment_start_date: optDate,
   new_employment_salary:  optNumber,
 
+  // ── Pleading fields (DemandPay schema names) ───────────────────────────
+  // These answer the SOC node triggers, and their names follow the
+  // DemandPay intake schema exactly so the two products read one another.
+  // Booleans left unset mean "never asked": the cause cannot fire and the
+  // node picker says why, which is different from an answered NO.
+
+  // The contract, beyond the clause text already captured above.
+  has_written_contract:   optBool,
+  contract_date:          optDate,
+  clause_cause_broader:   optBool,
+  clause_no_benefits:     optBool,
+  clause_limits_below_esa: optBool,
+  employer_breached_clause: optBool,
+
+  // Cause as alleged.
+  false_cause_alleged:    optBool,
+
+  // Inducement and misrepresentation.
+  employer_initiated_recruitment: optBool,
+  had_prior_secure_employment: optBool,
+  recruiter_name_and_title: optString,
+  inducement_representations: optString,
+  promises_not_fulfilled: optBool,
+  promises_known_false:   optBool,
+
+  // Common employer.
+  common_employer:        optBool,
+  common_employer_documentation: optString,
+  shared_management:      optBool,
+  shared_payroll:         optBool,
+  shared_branding:        optBool,
+
+  // Defamation.
+  defamatory_statements:  optBool,
+  defamation_recipients:  optString,
+  defamation_malicious:   optBool,
+
+  // Privacy and mental suffering.
+  privacy_breach:         optBool,
+  privacy_breach_description: optString,
+  iims:                   optBool,
+  iims_conduct_description: optString,
+  iims_illness_description: optString,
+  mental_distress_symptoms: optString,
+
+  // Unjust enrichment and breach of contract.
+  unjust_enrichment:      optBool,
+  unjust_enrichment_benefit: optString,
+  breach_express_term:    optBool,
+  express_term_description: optString,
+  express_term_obligation: optString,
+  breach_implied_term:    optBool,
+  implied_term_conduct:   optString,
+
+  // Covenants, beyond presence and text.
+  noncompete_post_oct2021: optBool,
+  covenant_enforcement_threat: optBool,
+
+  // Compensation particulars the relief block conditions on.
+  has_benefits:           optBool,
+  has_rrsp:               optBool,
+  has_car_allowance:      optBool,
+  unpaid_commission:      optBool,
+  unpaid_overtime:        optBool,
+  vacation_unpaid:        optBool,
+  unauthorized_deductions: optBool,
+  other_compensation_details: optString,
+  benefits_not_continued: optBool,
+  esa_shortfall:          optBool,
+  esa_term_shortfall:     optBool,
+  esa_sev_shortfall:      optBool,
+
+  // Human rights particulars.
+  hrc_protected_ground:   optString,
+  hrc_complaint_made:     optBool,
+  hrc_conduct_description: optString,
+  sexual_harassment:      optBool,
+
+  // Employment history colour.
+  positive_performance:   optBool,
+  workplace_location:     optString,
+  job_duties:             optString,
+
   // ── Additional context ─────────────────────────────────────────────────
   additional_information: z.string().trim().max(10000).optional().or(z.literal('')),
   lawyer_notes:           z.string().trim().max(10000).optional().or(z.literal('')),

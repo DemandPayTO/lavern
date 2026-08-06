@@ -22,6 +22,12 @@ import { computeBardalFactors, computeLimitationDeadline } from './timeline-gene
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 import { checkCanonTextIntegrity } from './canon-verifier.js';
+import {
+  loadSocNodes, buildSocEvalContext, nodeStatuses, renderNode,
+  numberSocParagraphs, AI_NARRATIVE_BLOCK, type SocNodeStatus,
+} from './soc-nodes.js';
+import { buildSocFrontMatter, buildSocClosing, FORM_14A_CURRENCY_FLAG } from './soc-shell.js';
+import type { GateResult } from '../types/employment-intake.js';
 
 const logger = createLogger('SOC-GEN');
 
@@ -48,6 +54,12 @@ export interface SOCRequest {
   courtLocation: string;
   /** Uploaded source documents for citation tracking. */
   sourceDocuments?: Array<{ name: string; content: string }>;
+  /** Gate results from the analysis; the node triggers read them. */
+  gates?: GateResult[];
+  /** The lawyer's per-node overrides from the picker. */
+  nodeOverrides?: Record<string, 'on' | 'off'>;
+  courtFileNumber?: string;
+  lsoNumber?: string;
 }
 
 export interface SOCResult {
@@ -61,6 +73,8 @@ export interface SOCResult {
   citations: SourceCitation[];
   /** Cost of generation in USD. */
   costUsd: number;
+  /** What each pleading node did and why, for the picker and the record. */
+  nodeReport?: SocNodeStatus[];
 }
 
 // ── Prompt builders ──────────────────────────────────────────────────────
@@ -271,6 +285,14 @@ export async function generateStatementOfClaim(
   req: SOCRequest,
   definedTerms?: string[],
 ): Promise<SOCResult> {
+  // Superior Court claims assemble from the pleading nodes: the causes of
+  // action in settled language, selected by trigger, approval and
+  // override, with the model writing only the Background Facts. Small
+  // Claims keeps the drafted path: Form 7A is a different world and the
+  // node library was written for the Superior Court.
+  if (req.procedureType !== 'small_claims') {
+    return generateNodeAssembledSoc(req, definedTerms);
+  }
   const systemPrompt = buildSystemPrompt(req.procedureType);
   const userPrompt = req.styleContext ? `${buildUserPrompt(req)}\n\n${req.styleContext}` : buildUserPrompt(req);
 
@@ -343,6 +365,191 @@ export async function generateStatementOfClaim(
     lawyerReviewFlags,
     citations,
     costUsd: totalCost,
+  };
+}
+
+const NARRATIVE_SYSTEM = `You are a senior Ontario employment litigator. You are drafting ONE SECTION of a Statement of Claim: the Background Facts.
+
+Everything else in the claim is already written. The causes of action are pleaded in the firm's settled language; the relief is itemised; the court forms are assembled. Your section tells the story the rest of the claim rests on.
+
+Rules:
+- Material facts in chronological order, in the voice of a pleading: "the Plaintiff", "the Defendant". Rule 25.06 governs: plead the material facts, not the evidence by which they are proved.
+- NO legal argument, NO case citations, NO statutory references. The law is pleaded elsewhere in the claim; a fact section that argues collides with it.
+- Include the events leading to the end of the employment, named individuals where they matter, dates, any complaints raised internally, and the facts that substantiate each cause the claim pleads.
+- Every paragraph is one <p> element. No headings. No numbering: paragraph numbers are added mechanically afterwards.
+- Do not invent facts. Where a material fact is plainly needed and not provided, write [LAWYER: describe ...] and move on.
+- Do not use em-dashes. Do not use contractions.
+
+Return ONLY the <p> paragraphs.`;
+
+/** The Background Facts prompt: the case record plus the causes to substantiate. */
+function buildNarrativePrompt(req: SOCRequest, causes: string[]): string {
+  const intake = req.intake;
+  const bardal = computeBardalFactors(intake);
+  const compParts: string[] = [];
+  if (intake.annual_salary) compParts.push(`base salary of $${intake.annual_salary.toLocaleString('en-CA')}`);
+  if (intake.has_bonus && intake.bonus_amount) compParts.push(`annual bonus of $${intake.bonus_amount.toLocaleString('en-CA')}`);
+  if (intake.has_commissions && intake.commission_amount) compParts.push('commissions');
+  if (intake.has_equity) compParts.push('equity compensation');
+  if (intake.has_health_benefits) compParts.push('extended health and dental benefits');
+
+  return `Write the Background Facts for this claim.
+
+PARTIES:
+- Plaintiff: ${intake.client_first_name ?? ''} ${intake.client_last_name ?? ''}
+- Defendant: ${intake.employer_legal_name ?? intake.employer_operating_name ?? 'unknown'}
+
+${pronounInstruction(intake.client_pronouns)}
+
+THE RECORD:
+- Employment: ${intake.hire_date ?? intake.first_day_of_work ?? 'unknown'} to ${intake.termination_date ?? 'unknown'}${bardal.tenureYears ? ` (${bardal.tenureYears.toFixed(1)} years)` : ''}
+- Position: ${intake.job_title ?? 'unknown'}${intake.job_duties ? `; duties: ${intake.job_duties}` : ''}
+- Age at termination: ${bardal.age ?? 'unknown'}
+- Compensation: ${compParts.join('; ') || 'not specified'}
+- How it ended: ${intake.is_constructive_dismissal ? 'constructive dismissal' : intake.resigned ? 'resignation' : intake.was_terminated ? 'termination by the employer' : 'unknown'}
+${intake.termination_reasons ? `- Stated reason: ${intake.termination_reasons}` : ''}
+${intake.employer_alleged_just_cause ? `- Cause alleged: ${intake.cause_allegations ?? 'yes'}` : ''}
+${intake.constructive_dismissal_details ? `- Constructive dismissal particulars: ${intake.constructive_dismissal_details}` : ''}
+${intake.discrimination_details ? `- Discrimination particulars: ${intake.discrimination_details}` : ''}
+${intake.harassment_details ? `- Harassment particulars: ${intake.harassment_details}` : ''}
+${intake.bad_faith_details ? `- Manner of dismissal particulars: ${intake.bad_faith_details}` : ''}
+${intake.additional_information ? `- Additional context: ${intake.additional_information}` : ''}
+
+THE CAUSES THIS CLAIM PLEADS. Write the facts that substantiate each; do not argue them:
+${causes.map((c, i) => `${i + 1}. ${c}`).join('\n')}`;
+}
+
+/** The Superior Court path: nodes plead, the model narrates the facts. */
+async function generateNodeAssembledSoc(
+  req: SOCRequest,
+  definedTerms?: string[],
+): Promise<SOCResult> {
+  const nodes = loadSocNodes();
+  const ctx = buildSocEvalContext({
+    intake: req.intake,
+    analysis: req.analysis,
+    gates: req.gates ?? [],
+    approvedIssues: req.approvedIssues,
+    claimAmount: req.claimAmount,
+  });
+  const report = nodeStatuses(nodes, ctx, req.approvedIssues, req.nodeOverrides ?? {});
+  const activeIds = new Set(report.filter(r => r.status === 'firing' || r.status === 'forced_on').map(r => r.blockId));
+  const active = nodes.filter(n => activeIds.has(n.blockId));
+
+  logger.info('Assembling SOC from nodes', {
+    procedureType: req.procedureType,
+    active: active.length,
+    forced: report.filter(r => r.status.startsWith('forced')).length,
+  });
+
+  // The one model call: the Background Facts.
+  const causes = active
+    .filter(n => n.blockId !== AI_NARRATIVE_BLOCK && n.sectionHeader)
+    .map(n => n.sectionHeader);
+  const userPrompt = [buildNarrativePrompt(req, causes), req.styleContext]
+    .filter(Boolean).join('\n\n');
+
+  let narrative = '';
+  let cost = 0;
+  try {
+    const result = await crossProviderChat({
+      system: NARRATIVE_SYSTEM,
+      user: userPrompt,
+      tier: 'opus',
+      maxTokens: 6144,
+      extendOnTruncation: true,
+      maxRetries: 2,
+      definedTerms: definedTerms ?? undefined,
+    });
+    narrative = result.text;
+    cost = result.cost;
+  } catch (err) {
+    logger.error('SOC narrative generation failed', { error: err instanceof Error ? err.message : String(err) });
+    throw new Error('Document generation failed. Please try again.');
+  }
+
+  let narrativeHtml = enforceHouseStyle(narrative.trim());
+  const fenced = narrativeHtml.match(/```(?:html)?\s*([\s\S]*?)```/);
+  if (fenced) narrativeHtml = fenced[1].trim();
+  // Mechanical numbering owns the numbers: strip any the model wrote, then
+  // mark every paragraph for the document-wide pass.
+  narrativeHtml = narrativeHtml.replace(/<p([^>]*)>\s*(?:\d+[.)]\s*)?/gi, '<p$1>{{para}}. ');
+
+  // Assemble the pleading in node order.
+  const sections: string[] = [];
+  const missingByHeader: Array<{ header: string; missing: string[] }> = [];
+  for (const node of active) {
+    if (node.blockId === AI_NARRATIVE_BLOCK) {
+      sections.push(`<h2>${node.sectionHeader || 'BACKGROUND FACTS'}</h2>\n${narrativeHtml}`);
+      continue;
+    }
+    const rendered = renderNode(node, ctx);
+    if (rendered.missing.length > 0) {
+      missingByHeader.push({ header: rendered.header || node.blockId, missing: rendered.missing });
+    }
+    sections.push(rendered.header ? `<h2>${rendered.header}</h2>\n${rendered.html}` : rendered.html);
+  }
+
+  const numbered = numberSocParagraphs(sections.join('\n'));
+
+  const shellInput = {
+    courtFileNumber: req.courtFileNumber,
+    courtLocation: req.courtLocation,
+    plaintiffName: `${req.intake.client_first_name ?? ''} ${req.intake.client_last_name ?? ''}`.trim() || 'PLAINTIFF',
+    defendantName: req.intake.employer_legal_name ?? req.intake.employer_operating_name ?? 'DEFENDANT',
+    procedureType: req.procedureType as 'simplified' | 'ordinary',
+    lawyerName: req.lawyerName,
+    firmName: req.firmName,
+    firmAddress: req.firmAddress,
+    lsoNumber: req.lsoNumber,
+  };
+  const html = [buildSocFrontMatter(shellInput), numbered, buildSocClosing(shellInput)].join('\n');
+
+  // Flags: the standing form-currency check, the firm's own review marks,
+  // what the matter could not fill, and what was eligible but unpleaded.
+  const lawyerReviewFlags: string[] = [FORM_14A_CURRENCY_FLAG];
+  for (const node of active) {
+    if (node.lawyerReview) {
+      lawyerReviewFlags.push(`The firm marks "${node.sectionHeader || node.blockId}" for review whenever it is used. Read it before finalising.`);
+    }
+  }
+  for (const m of missingByHeader) {
+    lawyerReviewFlags.push(`"${m.header}" needs: ${m.missing.map(x => x.replace(/_/g, ' ')).join(', ')}. Each is marked [LAWYER: ...] in the text.`);
+  }
+  for (const r of report) {
+    if (r.status === 'eligible_unapproved') {
+      lawyerReviewFlags.push(`The facts support "${r.sectionHeader}" but it is not pleaded: ${r.reason}`);
+    }
+  }
+  lawyerReviewFlags.push(
+    ...checkCitationIntegrity(narrativeHtml, definedTerms ?? []),
+    ...checkCanonTextIntegrity(narrativeHtml),
+    ...checkFillInPlaceholders(narrativeHtml),
+  );
+
+  let citations: SourceCitation[] = [];
+  let totalCost = cost;
+  if (req.sourceDocuments && req.sourceDocuments.length > 0) {
+    try {
+      const citationResult = await extractCitations(narrativeHtml, req.sourceDocuments, definedTerms);
+      citations = citationResult.citations;
+      totalCost += citationResult.costUsd;
+    } catch (err) {
+      logger.warn('SOC citation extraction failed (non-fatal)', { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  logger.info('SOC assembled from nodes', {
+    active: active.length, htmlLength: html.length, costUsd: totalCost.toFixed(4),
+  });
+
+  return {
+    html,
+    procedureType: req.procedureType,
+    lawyerReviewFlags,
+    citations,
+    costUsd: totalCost,
+    nodeReport: report,
   };
 }
 

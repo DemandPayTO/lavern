@@ -847,6 +847,9 @@ export default function MatterDetailView() {
   const [dlSourceIds, setDlSourceIds] = useState<Set<string>>(new Set());
   const [dlUploadKind, setDlUploadKind] = useState('employment_agreement');
   const dlSourceInputRef = useRef<HTMLInputElement | null>(null);
+
+
+
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
   // Structured inputs for the deterministic court forms
@@ -1216,6 +1219,33 @@ export default function MatterDetailView() {
       setGenError('The package could not be generated.');
     } finally { setPkgBusy(false); }
   }, [sessionId, profile, genCourtLocation, ttRows, pkgProcedure, pkgStyleIds, pkgAffidavit, pkgDeponent, pkgCapacity, pkgBasis, pkgSource, employment]);
+
+  // The pleading nodes: what the claim will plead and why. The lawyer's
+  // overrides persist on the matter, so a regeneration keeps them.
+  const [socNodes, setSocNodes] = useState<Array<{
+    blockId: string; sectionHeader: string; tier: 1 | 2; lawyerReview: boolean;
+    status: 'firing' | 'eligible_unapproved' | 'off' | 'forced_on' | 'forced_off';
+    reason: string; unanswered: string[];
+  }>>([]);
+  const refreshSocNodes = useCallback(() => {
+    if (!sessionId) return;
+    fetch(`/api/employment/${sessionId}/soc-nodes`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setSocNodes(d.nodes ?? []); })
+      .catch(() => { /* the picker is advisory until generation */ });
+  }, [sessionId]);
+  useEffect(() => {
+    if (selectedDraft === 'soc') refreshSocNodes();
+  }, [selectedDraft, refreshSocNodes, employment.data]);
+  const setSocOverride = useCallback(async (blockId: string, override: 'on' | 'off' | null) => {
+    if (!sessionId) return;
+    await fetch(`/api/employment/${sessionId}/soc-nodes`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockId, override }),
+    });
+    refreshSocNodes();
+  }, [sessionId, refreshSocNodes]);
 
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
@@ -2999,6 +3029,48 @@ export default function MatterDetailView() {
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {selectedDraft === 'soc' && !generatedHtml && socNodes.length > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>What this claim pleads</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+                    Each cause of action is a section in the firm's settled language, selected by the facts on file and your approved issues. Turning one on that the intake never asked about gives you the structure with [LAWYER: ...] markers, never invented facts.
+                  </div>
+                  {socNodes.map(n => {
+                    const on = n.status === 'firing' || n.status === 'forced_on';
+                    const chip = n.status === 'firing' ? { label: 'PLEADED', bg: '#e8f2e8', fg: green }
+                      : n.status === 'forced_on' ? { label: 'FORCED ON', bg: '#e8f2e8', fg: green }
+                      : n.status === 'eligible_unapproved' ? { label: 'FACTS SUPPORT IT', bg: '#fdf0dd', fg: amber }
+                      : n.status === 'forced_off' ? { label: 'FORCED OFF', bg: '#f3f3f3', fg: muted }
+                      : { label: 'OFF', bg: '#f3f3f3', fg: muted };
+                    return (
+                      <div key={n.blockId} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '5px 0', borderTop: `1px solid #f0ede8` }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: chip.fg, background: chip.bg, padding: '2px 7px', borderRadius: 2, minWidth: 86, textAlign: 'center', marginTop: 2 }}>{chip.label}</span>
+                        <span style={{ flex: 1, fontSize: 12.5, color: on ? ink : muted }}>
+                          <span style={{ fontWeight: 600 }}>{n.sectionHeader}</span>
+                          <span style={{ display: 'block', fontSize: 11.5, color: muted, lineHeight: 1.45 }}>{n.reason}</span>
+                        </span>
+                        {n.status !== 'firing' && n.tier === 2 && (
+                          <button
+                            onClick={() => void setSocOverride(n.blockId, n.status === 'forced_on' || n.status === 'forced_off' ? null : 'on')}
+                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: navy, cursor: 'pointer', padding: '3px 9px', borderRadius: 2 }}
+                          >
+                            {n.status === 'forced_on' || n.status === 'forced_off' ? 'reset' : 'force on'}
+                          </button>
+                        )}
+                        {(n.status === 'firing' || n.status === 'eligible_unapproved') && (
+                          <button
+                            onClick={() => void setSocOverride(n.blockId, 'off')}
+                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '3px 4px' }}
+                          >
+                            turn off
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 

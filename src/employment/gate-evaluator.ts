@@ -33,7 +33,7 @@ import type { EmploymentIntakeData, GateResult } from '../types/employment-intak
 // Maps issue codes to their parent gate. A gate fires if ANY of its issues
 // are identified as relevant based on the intake data.
 
-const ISSUE_TO_GATE: Record<string, string> = {
+export const ISSUE_TO_GATE: Record<string, string> = {
   // G1 — Worker Classification
   worker_misclassification:      'G1',
   dependent_contractor:          'G1',

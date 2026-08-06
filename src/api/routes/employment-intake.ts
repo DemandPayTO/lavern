@@ -1810,6 +1810,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
 
     const socDirection = directionForGeneration(matter, 'statement_of_claim');
+    const socOverrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    let socLso = '';
+    try {
+      const { getUserById } = await import('../../db/database.js');
+      const u = getUserById(userId);
+      if (u?.profile_json) socLso = String((JSON.parse(u.profile_json) as Record<string, unknown>).lsoNumber ?? '');
+    } catch { /* best-effort */ }
     const result = await generateStatementOfClaim({
       intake: employment.intake,
       approvedIssues: employment.approvedIssues,
@@ -1822,6 +1829,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       courtLocation: parsed.data.courtLocation,
       styleContext: [socStyle?.context, socDirection.context].filter(Boolean).join('\n\n') || undefined,
       styleTypicalWords: socStyle?.typicalWords,
+      gates: employment.gates,
+      nodeOverrides: socOverrides,
+      courtFileNumber: ((matter as Record<string, unknown>).courtFileNumber as string) || undefined,
+      lsoNumber: socLso || undefined,
     }, definedTerms);
     await applyDirectionAftermath(result, socDirection);
     if (socStyle) {
@@ -1844,6 +1855,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,
       status: 'draft',
+      // What each pleading node did and why: the record of selection, for
+      // the picker and for explaining the claim later.
+      ...(result.nodeReport ? { nodeReport: result.nodeReport } : {}),
     };
     employment.selectedProcedure = parsed.data.procedureType;
     employment.selectedDocumentType = 'statement_of_claim';
@@ -1857,6 +1871,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       lawyerReviewFlags: result.lawyerReviewFlags,
       citations: result.citations,
       costUsd: result.costUsd,
+      nodeReport: result.nodeReport,
     });
   });
 
@@ -2919,6 +2934,53 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     return reply.send({ ok: true, proposed });
   });
 
+  // ── The pleading nodes: what the claim will plead, and why ─────────────
+  // The picker's data source and the lawyer's override switch. Overrides
+  // persist on the matter so a regeneration keeps the lawyer's choices.
+
+  fastify.get('/api/employment/:matterId/soc-nodes', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!employment.intake) return reply.send({ ok: true, nodes: [] });
+
+    const { loadSocNodes, buildSocEvalContext, nodeStatuses } = await import('../../employment/soc-nodes.js');
+    const ctx = buildSocEvalContext({
+      intake: employment.intake,
+      analysis: employment.analysis ?? null,
+      gates: employment.gates ?? [],
+      approvedIssues: employment.approvedIssues ?? [],
+      claimAmount: employment.demandAmount ?? 0,
+    });
+    const overrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    return reply.send({
+      ok: true,
+      nodes: nodeStatuses(loadSocNodes(), ctx, employment.approvedIssues ?? [], overrides),
+    });
+  });
+
+  fastify.put('/api/employment/:matterId/soc-nodes', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = z.object({
+      blockId: z.string().trim().min(1).max(60),
+      override: z.enum(['on', 'off']).nullable(),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid override' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const overrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    if (parsed.data.override === null) delete overrides[parsed.data.blockId];
+    else overrides[parsed.data.blockId] = parsed.data.override;
+    (matter as Record<string, unknown>).socNodeOverrides = overrides;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, overrides });
+  });
+
   // ── GET /api/employment/:matterId/demand-readiness ─────────────────────
   // What the demand letter will be missing, before generating. A demand
   // letter is the first thing the other side reads, so the checks are its
@@ -3139,6 +3201,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const { templateVariantId } = (req.query ?? {}) as { templateVariantId?: string };
 
     const buffer = await htmlToDocx(html, {
+      smallClaims: procedure === 'small_claims',
       title,
       firmName,
       lawyerName,
