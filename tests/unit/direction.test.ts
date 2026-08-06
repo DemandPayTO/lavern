@@ -215,3 +215,34 @@ describe('the drafter’s note back', () => {
     expect(extractLawyerNote('<p>Body.</p><h3>Note to the Lawyer</h3><p>x</p>').note).toBe('x');
   });
 });
+
+
+describe('the note must not take the sign-off with it', () => {
+  it('keeps furniture that follows the note', () => {
+    // A live run lost the entire closing: the note ran to the end of what
+    // the model wrote, and the sign-off is appended after the body, so
+    // taking everything to the end of the string swallowed it.
+    const doc = [
+      '<p>We demand payment.</p>',
+      '<h2>Note to the lawyer</h2>',
+      '<p>The standard background sentence does not fit this file.</p>',
+      '<p>Yours very truly,</p>',
+      '<p>EVANS LAW FIRM</p>',
+    ].join('');
+    const { html, note } = extractLawyerNote(doc);
+    expect(html).toContain('We demand payment.');
+    expect(html).toContain('Yours very truly,');
+    expect(html).toContain('EVANS LAW FIRM');
+    expect(html).not.toContain('Note to the lawyer');
+    expect(html).not.toContain('does not fit this file');
+    expect(note).toContain('does not fit this file');
+    expect(note).not.toContain('EVANS LAW FIRM');
+  });
+
+  it('still takes the whole note when nothing follows it', () => {
+    const doc = '<p>Body.</p><h2>Note to the lawyer</h2><p>Something to know.</p>';
+    const { html, note } = extractLawyerNote(doc);
+    expect(html).toBe('<p>Body.</p>');
+    expect(note).toBe('Something to know.');
+  });
+});

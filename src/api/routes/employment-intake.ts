@@ -238,7 +238,12 @@ async function loadStyleForGeneration(
   documentType: string,
 ): Promise<
   | { error: string; status: number }
-  | { context: string; identifiers: string[]; label: string; typicalWords?: number; profileTableRows?: string[]; flowHeadings?: string[] }
+  | {
+      context: string; identifiers: string[]; label: string; typicalWords?: number;
+      profileTableRows?: string[]; flowHeadings?: string[];
+      /** The guide itself, for callers that reproduce the firm's own wording. */
+      guide?: import('../../employment/style-profile.js').StyleGuide;
+    }
 > {
   const firmId = resolveFirmId(req);
   const profile = firmId ? getStyleProfile(firmId, styleProfileId) : undefined;
@@ -258,6 +263,7 @@ async function loadStyleForGeneration(
     typicalWords: guide.data.typicalWords,
     profileTableRows: guide.data.profileTableRows,
     flowHeadings: usableFlow(guide.data.flow).map(f => f.heading),
+    guide: guide.data,
   };
 }
 
@@ -1532,7 +1538,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     // The firm's style, when picked: context into the prompt, identifiers
     // into the bleed scan afterwards.
-    let dlStyle: { context: string; identifiers: string[]; label: string; typicalWords?: number } | undefined;
+    let dlStyle: {
+      context: string; identifiers: string[]; label: string; typicalWords?: number;
+      guide?: import('../../employment/style-profile.js').StyleGuide;
+    } | undefined;
     if (parsed.data.styleProfileId) {
       const style = await loadStyleForGeneration(req, parsed.data.styleProfileId, 'demand_letter');
       if ('error' in style) return reply.status(style.status).send({ ok: false, error: style.error });
@@ -1557,6 +1566,60 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         text: sd.text,
       })),
     );
+
+    // The firm's own letter, where it has taught one. Its opening and
+    // closing replace Starling's, and the drafting instruction becomes
+    // reproduce rather than imitate.
+    let houseForm: {
+      openingHtml?: string; closingHtml?: string; context?: string;
+    } | undefined;
+    const houseFlags: string[] = [];
+    if (dlStyle?.guide && dlStyle.guide.documentKind === 'letter') {
+      const hf = await import('../../employment/house-form.js');
+      const guide = dlStyle.guide;
+      const slots = hf.resolveSlots({
+        intake: employment.intake,
+        analysis: employment.analysis,
+        recipientName: parsed.data.recipientName,
+        salutation: parsed.data.recipientName ? 'Counsel' : undefined,
+        lawyerName: parsed.data.lawyerName,
+        firmName: parsed.data.firmName,
+        fileNumber: ((matter as Record<string, unknown>).firmFileNumber as string)
+          || ((matter as Record<string, unknown>).matterNumber as string) || undefined,
+        demandAmount: parsed.data.demandAmount,
+        responseDeadlineDays: parsed.data.responseDeadlineDays,
+      });
+      const opening = guide.openingBlock?.length
+        ? hf.renderHouseOpening(guide.openingBlock, slots) : null;
+      const closing = guide.closingBlock?.length
+        ? hf.renderHouseClosing(guide.closingBlock, slots) : null;
+      const fixed = (guide.fixedClauses ?? []).map((c: { part: string; text: string }) => ({
+        part: c.part,
+        text: hf.fillSlots(c.text, slots).text,
+      }));
+
+      houseForm = {
+        openingHtml: opening?.html,
+        closingHtml: closing?.html,
+        context: hf.houseFormContext({
+          label: dlStyle.label,
+          fixedClauses: fixed,
+          formStructure: guide.formStructure,
+          voice: guide.voice,
+          factWeaving: guide.factWeaving,
+        }) || undefined,
+      };
+
+      const missing = [...new Set([...(opening?.missing ?? []), ...(closing?.missing ?? [])])];
+      if (missing.length > 0) {
+        houseFlags.push(`Your standard opening needs ${missing.map(m => m.toLowerCase()).join(', ')}, which this file does not have. Each is marked in the letter for you to complete.`);
+      }
+      // Standard language carries assumptions. One written for a dismissal,
+      // used where the client resigned, is fluent, confident and wrong.
+      for (const issue of hf.checkHouseFormFit(guide.fixedClauses ?? [], employment.intake)) {
+        houseFlags.push(issue.message);
+      }
+    }
 
     // What the partner said to do on this file, and on this letter.
     const direction = directionForGeneration(matter, 'demand_letter');
@@ -1597,9 +1660,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       mitigationEarnings: parsed.data.mitigationEarnings,
       caseDocumentContext: caseDocumentContext || undefined,
       directionContext: direction.context || undefined,
+      houseForm,
       styleContext: dlStyle?.context,
       styleTypicalWords: dlStyle?.typicalWords,
     }, definedTerms);
+    if (houseFlags.length > 0) {
+      result.lawyerReviewFlags = [...result.lawyerReviewFlags, ...houseFlags];
+    }
     if (headsFromDirection) {
       result.lawyerReviewFlags = [
         ...result.lawyerReviewFlags,
@@ -3103,11 +3170,20 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     'settlement_minutes', 'undertakings_answers',
   ]);
 
+  // Correspondence is built on firm boilerplate: the same opening block,
+  // the same first paragraph, letter after letter, with the facts swapped.
+  // Prose mode learns voice and flow and deliberately writes fresh
+  // language, which is wrong for a letter whose worth is that it reads
+  // exactly like the last one the firm sent.
+  const LETTER_DOCUMENT_TYPES = new Set([
+    'demand_letter', 'counter_offer', 'reply', 'decline_letter', 'member_update',
+  ]);
+
   const styleBuildSchema = z.object({
     documentType: z.string().regex(/^[a-z0-9_]{1,60}$/),
     label: z.string().trim().min(1).max(120),
     /** Override the automatic prose/form choice. */
-    documentKind: z.enum(['prose', 'form']).optional(),
+    documentKind: z.enum(['prose', 'form', 'letter']).optional(),
     /** Proceed even though a precedent looks like a different document. */
     ignoreTypeMismatch: z.boolean().optional(),
     precedents: z.array(z.object({
@@ -3157,7 +3233,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     const { analyseStyle, extractIdentifiers } = await import('../../employment/style-profile.js');
     const documentKind = parsed.data.documentKind
-      ?? (FORM_DOCUMENT_TYPES.has(parsed.data.documentType) ? 'form' : 'prose');
+      ?? (FORM_DOCUMENT_TYPES.has(parsed.data.documentType) ? 'form'
+        : LETTER_DOCUMENT_TYPES.has(parsed.data.documentType) ? 'letter'
+        : 'prose');
     let guide;
     let costUsd = 0;
     try {

@@ -71,6 +71,16 @@ export interface DemandLetterRequest {
    * narrows it, including the heads the damages table itemises.
    */
   directionContext?: string;
+  /**
+   * The firm's own letter, learned from its precedents. When present, the
+   * opening and closing are the FIRM's rather than Starling's, and the
+   * drafting instruction becomes reproduce rather than imitate.
+   */
+  houseForm?: {
+    openingHtml?: string;
+    closingHtml?: string;
+    context?: string;
+  };
 }
 
 export interface DemandLetterResult {
@@ -282,7 +292,9 @@ ${req.firmAddress ? `- Firm address: ${req.firmAddress}` : ''}
 - Response deadline: ${req.responseDeadlineDays} days from today, which is ${new Date(Date.now() + req.responseDeadlineDays * 86_400_000).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}. STATE THAT CALENDAR DATE in the closing demand, not only the number of days: a date cannot be argued about later, and it is the date the file is diarised against.
 ${limitation ? `- Limitation period expires: ${limitation.date} (${limitation.daysRemaining} days remaining${limitation.urgent ? '; URGENT' : ''})` : ''}
 
-STRUCTURE. Use these EXACT h2 headings, in this order, so that the letter can
+${req.houseForm?.context ? `STRUCTURE. This firm's own letter is set out below, and ITS parts and ITS headings govern. Use the firm's headings exactly as the firm writes them, including their capitalisation, in the firm's order. Do not impose the section names a demand letter usually carries, and do not add a title heading: the firm's letters do not have one.
+
+Every approved issue still has to be argued, within whichever of the firm's parts it belongs to.` : `STRUCTURE. Use these EXACT h2 headings, in this order, so that the letter can
 be placed into a firm's own template section by section. Do not rename,
 merge, or omit a heading; where a section does not apply, keep the heading
 and state the position briefly.
@@ -291,9 +303,9 @@ and state the position briefly.
 3. <h2>Termination Facts</h2>: what happened
 4. <h2>Legal Analysis</h2>: one subsection per approved issue (cite relevant case law)
 5. <h2>Demand</h2>: the terms on which the client will resolve, and the response deadline as a calendar date. State the demand figure once; the itemisation is in the table above it.
-6. <h2>Closing</h2>: consequences of non-response, and the without-prejudice reservation
+6. <h2>Closing</h2>: consequences of non-response, and the without-prejudice reservation`}
 
-Do NOT write a Damages Quantification section: the heading and its table are inserted automatically between Legal Analysis and Demand.
+Do NOT write a Damages Quantification section: the heading and its table are inserted automatically.
 
 Write the complete letter now.`;
 }
@@ -363,7 +375,10 @@ export async function generateDemandLetter(
   const userPrompt = [
     buildUserPrompt(req),
     req.caseDocumentContext,
-    req.styleContext,
+    // The house form REPLACES the prose style guide where it exists: one
+    // says reproduce the firm's wording, the other says write in the
+    // firm's voice, and giving the model both is giving it a choice.
+    req.houseForm?.context || req.styleContext,
     req.directionContext,
   ].filter(Boolean).join('\n\n');
 
@@ -421,11 +436,35 @@ export async function generateDemandLetter(
     recipientName: req.recipientName,
     fileNumber: req.fileNumber,
   };
-  const withTable = insertDamagesTable(scrubDemandBody(html), damages.html);
+  // The table's heading is ours, and it sits among the firm's. Where the
+  // firm writes its headings in capitals, so does this one: a letter with
+  // BACKGROUND, ENTITLEMENT and then "Damages Quantification" reads as two
+  // documents spliced together.
+  const scrubbed = scrubDemandBody(html);
+  // Only the FIRM's headings count. Ours are the damages heading, which
+  // the model writes despite being told not to, and the note to the
+  // lawyer, which the house form invites. Either one, in our casing, was
+  // enough to conclude the firm does not use capitals.
+  const OUR_HEADINGS = /^(damages\b|note to the lawyer)/i;
+  const firmHeadings = [...scrubbed.matchAll(/<h[12][^>]*>([^<]+)<\/h[12]>/gi)]
+    .map(m => m[1].trim())
+    .filter(h => !OUR_HEADINGS.test(h));
+  const firmUsesCaps = firmHeadings.length >= 2
+    && firmHeadings.every(h => h === h.toUpperCase());
+  const inserted = insertDamagesTable(scrubbed, damages.html);
+  // Applied to the ASSEMBLED body, not just to our table: where the model
+  // wrote its own damages heading, the table goes under THAT one, and it
+  // arrives in whatever case the model chose.
+  const withTable = firmUsesCaps
+    ? inserted.replace(/(<h2[^>]*>)([^<]+)(<\/h2>)/g, (_m, a, text, b) => `${a}${String(text).toUpperCase()}${b}`)
+    : inserted;
+  // The firm's own opening and sign-off where it has taught them. Its
+  // form is the point: a bold "RE: client v. employer" is not the same
+  // document as "Re: client and employer", however close the prose.
   html = [
-    buildDemandOpening(furnitureInput),
+    req.houseForm?.openingHtml || buildDemandOpening(furnitureInput),
     withTable,
-    buildDemandSignature(furnitureInput),
+    req.houseForm?.closingHtml || buildDemandSignature(furnitureInput),
   ].filter(Boolean).join('\n\n');
 
   // Compute review flags + citation integrity check (flags any case name

@@ -208,11 +208,18 @@ export function extractLawyerNote(html: string): { html: string; note?: string }
   const match = heading.exec(html);
   if (!match) return { html };
 
-  const note = html.slice(match.index + match[0].length)
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const withoutNote = html.slice(0, match.index).trimEnd();
+  // The note runs to the end of what the MODEL wrote, but the assembled
+  // document carries furniture after it: the sign-off is appended once the
+  // body is complete. Taking everything to the end of the string swallowed
+  // the signature block, and a letter came out with no closing at all. The
+  // note therefore ends where the sign-off begins.
+  const after = html.slice(match.index + match[0].length);
+  const signOff = /<p(?:\s[^>]*)?>\s*(?:<strong>\s*)?(?:yours (?:very )?truly|yours sincerely|all of which is respectfully submitted)/i.exec(after);
+  const noteHtml = signOff ? after.slice(0, signOff.index) : after;
+  const tail = signOff ? after.slice(signOff.index) : '';
+
+  const note = noteHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const withoutNote = html.slice(0, match.index).trimEnd() + (tail ? `\n${tail}` : '');
   return { html: withoutNote, note: note || undefined };
 }
 

@@ -3228,13 +3228,16 @@ export default function MatterDetailView() {
               {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && styleProfiles.profiles.length > 0 && (
                 <div style={{ margin: '0 0 12px' }}>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Draft in your firm's style</div>
+                  <div style={{ fontSize: 11.5, color: muted, marginBottom: 6, lineHeight: 1.5 }}>
+                    A firm style taught from letters reproduces your boilerplate: your opening block, your headings and your standard passages, with this file's facts in them. Standard drafting writes the document fresh.
+                  </div>
                   <select
                     value={styleProfileId}
                     onChange={e => setStyleProfileId(e.target.value)}
                     aria-label="Firm style for this draft"
                     style={{ fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, minWidth: 280 }}
                   >
-                    <option value="">Standard Starling drafting</option>
+                    <option value="">Standard Starling drafting (draft it fresh)</option>
                     {styleProfiles.profiles.map(sp => (
                       <option key={sp.id} value={sp.id}>{sp.label} (from {sp.sourceCount} precedents)</option>
                     ))}
