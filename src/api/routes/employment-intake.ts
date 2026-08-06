@@ -21,6 +21,11 @@ import { employmentIntakeSchema, createEmploymentMatterData } from '../../types/
 import type { EmploymentMatterData, EmploymentIntakeData, TimelineEvent, DocumentExtractionResult } from '../../types/employment-intake.js';
 import { evaluateGates, getTriggeredIssueCodes } from '../../employment/gate-evaluator.js';
 import { DEMAND_SOURCE_KINDS, isDemandSourceKind } from '../../employment/demand-sources.js';
+import {
+  INSTRUCTION_KINDS, MAX_NOTES_CHARS, MAX_INSTRUCTIONS,
+  directionContext, effectiveInstructions, checkDirectionTerms, departureFlags,
+  DEPARTURE_CHECK_SYSTEM, buildDepartureCheckPrompt, extractLawyerNote,
+} from '../../employment/direction.js';
 import type { MatterFacts } from '../../employment/precedent-alignment.js';
 import { rebuildTimelinePreserving, computeLimitationDeadline, computeBardalFactors, recommendProcedure, addTimelineEvent } from '../../employment/timeline-generator.js';
 import { saveMatter, getMatterById, getMattersByUser, saveFirmTemplate, getFirmTemplates, getFirmTemplate, deleteFirmTemplate, setDefaultFirmTemplate, saveStyleProfile, getStyleProfiles, getStyleProfile, updateStyleProfile, deleteStyleProfile, recordUsageEvent, getUserById } from '../../db/database.js';
@@ -254,6 +259,91 @@ async function loadStyleForGeneration(
     profileTableRows: guide.data.profileTableRows,
     flowHeadings: usableFlow(guide.data.flow).map(f => f.heading),
   };
+}
+
+/**
+ * The direction that binds a draft: the file's, then this document's.
+ *
+ * Every generator reads this, so the partner's instruction on the file
+ * reaches the letter, the claim and the brief without being retyped into
+ * each one.
+ */
+function directionForGeneration(matter: unknown, documentType: string): {
+  context: string;
+  instructions: Array<{ id: string; text: string; kind: string; mustInclude?: string[]; mustNotInclude?: string[] }>;
+} {
+  const direction = ((matter as Record<string, unknown>).direction ?? {}) as {
+    matter?: { instructions?: unknown[] };
+    byDocument?: Record<string, { instructions?: unknown[] }>;
+  };
+  const args = {
+    matter: direction.matter as never,
+    document: direction.byDocument?.[documentType] as never,
+  };
+  return {
+    context: directionContext(args),
+    instructions: effectiveInstructions(args) as never,
+  };
+}
+
+/**
+ * Apply the direction's aftermath to a generated result: lift the drafter's
+ * note out of the document, then check the draft against the instructions.
+ * Mutates the result the way the call sites already expect.
+ */
+async function applyDirectionAftermath(
+  result: { html: string; lawyerReviewFlags?: string[] },
+  direction: { instructions: Array<{ id: string; text: string; kind: string; mustInclude?: string[]; mustNotInclude?: string[] }> },
+): Promise<void> {
+  const { html, note } = extractLawyerNote(result.html);
+  result.html = html;
+  result.lawyerReviewFlags = [
+    ...(result.lawyerReviewFlags ?? []),
+    ...(note ? [`The drafter left a note for you rather than putting it in the document: ${note}`] : []),
+    ...await directionDepartureFlags(html, direction.instructions),
+  ];
+}
+
+/**
+ * Did the draft follow the direction?
+ *
+ * The literal half runs always: terms that must or must not appear are
+ * exact, free and instant. The judgment half is a compact review pass, and
+ * it is best-effort by design, since a checker that fails must not fail
+ * the generation the lawyer has already paid for.
+ */
+async function directionDepartureFlags(
+  html: string,
+  instructions: Array<{ id: string; text: string; kind: string; mustInclude?: string[]; mustNotInclude?: string[] }>,
+): Promise<string[]> {
+  if (instructions.length === 0) return [];
+  const flags = [...checkDirectionTerms(html, instructions as never)];
+
+  try {
+    const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+    const result = await crossProviderChat({
+      system: DEPARTURE_CHECK_SYSTEM,
+      user: buildDepartureCheckPrompt(html, instructions as never),
+      tier: 'sonnet',
+      maxTokens: 2048,
+      maxRetries: 1,
+    });
+    let jsonText = result.text.trim();
+    const fenced = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) jsonText = fenced[1].trim();
+    const braced = jsonText.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(braced ? braced[0] : jsonText) as {
+      verdicts?: Array<{ instruction: string; followed: boolean; departure?: string }>;
+    };
+    // Do not repeat what the literal check already said.
+    const already = new Set(flags);
+    for (const flag of departureFlags(parsed.verdicts ?? [])) {
+      if (![...already].some(a => a.includes(flag.slice(0, 60)))) flags.push(flag);
+    }
+  } catch (err) {
+    logger.warn('Direction departure check failed', { error: err instanceof Error ? err.message : String(err) });
+  }
+  return flags;
 }
 
 /**
@@ -1468,6 +1558,25 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       })),
     );
 
+    // What the partner said to do on this file, and on this letter.
+    const direction = directionForGeneration(matter, 'demand_letter');
+
+    // Direction governs the FIGURES too, not only the prose. A letter that
+    // demands four weeks in its narrative while its table itemises eight to
+    // twelve months of pay in lieu is worse than no direction at all, and
+    // the table is ours, not the model's. Where the direction settled what
+    // is being claimed and the lawyer has not overridden the heads
+    // themselves, the table follows the direction.
+    const directionRecord = ((matter as Record<string, unknown>).direction ?? {}) as {
+      matter?: { proposedHeads?: Array<{ label: string; basis?: string; amount?: number | null }> };
+      byDocument?: Record<string, { proposedHeads?: Array<{ label: string; basis?: string; amount?: number | null }> }>;
+    };
+    const directionHeads = directionRecord.byDocument?.demand_letter?.proposedHeads
+      ?? directionRecord.matter?.proposedHeads;
+    const headsFromDirection = (parsed.data.damageHeads?.length ?? 0) === 0
+      && (directionHeads?.length ?? 0) > 0;
+    const effectiveHeads = headsFromDirection ? directionHeads : parsed.data.damageHeads;
+
     // Generate the demand letter
     const result = await generateDemandLetter({
       intake: employment.intake,
@@ -1483,13 +1592,21 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       recipientName: parsed.data.recipientName,
       fileNumber: ((matter as Record<string, unknown>).firmFileNumber as string)
         || ((matter as Record<string, unknown>).matterNumber as string) || undefined,
-      damageHeads: parsed.data.damageHeads,
+      damageHeads: effectiveHeads,
       amountsPaid: parsed.data.amountsPaid,
       mitigationEarnings: parsed.data.mitigationEarnings,
       caseDocumentContext: caseDocumentContext || undefined,
+      directionContext: direction.context || undefined,
       styleContext: dlStyle?.context,
       styleTypicalWords: dlStyle?.typicalWords,
     }, definedTerms);
+    if (headsFromDirection) {
+      result.lawyerReviewFlags = [
+        ...result.lawyerReviewFlags,
+        `The damages table itemises the heads from your direction rather than the analysis defaults: ${directionHeads!.map(h => h.label).join(', ')}. Edit the heads beside Generate to change that.`,
+      ];
+    }
+    await applyDirectionAftermath(result, direction);
     if (droppedSources.length > 0) {
       result.lawyerReviewFlags = [
         ...result.lawyerReviewFlags,
@@ -1603,6 +1720,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       socStyle = style;
     }
 
+    const socDirection = directionForGeneration(matter, 'statement_of_claim');
     const result = await generateStatementOfClaim({
       intake: employment.intake,
       approvedIssues: employment.approvedIssues,
@@ -1613,9 +1731,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       firmName: parsed.data.firmName,
       firmAddress: parsed.data.firmAddress,
       courtLocation: parsed.data.courtLocation,
-      styleContext: socStyle?.context,
+      styleContext: [socStyle?.context, socDirection.context].filter(Boolean).join('\n\n') || undefined,
       styleTypicalWords: socStyle?.typicalWords,
     }, definedTerms);
+    await applyDirectionAftermath(result, socDirection);
     if (socStyle) {
       result.lawyerReviewFlags = [
         ...result.lawyerReviewFlags,
@@ -1955,6 +2074,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       parsed.data.formFields.mediation_date = norm.value;
     }
 
+    const litDirection = directionForGeneration(matter, parsed.data.documentType);
+
     let result;
     try {
       result = await generateLitigationDocument({
@@ -1967,7 +2088,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         firmName: parsed.data.firmName,
         firmAddress: parsed.data.firmAddress,
         courtLocation: parsed.data.courtLocation,
-        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext]
+        // The direction goes last in the context: it is what overrides
+        // the rest, so it is read with the rest still in view.
+        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext, litDirection.context]
           .filter(Boolean).join('\n\n') || undefined,
         formFields: parsed.data.formFields,
         procedureType: parsed.data.procedureType,
@@ -1991,6 +2114,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       }
       throw err;
     }
+
+    await applyDirectionAftermath(result, litDirection);
 
     // Deterministic precedent-bleed scan: the precedents' names and
     // amounts must not surface in this matter's draft. This matter's own
@@ -2557,6 +2682,152 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     (matter as Record<string, unknown>).briefSources = next;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true });
+  });
+
+  // ── Drafting direction ─────────────────────────────────────────────────
+  // What the partner said to do on this file. Stored on the matter, read by
+  // every generator, and checked against the draft afterwards. Raw notes
+  // are never sent to a drafting prompt: they are read once here, the
+  // instructions are extracted, and the lawyer approves them.
+
+  const instructionSchema = z.object({
+    id: z.string().trim().max(60).optional(),
+    text: z.string().trim().min(1).max(600),
+    kind: z.enum(INSTRUCTION_KINDS).default('scope'),
+    mustInclude: z.array(z.string().trim().max(120)).max(8).optional(),
+    mustNotInclude: z.array(z.string().trim().max(120)).max(8).optional(),
+  });
+
+  const directionSchema = z.object({
+    /** Omitted or empty means the direction for the file as a whole. */
+    documentType: z.string().trim().max(60).optional(),
+    notes: z.string().trim().max(MAX_NOTES_CHARS).optional(),
+    instructions: z.array(instructionSchema).max(MAX_INSTRUCTIONS),
+    withheld: z.array(z.string().trim().max(300)).max(20).optional(),
+    proposedHeads: z.array(z.object({
+      label: z.string().trim().min(1).max(200),
+      basis: z.string().trim().max(300).optional(),
+      amount: z.number().nonnegative().max(99_999_999).nullable().optional(),
+    })).max(20).optional(),
+  });
+
+  fastify.get('/api/employment/:matterId/direction', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter } = loadEmploymentData(row.data_json);
+    return reply.send({
+      ok: true,
+      direction: ((matter as Record<string, unknown>).direction ?? {}) as Record<string, unknown>,
+    });
+  });
+
+  fastify.put('/api/employment/:matterId/direction', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = directionSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid direction' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+
+    let updatedByName = '';
+    try {
+      const { getUserById } = await import('../../db/database.js');
+      updatedByName = getUserById(userId)?.display_name ?? '';
+    } catch { /* attribution is best-effort */ }
+
+    const record = {
+      notes: parsed.data.notes,
+      instructions: parsed.data.instructions.map((i, n) => ({
+        ...i,
+        id: i.id ?? `dir-${Date.now()}-${n}`,
+      })),
+      withheld: parsed.data.withheld,
+      proposedHeads: parsed.data.proposedHeads,
+      updatedAt: new Date().toISOString(),
+      updatedByName,
+    };
+
+    const direction = ((matter as Record<string, unknown>).direction ?? {}) as Record<string, unknown>;
+    if (parsed.data.documentType) {
+      const byDocument = (direction.byDocument ?? {}) as Record<string, unknown>;
+      byDocument[parsed.data.documentType] = record;
+      direction.byDocument = byDocument;
+    } else {
+      direction.matter = record;
+    }
+    (matter as Record<string, unknown>).direction = direction;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, direction });
+  });
+
+  // Read the notes ONCE, here, and return the instructions for the lawyer
+  // to approve. Nothing from this call binds a draft until it is saved.
+  fastify.post('/api/employment/:matterId/direction/extract', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = z.object({
+      notes: z.string().trim().min(1).max(MAX_NOTES_CHARS),
+      documentType: z.string().trim().max(60).optional(),
+      documentLabel: z.string().trim().max(120).optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Paste the notes to read.' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { employment } = loadEmploymentData(row.data_json);
+
+    const { DIRECTION_EXTRACTION_SYSTEM, buildDirectionExtractionPrompt } = await import('../../employment/direction.js');
+    const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
+
+    let text: string;
+    try {
+      const result = await crossProviderChat({
+        system: DIRECTION_EXTRACTION_SYSTEM,
+        user: buildDirectionExtractionPrompt({
+          notes: parsed.data.notes,
+          documentLabel: parsed.data.documentLabel,
+          intake: employment.intake,
+          analysis: employment.analysis,
+        }),
+        tier: 'sonnet',
+        maxTokens: 4096,
+        maxRetries: 2,
+      });
+      text = result.text;
+    } catch (err) {
+      logger.error('Direction extraction failed', { error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'The notes could not be read. Please try again.' });
+    }
+
+    let jsonText = text.trim();
+    const fenced = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) jsonText = fenced[1].trim();
+    const braced = jsonText.match(/\{[\s\S]*\}/);
+    const extractionSchema = z.object({
+      instructions: z.array(z.object({
+        text: z.string().trim().min(1).max(600),
+        kind: z.enum(INSTRUCTION_KINDS).catch('scope'),
+        mustInclude: z.array(z.string().trim().max(120)).max(8).optional(),
+        mustNotInclude: z.array(z.string().trim().max(120)).max(8).optional(),
+      })).max(MAX_INSTRUCTIONS),
+      withheld: z.array(z.string().trim().max(300)).max(20).optional(),
+      proposedHeads: z.array(z.object({
+        label: z.string().trim().min(1).max(200),
+        basis: z.string().trim().max(300).optional(),
+        amount: z.number().nonnegative().max(99_999_999).nullable().optional(),
+      })).max(20).optional(),
+    });
+    let proposed;
+    try {
+      proposed = extractionSchema.parse(JSON.parse(braced ? braced[0] : jsonText));
+    } catch {
+      return reply.status(502).send({ ok: false, error: 'Could not turn those notes into instructions. Try shortening them, or write the instruction yourself.' });
+    }
+    return reply.send({ ok: true, proposed });
   });
 
   // ── GET /api/employment/:matterId/demand-readiness ─────────────────────

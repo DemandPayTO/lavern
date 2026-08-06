@@ -65,6 +65,12 @@ export interface DemandLetterRequest {
    * rather than argue from the intake form's paraphrase of it.
    */
   caseDocumentContext?: string;
+  /**
+   * What the lawyer and the partner said this draft should do, from
+   * direction.ts. It governs: an instruction that narrows the letter
+   * narrows it, including the heads the damages table itemises.
+   */
+  directionContext?: string;
 }
 
 export interface DemandLetterResult {
@@ -351,10 +357,14 @@ export async function generateDemandLetter(
   // guide: the words the parties used matter more than the firm's house
   // voice, and the last thing in the prompt should be how to write, not
   // what to write about.
+  // The direction comes LAST, after the instructions, the documents and
+  // the style. It is the thing that overrides the others, so it is the
+  // thing the model reads with the instructions still in view.
   const userPrompt = [
     buildUserPrompt(req),
     req.caseDocumentContext,
     req.styleContext,
+    req.directionContext,
   ].filter(Boolean).join('\n\n');
 
   logger.info('Generating demand letter', {

@@ -529,6 +529,29 @@ const PACKAGE_DOCS: Array<{ type: string; label: string }> = [
 ];
 
 /** Cards that need a dollar amount before Generate makes sense. */
+interface DirectionInstructionUi {
+  id?: string;
+  text: string;
+  kind: string;
+  mustInclude?: string[];
+  mustNotInclude?: string[];
+}
+
+interface DirectionRecord {
+  notes?: string;
+  instructions: DirectionInstructionUi[];
+  withheld?: string[];
+  proposedHeads?: Array<{ label: string; basis?: string; amount?: number | null }>;
+  updatedAt?: string;
+  updatedByName?: string;
+}
+
+interface DirectionProposal {
+  instructions: DirectionInstructionUi[];
+  withheld?: string[];
+  proposedHeads?: Array<{ label: string; basis?: string; amount?: number | null }>;
+}
+
 const DEMAND_SOURCE_KIND_LABELS: Record<string, string> = {
   employment_agreement: 'Employment agreement',
   termination_letter: 'Termination letter',
@@ -791,6 +814,18 @@ export default function MatterDetailView() {
   // and then the lawyer's, because the analysis is a starting position and
   // the letter is theirs. Untouched, they are sent as they arrived, so
   // what is on screen is what the table will say.
+  // Drafting direction: what the partner said to do on this file, and on
+  // this document. Read by every generator, so it is entered once.
+  const [direction, setDirection] = useState<{
+    matter?: DirectionRecord;
+    byDocument?: Record<string, DirectionRecord>;
+  }>({});
+  const [dirNotes, setDirNotes] = useState('');
+  const [dirScope, setDirScope] = useState<'matter' | 'document'>('matter');
+  const [dirProposed, setDirProposed] = useState<DirectionProposal | null>(null);
+  const [dirBusy, setDirBusy] = useState(false);
+  const [dirError, setDirError] = useState<string | null>(null);
+  const [dirSaved, setDirSaved] = useState<string | null>(null);
   const [dlHeads, setDlHeads] = useState<Array<{ label: string; basis: string; amount: string }>>([]);
   const [dlHeadsTouched, setDlHeadsTouched] = useState(false);
   const [dlSourceIds, setDlSourceIds] = useState<Set<string>>(new Set());
@@ -1154,6 +1189,223 @@ export default function MatterDetailView() {
       })
       .catch(() => { /* the checklist is advisory */ });
   }, [selectedDraft, sessionId, employment.data, employment.briefSources, dlHeadsTouched]);
+  useEffect(() => {
+    if (!sessionId) return;
+    fetch(`/api/employment/${sessionId}/direction`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setDirection(d.direction ?? {}); })
+      .catch(() => { /* direction is advisory until it is saved */ });
+  }, [sessionId]);
+
+  /** Read the pasted notes and propose instructions. Nothing binds yet. */
+  const readDirectionNotes = useCallback(async () => {
+    if (!sessionId || !dirNotes.trim()) return;
+    setDirBusy(true); setDirError(null); setDirSaved(null);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/direction/extract`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: dirNotes,
+          ...(dirScope === 'document' && selectedDraft
+            ? { documentType: DRAFT_TO_DOCTYPE[selectedDraft], documentLabel: DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title }
+            : {}),
+        }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setDirError(d.error ?? 'The notes could not be read.'); return; }
+      setDirProposed(d.proposed as DirectionProposal);
+    } catch {
+      setDirError('The notes could not be read.');
+    } finally {
+      setDirBusy(false);
+    }
+  }, [sessionId, dirNotes, dirScope, selectedDraft]);
+
+  /** Save the approved instructions. From here they bind every draft. */
+  const saveDirection = useCallback(async (
+    instructions: DirectionInstructionUi[],
+    scope: 'matter' | 'document',
+    extras?: { withheld?: string[]; proposedHeads?: Array<{ label: string; basis?: string; amount?: number | null }>; notes?: string },
+  ) => {
+    if (!sessionId) return;
+    setDirBusy(true); setDirError(null);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/direction`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(scope === 'document' && selectedDraft ? { documentType: DRAFT_TO_DOCTYPE[selectedDraft] } : {}),
+          instructions: instructions.map(i => ({
+            text: i.text, kind: i.kind,
+            mustInclude: i.mustInclude, mustNotInclude: i.mustNotInclude,
+          })),
+          withheld: extras?.withheld,
+          proposedHeads: extras?.proposedHeads,
+          notes: extras?.notes,
+        }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setDirError(d.error ?? 'The direction could not be saved.'); return; }
+      setDirection(d.direction ?? {});
+      setDirProposed(null);
+      setDirNotes('');
+      setDirSaved(scope === 'matter' ? 'Direction saved for this file. Every draft will follow it.' : 'Direction saved for this document.');
+    } catch {
+      setDirError('The direction could not be saved.');
+    } finally {
+      setDirBusy(false);
+    }
+  }, [sessionId, selectedDraft]);
+
+  /**
+   * The direction panel. Paste notes, read them into instructions, approve.
+   * Rendered on the Notes tab for the file, and inside a draft workspace
+   * for that document alone.
+   */
+  const renderDirection = (scope: 'matter' | 'document') => {
+    const documentType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
+    const current = scope === 'matter'
+      ? direction.matter
+      : (documentType ? direction.byDocument?.[documentType] : undefined);
+    const documentTitle = DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'this document';
+    const active = dirScope === scope;
+
+    return (
+      <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>
+          {scope === 'matter' ? 'Direction for this file' : `Direction for ${documentTitle}`}
+        </div>
+        <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+          {scope === 'matter'
+            ? 'What the partner said to do on this file. Every draft follows it. Paste your call notes and Starling pulls out the instructions for you to approve, keeping anything the client said in confidence out of the drafting.'
+            : `Instructions for ${documentTitle} alone. Where these conflict with the direction for the file, these govern.`}
+        </div>
+
+        {(current?.instructions.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            {current!.instructions.map((instruction, i) => (
+              <div key={instruction.id ?? i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '4px 0', fontSize: 13 }}>
+                <span aria-hidden="true" style={{ color: navy, fontWeight: 700, minWidth: 14 }}>·</span>
+                <span style={{ flex: 1, color: ink }}>{instruction.text}</span>
+                <button
+                  onClick={() => void saveDirection(
+                    current!.instructions.filter((_, j) => j !== i), scope,
+                    { withheld: current!.withheld, proposedHeads: current!.proposedHeads, notes: current!.notes },
+                  )}
+                  aria-label={`Remove instruction ${i + 1}`}
+                  style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
+                >
+                  remove
+                </button>
+              </div>
+            ))}
+            <div style={{ fontSize: 11.5, color: muted, marginTop: 6 }}>
+              Binding on every draft{current!.updatedByName ? `, saved by ${current!.updatedByName}` : ''}. A draft that departs from these is flagged when it is generated.
+            </div>
+            {(current!.withheld?.length ?? 0) > 0 && (
+              <div style={{ fontSize: 11.5, color: muted, marginTop: 6, fontStyle: 'italic' }}>
+                Kept out of every draft: {current!.withheld!.join('; ')}.
+              </div>
+            )}
+          </div>
+        )}
+
+        {dirProposed && active ? (
+          <div style={{ border: `1px solid ${border}`, padding: '12px 14px', background: '#fbfaf8' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 6 }}>
+              Read from your notes. Approve what should bind the drafting.
+            </div>
+            {dirProposed.instructions.map((instruction, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', fontSize: 13 }}>
+                <span aria-hidden="true" style={{ color: navy, minWidth: 14 }}>·</span>
+                <span style={{ flex: 1, color: ink }}>{instruction.text}</span>
+                <button
+                  onClick={() => setDirProposed(p => p ? { ...p, instructions: p.instructions.filter((_, j) => j !== i) } : p)}
+                  aria-label={`Drop proposed instruction ${i + 1}`}
+                  style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
+                >
+                  drop
+                </button>
+              </div>
+            ))}
+            {(dirProposed.withheld?.length ?? 0) > 0 && (
+              <div style={{ fontSize: 12, color: muted, marginTop: 8, lineHeight: 1.5 }}>
+                <strong style={{ color: ink }}>Kept out of the drafting:</strong> {dirProposed.withheld!.join('; ')}. This stays on the file and never reaches a document.
+              </div>
+            )}
+            {(dirProposed.proposedHeads?.length ?? 0) > 0 && (
+              <div style={{ fontSize: 12, color: muted, marginTop: 8, lineHeight: 1.5 }}>
+                <strong style={{ color: ink }}>Heads of damage this implies:</strong>{' '}
+                {dirProposed.proposedHeads!.map(h => `${h.label}${h.amount ? ` (${h.amount.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })})` : ''}`).join(', ')}. The damages table will itemise these unless you edit the heads yourself.
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                onClick={() => void saveDirection(
+                  // Direction ACCUMULATES. The partner says something new in
+                  // August that sits alongside what was said in June; a save
+                  // that replaced the file's standing direction with the last
+                  // note pasted would quietly drop it.
+                  [
+                    ...(current?.instructions ?? []),
+                    ...dirProposed.instructions.filter(
+                      p => !(current?.instructions ?? []).some(e => e.text.trim() === p.text.trim()),
+                    ),
+                  ],
+                  scope,
+                  {
+                    withheld: [...(current?.withheld ?? []), ...(dirProposed.withheld ?? [])],
+                    proposedHeads: dirProposed.proposedHeads ?? current?.proposedHeads,
+                    notes: dirNotes,
+                  },
+                )}
+                disabled={dirBusy || dirProposed.instructions.length === 0}
+                style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 15px', borderRadius: 2, fontFamily: sans, background: orange, color: '#fff', border: 'none', cursor: 'pointer' }}
+              >
+                {dirBusy ? 'Saving…' : 'Approve and apply'}
+              </button>
+              <button
+                onClick={() => setDirProposed(null)}
+                style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 15px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <textarea
+              value={active ? dirNotes : ''}
+              onChange={e => { setDirScope(scope); setDirNotes(e.target.value); setDirSaved(null); }}
+              placeholder={scope === 'matter'
+                ? 'Paste your notes from the call or from the partner. For example: "DE says we are only chasing the four weeks of unpaid notice, do not plead common law, keep it short."'
+                : `Instructions for ${documentTitle} alone.`}
+              rows={4}
+              aria-label={scope === 'matter' ? 'Notes directing the drafting on this file' : `Notes directing ${documentTitle}`}
+              style={{ width: '100%', fontFamily: sans, fontSize: 13.5, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5 }}
+            />
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8 }}>
+              <button
+                onClick={() => { setDirScope(scope); void readDirectionNotes(); }}
+                disabled={dirBusy || !active || !dirNotes.trim()}
+                style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 15px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: dirBusy || !active || !dirNotes.trim() ? 'default' : 'pointer', opacity: dirBusy || !active || !dirNotes.trim() ? 0.55 : 1 }}
+              >
+                {dirBusy && active ? 'Reading…' : 'Read the notes'}
+              </button>
+              <span style={{ fontSize: 11.5, color: muted }}>
+                Nothing binds until you approve it.
+              </span>
+            </div>
+          </>
+        )}
+        {dirError && active && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 8 }}>{dirError}</div>}
+        {dirSaved && active && <div style={{ fontSize: 12.5, color: green, marginTop: 8 }}>{dirSaved}</div>}
+      </div>
+    );
+  };
+
+
   const briefSourceInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load stored sources whenever the matter data refreshes; new ones
@@ -2659,6 +2911,8 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && renderDirection('document')}
+
               {selectedDraft === 'demand' && !generatedHtml && (
                 <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Documents this letter argues from</div>
@@ -3541,6 +3795,7 @@ export default function MatterDetailView() {
 
           {activeTab === 'notes' && (
             <div id="panel-notes" role="tabpanel" style={{ paddingTop: 22 }}>
+              {renderDirection('matter')}
               <div
                 style={{
                   fontSize: 12.5,
