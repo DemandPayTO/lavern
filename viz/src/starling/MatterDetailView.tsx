@@ -804,6 +804,8 @@ export default function MatterDetailView() {
   const [notes, setNotes] = useState('');
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedDraft, setSelectedDraft] = useState<string | null>(null);
+
+
   const [draftFilter, setDraftFilter] = useState('');
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
   const [genCitations, setGenCitations] = useState<SourceCitation[]>([]);
@@ -889,6 +891,30 @@ export default function MatterDetailView() {
       .then(d => { if (d?.ok) setDraftHistory(d.drafts ?? []); })
       .catch(() => { /* history is best-effort */ });
   }, []);
+
+  /**
+   * Open a document's workspace.
+   *
+   * Selecting a card used to change only which card was selected, leaving
+   * whatever draft was last on screen in place. Since every workspace panel
+   * is hidden while a draft is shown, clicking Statement of Claim after
+   * reading the demand letter showed the demand letter and offered no way
+   * to draft the claim at all.
+   *
+   * A document shows ITS OWN draft where one exists, and its workspace
+   * where one does not.
+   */
+  const openDraftCard = useCallback((cardId: string) => {
+    setSelectedDraft(cardId);
+    setGenError(null);
+    setGenNotice(null);
+    setGenCitations([]);
+    setGenReviewFlags([]);
+    setRevising(null);
+    const docType = DRAFT_TO_DOCTYPE[cardId];
+    const existing = docType ? draftHistory.find(d => d.docType === docType) : undefined;
+    setGeneratedHtml(existing?.html ?? null);
+  }, [draftHistory]);
   useEffect(() => { refreshDraftHistory(); }, [refreshDraftHistory]);
 
   // Client update draft
@@ -2627,7 +2653,7 @@ export default function MatterDetailView() {
                     {sectionCards.map(dt => (
                       <div
                         key={dt.id}
-                        onClick={() => setSelectedDraft(dt.id)}
+                        onClick={() => openDraftCard(dt.id)}
                         style={{
                           background: '#fff',
                           border: `1px solid ${selectedDraft === dt.id || dt.recommended ? orange : border}`,
@@ -2638,7 +2664,7 @@ export default function MatterDetailView() {
                         role="radio"
                         aria-checked={selectedDraft === dt.id}
                         tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDraft(dt.id); } }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDraftCard(dt.id); } }}
                       >
                         {dt.recommended && (
                           <span
