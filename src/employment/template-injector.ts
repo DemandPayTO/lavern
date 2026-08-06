@@ -105,8 +105,30 @@ export async function injectIntoFirmTemplate(
       }
     }
 
-    // Now inject the values
-    xmlContent = injectPlaceholders(xmlContent, values);
+    // Generated content becomes real Word paragraphs and REPLACES the
+    // paragraph holding its marker. Before this, the letter's HTML went
+    // into a single text run, so a firm that uploaded its letterhead got
+    // "<p><strong>WITHOUT PREJUDICE</strong></p>" printed on the page.
+    const { renderHtmlAsWordXml, spliceIntoParagraph, looksLikeHtml, escapeXml } =
+      await import('./docx-splice.js');
+    const { htmlToParagraphs } = await import('./docx-export.js');
+
+    const scalars: TemplatePlaceholderValues = {};
+    for (const [marker, value] of Object.entries(values)) {
+      if (typeof value === 'string' && looksLikeHtml(value)) {
+        const bodyXml = await renderHtmlAsWordXml(value, htmlToParagraphs as never);
+        if (bodyXml) {
+          xmlContent = spliceIntoParagraph(xmlContent, marker, bodyXml);
+          continue;
+        }
+      }
+      // A plain value goes in as text, escaped: a client named
+      // "Smith & Jones" would otherwise produce XML Word cannot open.
+      scalars[marker] = typeof value === 'string' ? escapeXml(value) : value;
+    }
+
+    // Now inject what is left, which is plain text
+    xmlContent = injectPlaceholders(xmlContent, scalars);
 
     // Write the modified XML back to the zip
     zip.file('word/document.xml', xmlContent);

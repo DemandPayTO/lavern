@@ -83,7 +83,11 @@ function stripTags(html: string): string {
 }
 
 /** Extract text runs from an HTML fragment, preserving bold/italic. */
-function parseInlineHtml(html: string): TextRun[] {
+function parseInlineHtml(
+  html: string,
+  face?: string,
+  body?: number,
+): TextRun[] {
   const runs: TextRun[] = [];
   // Split on <strong>...</strong> and <em>...</em> tags
   const parts = html.split(/(<\/?(?:strong|b|em|i)>)/gi);
@@ -104,7 +108,7 @@ function parseInlineHtml(html: string): TextRun[] {
       const lines = text.split('\n');
       lines.forEach((line, i) => {
         if (!line && i === 0) return;
-        runs.push(new TextRun({ text: line, bold, italics: italic, font: 'Times New Roman', size: 24, ...(i > 0 ? { break: 1 } : {}) }));
+        runs.push(new TextRun({ text: line, bold, italics: italic, font: face, size: body, ...(i > 0 ? { break: 1 } : {}) }));
       });
     }
   }
@@ -119,7 +123,7 @@ function parseInlineHtml(html: string): TextRun[] {
  * decorated tables, and highlighted cells read as emphasis a tribunal
  * did not ask for.
  */
-function htmlTableToDocx(tableHtml: string): Table | null {
+function htmlTableToDocx(tableHtml: string, face?: string, cellSize?: number): Table | null {
   const rowMatches = [...tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
   if (rowMatches.length === 0) return null;
   const border = { style: BorderStyle.SINGLE, size: 4, color: '000000' } as const;
@@ -135,8 +139,8 @@ function htmlTableToDocx(tableHtml: string): Table | null {
           children: [new TextRun({
             text: stripTags(cm[2]),
             bold: cm[1].toLowerCase() === 'th',
-            font: 'Times New Roman',
-            size: 22,
+            font: face,
+            size: cellSize,
           })],
         })],
       })),
@@ -146,7 +150,24 @@ function htmlTableToDocx(tableHtml: string): Table | null {
   return new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } });
 }
 
-function htmlToParagraphs(html: string): Array<Paragraph | Table> {
+export interface HtmlToParagraphsOptions {
+  /**
+   * Omit the font and size on every run so the surrounding document's
+   * defaults apply. Used when splicing into a firm's own template: a
+   * letter on the firm's letterhead should be in the firm's typeface, not
+   * in ours.
+   */
+  inheritFont?: boolean;
+}
+
+export function htmlToParagraphs(
+  html: string,
+  options: HtmlToParagraphsOptions = {},
+): Array<Paragraph | Table> {
+  // When inheriting, font and size are left undefined rather than set,
+  // which is how the docx library says "use the document default".
+  const face = options.inheritFont ? undefined : 'Times New Roman';
+  const body = options.inheritFont ? undefined : 24;
   const paragraphs: Array<Paragraph | Table> = [];
 
   // Split into blocks by major HTML elements
@@ -177,7 +198,7 @@ function htmlToParagraphs(html: string): Array<Paragraph | Table> {
     if (/^<table/i.test(trimmed)) {
       const tableEnd = trimmed.search(/<\/table>/i);
       const tableHtml = tableEnd >= 0 ? trimmed.slice(0, tableEnd + 8) : trimmed;
-      const table = htmlTableToDocx(tableHtml);
+      const table = htmlTableToDocx(tableHtml, face, options.inheritFont ? undefined : 22);
       if (table) {
         paragraphs.push(table);
         // Breathing room after the table.
@@ -190,7 +211,7 @@ function htmlToParagraphs(html: string): Array<Paragraph | Table> {
         if (restText) {
           paragraphs.push(new Paragraph({
             spacing: { before: 120, after: 120 },
-            children: [new TextRun({ text: restText, font: 'Times New Roman', size: 24 })],
+            children: [new TextRun({ text: restText, font: face, size: body })],
           }));
         }
       }
@@ -208,8 +229,8 @@ function htmlToParagraphs(html: string): Array<Paragraph | Table> {
           children: [new TextRun({
             text: level <= 2 ? text.toUpperCase() : text,
             bold: true,
-            font: 'Times New Roman',
-            size: level === 1 ? 28 : level === 2 ? 24 : 24,
+            font: face,
+            size: options.inheritFont ? undefined : (level === 1 ? 28 : 24),
             color: '000000',
             underline: level <= 2 ? { type: 'single', color: '000000' } : undefined,
           })],
@@ -231,7 +252,7 @@ function htmlToParagraphs(html: string): Array<Paragraph | Table> {
     // List item
     const liMatch = trimmed.match(/^<li[^>]*>([\s\S]*?)(?:<\/li>|$)/i);
     if (liMatch) {
-      const runs = parseInlineHtml(liMatch[1]);
+      const runs = parseInlineHtml(liMatch[1], face, body);
       if (runs.length > 0) {
         if (inOrderedList) {
           listCounter++;
@@ -243,7 +264,7 @@ function htmlToParagraphs(html: string): Array<Paragraph | Table> {
             // Hanging indent: number sits at 0.25", text wraps at 0.75"
             indent: { left: 1080, hanging: 720 },
             children: alreadyNumbered ? runs : [
-              new TextRun({ text: `${listCounter}.\t`, font: 'Times New Roman', size: 24 }),
+              new TextRun({ text: `${listCounter}.\t`, font: face, size: body }),
               ...runs,
             ],
           }));
@@ -266,7 +287,7 @@ function htmlToParagraphs(html: string): Array<Paragraph | Table> {
     // Paragraph — class="centered" (the brief's cover block) centres it
     const pMatch = trimmed.match(/^<p([^>]*)>([\s\S]*?)(?:<\/p>|$)/i);
     if (pMatch) {
-      const runs = parseInlineHtml(pMatch[2]);
+      const runs = parseInlineHtml(pMatch[2], face, body);
       const centered = /class="[^"]*centered[^"]*"/i.test(pMatch[1]);
       if (runs.length > 0) {
         paragraphs.push(new Paragraph({
@@ -283,7 +304,7 @@ function htmlToParagraphs(html: string): Array<Paragraph | Table> {
     if (plainText) {
       paragraphs.push(new Paragraph({
         spacing: { before: 120, after: 120 },
-        children: [new TextRun({ text: plainText, font: 'Times New Roman', size: 24 })],
+        children: [new TextRun({ text: plainText, font: face, size: body })],
       }));
     }
   }
