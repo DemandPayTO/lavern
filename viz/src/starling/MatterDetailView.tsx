@@ -2917,6 +2917,33 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {/* Pronouns live on the client file, but they change every line
+                  of the letter, so the choice belongs where the letter is
+                  written too. Parked on the Intake tab alone, the pilot went
+                  looking for it here and did not find it. */}
+              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+                  <span style={{ fontSize: 12.5, color: muted, fontWeight: 600 }}>How this document refers to the client</span>
+                  <select
+                    value={String((employment.data?.intake as Record<string, unknown> | undefined)?.client_pronouns ?? '')}
+                    onChange={async e => {
+                      const intake = { ...(employment.data?.intake ?? {}), client_pronouns: e.target.value || undefined };
+                      await employment.saveIntake(intake as Record<string, unknown>);
+                      void employment.refresh();
+                    }}
+                    aria-label="How this document refers to the client"
+                    style={{ fontFamily: sans, fontSize: 13.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                  >
+                    <option value="">Not set (uses the client's name)</option>
+                    <option value="she">she / her</option>
+                    <option value="he">he / him</option>
+                    <option value="they">they / them</option>
+                    <option value="name">Name only, no pronouns</option>
+                  </select>
+                  <span style={{ fontSize: 11.5, color: muted }}>Saved to the client file, and used by every document on this matter.</span>
+                </div>
+              )}
+
               {(selectedDraft === 'mediation' || selectedDraft === 'demand') && !generatedHtml && readiness.length > 0 && (
                 <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>

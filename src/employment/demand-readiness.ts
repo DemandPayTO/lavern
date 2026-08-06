@@ -183,6 +183,18 @@ export function demandReadiness(args: {
     });
   }
 
+  // How the letter refers to the client. Silence here is not neutral: the
+  // firm's precedents carry the pronouns of the clients they were written
+  // for, and the letter has to use this client's.
+  if (!intake.client_pronouns) {
+    items.push({
+      level: 'info',
+      label: 'Client pronouns not set.',
+      hint: 'The letter will use the client\'s name throughout rather than guessing. Set them beside Generate if you would rather it used pronouns.',
+      goTo: 'draft',
+    });
+  }
+
   // ── How it will read ───────────────────────────────────────────────────
 
   items.push(args.firmContactComplete
