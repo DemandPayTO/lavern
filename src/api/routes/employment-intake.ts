@@ -765,8 +765,28 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let proposed;
     try {
       proposed = debriefAnalysisSchema.parse(clampDebriefAnalysis(JSON.parse(braced ? braced[0] : jsonText)));
-    } catch {
+    } catch (err) {
+      // The reason goes to the log, not the lawyer: they cannot fix a Zod
+      // path, but we cannot fix what we never see.
+      logger.warn('Debrief analysis did not fit the schema', {
+        error: err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500),
+      });
       return reply.status(502).send({ ok: false, error: 'Could not structure the notes. Try rephrasing or shortening them.' });
+    }
+    // The same evidence discipline as document extraction, with the notes
+    // as the document: a cause-trigger true whose quote does not verify
+    // against what the lawyer actually typed is discarded, and a false is
+    // discarded because notes not mentioning a thing prove nothing.
+    if (proposed.proposedIntakeFields && Object.keys(proposed.proposedIntakeFields).length > 0) {
+      const { verifySourceQuotes, enforcePleadingEvidence } = await import('../../api/briefing/employment-extractor.js');
+      const { APPLYABLE_INTAKE_FIELDS } = await import('../../employment/extraction-apply.js');
+      const verified = enforcePleadingEvidence(
+        verifySourceQuotes(proposed.proposedIntakeFields, parsed.data.rawNotes),
+      ).fields;
+      proposed.proposedIntakeFields = Object.fromEntries(
+        Object.entries(verified).filter(([name, f]) =>
+          APPLYABLE_INTAKE_FIELDS.has(name) && f.value !== null && f.value !== ''),
+      );
     }
     return reply.send({ ok: true, proposed, callDate });
   });
@@ -776,6 +796,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   fastify.post('/api/employment/:matterId/debrief', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
     const { matterId } = req.params as { matterId: string };
+    const debriefDirectionSchema = z.object({
+      text: z.string().trim().min(1).max(600),
+      kind: z.enum(['scope', 'include', 'exclude', 'figures', 'tone', 'process']).default('scope'),
+    });
     const itemSchema = z.object({
       task: z.string().trim().min(1).max(500),
       owner: z.enum(['lawyer', 'client', 'other']).default('lawyer'),
@@ -789,6 +813,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       callType: z.enum(['client', 'opposing', 'internal', 'other']).default('client'),
       summary: z.string().trim().min(1).max(4000),
       actionItems: z.array(itemSchema).max(40).default([]),
+      /** Approved direction instructions; matter-level, accumulating. */
+      directionInstructions: z.array(debriefDirectionSchema).max(10).default([]),
+      /** Approved intake facts, applied with blank-fill semantics. */
+      intakeFields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
     }).strict();
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid debrief', details: parsed.error.issues.map(i => i.message) });
@@ -825,12 +853,66 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
     await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
 
+    // Approved direction ACCUMULATES on the matter, at matter level: the
+    // partner says something on the August call that sits alongside June.
+    let directionAdded = 0;
+    if (parsed.data.directionInstructions.length > 0) {
+      const direction = (m.direction ?? {}) as { matter?: { instructions?: Array<{ id: string; text: string; kind: string }>; withheld?: string[]; notes?: string } };
+      const current = direction.matter?.instructions ?? [];
+      const fresh = parsed.data.directionInstructions
+        .filter(d => !current.some(e => e.text.trim() === d.text.trim()))
+        .map((d, n) => ({ id: `dir-${Date.now()}-db${n}`, text: d.text, kind: d.kind }));
+      directionAdded = fresh.length;
+      if (fresh.length > 0) {
+        direction.matter = {
+          ...(direction.matter ?? {}),
+          instructions: [...current, ...fresh],
+          updatedAt: new Date().toISOString(),
+          updatedByName: 'from a debrief',
+        } as never;
+        m.direction = direction;
+      }
+    }
+
+    // Approved intake facts go through the SAME deterministic apply as
+    // document extraction: blank-fill, no overwrites, dates normalised.
+    let fieldsApplied: string[] = [];
+    let fieldsSkipped: string[] = [];
+    let analysisStale = false;
+    const fieldNames = Object.keys(parsed.data.intakeFields).slice(0, 30);
+    if (fieldNames.length > 0 && employment?.intake) {
+      const { applyExtractionSelections } = await import('../../employment/extraction-apply.js');
+      const ephemeral = {
+        documentType: 'correspondence' as const,
+        filename: 'debrief call notes',
+        extractedFields: Object.fromEntries(fieldNames.map(name => [
+          name, { value: parsed.data.intakeFields[name], confidence: 'high' as const },
+        ])),
+        keyFindings: [],
+      };
+      const outcome = applyExtractionSelections(employment.intake, ephemeral as never, fieldNames, new Set());
+      if (!('error' in outcome)) {
+        employment.intake = outcome.intake;
+        fieldsApplied = outcome.applied;
+        fieldsSkipped = outcome.skippedNotBlank;
+        analysisStale = outcome.analysisStale;
+        m.employmentData = employment;
+      }
+    }
+    if (directionAdded > 0 || fieldsApplied.length > 0) {
+      await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
+    }
+
     const emailDrafts = entry.actionItems.filter((it) => it.kind === 'email' && (it.emailSubject || it.emailBody)).length;
     return reply.send({
       ok: true,
       debrief: entry,
       scheduled: entry.actionItems.filter((it) => it.dueDate).length,
       emailDrafts,
+      directionAdded,
+      fieldsApplied,
+      fieldsSkipped,
+      analysisStale,
     });
   });
 

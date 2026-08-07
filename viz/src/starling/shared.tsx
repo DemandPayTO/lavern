@@ -1121,6 +1121,26 @@ const KIND_LABEL: Record<DebriefActionItem['kind'], string> = {
   task: 'Task', email: 'Email', call: 'Call', filing: 'Filing', document: 'Document',
 };
 
+/**
+ * Fields whose approval makes a cause of action pleadable in the claim.
+ * Shared by the extraction review and the debrief, so ticking one says the
+ * same thing wherever it happens.
+ */
+export const CAUSE_TRIGGER_LABELS: Record<string, string> = {
+  defamatory_statements: 'Defamation',
+  privacy_breach: 'Intrusion upon Seclusion',
+  common_employer: 'Common Employer liability',
+  unjust_enrichment: 'Unjust Enrichment',
+  iims: 'Intentional Infliction of Mental Suffering',
+  employer_initiated_recruitment: 'Inducement',
+  had_prior_secure_employment: 'Inducement',
+  promises_not_fulfilled: 'Negligent Misrepresentation',
+  false_cause_alleged: 'Bad Faith (false cause)',
+  clause_cause_broader: 'the Termination Clause attack (cause standard ground)',
+  clause_no_benefits: 'the Termination Clause attack (benefits ground)',
+  clause_limits_below_esa: 'the Termination Clause attack (ESA minimum ground)',
+};
+
 export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clientEmail?: string }) {
   const [debriefs, setDebriefs] = useState<DebriefEntryShape[]>([]);
   const [notes, setNotes] = useState('');
@@ -1128,7 +1148,12 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState('');
   // Review state: the proposed summary + items, editable before saving.
-  const [review, setReview] = useState<{ summary: string; items: ProposedItem[] } | null>(null);
+  const [review, setReview] = useState<{
+    summary: string;
+    items: ProposedItem[];
+    direction: Array<{ text: string; kind: string; checked: boolean }>;
+    fields: Array<{ name: string; value: string | number | boolean; sourceQuote?: string; checked: boolean }>;
+  } | null>(null);
 
   const inputStyle: CSSProperties = { fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink };
   const btn = (bg: string): CSSProperties => ({ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', background: bg, color: '#fff', cursor: 'pointer' });
@@ -1155,6 +1180,14 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
       setReview({
         summary: json.proposed.summary,
         items: json.proposed.actionItems.map((it: ProposedItem) => ({ ...it })),
+        // Both streams arrive UNCHECKED: an instruction heard on a call is
+        // one click from binding every draft, and a cause-trigger fact is
+        // one click from a pleadable claim. Those clicks are the lawyer's.
+        direction: (json.proposed.proposedDirection ?? []).map((d: { text: string; kind: string }) => ({ ...d, checked: false })),
+        fields: Object.entries(json.proposed.proposedIntakeFields ?? {}).map(([name, f]) => {
+          const field = f as { value: string | number | boolean; sourceQuote?: string };
+          return { name, value: field.value, sourceQuote: field.sourceQuote, checked: false };
+        }),
       });
     } catch { setMessage('Could not analyze the notes.'); }
     setAnalyzing(false);
@@ -1173,12 +1206,20 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
     try {
       const res = await fetch(`/api/employment/${matterId}/debrief`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callType, summary: review.summary, actionItems: items }),
+        body: JSON.stringify({
+          callType, summary: review.summary, actionItems: items,
+          directionInstructions: review.direction.filter(d => d.checked).map(d => ({ text: d.text, kind: d.kind })),
+          intakeFields: Object.fromEntries(review.fields.filter(f => f.checked).map(f => [f.name, f.value])),
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) { setMessage(json.error ?? 'Could not save the debrief.'); return; }
       setReview(null); setNotes('');
-      setMessage(`Saved. ${json.scheduled} item${json.scheduled === 1 ? '' : 's'} on the docket${json.emailDrafts ? `, ${json.emailDrafts} email draft${json.emailDrafts === 1 ? '' : 's'}` : ''}.`);
+      const bits = [`${json.scheduled} item${json.scheduled === 1 ? '' : 's'} on the docket`];
+      if (json.emailDrafts) bits.push(`${json.emailDrafts} email draft${json.emailDrafts === 1 ? '' : 's'}`);
+      if (json.directionAdded) bits.push(`${json.directionAdded} direction instruction${json.directionAdded === 1 ? '' : 's'} now binding every draft`);
+      if ((json.fieldsApplied ?? []).length) bits.push(`${json.fieldsApplied.length} fact${json.fieldsApplied.length === 1 ? '' : 's'} on the client file`);
+      setMessage(`Saved. ${bits.join(', ')}.${json.analysisStale ? ' The analysis is now stale; re-run it when convenient.' : ''}`);
       await refresh();
     } catch { setMessage('Could not save the debrief.'); }
   };
@@ -1253,6 +1294,55 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
             </div>
           ))}
           <button onClick={addItem} style={{ ...btn('#fff'), color: navy, border: `1px solid ${border}`, marginBottom: 12 }}>+ Add item</button>
+
+          {review.direction.length > 0 && (
+            <div style={{ borderTop: `1px solid ${border}`, paddingTop: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 3 }}>Direction heard on the call</div>
+              <div style={{ fontSize: 11.5, color: '#5b6472', marginBottom: 8, lineHeight: 1.5 }}>
+                Ticked instructions join the file's standing direction and bind every draft on this matter. Unticked ones are dropped.
+              </div>
+              {review.direction.map((d, i) => (
+                <label key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox" checked={d.checked}
+                    onChange={() => setReview(r => r ? { ...r, direction: r.direction.map((x, j) => j === i ? { ...x, checked: !x.checked } : x) } : r)}
+                    style={{ accentColor: navy, marginTop: 2 }}
+                  />
+                  <span>{d.text}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {review.fields.length > 0 && (
+            <div style={{ borderTop: `1px solid ${border}`, paddingTop: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 3 }}>Facts heard on the call</div>
+              <div style={{ fontSize: 11.5, color: '#5b6472', marginBottom: 8, lineHeight: 1.5 }}>
+                Ticked facts go on the client file, filling blanks only, with the quote from your notes as their source.
+              </div>
+              {review.fields.map((f, i) => (
+                <label key={f.name} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: ink, marginBottom: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox" checked={f.checked}
+                    onChange={() => setReview(r => r ? { ...r, fields: r.fields.map((x, j) => j === i ? { ...x, checked: !x.checked } : x) } : r)}
+                    style={{ accentColor: navy, marginTop: 2 }}
+                  />
+                  <span style={{ flex: 1 }}>
+                    <b>{f.name.replace(/_/g, ' ')}</b> = {String(f.value)}
+                    {CAUSE_TRIGGER_LABELS[f.name] && f.value === true && (
+                      <span style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#b8860b' }}>
+                        Approving this makes {CAUSE_TRIGGER_LABELS[f.name]} pleadable in the claim
+                      </span>
+                    )}
+                    {f.sourceQuote && (
+                      <span style={{ display: 'block', fontSize: 11.5, color: '#5b6472', fontStyle: 'italic' }}>"{f.sourceQuote}"</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={approve} style={btn(green)}>Approve and schedule</button>
             <button onClick={() => setReview(null)} style={{ ...btn('#fff'), color: '#5b6472', border: `1px solid ${border}` }}>Discard</button>

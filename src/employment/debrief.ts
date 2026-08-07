@@ -56,6 +56,31 @@ export const debriefAnalysisSchema = z.object({
       emailBody: z.string().trim().max(4000).optional(),
     }),
   ).max(40).default([]),
+  /**
+   * Drafting instructions heard on the call, offered to the Direction
+   * system. Matter-level by default at the lawyer's decision; the scope is
+   * editable at approval. Proposals only: nothing binds unchecked.
+   */
+  proposedDirection: z.array(
+    z.object({
+      text: z.string().trim().min(1).max(600),
+      kind: z.enum(['scope', 'include', 'exclude', 'figures', 'tone', 'process']).catch('scope'),
+    }),
+  ).max(10).default([]),
+  /**
+   * Intake facts the call supports, for the narrative causes documents
+   * cannot prove. Same evidence discipline as document extraction: a
+   * cause-trigger true without a quote that verifies against the notes is
+   * discarded before the lawyer sees it.
+   */
+  proposedIntakeFields: z.record(
+    z.string(),
+    z.object({
+      value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+      confidence: z.enum(['high', 'medium', 'low']).catch('medium'),
+      sourceQuote: z.string().max(600).optional(),
+    }),
+  ).default({}),
 });
 
 export type DebriefAnalysis = z.infer<typeof debriefAnalysisSchema>;
@@ -76,6 +101,12 @@ export function clampDebriefAnalysis(raw: unknown): unknown {
     g.actionItems = g.actionItems.slice(0, 40).map(item => {
       if (!item || typeof item !== 'object') return item;
       const it = item as Record<string, unknown>;
+      // A model writing every key emits null where the schema says
+      // optional, and optional means undefined, not null. Normalise:
+      // null on an optional or defaulted key becomes absence.
+      for (const k of ['emailSubject', 'emailBody', 'owner', 'kind', 'context']) {
+        if (it[k] === null) delete it[k];
+      }
       if (typeof it.task === 'string') it.task = it.task.slice(0, 500);
       if (typeof it.context === 'string') it.context = it.context.slice(0, 1200);
       if (typeof it.emailSubject === 'string') it.emailSubject = it.emailSubject.slice(0, 300);
@@ -84,6 +115,24 @@ export function clampDebriefAnalysis(raw: unknown): unknown {
       if (typeof it.dueDate === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(it.dueDate)) it.dueDate = null;
       return it;
     });
+  }
+  if (Array.isArray(g.proposedDirection)) {
+    g.proposedDirection = g.proposedDirection.slice(0, 10).map(d => {
+      if (!d || typeof d !== 'object') return d;
+      const it = d as Record<string, unknown>;
+      if (typeof it.text === 'string') it.text = it.text.slice(0, 600);
+      return it;
+    });
+  }
+  if (g.proposedIntakeFields && typeof g.proposedIntakeFields === 'object') {
+    const entries = Object.entries(g.proposedIntakeFields as Record<string, unknown>).slice(0, 30);
+    g.proposedIntakeFields = Object.fromEntries(entries.map(([k, v]) => {
+      if (v && typeof v === 'object') {
+        const f = v as Record<string, unknown>;
+        if (typeof f.sourceQuote === 'string') f.sourceQuote = f.sourceQuote.slice(0, 600);
+      }
+      return [k, v];
+    }));
   }
   return raw;
 }
@@ -114,6 +163,24 @@ Rules:
 - For "email" items, draft a brief, professional emailSubject and emailBody. Use square-bracket markers like [LAWYER: confirm amount] wherever a detail must be filled or verified. Do not state legal conclusions as certainties.
 - Be faithful to the notes. Do not add tasks, facts, or advice that are not in the notes.
 - Canadian English. No em dashes.
+
+Two further keys, both OPTIONAL and both proposals the lawyer approves separately:
+
+"proposedDirection": drafting instructions heard on the call, each {"text": "...", "kind": "scope"|"include"|"exclude"|"figures"|"tone"|"process"}. An instruction is something a drafter can follow and a reader can check ("Do not commit to a number on the next call with opposing counsel", "Demand only the unpaid notice period"). Write each in the imperative, one sentence. Where the notes mark something as the supervising partner's direction, keep that attribution in the text. A conditional ("if they come back under 50, then...") is not yet direction: leave it out. Extract only what the notes support. Omit the key when there is none.
+
+"proposedIntakeFields": facts the call supports for the client file, as {"field_name": {"value": ..., "sourceQuote": "the exact sentence from the notes"}}. Only these fields:
+- privacy_breach (boolean) [PLEADING], privacy_breach_description (string)
+- iims (boolean) [PLEADING], iims_conduct_description (string), iims_illness_description (string), mental_distress_symptoms (string)
+- defamatory_statements (boolean) [PLEADING], defamation_recipients (string)
+- common_employer (boolean) [PLEADING], common_employer_documentation (string)
+- unjust_enrichment (boolean) [PLEADING], unjust_enrichment_benefit (string)
+- employer_initiated_recruitment (boolean) [PLEADING], had_prior_secure_employment (boolean) [PLEADING], prior_employer_name (string), prior_employer_tenure (string), inducement_representations (string)
+- promises_not_fulfilled (boolean) [PLEADING]
+- bad_faith_details (string), hrc_protected_ground (string), hrc_conduct_description (string)
+- new_employment_found (boolean), new_employment_start_date (YYYY-MM-DD), new_employment_salary (number)
+- signed_release (boolean)
+[PLEADING] rules: set true ONLY where the notes explicitly support it and ALWAYS include sourceQuote with the exact sentence; a true without a quote is discarded. NEVER set a [PLEADING] field to false: notes not mentioning a thing is not evidence it did not happen; omit the field instead. Omit the key entirely when the call supports nothing.
+
 - Return only the JSON object, no markdown fences, no commentary.`;
 
 export function buildDebriefUserPrompt(rawNotes: string, callType: string, callDateIso: string): string {

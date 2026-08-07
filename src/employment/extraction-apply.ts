@@ -67,6 +67,10 @@ export const APPLYABLE_INTAKE_FIELDS: ReadonlySet<string> = new Set([
   'unjust_enrichment', 'unjust_enrichment_benefit',
   'iims', 'iims_conduct_description',
   'hrc_protected_ground', 'hrc_conduct_description',
+  // Mitigation and release: call facts with direct docket and damages
+  // consequences, proposable from a debrief.
+  'new_employment_found', 'new_employment_start_date', 'new_employment_salary',
+  'signed_release',
 ]);
 
 /**
