@@ -518,6 +518,12 @@ export interface EmploymentMatterData {
   selectedDocumentType: typeof GENERATABLE_DOCUMENT_TYPES[number] | null;
   /** Demand amount set by the lawyer (system suggests a range). */
   demandAmount: number | null;
+  /**
+   * Stored document analyses (the internal read lane: summary, kind
+   * checklist, the lawyer's questions, optional comparison). Distinct
+   * from documentExtractions (facts) and from the partner review lane.
+   */
+  docAnalyses?: import('../employment/doc-analysis.js').StoredDocAnalysis[];
 }
 
 /**

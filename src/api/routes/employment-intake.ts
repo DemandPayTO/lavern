@@ -1375,6 +1375,103 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     return reply.send({ ok: true, document: stored });
   });
 
+  // ── Document analysis (the internal read lane) ───────────────────────
+  // Read a bonus plan, agreement, termination letter, pay stub or client
+  // summary: summary, kind checklist, the lawyer's questions, optional
+  // comparison document. Quote-grounded; stored on the matter; never
+  // drafts anything outbound. Separate from the partner review lane.
+
+  const docAnalysisBodySchema = z.object({
+    docName: z.string().trim().min(1).max(500),
+    kind: z.enum(['bonus_plan', 'employment_agreement', 'termination_letter', 'pay_stub', 'client_summary', 'other']),
+    docText: z.string().min(20).max(100_000),
+    questions: z.array(z.string().trim().min(1).max(600)).max(12).default([]),
+    comparisonName: z.string().trim().max(500).optional(),
+    comparisonText: z.string().max(100_000).optional(),
+    definedTerms: z.array(z.string().max(200)).max(20).optional(),
+  }).strict();
+
+  fastify.post('/api/employment/:matterId/doc-analysis', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = docAnalysisBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ ok: false, error: 'Invalid request', details: parsed.error.issues.map(i => i.message) });
+    }
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const intake = employment.intake;
+    const partyTerms = [
+      ...(parsed.data.definedTerms ?? []),
+      intake.client_first_name, intake.client_last_name,
+      intake.employer_legal_name, intake.employer_operating_name,
+    ].filter((s): s is string => Boolean(s));
+
+    const { runDocAnalysis, DOC_ANALYSES_CAP } = await import('../../employment/doc-analysis.js');
+    let run;
+    try {
+      run = await runDocAnalysis({
+        docName: parsed.data.docName,
+        kind: parsed.data.kind,
+        docText: parsed.data.docText,
+        questions: parsed.data.questions,
+        comparisonName: parsed.data.comparisonName,
+        comparisonText: parsed.data.comparisonText,
+        definedTerms: partyTerms.slice(0, 20),
+      });
+    } catch (err) {
+      logger.error('Doc analysis failed', { matterId, kind: parsed.data.kind, error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: err instanceof Error ? err.message : 'The analysis could not be completed. Please try again.' });
+    }
+
+    const stored = {
+      id: `da-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      docName: parsed.data.docName,
+      kind: parsed.data.kind,
+      questions: parsed.data.questions,
+      comparisonName: parsed.data.comparisonName,
+      deterministicNotes: run.deterministicNotes,
+      result: run.result,
+      costUsd: run.costUsd,
+    };
+    employment.docAnalyses = [...(employment.docAnalyses ?? []), stored].slice(-DOC_ANALYSES_CAP);
+    (matter as Record<string, unknown>).employmentData = employment;
+    await saveMatter(userId, matterId, JSON.stringify(matter), ((matter as Record<string, unknown>).status as string) ?? 'active');
+
+    try { recordUsageEvent(userId, matterId, 'analysis', `doc_analysis_${parsed.data.kind}`, run.costUsd); }
+    catch (err) { logger.warn('Usage event failed', { error: err instanceof Error ? err.message : String(err) }); }
+
+    logger.info('Doc analysis stored', { userId, matterId, kind: parsed.data.kind, costUsd: run.costUsd });
+    return reply.send({ ok: true, analysis: stored });
+  });
+
+  fastify.get('/api/employment/:matterId/doc-analyses', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { employment } = loadEmploymentData(row.data_json);
+    return reply.send({ ok: true, analyses: [...(employment.docAnalyses ?? [])].reverse() });
+  });
+
+  fastify.delete('/api/employment/:matterId/doc-analyses/:analysisId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId, analysisId } = req.params as { matterId: string; analysisId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const before = (employment.docAnalyses ?? []).length;
+    employment.docAnalyses = (employment.docAnalyses ?? []).filter(a => a.id !== analysisId);
+    if (employment.docAnalyses.length === before) return reply.status(404).send({ ok: false, error: 'Analysis not found' });
+    (matter as Record<string, unknown>).employmentData = employment;
+    await saveMatter(userId, matterId, JSON.stringify(matter), ((matter as Record<string, unknown>).status as string) ?? 'active');
+    return reply.send({ ok: true });
+  });
+
   // ── POST /api/employment/classify ────────────────────────────────────
   // Detect the document type before extraction (Phase 2 of the document-
   // intelligence spec). The lawyer confirms or overrides the detected kind

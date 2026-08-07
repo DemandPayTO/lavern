@@ -16,6 +16,7 @@ import { useMatterDetail, useEmploymentData, useFirmTemplates, useApprovalsEnabl
 import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
 import { StyleProfilePanel, useStyleProfiles } from './StyleProfilePanel.js';
 import { CaseFileDropPanel } from './CaseFileDropPanel.js';
+import { DocAnalysisPanel } from './DocAnalysisPanel.js';
 import { PrecedentAlignPanel } from './PrecedentAlignPanel.js';
 import { RevisionPanel } from './RevisionPanel.js';
 import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
@@ -2390,6 +2391,9 @@ export default function MatterDetailView() {
               {matter!.documents.length === 0 && (
                 <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No documents yet.</div>
               )}
+
+              {/* The internal read lane: summary, standing checks, questions, comparison */}
+              {sessionId && <DocAnalysisPanel matterId={sessionId} />}
 
               {/* Bulk first: real matters arrive as a folder of documents */}
               <CaseFileDropPanel
