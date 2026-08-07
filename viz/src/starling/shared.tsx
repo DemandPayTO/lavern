@@ -1370,7 +1370,7 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
           )}
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={approve} style={btn(green)}>Approve and schedule</button>
+            <button onClick={approve} style={btn(green)}>Approve</button>
             <button onClick={() => setReview(null)} style={{ ...btn('#fff'), color: '#5b6472', border: `1px solid ${border}` }}>Discard</button>
           </div>
         </div>

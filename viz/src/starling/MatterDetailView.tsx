@@ -552,6 +552,45 @@ interface DirectionProposal {
   proposedHeads?: Array<{ label: string; basis?: string; amount?: number | null }>;
 }
 
+/**
+ * Triage for review flags. A flat wall of eleven flags gets three read; a
+ * triaged list gets the red ones read first, which is the point. FIX is
+ * something wrong on the page; CHECK is something to verify against the
+ * file; FYI is standing ritual.
+ */
+function triageFlag(flag: string): 'fix' | 'check' | 'fyi' {
+  if (/departs from your direction|has no amount|differs materially|\[LAWYER:|needs:|could not|no closing|left standing|is not a field|would break/i.test(flag)) return 'fix';
+  if (/read it against a recent example|style profiles guide|verify all facts|itemises the heads from your direction|drafted in the firm style/i.test(flag)) return 'fyi';
+  return 'check';
+}
+
+const FLAG_GROUPS: Array<{ key: 'fix' | 'check' | 'fyi'; label: string; colour: string; bg: string }> = [
+  { key: 'fix', label: 'Fix before sending', colour: '#b3372f', bg: '#fbeae8' },
+  { key: 'check', label: 'Check against the file', colour: '#b8860b', bg: '#fdf0dd' },
+  { key: 'fyi', label: 'For the record', colour: '#5b6472', bg: '#f4f1ec' },
+];
+
+function TriagedFlags({ flags }: { flags: string[] }) {
+  if (flags.length === 0) return null;
+  const grouped = FLAG_GROUPS
+    .map(g => ({ ...g, items: flags.filter(f => triageFlag(f) === g.key) }))
+    .filter(g => g.items.length > 0);
+  return (
+    <div style={{ marginTop: 12 }}>
+      {grouped.map(g => (
+        <div key={g.key} style={{ background: g.bg, border: `1px solid ${g.colour}33`, borderRadius: 2, padding: '10px 16px', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: g.colour, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            {g.label} ({g.items.length})
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: ink, lineHeight: 1.65 }}>
+            {g.items.map((flag, i) => <li key={i}>{flag}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const DEMAND_SOURCE_KIND_LABELS: Record<string, string> = {
   employment_agreement: 'Employment agreement',
   termination_letter: 'Termination letter',
@@ -808,6 +847,13 @@ export default function MatterDetailView() {
 
   const [draftFilter, setDraftFilter] = useState('');
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
+  /**
+   * With a draft on file, the workspace shows two plain tabs, Draft and
+   * Options, instead of a full-screen takeover with an escape hatch named
+   * "Change options". Both of the pilot's navigation bug reports were this
+   * either/or hiding the thing they came for.
+   */
+  const [draftView, setDraftView] = useState<'draft' | 'options'>('draft');
   const [genCitations, setGenCitations] = useState<SourceCitation[]>([]);
   const [genReviewFlags, setGenReviewFlags] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -909,6 +955,7 @@ export default function MatterDetailView() {
    */
   const openDraftCard = useCallback((cardId: string) => {
     setSelectedDraft(cardId);
+    setDraftView('draft');
     setGenError(null);
     setGenNotice(null);
     setGenCitations([]);
@@ -1064,6 +1111,9 @@ export default function MatterDetailView() {
     }
     return null;
   })();
+
+  const showOptions = !generatedHtml || draftView === 'options';
+  const showDraft = Boolean(generatedHtml) && draftView === 'draft';
 
   const selectedTemplateDocType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
   const styleProfiles = useStyleProfiles(selectedTemplateDocType);
@@ -1280,7 +1330,7 @@ export default function MatterDetailView() {
       if (!d.ok) { setSocTeachMsg(d.error ?? 'The claims could not be analysed.'); return; }
       setSocProposals(d.proposals ?? []);
       const proposed = (d.proposals ?? []).filter((p: { proposed: string | null }) => p.proposed).length;
-      setSocTeachMsg(`Read ${files.length} claims ($${(d.costUsd ?? 0).toFixed(2)}). ${proposed} node${proposed === 1 ? '' : 's'} have proposed language. Nothing changes until you approve it.`);
+      setSocTeachMsg(`Read ${files.length} claims ($${(d.costUsd ?? 0).toFixed(2)}). ${proposed} passage${proposed === 1 ? '' : 's'} of your language proposed. Nothing changes until you approve it.`);
     } catch {
       setSocTeachMsg('The claims could not be analysed.');
     } finally { setSocTeachBusy(false); }
@@ -1309,7 +1359,7 @@ export default function MatterDetailView() {
         notes: p.triggerDiffers ? [p.triggerDiffers] : [],
       })));
       const changed = (d.proposals ?? []).filter((p: { proposed: string | null }) => p.proposed).length;
-      setSocTeachMsg(`Read ${file.name}: ${changed} node${changed === 1 ? '' : 's'} differ from the library, ${d.unchanged} unchanged${(d.unknownBlocks ?? []).length ? `, unknown block ids ignored: ${d.unknownBlocks.join(', ')}` : ''}. Nothing changes until you approve it.`);
+      setSocTeachMsg(`Read ${file.name}: ${changed} passage${changed === 1 ? '' : 's'} differ from the library, ${d.unchanged} unchanged${(d.unknownBlocks ?? []).length ? `, unknown block ids ignored: ${d.unknownBlocks.join(', ')}` : ''}. Nothing changes until you approve it.`);
     } catch {
       setSocTeachMsg('The spreadsheet could not be read.');
     } finally { setSocTeachBusy(false); }
@@ -1545,7 +1595,7 @@ export default function MatterDetailView() {
                 disabled={dirBusy || dirProposed.instructions.length === 0}
                 style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 15px', borderRadius: 2, fontFamily: sans, background: orange, color: '#fff', border: 'none', cursor: 'pointer' }}
               >
-                {dirBusy ? 'Saving…' : 'Approve and apply'}
+                {dirBusy ? 'Saving…' : 'Approve'}
               </button>
               <button
                 onClick={() => setDirProposed(null)}
@@ -2507,6 +2557,27 @@ export default function MatterDetailView() {
                   <h2 style={{ fontFamily: serif, fontSize: 22, margin: 0, color: navy }}>
                     {DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'Document'}
                   </h2>
+                  {generatedHtml && (
+                    <div role="tablist" aria-label="Draft or options" style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
+                      {(['draft', 'options'] as const).map(v => (
+                        <button
+                          key={v}
+                          role="tab"
+                          aria-selected={draftView === v}
+                          onClick={() => setDraftView(v)}
+                          style={{
+                            fontSize: 12.5, fontWeight: 600, padding: '7px 16px', fontFamily: sans,
+                            background: draftView === v ? navy : '#fff',
+                            color: draftView === v ? '#fff' : navy,
+                            border: `1px solid ${navy}`, cursor: 'pointer',
+                            borderRadius: v === 'draft' ? '2px 0 0 2px' : '0 2px 2px 0',
+                          }}
+                        >
+                          {v === 'draft' ? 'Draft' : 'Options'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2539,6 +2610,815 @@ export default function MatterDetailView() {
                       Get the official Form 1 ↗
                     </a>
                   </div>
+                </div>
+              )}
+
+              {!selectedDraft && (<>
+              <input
+                type="search"
+                value={draftFilter}
+                onChange={e => setDraftFilter(e.target.value)}
+                placeholder="Filter documents… (e.g. mediation, timetable, offer)"
+                aria-label="Filter the document catalogue"
+                style={{ width: '100%', maxWidth: 420, fontFamily: sans, fontSize: 13.5, padding: '9px 12px', border: `1px solid ${border}`, borderRadius: 2, marginBottom: 16, boxSizing: 'border-box' as const }}
+              />
+              {DRAFT_SECTIONS.map(section => {
+                // Drafted state and the recommendation come from the matter,
+                // not a constant: a day-one file and a file whose SOC went
+                // out last month need different advice.
+                const draftedCards = new Set(employment.generatedDocuments.map(d => DOCTYPE_TO_DRAFT[d.docType]).filter(Boolean));
+                const nextActions = (employment.nextSteps ?? []).map(n => n.action.toLowerCase()).join(' | ');
+                const recommendedCard =
+                  nextActions.includes('demand letter') ? 'demand'
+                  : nextActions.includes('statement of claim') ? 'soc'
+                  : nextActions.includes('mediation brief') ? 'mediation'
+                  : nextActions.includes('severance offer') ? 'severance'
+                  : nextActions.includes('counter-offer') ? 'counter'
+                  : null;
+                const sectionCards = DEMO_DRAFT_TYPES.filter(dt => dt.section === section)
+                  .filter(dt => !draftFilter.trim()
+                    || `${dt.title} ${dt.description ?? ''}`.toLowerCase().includes(draftFilter.trim().toLowerCase()))
+                  .map(dt => ({ ...dt, recommended: dt.id === recommendedCard, alreadyDrafted: draftedCards.has(dt.id) }));
+                if (sectionCards.length === 0) return null;
+                return (
+                <div key={section} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
+                    {section}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                    {sectionCards.map(dt => (
+                      <div
+                        key={dt.id}
+                        onClick={() => openDraftCard(dt.id)}
+                        style={{
+                          background: '#fff',
+                          border: `1px solid ${selectedDraft === dt.id || dt.recommended ? orange : border}`,
+                          padding: 18,
+                          cursor: 'pointer',
+                          boxShadow: selectedDraft === dt.id || dt.recommended ? `0 2px 0 ${orange}` : 'none',
+                        }}
+                        role="radio"
+                        aria-checked={selectedDraft === dt.id}
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDraftCard(dt.id); } }}
+                      >
+                        {dt.recommended && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: '#fff',
+                              background: orange,
+                              padding: '2px 7px',
+                              borderRadius: 2,
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            RECOMMENDED NEXT
+                          </span>
+                        )}
+                        <h4 style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, margin: dt.recommended ? '10px 0 5px' : '0 0 5px' }}>
+                          {dt.title}
+                        </h4>
+                        <p style={{ fontSize: 12.5, color: dt.alreadyDrafted ? green : muted, margin: 0 }}>
+                          {dt.alreadyDrafted && (
+                            <>
+                              <StatusDot colour={green} size={6} />{' '}
+                              <b style={{ color: green }}>Drafted · </b>
+                            </>
+                          )}
+                          {dt.description}
+                        </p>
+                        <div style={{ fontSize: 12, color: muted, marginTop: 10 }}>{dt.cost}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );})}
+              </>)}
+
+              {selectedDraft === 'timetable' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The timetable</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                    Write each step in your own words, in the order the schedule should read. Starling
+                    reproduces them exactly, checks the dates are readable, future, and consistent with
+                    the order you listed, and puts them on your docket.
+                  </div>
+                  {ttRows.map((row, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: muted, width: 18, textAlign: 'right' }}>{i + 1}.</span>
+                      <input
+                        type="date"
+                        value={row.date}
+                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
+                        aria-label={`Date for step ${i + 1}`}
+                        style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2 }}
+                      />
+                      <input
+                        type="text"
+                        value={row.label}
+                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
+                        placeholder="e.g. Defendants to deliver Affidavit of Documents"
+                        aria-label={`Step ${i + 1}`}
+                        style={{ flex: 1, minWidth: 260, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
+                      />
+                      <button
+                        onClick={() => setTtRows(rows => rows.length > 1 ? rows.filter((_, j) => j !== i) : rows)}
+                        aria-label={`Remove step ${i + 1}`}
+                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setTtRows(rows => [...rows, { label: '', date: '' }])}
+                    style={{ marginTop: 4, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                  >
+                    Add a step
+                  </button>
+
+                  <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>Procedure</div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                      {([['simplified', 'Simplified Procedure (Rule 76)'], ['ordinary', 'Ordinary Procedure']] as const).map(([val, lbl]) => (
+                        <button
+                          key={val}
+                          onClick={() => setPkgProcedure(val)}
+                          role="radio"
+                          aria-checked={pkgProcedure === val}
+                          style={{
+                            fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans,
+                            background: pkgProcedure === val ? navy : '#fff',
+                            color: pkgProcedure === val ? '#fff' : navy,
+                            border: `1px solid ${pkgProcedure === val ? navy : border}`, cursor: 'pointer',
+                          }}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Your firm's wording</div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 8 }}>
+                      Each document has its own precedents and its own style. Teach them one at a time.
+                    </div>
+                    {PACKAGE_DOCS.map(doc => {
+                      const profilesFor = pkgProfiles[doc.type] ?? [];
+                      return (
+                        <div key={doc.type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 13, color: ink, minWidth: 210 }}>{doc.label}</span>
+                          <select
+                            value={pkgStyleIds[doc.type] ?? ''}
+                            onChange={e => setPkgStyleIds(prev => ({ ...prev, [doc.type]: e.target.value }))}
+                            aria-label={`Style for ${doc.label}`}
+                            style={{ fontFamily: sans, fontSize: 12.5, padding: '6px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', minWidth: 190 }}
+                          >
+                            <option value="">Starling's default form</option>
+                            {profilesFor.map(pr => <option key={pr.id} value={pr.id}>{pr.label}</option>)}
+                          </select>
+                          <button
+                            onClick={() => setTeachingDocType(teachingDocType === doc.type ? null : doc.type)}
+                            style={{ fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                          >
+                            {teachingDocType === doc.type ? 'Close' : profilesFor.length ? 'Teach another' : 'Teach from precedents'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {teachingDocType && (
+                      <div style={{ marginTop: 10 }}>
+                        <StyleProfilePanel
+                          documentType={teachingDocType}
+                          documentLabel={PACKAGE_DOCS.find(d => d.type === teachingDocType)?.label ?? 'document'}
+                          profiles={pkgProfiles[teachingDocType] ?? []}
+                          onChanged={() => refreshPkgProfiles()}
+                          onClose={() => setTeachingDocType(null)}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, margin: '14px 0 4px' }}>Draft the whole package</div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                      The motion, the consent order and the draft order from this one schedule, so their
+                      terms cannot disagree. Each arrives as its own document on the Documents tab.
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 8, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={pkgAffidavit} onChange={() => setPkgAffidavit(v => !v)} style={{ accentColor: navy }} />
+                      Include the supporting affidavit for the motion
+                    </label>
+                    {pkgAffidavit && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <input
+                          value={pkgDeponent}
+                          onChange={e => setPkgDeponent(e.target.value)}
+                          placeholder={`Deponent (default: ${profile.displayName || 'you'})`}
+                          aria-label="Deponent name"
+                          style={{ flex: 1, minWidth: 190, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
+                        />
+                        <select value={pkgCapacity} onChange={e => setPkgCapacity(e.target.value as typeof pkgCapacity)} aria-label="Deponent capacity"
+                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
+                          <option value="lawyer">Lawyer with carriage</option>
+                          <option value="law_clerk">Law clerk</option>
+                          <option value="plaintiff">The plaintiff</option>
+                        </select>
+                        <select value={pkgBasis} onChange={e => setPkgBasis(e.target.value as typeof pkgBasis)} aria-label="Knowledge basis"
+                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
+                          <option value="information_and_belief">Information and belief (Rule 39.01(4))</option>
+                          <option value="personal">Personal knowledge</option>
+                          <option value="mixed">Mixed</option>
+                        </select>
+                        {pkgBasis === 'information_and_belief' && (
+                          <input
+                            value={pkgSource}
+                            onChange={e => setPkgSource(e.target.value)}
+                            placeholder="Source of the information (named, as the rule requires)"
+                            aria-label="Source of information"
+                            style={{ flex: 1, minWidth: 240, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
+                          />
+                        )}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { void generatePackage(); }}
+                      disabled={pkgBusy || ttRows.filter(r => r.label.trim() && r.date.trim()).length === 0}
+                      style={{
+                        fontSize: 13.5, fontWeight: 600, padding: '10px 18px', borderRadius: 2, fontFamily: sans,
+                        background: pkgBusy ? muted : orange, color: '#fff', border: 'none',
+                        cursor: pkgBusy ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {pkgBusy ? 'Drafting the package…' : `Generate the timetable package${pkgAffidavit ? ' (4 documents)' : ' (3 documents)'}`}
+                    </button>
+                    {pkgResult && <div role="status" style={{ fontSize: 12.5, color: green, marginTop: 8 }}>{pkgResult}</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Court-form inputs: the deterministic forms are data, and
+                  these fields are that data */}
+              {selectedDraft && COURT_FORM_FIELDS[selectedDraft] && showOptions && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
+                  {COURT_FORM_FIELDS[selectedDraft].map(f => (
+                    <div key={f.key} style={f.type === 'textarea' ? { gridColumn: '1 / -1' } : undefined}>
+                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>
+                        {f.label}{f.required ? ' *' : ''}
+                      </div>
+                      {f.type === 'select' ? (
+                        <select
+                          value={courtFields[f.key] ?? ''}
+                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                        >
+                          <option value="">Select</option>
+                          {(f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      ) : f.type === 'textarea' ? (
+                        <textarea
+                          value={courtFields[f.key] ?? ''}
+                          placeholder={f.placeholder}
+                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          rows={3}
+                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box', resize: 'vertical' }}
+                        />
+                      ) : (
+                        <input
+                          type={f.type ?? 'text'}
+                          value={courtFields[f.key] ?? ''}
+                          placeholder={f.placeholder}
+                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Pronouns live on the client file, but they change every line
+                  of the letter, so the choice belongs where the letter is
+                  written too. Parked on the Intake tab alone, the pilot went
+                  looking for it here and did not find it. */}
+              {selectedDraft && selectedDraft !== 'timetable' && showOptions && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+                  <span style={{ fontSize: 12.5, color: muted, fontWeight: 600 }}>How this document refers to the client</span>
+                  <select
+                    value={String((employment.data?.intake as Record<string, unknown> | undefined)?.client_pronouns ?? '')}
+                    onChange={async e => {
+                      const intake = { ...(employment.data?.intake ?? {}), client_pronouns: e.target.value || undefined };
+                      await employment.saveIntake(intake as Record<string, unknown>);
+                      void employment.refresh();
+                    }}
+                    aria-label="How this document refers to the client"
+                    style={{ fontFamily: sans, fontSize: 13.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                  >
+                    <option value="">Not set (uses the client's name)</option>
+                    <option value="she">she / her</option>
+                    <option value="he">he / him</option>
+                    <option value="they">they / them</option>
+                    <option value="name">Name only, no pronouns</option>
+                  </select>
+                  <span style={{ fontSize: 11.5, color: muted }}>Saved to the client file, and used by every document on this matter.</span>
+                </div>
+              )}
+
+              {(selectedDraft === 'mediation' || selectedDraft === 'demand') && showOptions && readiness.length > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                    Before you generate
+                    {readiness.some(r => r.level === 'warn') && (
+                      <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
+                        {readiness.filter(r => r.level === 'warn').length} TO FIX
+                      </span>
+                    )}
+                  </div>
+                  {readiness.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', fontSize: 12.5 }}>
+                      <span aria-hidden="true" style={{ color: r.level === 'ok' ? green : r.level === 'warn' ? amber : muted, fontWeight: 700, minWidth: 14 }}>
+                        {r.level === 'ok' ? '✓' : r.level === 'warn' ? '!' : '·'}
+                      </span>
+                      <span style={{ color: r.level === 'warn' ? ink : muted, flex: 1 }}>
+                        <span style={{ fontWeight: r.level === 'warn' ? 600 : 400 }}>{r.label}</span>
+                        {r.hint && <span> {r.hint}</span>}
+                        {r.goTo && r.level !== 'ok' && (
+                          <button
+                            onClick={() => setActiveTab(r.goTo as TabKey)}
+                            style={{ marginLeft: 6, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
+                          >
+                            fix it
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedDraft === 'soc' && showOptions && socNodes.length > 0 && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>What this claim pleads</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+                    Each cause of action is a section in the firm's settled language, selected by the facts on file and your approved issues. Turning one on that the intake never asked about gives you the structure with [LAWYER: ...] markers, never invented facts.
+                  </div>
+                  {socNodes.map(n => {
+                    const on = n.status === 'firing' || n.status === 'forced_on';
+                    const chip = n.status === 'firing' ? { label: 'PLEADED', bg: '#e8f2e8', fg: green }
+                      : n.status === 'forced_on' ? { label: 'FORCED ON', bg: '#e8f2e8', fg: green }
+                      : n.status === 'eligible_unapproved' ? { label: 'FACTS SUPPORT IT', bg: '#fdf0dd', fg: amber }
+                      : n.status === 'forced_off' ? { label: 'FORCED OFF', bg: '#f3f3f3', fg: muted }
+                      : { label: 'OFF', bg: '#f3f3f3', fg: muted };
+                    return (
+                      <div key={n.blockId} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '5px 0', borderTop: `1px solid #f0ede8` }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: chip.fg, background: chip.bg, padding: '2px 7px', borderRadius: 2, minWidth: 86, textAlign: 'center', marginTop: 2 }}>{chip.label}</span>
+                        <span style={{ flex: 1, fontSize: 12.5, color: on ? ink : muted }}>
+                          <span style={{ fontWeight: 600 }}>{n.sectionHeader}</span>
+                          <span style={{ display: 'block', fontSize: 11.5, color: muted, lineHeight: 1.45 }}>{n.reason}</span>
+                        </span>
+                        {n.status !== 'firing' && n.tier === 2 && (
+                          <button
+                            onClick={() => void setSocOverride(n.blockId, n.status === 'forced_on' || n.status === 'forced_off' ? null : 'on')}
+                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: navy, cursor: 'pointer', padding: '3px 9px', borderRadius: 2 }}
+                          >
+                            {n.status === 'forced_on' || n.status === 'forced_off' ? 'reset' : 'force on'}
+                          </button>
+                        )}
+                        {(n.status === 'firing' || n.status === 'eligible_unapproved') && (
+                          <button
+                            onClick={() => void setSocOverride(n.blockId, 'off')}
+                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '3px 4px' }}
+                          >
+                            turn off
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {selectedDraft && selectedDraft !== 'timetable' && showOptions && renderDirection('document')}
+
+              {/* Generation options */}
+              {selectedDraft && !COURT_FORM_FIELDS[selectedDraft] && showOptions && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
+                  {(selectedDraft === 'demand') && (
+                    <>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Tone</div>
+                        <select value={genTone} onChange={e => setGenTone(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
+                          <option value="professional">Professional</option>
+                          <option value="firm">Firm</option>
+                          <option value="aggressive">Aggressive</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Demand Amount (CAD)</div>
+                        <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                      </div>
+                    </>
+                  )}
+                  {(selectedDraft === 'soc') && (
+                    <>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Procedure Type</div>
+                        <select value={genProcedure} onChange={e => setGenProcedure(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
+                          <option value="small_claims">Small Claims (≤$50K)</option>
+                          <option value="simplified">Simplified ($50K–$200K)</option>
+                          <option value="ordinary">Ordinary (&gt;$200K)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Court Location</div>
+                        <input type="text" placeholder="e.g., Toronto" value={genCourtLocation} onChange={e => setGenCourtLocation(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                      </div>
+                    </>
+                  )}
+                  {selectedDraft !== 'demand' && (
+                    <div>
+                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
+                      <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+
+              {selectedDraft === 'demand' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Documents this letter argues from</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+                    A demand letter turns on specific words: the clause the parties signed, the reason the employer put in writing. Attach those documents and the letter quotes them instead of paraphrasing. Say what each one is, because the letter reads the employment agreement differently from a policy manual.
+                  </div>
+
+                  {storedSources.length === 0 && (
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, fontStyle: 'italic' }}>
+                      Nothing attached. The letter will argue from the intake alone.
+                    </div>
+                  )}
+                  {storedSources.map(sd => (
+                    <label key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={dlSourceIds.has(sd.id)}
+                        onChange={() => setDlSourceIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id);
+                          return next;
+                        })}
+                        style={{ accentColor: navy }}
+                      />
+                      <span style={{ flex: 1 }}>
+                        {sd.name}
+                        <span style={{ color: muted, fontSize: 12 }}> · {DEMAND_SOURCE_KIND_LABELS[sd.kind ?? 'other'] ?? 'Other'} · {sd.words.toLocaleString('en-CA')} words</span>
+                      </span>
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          if (!sessionId) return;
+                          await fetch(`/api/employment/${sessionId}/brief-sources/${sd.id}`, { method: 'DELETE', credentials: 'include' });
+                          void employment.refresh();
+                        }}
+                        style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
+                      >
+                        remove
+                      </button>
+                    </label>
+                  ))}
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+                    <select
+                      value={dlUploadKind}
+                      onChange={e => setDlUploadKind(e.target.value)}
+                      aria-label="What kind of document you are attaching"
+                      style={{ fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+                    >
+                      {Object.entries(DEMAND_SOURCE_KIND_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                    <input
+                      ref={dlSourceInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.md,.txt"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f, dlUploadKind); e.target.value = ''; }}
+                      aria-label="Attach a document for the demand letter"
+                    />
+                    <button
+                      onClick={() => dlSourceInputRef.current?.click()}
+                      disabled={sourceParsing}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                    >
+                      {sourceParsing ? 'Reading…' : 'Attach a document'}
+                    </button>
+                  </div>
+                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
+                </div>
+              )}
+
+              {selectedDraft === 'demand' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The figures in the letter</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 12, lineHeight: 1.5 }}>
+                    Starling builds the itemised damages table from the analysis rather than writing the numbers into prose. Enter what the employer has already paid and what your client has earned since, and the table nets them off.
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Addressed to</div>
+                    <input
+                      type="text"
+                      placeholder="Opposing counsel, or the employer where counsel is unknown"
+                      value={dlRecipient}
+                      onChange={e => setDlRecipient(e.target.value)}
+                      aria-label="Recipient of the demand letter"
+                      style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                    />
+                    <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>Left blank, the letter is marked for you to complete rather than addressed to a guess.</div>
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 5 }}>
+                      <div style={{ fontSize: 12.5, color: muted, fontWeight: 600 }}>Heads of damage claimed</div>
+                      {dlHeadsTouched && (
+                        <button
+                          onClick={() => { setDlHeadsTouched(false); void employment.refresh(); }}
+                          style={{ fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
+                        >
+                          reset to the analysis
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: muted, marginBottom: 7, lineHeight: 1.5 }}>
+                      Prefilled from the analysis. Edit the wording, the basis or the figure and the table says what you wrote. A head left without an amount is shown as one for you to quantify, not dropped.
+                    </div>
+                    {dlHeads.map((row, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <input
+                            type="text"
+                            placeholder="Head, e.g. Pay in lieu of reasonable notice"
+                            value={row.label}
+                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r)); }}
+                            aria-label={`Head of damage ${i + 1}`}
+                            style={{ fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Basis, e.g. eight to twelve months at the plaintiff's compensation"
+                            value={row.basis}
+                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, basis: e.target.value } : r)); }}
+                            aria-label={`Basis for head ${i + 1}`}
+                            style={{ fontFamily: sans, fontSize: 12.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: muted, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Amount"
+                          value={row.amount}
+                          onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r)); }}
+                          aria-label={`Amount for head ${i + 1}`}
+                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                        <button
+                          onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => rows.filter((_, j) => j !== i)); }}
+                          aria-label={`Remove head ${i + 1}`}
+                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '9px 4px 0' }}
+                        >
+                          remove
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 2 }}>
+                      <button
+                        onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => [...rows, { label: '', basis: '', amount: '' }]); }}
+                        style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                      >
+                        Add a head
+                      </button>
+                      {dlHeads.length > 0 && (() => {
+                        const subtotal = dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+                        const asCad = subtotal.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
+                        return (
+                          <span style={{ fontSize: 12, color: muted }}>
+                            Subtotal {asCad}
+                            {/* The demand is a judgment call, so it is never
+                                filled in silently. Offered, once, when the
+                                figures are on screen and the field is empty. */}
+                            {subtotal > 0 && !genDemandAmount && (
+                              <button
+                                onClick={() => setGenDemandAmount(String(Math.round(subtotal)))}
+                                style={{ marginLeft: 8, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
+                              >
+                                demand this amount
+                              </button>
+                            )}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Already paid by the employer</div>
+                    {dlPaid.map((row, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                        <input
+                          type="text"
+                          placeholder="e.g., ESA notice and severance"
+                          value={row.label}
+                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
+                          aria-label={`Payment ${i + 1} description`}
+                          style={{ flex: 1, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Amount"
+                          value={row.amount}
+                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r))}
+                          aria-label={`Payment ${i + 1} amount`}
+                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                        />
+                        <button
+                          onClick={() => setDlPaid(rows => rows.filter((_, j) => j !== i))}
+                          aria-label={`Remove payment ${i + 1}`}
+                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
+                        >
+                          remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setDlPaid(rows => [...rows, { label: '', amount: '' }])}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                    >
+                      Add a payment
+                    </button>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Mitigation earnings to date (CAD)</div>
+                    <input
+                      type="text"
+                      placeholder="Leave blank if none"
+                      value={dlMitigation}
+                      onChange={e => setDlMitigation(e.target.value.replace(/[^\d]/g, ''))}
+                      aria-label="Mitigation earnings to date"
+                      style={{ width: 200, fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {selectedDraft === 'mediation' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Sources for this brief</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
+                    The brief argues the positions in these documents and cites back to them. Attach what was
+                    drafted outside Starling: the statement of claim, the demand letter, a list of cases. Up to roughly 40 pages per document is read in full.
+                  </div>
+                  {employment.generatedDocuments.some(d => d.docType === 'demand_letter') && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={includeGenDemand} onChange={() => setIncludeGenDemand(v => !v)} style={{ accentColor: navy }} />
+                      Demand Letter (generated in Starling)
+                    </label>
+                  )}
+                  {employment.generatedDocuments.some(d => d.docType === 'statement_of_claim') && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={includeGenSoc} onChange={() => setIncludeGenSoc(v => !v)} style={{ accentColor: navy }} />
+                      Statement of Claim (generated in Starling)
+                    </label>
+                  )}
+                  {storedSources.map(sd => (
+                    <div key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, padding: '3px 0' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSourceIds.has(sd.id)}
+                        onChange={() => setSelectedSourceIds(prev => { const next = new Set(prev); if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id); return next; })}
+                        aria-label={`Use ${sd.name} for this draft`}
+                        style={{ accentColor: navy }}
+                      />
+                      <span style={{ flex: 1 }}>{sd.name} <span style={{ color: muted, fontSize: 12 }}>({Number(sd.words).toLocaleString('en-CA')} words)</span></span>
+                      <button
+                        onClick={() => void removeBriefSource(sd.id)}
+                        aria-label={`Remove ${sd.name} from the matter`}
+                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        remove
+                      </button>
+                    </div>
+                  ))}
+                  {storedSources.length > 0 && (
+                    <div style={{ fontSize: 11.5, color: muted, marginTop: 2 }}>Attached sources stay on the matter for every regeneration.</div>
+                  )}
+                  <input
+                    ref={briefSourceInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.md,.txt"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f); e.target.value = ''; }}
+                    aria-label="Attach a source document for the brief"
+                  />
+                  <button
+                    onClick={() => briefSourceInputRef.current?.click()}
+                    disabled={sourceParsing}
+                    style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                  >
+                    {sourceParsing ? 'Reading…' : 'Attach a document'}
+                  </button>
+                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
+                </div>
+              )}
+
+              {selectedDraft === 'soc' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The firm's pleading language</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+                    Each cause is pleaded in settled language. Upload two or more of the firm's own claims and Starling proposes each node rewritten in your wording, structure intact. Nothing changes until you approve it, node by node. Names, dates and figures from the claims never enter the templates.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      ref={socTeachInputRef}
+                      type="file" accept=".docx" multiple style={{ display: 'none' }}
+                      onChange={e => { const fs = [...(e.target.files ?? [])]; if (fs.length) void teachSocNodes(fs); e.target.value = ''; }}
+                      aria-label="Upload the firm's statements of claim"
+                    />
+                    <button
+                      onClick={() => socTeachInputRef.current?.click()}
+                      disabled={socTeachBusy}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: socTeachBusy ? '#b0b0b0' : navy, color: '#fff', border: 'none', cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
+                    >
+                      {socTeachBusy ? 'Reading…' : 'Read your claims'}
+                    </button>
+                    <input
+                      ref={socImportInputRef}
+                      type="file" accept=".xlsx" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) void importSocNodes(f); e.target.value = ''; }}
+                      aria-label="Import the node spreadsheet"
+                    />
+                    <button
+                      onClick={() => socImportInputRef.current?.click()}
+                      disabled={socTeachBusy}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
+                    >
+                      Import the language spreadsheet
+                    </button>
+                    <span style={{ fontSize: 11.5, color: muted }}>
+                      {socLib.filter(n => n.provenance !== 'default').length > 0
+                        ? `${socLib.filter(n => n.provenance === 'learned').length} learned, ${socLib.filter(n => n.provenance === 'edited').length} edited, rest on defaults.`
+                        : 'All nodes on the ported defaults.'}
+                    </span>
+                  </div>
+                  {socTeachMsg && <div style={{ fontSize: 12.5, color: ink, marginTop: 8 }}>{socTeachMsg}</div>}
+
+                  {socProposals && socProposals.filter(p => p.proposed || p.skipped).map(p => (
+                    <div key={p.blockId} style={{ borderTop: `1px solid #f0ede8`, marginTop: 10, paddingTop: 10 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: ink }}>
+                        {p.sectionHeader || p.blockId}
+                        <span style={{ fontWeight: 400, color: muted }}> · from {p.sources.join(', ') || 'no matching claims'}</span>
+                      </div>
+                      {p.skipped && <div style={{ fontSize: 12, color: muted, marginTop: 3 }}>{p.skipped}</div>}
+                      {p.proposed && (
+                        <>
+                          {(p.validation?.warnings ?? []).map((w, i) => (
+                            <div key={i} style={{ fontSize: 11.5, color: amber, marginTop: 3 }}>{w}</div>
+                          ))}
+                          {p.notes.map((note, i) => (
+                            <div key={i} style={{ fontSize: 11.5, color: muted, marginTop: 3 }}>{note}</div>
+                          ))}
+                          <details style={{ marginTop: 6 }}>
+                            <summary style={{ fontSize: 12, color: navy, cursor: 'pointer' }}>Read it as it would plead</summary>
+                            <div style={{ fontSize: 12, color: ink, background: '#fbfaf8', border: `1px solid ${border}`, padding: '8px 10px', marginTop: 5, lineHeight: 1.55 }}
+                              dangerouslySetInnerHTML={{ __html: p.validation?.renderAllOn ?? '' }} />
+                          </details>
+                          {p.additions.length > 0 && (
+                            <div style={{ fontSize: 11.5, color: muted, marginTop: 5 }}>
+                              Your claims also plead, and this node does not: {p.additions.map(a => a.summary).join('; ')}. Approve the node first, then add these by editing it.
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                            <button
+                              onClick={() => void approveSocProposal(p.blockId, p.proposed!, 'learned')}
+                              disabled={!p.validation?.ok}
+                              style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: p.validation?.ok ? orange : '#b0b0b0', color: '#fff', border: 'none', cursor: p.validation?.ok ? 'pointer' : 'not-allowed' }}
+                            >
+                              Approve
+                            </button>
+                            <span style={{ fontSize: 11.5, color: muted, alignSelf: 'center' }}>
+                              Approving pleads this cause in these words on every future claim.
+                            </span>
+                            <button
+                              onClick={() => setSocProposals(prev => prev ? prev.filter(x => x.blockId !== p.blockId) : prev)}
+                              style={{ fontSize: 12, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                            >
+                              Discard
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -2738,812 +3618,7 @@ export default function MatterDetailView() {
                   onClose={() => setBuildingStyle(false)}
                 />
               )}
-              {!selectedDraft && (<>
-              <input
-                type="search"
-                value={draftFilter}
-                onChange={e => setDraftFilter(e.target.value)}
-                placeholder="Filter documents… (e.g. mediation, timetable, offer)"
-                aria-label="Filter the document catalogue"
-                style={{ width: '100%', maxWidth: 420, fontFamily: sans, fontSize: 13.5, padding: '9px 12px', border: `1px solid ${border}`, borderRadius: 2, marginBottom: 16, boxSizing: 'border-box' as const }}
-              />
-              {DRAFT_SECTIONS.map(section => {
-                // Drafted state and the recommendation come from the matter,
-                // not a constant: a day-one file and a file whose SOC went
-                // out last month need different advice.
-                const draftedCards = new Set(employment.generatedDocuments.map(d => DOCTYPE_TO_DRAFT[d.docType]).filter(Boolean));
-                const nextActions = (employment.nextSteps ?? []).map(n => n.action.toLowerCase()).join(' | ');
-                const recommendedCard =
-                  nextActions.includes('demand letter') ? 'demand'
-                  : nextActions.includes('statement of claim') ? 'soc'
-                  : nextActions.includes('mediation brief') ? 'mediation'
-                  : nextActions.includes('severance offer') ? 'severance'
-                  : nextActions.includes('counter-offer') ? 'counter'
-                  : null;
-                const sectionCards = DEMO_DRAFT_TYPES.filter(dt => dt.section === section)
-                  .filter(dt => !draftFilter.trim()
-                    || `${dt.title} ${dt.description ?? ''}`.toLowerCase().includes(draftFilter.trim().toLowerCase()))
-                  .map(dt => ({ ...dt, recommended: dt.id === recommendedCard, alreadyDrafted: draftedCards.has(dt.id) }));
-                if (sectionCards.length === 0) return null;
-                return (
-                <div key={section} style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
-                    {section}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-                    {sectionCards.map(dt => (
-                      <div
-                        key={dt.id}
-                        onClick={() => openDraftCard(dt.id)}
-                        style={{
-                          background: '#fff',
-                          border: `1px solid ${selectedDraft === dt.id || dt.recommended ? orange : border}`,
-                          padding: 18,
-                          cursor: 'pointer',
-                          boxShadow: selectedDraft === dt.id || dt.recommended ? `0 2px 0 ${orange}` : 'none',
-                        }}
-                        role="radio"
-                        aria-checked={selectedDraft === dt.id}
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDraftCard(dt.id); } }}
-                      >
-                        {dt.recommended && (
-                          <span
-                            style={{
-                              fontSize: 10.5,
-                              fontWeight: 700,
-                              color: '#fff',
-                              background: orange,
-                              padding: '2px 7px',
-                              borderRadius: 2,
-                              letterSpacing: '0.04em',
-                            }}
-                          >
-                            RECOMMENDED NEXT
-                          </span>
-                        )}
-                        <h4 style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, margin: dt.recommended ? '10px 0 5px' : '0 0 5px' }}>
-                          {dt.title}
-                        </h4>
-                        <p style={{ fontSize: 12.5, color: dt.alreadyDrafted ? green : muted, margin: 0 }}>
-                          {dt.alreadyDrafted && (
-                            <>
-                              <StatusDot colour={green} size={6} />{' '}
-                              <b style={{ color: green }}>Drafted · </b>
-                            </>
-                          )}
-                          {dt.description}
-                        </p>
-                        <div style={{ fontSize: 12, color: muted, marginTop: 10 }}>{dt.cost}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );})}
-              </>)}
-
-              {selectedDraft === 'timetable' && !generatedHtml && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The timetable</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                    Write each step in your own words, in the order the schedule should read. Starling
-                    reproduces them exactly, checks the dates are readable, future, and consistent with
-                    the order you listed, and puts them on your docket.
-                  </div>
-                  {ttRows.map((row, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, color: muted, width: 18, textAlign: 'right' }}>{i + 1}.</span>
-                      <input
-                        type="date"
-                        value={row.date}
-                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
-                        aria-label={`Date for step ${i + 1}`}
-                        style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2 }}
-                      />
-                      <input
-                        type="text"
-                        value={row.label}
-                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
-                        placeholder="e.g. Defendants to deliver Affidavit of Documents"
-                        aria-label={`Step ${i + 1}`}
-                        style={{ flex: 1, minWidth: 260, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
-                      />
-                      <button
-                        onClick={() => setTtRows(rows => rows.length > 1 ? rows.filter((_, j) => j !== i) : rows)}
-                        aria-label={`Remove step ${i + 1}`}
-                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                      >
-                        remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setTtRows(rows => [...rows, { label: '', date: '' }])}
-                    style={{ marginTop: 4, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                  >
-                    Add a step
-                  </button>
-
-                  <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>Procedure</div>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                      {([['simplified', 'Simplified Procedure (Rule 76)'], ['ordinary', 'Ordinary Procedure']] as const).map(([val, lbl]) => (
-                        <button
-                          key={val}
-                          onClick={() => setPkgProcedure(val)}
-                          role="radio"
-                          aria-checked={pkgProcedure === val}
-                          style={{
-                            fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans,
-                            background: pkgProcedure === val ? navy : '#fff',
-                            color: pkgProcedure === val ? '#fff' : navy,
-                            border: `1px solid ${pkgProcedure === val ? navy : border}`, cursor: 'pointer',
-                          }}
-                        >
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Your firm's wording</div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 8 }}>
-                      Each document has its own precedents and its own style. Teach them one at a time.
-                    </div>
-                    {PACKAGE_DOCS.map(doc => {
-                      const profilesFor = pkgProfiles[doc.type] ?? [];
-                      return (
-                        <div key={doc.type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 13, color: ink, minWidth: 210 }}>{doc.label}</span>
-                          <select
-                            value={pkgStyleIds[doc.type] ?? ''}
-                            onChange={e => setPkgStyleIds(prev => ({ ...prev, [doc.type]: e.target.value }))}
-                            aria-label={`Style for ${doc.label}`}
-                            style={{ fontFamily: sans, fontSize: 12.5, padding: '6px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', minWidth: 190 }}
-                          >
-                            <option value="">Starling's default form</option>
-                            {profilesFor.map(pr => <option key={pr.id} value={pr.id}>{pr.label}</option>)}
-                          </select>
-                          <button
-                            onClick={() => setTeachingDocType(teachingDocType === doc.type ? null : doc.type)}
-                            style={{ fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                          >
-                            {teachingDocType === doc.type ? 'Close' : profilesFor.length ? 'Teach another' : 'Teach from precedents'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {teachingDocType && (
-                      <div style={{ marginTop: 10 }}>
-                        <StyleProfilePanel
-                          documentType={teachingDocType}
-                          documentLabel={PACKAGE_DOCS.find(d => d.type === teachingDocType)?.label ?? 'document'}
-                          profiles={pkgProfiles[teachingDocType] ?? []}
-                          onChanged={() => refreshPkgProfiles()}
-                          onClose={() => setTeachingDocType(null)}
-                        />
-                      </div>
-                    )}
-
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, margin: '14px 0 4px' }}>Draft the whole package</div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                      The motion, the consent order and the draft order from this one schedule, so their
-                      terms cannot disagree. Each arrives as its own document on the Documents tab.
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 8, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={pkgAffidavit} onChange={() => setPkgAffidavit(v => !v)} style={{ accentColor: navy }} />
-                      Include the supporting affidavit for the motion
-                    </label>
-                    {pkgAffidavit && (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                        <input
-                          value={pkgDeponent}
-                          onChange={e => setPkgDeponent(e.target.value)}
-                          placeholder={`Deponent (default: ${profile.displayName || 'you'})`}
-                          aria-label="Deponent name"
-                          style={{ flex: 1, minWidth: 190, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
-                        />
-                        <select value={pkgCapacity} onChange={e => setPkgCapacity(e.target.value as typeof pkgCapacity)} aria-label="Deponent capacity"
-                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
-                          <option value="lawyer">Lawyer with carriage</option>
-                          <option value="law_clerk">Law clerk</option>
-                          <option value="plaintiff">The plaintiff</option>
-                        </select>
-                        <select value={pkgBasis} onChange={e => setPkgBasis(e.target.value as typeof pkgBasis)} aria-label="Knowledge basis"
-                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
-                          <option value="information_and_belief">Information and belief (Rule 39.01(4))</option>
-                          <option value="personal">Personal knowledge</option>
-                          <option value="mixed">Mixed</option>
-                        </select>
-                        {pkgBasis === 'information_and_belief' && (
-                          <input
-                            value={pkgSource}
-                            onChange={e => setPkgSource(e.target.value)}
-                            placeholder="Source of the information (named, as the rule requires)"
-                            aria-label="Source of information"
-                            style={{ flex: 1, minWidth: 240, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
-                          />
-                        )}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => { void generatePackage(); }}
-                      disabled={pkgBusy || ttRows.filter(r => r.label.trim() && r.date.trim()).length === 0}
-                      style={{
-                        fontSize: 13.5, fontWeight: 600, padding: '10px 18px', borderRadius: 2, fontFamily: sans,
-                        background: pkgBusy ? muted : orange, color: '#fff', border: 'none',
-                        cursor: pkgBusy ? 'wait' : 'pointer',
-                      }}
-                    >
-                      {pkgBusy ? 'Drafting the package…' : `Generate the timetable package${pkgAffidavit ? ' (4 documents)' : ' (3 documents)'}`}
-                    </button>
-                    {pkgResult && <div role="status" style={{ fontSize: 12.5, color: green, marginTop: 8 }}>{pkgResult}</div>}
-                  </div>
-                </div>
-              )}
-
-              {/* Court-form inputs: the deterministic forms are data, and
-                  these fields are that data */}
-              {selectedDraft && COURT_FORM_FIELDS[selectedDraft] && !generatedHtml && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
-                  {COURT_FORM_FIELDS[selectedDraft].map(f => (
-                    <div key={f.key} style={f.type === 'textarea' ? { gridColumn: '1 / -1' } : undefined}>
-                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>
-                        {f.label}{f.required ? ' *' : ''}
-                      </div>
-                      {f.type === 'select' ? (
-                        <select
-                          value={courtFields[f.key] ?? ''}
-                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
-                        >
-                          <option value="">Select</option>
-                          {(f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                      ) : f.type === 'textarea' ? (
-                        <textarea
-                          value={courtFields[f.key] ?? ''}
-                          placeholder={f.placeholder}
-                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          rows={3}
-                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box', resize: 'vertical' }}
-                        />
-                      ) : (
-                        <input
-                          type={f.type ?? 'text'}
-                          value={courtFields[f.key] ?? ''}
-                          placeholder={f.placeholder}
-                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* Generation options */}
-              {selectedDraft && !COURT_FORM_FIELDS[selectedDraft] && !generatedHtml && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
-                  {(selectedDraft === 'demand') && (
-                    <>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Tone</div>
-                        <select value={genTone} onChange={e => setGenTone(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
-                          <option value="professional">Professional</option>
-                          <option value="firm">Firm</option>
-                          <option value="aggressive">Aggressive</option>
-                        </select>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Demand Amount (CAD)</div>
-                        <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
-                      </div>
-                    </>
-                  )}
-                  {(selectedDraft === 'soc') && (
-                    <>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Procedure Type</div>
-                        <select value={genProcedure} onChange={e => setGenProcedure(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
-                          <option value="small_claims">Small Claims (≤$50K)</option>
-                          <option value="simplified">Simplified ($50K–$200K)</option>
-                          <option value="ordinary">Ordinary (&gt;$200K)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Court Location</div>
-                        <input type="text" placeholder="e.g., Toronto" value={genCourtLocation} onChange={e => setGenCourtLocation(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
-                      </div>
-                    </>
-                  )}
-                  {selectedDraft !== 'demand' && (
-                    <div>
-                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
-                      <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Pronouns live on the client file, but they change every line
-                  of the letter, so the choice belongs where the letter is
-                  written too. Parked on the Intake tab alone, the pilot went
-                  looking for it here and did not find it. */}
-              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-                  <span style={{ fontSize: 12.5, color: muted, fontWeight: 600 }}>How this document refers to the client</span>
-                  <select
-                    value={String((employment.data?.intake as Record<string, unknown> | undefined)?.client_pronouns ?? '')}
-                    onChange={async e => {
-                      const intake = { ...(employment.data?.intake ?? {}), client_pronouns: e.target.value || undefined };
-                      await employment.saveIntake(intake as Record<string, unknown>);
-                      void employment.refresh();
-                    }}
-                    aria-label="How this document refers to the client"
-                    style={{ fontFamily: sans, fontSize: 13.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
-                  >
-                    <option value="">Not set (uses the client's name)</option>
-                    <option value="she">she / her</option>
-                    <option value="he">he / him</option>
-                    <option value="they">they / them</option>
-                    <option value="name">Name only, no pronouns</option>
-                  </select>
-                  <span style={{ fontSize: 11.5, color: muted }}>Saved to the client file, and used by every document on this matter.</span>
-                </div>
-              )}
-
-              {(selectedDraft === 'mediation' || selectedDraft === 'demand') && !generatedHtml && readiness.length > 0 && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                    Before you generate
-                    {readiness.some(r => r.level === 'warn') && (
-                      <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
-                        {readiness.filter(r => r.level === 'warn').length} TO FIX
-                      </span>
-                    )}
-                  </div>
-                  {readiness.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', fontSize: 12.5 }}>
-                      <span aria-hidden="true" style={{ color: r.level === 'ok' ? green : r.level === 'warn' ? amber : muted, fontWeight: 700, minWidth: 14 }}>
-                        {r.level === 'ok' ? '✓' : r.level === 'warn' ? '!' : '·'}
-                      </span>
-                      <span style={{ color: r.level === 'warn' ? ink : muted, flex: 1 }}>
-                        <span style={{ fontWeight: r.level === 'warn' ? 600 : 400 }}>{r.label}</span>
-                        {r.hint && <span> {r.hint}</span>}
-                        {r.goTo && r.level !== 'ok' && (
-                          <button
-                            onClick={() => setActiveTab(r.goTo as TabKey)}
-                            style={{ marginLeft: 6, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
-                          >
-                            fix it
-                          </button>
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {selectedDraft === 'soc' && !generatedHtml && socNodes.length > 0 && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>What this claim pleads</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-                    Each cause of action is a section in the firm's settled language, selected by the facts on file and your approved issues. Turning one on that the intake never asked about gives you the structure with [LAWYER: ...] markers, never invented facts.
-                  </div>
-                  {socNodes.map(n => {
-                    const on = n.status === 'firing' || n.status === 'forced_on';
-                    const chip = n.status === 'firing' ? { label: 'PLEADED', bg: '#e8f2e8', fg: green }
-                      : n.status === 'forced_on' ? { label: 'FORCED ON', bg: '#e8f2e8', fg: green }
-                      : n.status === 'eligible_unapproved' ? { label: 'FACTS SUPPORT IT', bg: '#fdf0dd', fg: amber }
-                      : n.status === 'forced_off' ? { label: 'FORCED OFF', bg: '#f3f3f3', fg: muted }
-                      : { label: 'OFF', bg: '#f3f3f3', fg: muted };
-                    return (
-                      <div key={n.blockId} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '5px 0', borderTop: `1px solid #f0ede8` }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: chip.fg, background: chip.bg, padding: '2px 7px', borderRadius: 2, minWidth: 86, textAlign: 'center', marginTop: 2 }}>{chip.label}</span>
-                        <span style={{ flex: 1, fontSize: 12.5, color: on ? ink : muted }}>
-                          <span style={{ fontWeight: 600 }}>{n.sectionHeader}</span>
-                          <span style={{ display: 'block', fontSize: 11.5, color: muted, lineHeight: 1.45 }}>{n.reason}</span>
-                        </span>
-                        {n.status !== 'firing' && n.tier === 2 && (
-                          <button
-                            onClick={() => void setSocOverride(n.blockId, n.status === 'forced_on' || n.status === 'forced_off' ? null : 'on')}
-                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: navy, cursor: 'pointer', padding: '3px 9px', borderRadius: 2 }}
-                          >
-                            {n.status === 'forced_on' || n.status === 'forced_off' ? 'reset' : 'force on'}
-                          </button>
-                        )}
-                        {(n.status === 'firing' || n.status === 'eligible_unapproved') && (
-                          <button
-                            onClick={() => void setSocOverride(n.blockId, 'off')}
-                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '3px 4px' }}
-                          >
-                            turn off
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {selectedDraft === 'soc' && !generatedHtml && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The firm's pleading language</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-                    Each cause is pleaded in settled language. Upload two or more of the firm's own claims and Starling proposes each node rewritten in your wording, structure intact. Nothing changes until you approve it, node by node. Names, dates and figures from the claims never enter the templates.
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input
-                      ref={socTeachInputRef}
-                      type="file" accept=".docx" multiple style={{ display: 'none' }}
-                      onChange={e => { const fs = [...(e.target.files ?? [])]; if (fs.length) void teachSocNodes(fs); e.target.value = ''; }}
-                      aria-label="Upload the firm's statements of claim"
-                    />
-                    <button
-                      onClick={() => socTeachInputRef.current?.click()}
-                      disabled={socTeachBusy}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: socTeachBusy ? '#b0b0b0' : navy, color: '#fff', border: 'none', cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
-                    >
-                      {socTeachBusy ? 'Reading…' : 'Teach from your claims'}
-                    </button>
-                    <input
-                      ref={socImportInputRef}
-                      type="file" accept=".xlsx" style={{ display: 'none' }}
-                      onChange={e => { const f = e.target.files?.[0]; if (f) void importSocNodes(f); e.target.value = ''; }}
-                      aria-label="Import the node spreadsheet"
-                    />
-                    <button
-                      onClick={() => socImportInputRef.current?.click()}
-                      disabled={socTeachBusy}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
-                    >
-                      Import node spreadsheet
-                    </button>
-                    <span style={{ fontSize: 11.5, color: muted }}>
-                      {socLib.filter(n => n.provenance !== 'default').length > 0
-                        ? `${socLib.filter(n => n.provenance === 'learned').length} learned, ${socLib.filter(n => n.provenance === 'edited').length} edited, rest on defaults.`
-                        : 'All nodes on the ported defaults.'}
-                    </span>
-                  </div>
-                  {socTeachMsg && <div style={{ fontSize: 12.5, color: ink, marginTop: 8 }}>{socTeachMsg}</div>}
-
-                  {socProposals && socProposals.filter(p => p.proposed || p.skipped).map(p => (
-                    <div key={p.blockId} style={{ borderTop: `1px solid #f0ede8`, marginTop: 10, paddingTop: 10 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: ink }}>
-                        {p.sectionHeader || p.blockId}
-                        <span style={{ fontWeight: 400, color: muted }}> · from {p.sources.join(', ') || 'no matching claims'}</span>
-                      </div>
-                      {p.skipped && <div style={{ fontSize: 12, color: muted, marginTop: 3 }}>{p.skipped}</div>}
-                      {p.proposed && (
-                        <>
-                          {(p.validation?.warnings ?? []).map((w, i) => (
-                            <div key={i} style={{ fontSize: 11.5, color: amber, marginTop: 3 }}>{w}</div>
-                          ))}
-                          {p.notes.map((note, i) => (
-                            <div key={i} style={{ fontSize: 11.5, color: muted, marginTop: 3 }}>{note}</div>
-                          ))}
-                          <details style={{ marginTop: 6 }}>
-                            <summary style={{ fontSize: 12, color: navy, cursor: 'pointer' }}>Read it as it would plead</summary>
-                            <div style={{ fontSize: 12, color: ink, background: '#fbfaf8', border: `1px solid ${border}`, padding: '8px 10px', marginTop: 5, lineHeight: 1.55 }}
-                              dangerouslySetInnerHTML={{ __html: p.validation?.renderAllOn ?? '' }} />
-                          </details>
-                          {p.additions.length > 0 && (
-                            <div style={{ fontSize: 11.5, color: muted, marginTop: 5 }}>
-                              Your claims also plead, and this node does not: {p.additions.map(a => a.summary).join('; ')}. Approve the node first, then add these by editing it.
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                            <button
-                              onClick={() => void approveSocProposal(p.blockId, p.proposed!, 'learned')}
-                              disabled={!p.validation?.ok}
-                              style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: p.validation?.ok ? orange : '#b0b0b0', color: '#fff', border: 'none', cursor: p.validation?.ok ? 'pointer' : 'not-allowed' }}
-                            >
-                              Approve: plead it in these words
-                            </button>
-                            <button
-                              onClick={() => setSocProposals(prev => prev ? prev.filter(x => x.blockId !== p.blockId) : prev)}
-                              style={{ fontSize: 12, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                            >
-                              Keep the current language
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && renderDirection('document')}
-
-              {selectedDraft === 'demand' && !generatedHtml && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Documents this letter argues from</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-                    A demand letter turns on specific words: the clause the parties signed, the reason the employer put in writing. Attach those documents and the letter quotes them instead of paraphrasing. Say what each one is, because the letter reads the employment agreement differently from a policy manual.
-                  </div>
-
-                  {storedSources.length === 0 && (
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, fontStyle: 'italic' }}>
-                      Nothing attached. The letter will argue from the intake alone.
-                    </div>
-                  )}
-                  {storedSources.map(sd => (
-                    <label key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={dlSourceIds.has(sd.id)}
-                        onChange={() => setDlSourceIds(prev => {
-                          const next = new Set(prev);
-                          if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id);
-                          return next;
-                        })}
-                        style={{ accentColor: navy }}
-                      />
-                      <span style={{ flex: 1 }}>
-                        {sd.name}
-                        <span style={{ color: muted, fontSize: 12 }}> · {DEMAND_SOURCE_KIND_LABELS[sd.kind ?? 'other'] ?? 'Other'} · {sd.words.toLocaleString('en-CA')} words</span>
-                      </span>
-                      <button
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          if (!sessionId) return;
-                          await fetch(`/api/employment/${sessionId}/brief-sources/${sd.id}`, { method: 'DELETE', credentials: 'include' });
-                          void employment.refresh();
-                        }}
-                        style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
-                      >
-                        remove
-                      </button>
-                    </label>
-                  ))}
-
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
-                    <select
-                      value={dlUploadKind}
-                      onChange={e => setDlUploadKind(e.target.value)}
-                      aria-label="What kind of document you are attaching"
-                      style={{ fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
-                    >
-                      {Object.entries(DEMAND_SOURCE_KIND_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                    <input
-                      ref={dlSourceInputRef}
-                      type="file"
-                      accept=".pdf,.docx,.md,.txt"
-                      multiple
-                      style={{ display: 'none' }}
-                      onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f, dlUploadKind); e.target.value = ''; }}
-                      aria-label="Attach a document for the demand letter"
-                    />
-                    <button
-                      onClick={() => dlSourceInputRef.current?.click()}
-                      disabled={sourceParsing}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                    >
-                      {sourceParsing ? 'Reading…' : 'Attach a document'}
-                    </button>
-                  </div>
-                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
-                </div>
-              )}
-
-              {selectedDraft === 'demand' && !generatedHtml && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The figures in the letter</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 12, lineHeight: 1.5 }}>
-                    Starling builds the itemised damages table from the analysis rather than writing the numbers into prose. Enter what the employer has already paid and what your client has earned since, and the table nets them off.
-                  </div>
-
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Addressed to</div>
-                    <input
-                      type="text"
-                      placeholder="Opposing counsel, or the employer where counsel is unknown"
-                      value={dlRecipient}
-                      onChange={e => setDlRecipient(e.target.value)}
-                      aria-label="Recipient of the demand letter"
-                      style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                    />
-                    <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>Left blank, the letter is marked for you to complete rather than addressed to a guess.</div>
-                  </div>
-
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 5 }}>
-                      <div style={{ fontSize: 12.5, color: muted, fontWeight: 600 }}>Heads of damage claimed</div>
-                      {dlHeadsTouched && (
-                        <button
-                          onClick={() => { setDlHeadsTouched(false); void employment.refresh(); }}
-                          style={{ fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
-                        >
-                          reset to the analysis
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: muted, marginBottom: 7, lineHeight: 1.5 }}>
-                      Prefilled from the analysis. Edit the wording, the basis or the figure and the table says what you wrote. A head left without an amount is shown as one for you to quantify, not dropped.
-                    </div>
-                    {dlHeads.map((row, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <input
-                            type="text"
-                            placeholder="Head, e.g. Pay in lieu of reasonable notice"
-                            value={row.label}
-                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r)); }}
-                            aria-label={`Head of damage ${i + 1}`}
-                            style={{ fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                          />
-                          <input
-                            type="text"
-                            placeholder="Basis, e.g. eight to twelve months at the plaintiff's compensation"
-                            value={row.basis}
-                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, basis: e.target.value } : r)); }}
-                            aria-label={`Basis for head ${i + 1}`}
-                            style={{ fontFamily: sans, fontSize: 12.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: muted, boxSizing: 'border-box' }}
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="Amount"
-                          value={row.amount}
-                          onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r)); }}
-                          aria-label={`Amount for head ${i + 1}`}
-                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                        <button
-                          onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => rows.filter((_, j) => j !== i)); }}
-                          aria-label={`Remove head ${i + 1}`}
-                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '9px 4px 0' }}
-                        >
-                          remove
-                        </button>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 2 }}>
-                      <button
-                        onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => [...rows, { label: '', basis: '', amount: '' }]); }}
-                        style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                      >
-                        Add a head
-                      </button>
-                      {dlHeads.length > 0 && (() => {
-                        const subtotal = dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-                        const asCad = subtotal.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
-                        return (
-                          <span style={{ fontSize: 12, color: muted }}>
-                            Subtotal {asCad}
-                            {/* The demand is a judgment call, so it is never
-                                filled in silently. Offered, once, when the
-                                figures are on screen and the field is empty. */}
-                            {subtotal > 0 && !genDemandAmount && (
-                              <button
-                                onClick={() => setGenDemandAmount(String(Math.round(subtotal)))}
-                                style={{ marginLeft: 8, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
-                              >
-                                demand this amount
-                              </button>
-                            )}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Already paid by the employer</div>
-                    {dlPaid.map((row, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-                        <input
-                          type="text"
-                          placeholder="e.g., ESA notice and severance"
-                          value={row.label}
-                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
-                          aria-label={`Payment ${i + 1} description`}
-                          style={{ flex: 1, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Amount"
-                          value={row.amount}
-                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r))}
-                          aria-label={`Payment ${i + 1} amount`}
-                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                        <button
-                          onClick={() => setDlPaid(rows => rows.filter((_, j) => j !== i))}
-                          aria-label={`Remove payment ${i + 1}`}
-                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
-                        >
-                          remove
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => setDlPaid(rows => [...rows, { label: '', amount: '' }])}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                    >
-                      Add a payment
-                    </button>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Mitigation earnings to date (CAD)</div>
-                    <input
-                      type="text"
-                      placeholder="Leave blank if none"
-                      value={dlMitigation}
-                      onChange={e => setDlMitigation(e.target.value.replace(/[^\d]/g, ''))}
-                      aria-label="Mitigation earnings to date"
-                      style={{ width: 200, fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {selectedDraft === 'mediation' && !generatedHtml && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Sources for this brief</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                    The brief argues the positions in these documents and cites back to them. Attach what was
-                    drafted outside Starling: the statement of claim, the demand letter, a list of cases. Up to roughly 40 pages per document is read in full.
-                  </div>
-                  {employment.generatedDocuments.some(d => d.docType === 'demand_letter') && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={includeGenDemand} onChange={() => setIncludeGenDemand(v => !v)} style={{ accentColor: navy }} />
-                      Demand Letter (generated in Starling)
-                    </label>
-                  )}
-                  {employment.generatedDocuments.some(d => d.docType === 'statement_of_claim') && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={includeGenSoc} onChange={() => setIncludeGenSoc(v => !v)} style={{ accentColor: navy }} />
-                      Statement of Claim (generated in Starling)
-                    </label>
-                  )}
-                  {storedSources.map(sd => (
-                    <div key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, padding: '3px 0' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedSourceIds.has(sd.id)}
-                        onChange={() => setSelectedSourceIds(prev => { const next = new Set(prev); if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id); return next; })}
-                        aria-label={`Use ${sd.name} for this draft`}
-                        style={{ accentColor: navy }}
-                      />
-                      <span style={{ flex: 1 }}>{sd.name} <span style={{ color: muted, fontSize: 12 }}>({Number(sd.words).toLocaleString('en-CA')} words)</span></span>
-                      <button
-                        onClick={() => void removeBriefSource(sd.id)}
-                        aria-label={`Remove ${sd.name} from the matter`}
-                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                      >
-                        remove
-                      </button>
-                    </div>
-                  ))}
-                  {storedSources.length > 0 && (
-                    <div style={{ fontSize: 11.5, color: muted, marginTop: 2 }}>Attached sources stay on the matter for every regeneration.</div>
-                  )}
-                  <input
-                    ref={briefSourceInputRef}
-                    type="file"
-                    accept=".pdf,.docx,.md,.txt"
-                    multiple
-                    style={{ display: 'none' }}
-                    onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f); e.target.value = ''; }}
-                    aria-label="Attach a source document for the brief"
-                  />
-                  <button
-                    onClick={() => briefSourceInputRef.current?.click()}
-                    disabled={sourceParsing}
-                    style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                  >
-                    {sourceParsing ? 'Reading…' : 'Attach a document'}
-                  </button>
-                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
-                </div>
-              )}
-
-              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && styleProfiles.profiles.length > 0 && (
+              {selectedDraft && selectedDraft !== 'timetable' && showOptions && styleProfiles.profiles.length > 0 && (
                 <div style={{ margin: '0 0 12px' }}>
                   <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Draft in your firm's style</div>
                   <div style={{ fontSize: 11.5, color: muted, marginBottom: 6, lineHeight: 1.5 }}>
@@ -3563,7 +3638,7 @@ export default function MatterDetailView() {
                 </div>
               )}
 
-              {selectedDraft && selectedDraft !== 'timetable' && !generatedHtml && (
+              {selectedDraft && selectedDraft !== 'timetable' && showOptions && (
                 <div>
                 <button
                   onClick={async () => {
@@ -3625,6 +3700,7 @@ export default function MatterDetailView() {
                     setGenerating(false);
                     if (result.ok && result.html) {
                       setGeneratedHtml(result.html);
+                      setDraftView('draft');
                       setGenCitations(result.citations ?? []);
                       setGenReviewFlags(result.reviewFlags ?? []);
                       // Tell the lawyer their dates reached the docket, and
@@ -3688,7 +3764,7 @@ export default function MatterDetailView() {
               )}
 
               {/* Document Preview */}
-              {generatedHtml && (
+              {showDraft && generatedHtml && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <h3 style={{ fontFamily: serif, fontSize: 17, fontWeight: 600, color: navy, margin: 0 }}>
@@ -3696,13 +3772,13 @@ export default function MatterDetailView() {
                     </h3>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
-                        onClick={() => setGeneratedHtml(null)}
+                        onClick={() => setDraftView('options')}
                         style={{
                           background: '#fff', color: navy, border: `1px solid ${border}`,
                           fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans,
                         }}
                       >
-                        Change options
+                        Options
                       </button>
                       <button
                         onClick={() => setRevising({ source: 'client' })}
@@ -3869,16 +3945,7 @@ export default function MatterDetailView() {
                   />
 
                   {/* Lawyer review flags — sections the model wants checked */}
-                  {genReviewFlags.length > 0 && (
-                    <div style={{ marginTop: 12, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '12px 16px' }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: amber, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Review before sending
-                      </div>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: ink, lineHeight: 1.7 }}>
-                        {genReviewFlags.map((flag, i) => <li key={i}>{flag}</li>)}
-                      </ul>
-                    </div>
-                  )}
+                  <TriagedFlags flags={genReviewFlags} />
 
                   {/* Source citations — what each section relies on */}
                   {genCitations.length > 0 && (

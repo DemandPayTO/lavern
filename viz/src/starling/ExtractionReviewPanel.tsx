@@ -263,14 +263,14 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
             padding: '8px 16px', borderRadius: 2, border: 'none', cursor: totalCount > 0 && !result?.ok ? 'pointer' : 'default',
           }}
         >
-          {busy ? 'Applying…'
-            : result?.ok ? 'Applied'
-            : readyOffers.length > 0 && applyCount > 0 ? `Apply ${applyCount} field${applyCount === 1 ? '' : 's'} and ${readyOffers.length} offer${readyOffers.length === 1 ? '' : 's'}`
-            : readyOffers.length > 0 ? `Apply ${readyOffers.length} offer${readyOffers.length === 1 ? '' : 's'} to the ledger`
-            : `Apply ${applyCount} field${applyCount === 1 ? '' : 's'} to the intake`}
+          {busy ? 'Approving…'
+            : result?.ok ? 'Approved'
+            : readyOffers.length > 0 && applyCount > 0 ? `Approve ${applyCount} field${applyCount === 1 ? '' : 's'} and ${readyOffers.length} offer${readyOffers.length === 1 ? '' : 's'}`
+            : readyOffers.length > 0 ? `Approve ${readyOffers.length} offer${readyOffers.length === 1 ? '' : 's'} for the ledger`
+            : `Approve ${applyCount} field${applyCount === 1 ? '' : 's'} for the client file`}
         </button>
         <span style={{ fontSize: 12, color: muted }}>
-          Blank fields fill in; a checked field with an existing value changes only when its "replace" box is also ticked.
+          Routine facts come ticked. Anything that changes what gets drafted or pleaded starts unticked: those clicks are yours. A checked field with an existing value changes only when its "replace" box is also ticked.
         </span>
       </div>
 

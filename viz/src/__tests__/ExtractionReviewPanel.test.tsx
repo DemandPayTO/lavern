@@ -36,12 +36,12 @@ describe('ExtractionReviewPanel', () => {
 
   it('requires the per-field replace tick before a non-blank field counts', async () => {
     render(<ExtractionReviewPanel extraction={EXTRACTION} intake={INTAKE} onApply={vi.fn()} />);
-    expect(screen.getByRole('button', { name: /Apply 1 field/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Approve 1 field/ })).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('Apply annual salary'));
     // checked but not overwriting → still only 1 field will actually apply
-    expect(screen.getByRole('button', { name: /Apply 1 field/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Approve 1 field/ })).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('Replace current value of annual salary'));
-    expect(screen.getByRole('button', { name: /Apply 2 fields/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Approve 2 fields/ })).toBeInTheDocument();
   });
 
   it('applies and reports the consequence diff and analysis staleness', async () => {
@@ -55,7 +55,7 @@ describe('ExtractionReviewPanel', () => {
       timelineDiff: { added: [{ date: '2028-05-15', label: 'Limitation period expires' }], removed: [] },
     });
     render(<ExtractionReviewPanel extraction={EXTRACTION} intake={INTAKE} onApply={onApply} />);
-    await userEvent.click(screen.getByRole('button', { name: /Apply 1 field/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 1 field/ }));
     await waitFor(() => {
       expect(onApply).toHaveBeenCalledWith('ext-9', ['termination_date'], [], []);
       expect(screen.getByText(/Applied 1 field to the intake/)).toBeInTheDocument();
@@ -71,7 +71,7 @@ describe('ExtractionReviewPanel', () => {
       invalidFields: ['termination_date'],
     });
     render(<ExtractionReviewPanel extraction={EXTRACTION} intake={INTAKE} onApply={onApply} />);
-    await userEvent.click(screen.getByRole('button', { name: /Apply 1 field/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 1 field/ }));
     await waitFor(() => {
       expect(screen.getByText(/would make the intake invalid/)).toBeInTheDocument();
       expect(screen.getByText(/Fields: termination_date/)).toBeInTheDocument();
