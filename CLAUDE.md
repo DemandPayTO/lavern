@@ -52,6 +52,29 @@ sends or files), no em-dashes or contractions in prompts/UI/generated
 content, per-user tenant scoping on every query, and the 3-consecutive-
 clean-passes testing discipline before any deploy.
 
+**Starling UI canon** (hold on every new feature; lawyers are creatures of
+habit and the product must stay predictable):
+- One interaction model everywhere: Starling proposes, the lawyer approves.
+  AI actions are labelled "Read ...", binding actions are exactly
+  "Approve", rejection is exactly "Discard". Consequences go in adjacent
+  text, never inside button labels.
+- Checkbox rule, stated on review surfaces: routine facts arrive ticked;
+  anything that binds drafting or arms a cause of action arrives unticked.
+- Workspace anatomy, same order on every document: before-you-generate
+  checklist, direction, what it is built from, "Your firm's way of doing
+  this document" (paper + words), Generate. New panels join their section.
+- No engineering vocabulary in lawyer-facing text (no "node", "schema",
+  "extraction" is acceptable, "parse" is not).
+- Every disabled control says why, inline. Every state that hides content
+  offers a visible tab or link to it (no full-screen takeovers with a
+  cleverly named escape hatch).
+- Review flags render triaged: Fix before sending / Check against the file
+  / For the record, worst first.
+- After every save or apply, one plain sentence says what just happened,
+  including causes made pleadable and instructions now binding.
+- A new feature that cannot be expressed as Read then review then Approve
+  inside the canonical anatomy is not finished being designed.
+
 ## Project Structure
 
 ### Core Engine
