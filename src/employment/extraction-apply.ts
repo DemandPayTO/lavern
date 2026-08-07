@@ -49,6 +49,24 @@ export const APPLYABLE_INTAKE_FIELDS: ReadonlySet<string> = new Set([
   'signed_release', 'severance_offer_details',
   // ROE
   'roe_issued', 'roe_reason_code',
+  // Pleading fields: the facts that make causes of action pleadable, held
+  // to the quote-or-discard standard at extraction time. Their names
+  // follow the DemandPay schema, same as the intake columns they fill.
+  'has_written_contract', 'contract_date',
+  'clause_cause_broader', 'clause_no_benefits', 'clause_limits_below_esa',
+  'noncompete_post_oct2021', 'is_executive_noncompete',
+  'has_benefits', 'has_rrsp', 'has_car_allowance',
+  'false_cause_alleged', 'benefits_not_continued',
+  'bad_faith_details',
+  'defamatory_statements', 'defamation_recipients',
+  'common_employer', 'common_employer_documentation',
+  'employer_initiated_recruitment', 'had_prior_secure_employment',
+  'prior_employer_name', 'prior_employer_tenure', 'inducement_representations',
+  'promises_not_fulfilled',
+  'privacy_breach', 'privacy_breach_description',
+  'unjust_enrichment', 'unjust_enrichment_benefit',
+  'iims', 'iims_conduct_description',
+  'hrc_protected_ground', 'hrc_conduct_description',
 ]);
 
 /**

@@ -51,6 +51,35 @@ const extractionOutputSchema = z.object({
 
 type DocumentKind = typeof UPLOADABLE_DOCUMENT_TYPES[number];
 
+/**
+ * Fields whose approval makes a cause of action pleadable, and the cause.
+ *
+ * These get harder treatment than ordinary facts, in the prompt AND in
+ * code: true only with a verbatim quote that verifies against the
+ * document, and never false from absence, because a document not
+ * mentioning defamation is not evidence there was none.
+ */
+export const CAUSE_TRIGGER_FIELDS: Record<string, string> = {
+  defamatory_statements: 'Defamation',
+  privacy_breach: 'Intrusion upon Seclusion',
+  common_employer: 'Common Employer liability',
+  unjust_enrichment: 'Unjust Enrichment',
+  iims: 'Intentional Infliction of Mental Suffering',
+  employer_initiated_recruitment: 'Inducement',
+  had_prior_secure_employment: 'Inducement',
+  promises_not_fulfilled: 'Negligent Misrepresentation',
+  false_cause_alleged: 'Bad Faith (false cause)',
+  clause_cause_broader: 'the Termination Clause attack (cause standard ground)',
+  clause_no_benefits: 'the Termination Clause attack (benefits ground)',
+  clause_limits_below_esa: 'the Termination Clause attack (ESA minimum ground)',
+};
+
+const PLEADING_RULES = `
+PLEADING FACTS, special rules. Some fields below are marked [PLEADING]. Approving one makes a cause of action pleadable in the Statement of Claim, so they are held to a harder standard than the rest:
+- Set a [PLEADING] field to true ONLY where the document explicitly supports it, and ALWAYS include sourceQuote with the exact sentence. A true without a quote will be discarded.
+- NEVER set a [PLEADING] field to false. A document that does not mention something is not evidence it did not happen. Use null.
+- For the paired description field, quote or closely paraphrase the document; never embellish.`;
+
 function buildExtractionPrompt(kind: DocumentKind): string {
   const base = `You are a precise employment law document analyst for Ontario, Canada.
 Your job is to extract specific structured facts from the document provided.
@@ -88,8 +117,19 @@ Extract these fields from the employment agreement:
 - work_location (string): Work location or address
 - is_fixed_term (boolean): Whether this is a fixed-term contract
 - probation_period (string): Probation period if mentioned
+- has_written_contract (boolean): true (this document is one)
+- contract_date (string, YYYY-MM-DD): The date of the agreement
+- has_benefits (boolean): Whether group benefits are mentioned
+- has_rrsp (boolean): Whether RRSP or pension matching is mentioned
+- has_car_allowance (boolean): Whether a car allowance is mentioned
+- noncompete_post_oct2021 (boolean) [PLEADING]: true only if the agreement is dated after October 25, 2021 AND contains a non-compete
+- is_executive_noncompete (boolean): Whether the role is an executive role (C-suite or president level) for non-compete purposes
+- clause_cause_broader (boolean) [PLEADING]: true only if the termination clause permits dismissal for cause on a standard broader than wilful misconduct, disobedience or wilful neglect of duty (for example "cause includes poor performance")
+- clause_no_benefits (boolean) [PLEADING]: true only if the termination clause provides for notice or pay WITHOUT continuing benefits during the notice period
+- clause_limits_below_esa (boolean) [PLEADING]: true only if the clause could provide less than ESA minimums (for example a fixed cap of notice regardless of service)
 
-Also provide keyFindings: an array of 1-5 notable observations (e.g. "Termination clause limits notice to ESA minimums only", "Non-compete has 2-year / 50km restriction").`,
+Also provide keyFindings: an array of 1-5 notable observations (e.g. "Termination clause limits notice to ESA minimums only", "Non-compete has 2-year / 50km restriction").
+${PLEADING_RULES}`,
 
     termination_letter: `
 Extract these fields from the termination letter:
@@ -104,8 +144,11 @@ Extract these fields from the termination letter:
 - signed_release (boolean): Whether signing a release is required
 - working_notice_given (boolean): Whether working notice was provided
 - working_notice_weeks (number): Weeks of working notice
+- false_cause_alleged (boolean) [PLEADING]: true only if the letter alleges cause on grounds this file's other documents contradict, or the letter itself undercuts (for example alleging performance cause while offering severance)
+- benefits_not_continued (boolean) [PLEADING]: true only if the letter states benefits end before the statutory notice period would
 
 Also provide keyFindings: notable observations (e.g. "Release required as condition of severance", "No mention of benefits continuation").
+${PLEADING_RULES}
 
 OFFERS TO SETTLE: If the document contains any settlement offer, counter-offer, demand, acceptance, or rejection (including a severance offer), also list each one in "offers". For each:
 - date (string YYYY-MM-DD, or null if the document does not state when the offer was made; the letter's own date counts as the offer date)
@@ -126,7 +169,7 @@ Extract these fields from the Record of Employment:
 - insurable_hours (number): Total insurable hours
 - insurable_earnings (number): Total insurable earnings
 
-Also provide keyFindings: notable observations (e.g. "Reason code M (dismissal) may be incorrect if employee was laid off").`,
+Also provide keyFindings: notable observations (e.g. "Reason code M (dismissal) may be incorrect if employee was laid off"). If the issuing employer's name differs from the employer the client says they worked for, say so in keyFindings: it is a common employer signal the lawyer should see.`,
 
     t4: `
 Extract these fields from the T4 tax slip:
@@ -154,8 +197,30 @@ Extract these fields from the correspondence/emails:
 - key_admissions (string): Any admissions or acknowledgements by the employer
 - tone_assessment (string): The tone of the communication (hostile, neutral, conciliatory)
 - termination_reasons (string): Any reasons given for termination
+- bad_faith_details (string): Conduct in the manner of dismissal described or asserted (misleading reasons, humiliation, walked out)
+- defamatory_statements (boolean) [PLEADING]: true only if the correspondence asserts or evidences false statements about the client to third parties
+- defamation_recipients (string): Who the statements were made to, as stated
+- common_employer (boolean) [PLEADING]: true only if the correspondence asserts or shows employment shared across related entities
+- common_employer_documentation (string): The entities and the connection, as stated
+- employer_initiated_recruitment (boolean) [PLEADING]: true only if it asserts or shows the employer recruited the client from prior employment
+- had_prior_secure_employment (boolean) [PLEADING]: true only if it asserts the client held secure employment before being recruited
+- prior_employer_name (string): The prior employer, as stated
+- prior_employer_tenure (string): The client's service with the prior employer, as stated
+- inducement_representations (string): The promises made in recruiting, as stated
+- promises_not_fulfilled (boolean) [PLEADING]: true only if it asserts specific promises that were not honoured
+- privacy_breach (boolean) [PLEADING]: true only if it asserts or shows intrusion into the client's private affairs
+- privacy_breach_description (string): The intrusion, as stated
+- unjust_enrichment (boolean) [PLEADING]: true only if it asserts a benefit taken by the employer without compensation
+- unjust_enrichment_benefit (string): The benefit, as stated
+- iims (boolean) [PLEADING]: true only if it asserts conduct calculated to cause mental suffering and resulting illness
+- iims_conduct_description (string): The conduct, as stated
+- hrc_protected_ground (string): Any Human Rights Code ground asserted (disability, family status, age, sex, and so on)
+- hrc_conduct_description (string): The discriminatory conduct asserted, as stated
+
+A demand letter from this firm states positions already taken: extract them faithfully, because the Statement of Claim should never plead less than the letter asserted without the lawyer deciding so.
 
 Also provide keyFindings: notable observations (e.g. "Employer acknowledges employee's strong performance in email dated March 1, contradicting just cause allegation").
+${PLEADING_RULES}
 
 OFFERS TO SETTLE: If the document contains any settlement offer, counter-offer, demand, acceptance, or rejection (including a severance offer), also list each one in "offers". For each:
 - date (string YYYY-MM-DD, or null if the document does not state when the offer was made; the letter's own date counts as the offer date)
@@ -326,7 +391,7 @@ Extract the structured fields from the document above. Remember: extract only wh
         return {
           documentType: documentKind,
           filename: documentName,
-          extractedFields: verifySourceQuotes(retryValidated.data.extractedFields, content),
+          extractedFields: enforcePleadingEvidence(verifySourceQuotes(retryValidated.data.extractedFields, content)).fields,
           keyFindings: retryValidated.data.keyFindings,
           ...(retryValidated.data.offers?.length ? { offers: verifyOfferQuotes(retryValidated.data.offers, content) } : {}),
           confirmed: false,
@@ -340,7 +405,7 @@ Extract the structured fields from the document above. Remember: extract only wh
     return {
       documentType: documentKind,
       filename: documentName,
-      extractedFields: verifySourceQuotes(validated.data.extractedFields, content),
+      extractedFields: enforcePleadingEvidence(verifySourceQuotes(validated.data.extractedFields, content)).fields,
       keyFindings: validated.data.keyFindings,
       ...(validated.data.offers?.length ? { offers: verifyOfferQuotes(validated.data.offers, content) } : {}),
       confirmed: false,
@@ -368,6 +433,33 @@ function normalizeForMatch(s: string): string {
  * Fields without a quote are left unverified rather than failed — older
  * extractions and null values carry no quote by design.
  */
+/**
+ * The hard rule behind the [PLEADING] prompt marks, enforced in code.
+ *
+ * A pleading field that came back true without a quote that verifies
+ * against the document is DISCARDED, not shown: the prompt asked for
+ * evidence and none survived the string search, so the proposal does not
+ * reach the lawyer. A false is discarded too, whatever its quote, because
+ * absence in one document is not evidence a thing did not happen, and an
+ * approved NO would block the cause from ever firing.
+ */
+export function enforcePleadingEvidence<T extends Record<string, { value: unknown; confidence: string; sourceQuote?: string; verified?: boolean }>>(
+  fields: T,
+): { fields: T; discarded: string[] } {
+  const discarded: string[] = [];
+  for (const [name, field] of Object.entries(fields)) {
+    if (!(name in CAUSE_TRIGGER_FIELDS)) continue;
+    if (field.value === true && field.verified !== true) {
+      discarded.push(name);
+      field.value = null;
+    } else if (field.value === false) {
+      discarded.push(name);
+      field.value = null;
+    }
+  }
+  return { fields, discarded };
+}
+
 export function verifySourceQuotes<T extends Record<string, { value: unknown; confidence: string; sourceQuote?: string; verified?: boolean }>>(
   fields: T,
   documentContent: string,

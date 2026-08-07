@@ -47,6 +47,27 @@ function fmt(v: unknown): string {
   return String(v);
 }
 
+/**
+ * Fields whose approval makes a cause of action pleadable in the Statement
+ * of Claim. Ticking one is not filing a fact; it is arming a claim, and
+ * the row says so, because cause-of-action consequences must never be a
+ * surprise discovered at generation.
+ */
+const CAUSE_TRIGGER_LABELS: Record<string, string> = {
+  defamatory_statements: 'Defamation',
+  privacy_breach: 'Intrusion upon Seclusion',
+  common_employer: 'Common Employer liability',
+  unjust_enrichment: 'Unjust Enrichment',
+  iims: 'Intentional Infliction of Mental Suffering',
+  employer_initiated_recruitment: 'Inducement',
+  had_prior_secure_employment: 'Inducement',
+  promises_not_fulfilled: 'Negligent Misrepresentation',
+  false_cause_alleged: 'Bad Faith (false cause)',
+  clause_cause_broader: 'the Termination Clause attack (cause standard ground)',
+  clause_no_benefits: 'the Termination Clause attack (benefits ground)',
+  clause_limits_below_esa: 'the Termination Clause attack (ESA minimum ground)',
+};
+
 export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: Props) {
   const extractionId = extraction.id ?? 'idx-0';
   const rows = useMemo(() =>
@@ -137,6 +158,11 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
                   </td>
                   <td style={{ padding: '8px 10px', verticalAlign: 'top', fontWeight: 600, color: ink, whiteSpace: 'nowrap' }}>
                     {name.replace(/_/g, ' ')}
+                    {CAUSE_TRIGGER_LABELS[name] && f.value === true && (
+                      <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, color: amber, whiteSpace: 'normal', maxWidth: 180 }}>
+                        Approving this makes {CAUSE_TRIGGER_LABELS[name]} pleadable in the claim
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '8px 10px', verticalAlign: 'top', color: ink, maxWidth: 260, overflowWrap: 'break-word' }}>
                     {fmt(f.value)}
