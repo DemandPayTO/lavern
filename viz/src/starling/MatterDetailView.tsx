@@ -3331,6 +3331,11 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {selectedDraft && selectedDraft !== 'timetable' && showOptions && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '4px 0 8px' }}>
+                  Your firm's way of doing this document
+                </div>
+              )}
               {selectedDraft === 'soc' && showOptions && (
                 <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The firm's pleading language</div>
