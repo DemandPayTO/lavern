@@ -115,3 +115,22 @@ describe('debrief action items in the docket + ICS', () => {
     expect(ics).toContain('matter-1-action_item-');
   });
 });
+
+describe('the ESA wage claims reach the call notes lane', () => {
+  it('the prompt offers every ESA pleading field, under the quote rule', async () => {
+    const { DEBRIEF_SYSTEM_PROMPT } = await import('../../src/employment/debrief.js');
+    for (const field of [
+      'vacation_unpaid', 'vacation_underpaid_rate', 'vacation_excluded_variable_comp',
+      'holiday_pay_unpaid', 'unpaid_overtime', 'unpaid_commission',
+      'unauthorized_deductions', 'expenses_unreimbursed',
+      'esa_term_shortfall', 'esa_sev_shortfall',
+    ]) {
+      expect(DEBRIEF_SYSTEM_PROMPT, `${field} missing from the debrief prompt`).toContain(`${field} (boolean) [PLEADING]`);
+    }
+  });
+
+  it('the prompt carries the paid-on-vacation-taken caution', async () => {
+    const { DEBRIEF_SYSTEM_PROMPT } = await import('../../src/employment/debrief.js');
+    expect(DEBRIEF_SYSTEM_PROMPT).toContain('only when vacation time is taken');
+  });
+});

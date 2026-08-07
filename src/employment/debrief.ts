@@ -208,6 +208,17 @@ Three further keys, all OPTIONAL and all proposals the lawyer approves separatel
 - bad_faith_details (string), hrc_protected_ground (string), hrc_conduct_description (string)
 - new_employment_found (boolean), new_employment_start_date (YYYY-MM-DD), new_employment_salary (number)
 - signed_release (boolean)
+- vacation_unpaid (boolean) [PLEADING]: accrued vacation pay not paid out at termination
+- vacation_underpaid_rate (boolean) [PLEADING]: vacation pay below the ESA 4 or 6 percent minimum throughout the employment
+- vacation_excluded_variable_comp (boolean) [PLEADING]: vacation pay calculated on base salary while commissions or bonuses were excluded
+- holiday_pay_unpaid (boolean) [PLEADING]: public holiday pay went unpaid
+- unpaid_overtime (boolean) [PLEADING]: overtime worked but not paid at the required rate
+- unpaid_commission (boolean) [PLEADING]: commissions or bonuses earned but unpaid at termination
+- unauthorized_deductions (boolean) [PLEADING]: deductions from wages with no statutory basis or written authorization
+- expenses_unreimbursed (boolean) [PLEADING]: business expenses incurred and not reimbursed
+- esa_term_shortfall (boolean) [PLEADING]: ESA termination pay underpaid or unpaid
+- esa_sev_shortfall (boolean) [PLEADING]: ESA severance pay underpaid or unpaid
+VACATION PAY CAUTION: a client saying vacation pay never appeared on their cheques is NOT enough for any vacation field; some employers pay vacation pay only when vacation time is taken. Set a vacation field true only where the notes state the entitlement was actually underpaid or unpaid.
 [PLEADING] rules: set true ONLY where the notes explicitly support it and ALWAYS include sourceQuote with the exact sentence; a true without a quote is discarded. NEVER set a [PLEADING] field to false: notes not mentioning a thing is not evidence it did not happen; omit the field instead. Omit the key entirely when the call supports nothing.
 
 - Return only the JSON object, no markdown fences, no commentary.`;
