@@ -230,6 +230,10 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     unpaid_overtime: intake.unpaid_overtime,
     vacation_unpaid: intake.vacation_unpaid,
     unauthorized_deductions: intake.unauthorized_deductions,
+    vacation_underpaid_rate: intake.vacation_underpaid_rate,
+    vacation_excluded_variable_comp: intake.vacation_excluded_variable_comp,
+    holiday_pay_unpaid: intake.holiday_pay_unpaid,
+    expenses_unreimbursed: intake.expenses_unreimbursed,
     other_compensation: intake.other_compensation_details ? true : undefined,
     benefits_not_continued: intake.benefits_not_continued,
 

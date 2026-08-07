@@ -93,11 +93,15 @@ describe('round-trip against the real spreadsheet', () => {
   const real = path.resolve(__dirname, '../../inbox/DemandPay_SOC_Content_Blocks.xlsx');
   const exists = fs.existsSync(real);
 
-  it.skipIf(!exists)('the ported nodes came from this file, so importing it proposes nothing', async () => {
+  it.skipIf(!exists)('importing the source spreadsheet proposes only the nodes the engine has deliberately grown past', async () => {
     const result = await importNodeSpreadsheet(fs.readFileSync(real));
     const changed = result.proposals.filter(p => p.proposed);
-    expect(changed.map(p => p.blockId)).toEqual([]);
-    expect(result.unchanged).toBeGreaterThanOrEqual(20);
+    // SOC_ESA_01 and SOC_CLAIM_01 gained the smaller ESA wage claims
+    // (vacation underpayment theories, holiday pay, unpaid variable comp,
+    // unreimbursed expenses) after the port, so the older spreadsheet now
+    // proposes reverting exactly those two, and nothing else.
+    expect(changed.map(p => p.blockId).sort()).toEqual(['SOC_CLAIM_01', 'SOC_ESA_01']);
+    expect(result.unchanged).toBeGreaterThanOrEqual(18);
     expect(result.unknownBlocks).toEqual([]);
   });
 });

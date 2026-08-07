@@ -744,6 +744,19 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
   { key: 'received_severance_offer', label: 'Severance offer received', type: 'checkbox' },
   { key: 'severance_weeks_offered', label: 'Severance weeks offered', type: 'number' },
   { key: 'severance_deadline', label: 'Severance offer deadline', type: 'date' },
+  // The smaller ESA wage claims. Ticking one makes it pleadable in the
+  // Statement of Claim, so each label names the claim in plain words.
+  { key: 'vacation_unpaid', label: 'Vacation pay unpaid at termination', type: 'checkbox' },
+  { key: 'vacation_underpaid_rate', label: 'Vacation pay below the ESA 4% / 6% minimum', type: 'checkbox' },
+  { key: 'vacation_excluded_variable_comp', label: 'Vacation pay not paid on commissions or bonuses', type: 'checkbox' },
+  { key: 'holiday_pay_unpaid', label: 'Public holiday pay unpaid', type: 'checkbox' },
+  { key: 'unpaid_overtime', label: 'Overtime unpaid', type: 'checkbox' },
+  { key: 'unpaid_commission', label: 'Commission or bonus earned but unpaid', type: 'checkbox' },
+  { key: 'unauthorized_deductions', label: 'Unauthorized deductions from wages', type: 'checkbox' },
+  { key: 'expenses_unreimbursed', label: 'Business expenses unreimbursed', type: 'checkbox' },
+  { key: 'esa_term_shortfall', label: 'ESA termination pay shortfall', type: 'checkbox' },
+  { key: 'esa_sev_shortfall', label: 'ESA severance pay shortfall', type: 'checkbox' },
+  { key: 'benefits_not_continued', label: 'Benefits not continued through the statutory notice period', type: 'checkbox' },
 ];
 
 // ── Tab definitions ─────────────────────────────────────────────────────

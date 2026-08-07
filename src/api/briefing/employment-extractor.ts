@@ -72,6 +72,16 @@ export const CAUSE_TRIGGER_FIELDS: Record<string, string> = {
   clause_cause_broader: 'the Termination Clause attack (cause standard ground)',
   clause_no_benefits: 'the Termination Clause attack (benefits ground)',
   clause_limits_below_esa: 'the Termination Clause attack (ESA minimum ground)',
+  vacation_unpaid: 'unpaid vacation pay at termination (ESA)',
+  vacation_underpaid_rate: 'vacation pay below the ESA minimum throughout employment',
+  vacation_excluded_variable_comp: 'vacation pay excluding commissions and bonuses (ESA)',
+  holiday_pay_unpaid: 'unpaid public holiday pay (ESA)',
+  unpaid_overtime: 'unpaid overtime (ESA)',
+  unpaid_commission: 'commissions or bonuses earned but unpaid at termination',
+  unauthorized_deductions: 'unauthorized deductions from wages (ESA)',
+  expenses_unreimbursed: 'unreimbursed business expenses',
+  esa_term_shortfall: 'an ESA termination pay shortfall',
+  esa_sev_shortfall: 'an ESA severance pay shortfall',
 };
 
 const PLEADING_RULES = `
@@ -188,6 +198,12 @@ Extract these fields from the pay stub:
 - bonus_amount (number): Any bonus amounts shown
 - commission_amount (number): Any commission amounts shown
 - overtime_hours (number): Overtime hours if shown
+- vacation_underpaid_rate (boolean) [PLEADING]: true ONLY if the stub shows a vacation pay rate below 4 percent (or below 6 percent where the stub itself evidences five or more years of service). Quote the vacation line.
+- vacation_excluded_variable_comp (boolean) [PLEADING]: true ONLY if the stub shows vacation pay calculated on regular or base wages while commission or bonus amounts also appear on the stub. Quote the vacation line.
+- unpaid_overtime (boolean) [PLEADING]: true ONLY if the stub shows overtime hours worked with no overtime premium paid for them. Quote the relevant lines.
+- unauthorized_deductions (boolean) [PLEADING]: true ONLY if the stub shows a deduction that is not CPP, EI, income tax, or another plainly statutory or benefit deduction. Quote the deduction line. The client must still confirm there was no written authorization.
+
+VACATION PAY CAUTION: some employers pay vacation pay only when the employee takes vacation time, not on every cheque. NEVER set any vacation field to true merely because vacation pay is absent from the stub. Where no vacation line appears, add a keyFinding saying vacation pay does not appear on this stub and the client should confirm whether it is paid when vacation time is taken.
 
 Also provide keyFindings: notable observations (e.g. "Regular overtime of 10+ hours/week suggests unpaid overtime claim").`,
 
@@ -198,6 +214,12 @@ Extract these fields from the correspondence/emails:
 - tone_assessment (string): The tone of the communication (hostile, neutral, conciliatory)
 - termination_reasons (string): Any reasons given for termination
 - bad_faith_details (string): Conduct in the manner of dismissal described or asserted (misleading reasons, humiliation, walked out)
+- vacation_unpaid (boolean) [PLEADING]: true only if the correspondence states accrued vacation pay was not paid out at termination
+- holiday_pay_unpaid (boolean) [PLEADING]: true only if the correspondence states public holiday pay went unpaid
+- unpaid_commission (boolean) [PLEADING]: true only if the correspondence states commissions or bonuses were earned but remain unpaid
+- expenses_unreimbursed (boolean) [PLEADING]: true only if the correspondence states business expenses remain unreimbursed
+- esa_term_shortfall (boolean) [PLEADING]: true only if the correspondence states ESA termination pay was underpaid or unpaid
+- esa_sev_shortfall (boolean) [PLEADING]: true only if the correspondence states ESA severance pay was underpaid or unpaid
 - defamatory_statements (boolean) [PLEADING]: true only if the correspondence asserts or evidences false statements about the client to third parties
 - defamation_recipients (string): Who the statements were made to, as stated
 - common_employer (boolean) [PLEADING]: true only if the correspondence asserts or shows employment shared across related entities

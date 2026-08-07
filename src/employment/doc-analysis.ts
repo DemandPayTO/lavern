@@ -92,7 +92,7 @@ export const KIND_CHECKLISTS: Record<AnalyzableKind, ChecklistItem[]> = {
     { id: 'reference_and_logistics', label: 'Reference and logistics', lookFor: 'Reference commitments, ROE timing, equipment return, and final pay logistics.' },
   ],
   pay_stub: [
-    { id: 'vacation_pay_rate', label: 'Vacation pay rate', lookFor: 'The vacation pay percentage or amount. The ESA minimum is 4 percent of wages for under five years of employment and 6 percent for five years or more.' },
+    { id: 'vacation_pay_rate', label: 'Vacation pay rate', lookFor: 'The vacation pay percentage or amount. The ESA minimum is 4 percent of wages for under five years of employment and 6 percent for five years or more. Some employers pay vacation pay only when the employee takes vacation time rather than on every cheque, so an absent vacation line is NOT by itself evidence of underpayment: mark it unclear and say the client should confirm whether vacation pay is paid when vacation time is taken.' },
     { id: 'vacation_pay_on_variable', label: 'Vacation pay on variable earnings', lookFor: 'Whether vacation pay is being calculated on commissions, bonuses, and overtime, which are wages, or only on base salary.' },
     { id: 'overtime', label: 'Overtime', lookFor: 'Overtime hours and the rate paid. The ESA requires time and a half after 44 hours in a week for most employees.' },
     { id: 'deductions', label: 'Deductions', lookFor: 'Any deduction that is not statutory or authorized in writing.' },
@@ -129,9 +129,9 @@ export function deterministicNotes(kind: AnalyzableKind, text: string): string[]
   if (kind === 'pay_stub') {
     const hasVacationWord = /vacation/i.test(text);
     if (!hasVacationWord) {
-      notes.push('The word "vacation" does not appear on this stub. Check where vacation pay is being tracked.');
+      notes.push('No vacation pay line appears on this stub. Some employers pay vacation pay only when the employee takes vacation time rather than on every cheque, so this alone proves nothing: confirm with the client how vacation pay is handled.');
     } else if (!percents.some(p => parseFloat(p) >= 4)) {
-      notes.push('No percentage of 4% or higher appears on the stub. The ESA minimum vacation pay is 4% (6% at five years of employment).');
+      notes.push('No percentage of 4% or higher appears on the stub. The ESA minimum vacation pay is 4% (6% at five years of employment). Confirm whether additional vacation pay is paid when vacation time is taken.');
     }
   }
 

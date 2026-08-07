@@ -51,9 +51,18 @@ describe('deterministicNotes', () => {
     expect(notes.join(' ')).toContain('$25,000.00');
   });
 
-  it('flags a pay stub with no vacation line at all', () => {
+  it('an absent vacation line asks the client, it does not conclude underpayment', () => {
     const notes = deterministicNotes('pay_stub', 'Gross pay $2,000.00. Net pay $1,500.00.');
-    expect(notes.some(n => n.includes('"vacation" does not appear'))).toBe(true);
+    const note = notes.find(n => n.includes('No vacation pay line appears'));
+    expect(note).toBeTruthy();
+    expect(note).toContain('pay vacation pay only when the employee takes vacation time');
+    expect(note).toContain('confirm with the client');
+  });
+
+  it('the pay stub checklist itself carries the paid-on-vacation-taken caution', () => {
+    const vacation = KIND_CHECKLISTS.pay_stub.find(i => i.id === 'vacation_pay_rate');
+    expect(vacation?.lookFor).toContain('takes vacation time');
+    expect(vacation?.lookFor).toContain('NOT by itself evidence of underpayment');
   });
 
   it('flags a pay stub whose percentages sit below the ESA minimum', () => {

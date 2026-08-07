@@ -36,6 +36,11 @@ export const APPLYABLE_INTAKE_FIELDS: ReadonlySet<string> = new Set([
   // Compensation
   'annual_salary', 'salary_period', 'hours_per_week',
   'has_bonus', 'bonus_amount',
+  // ESA wage claims (pleading fields: quote-verified, arrive unticked)
+  'vacation_unpaid', 'vacation_underpaid_rate', 'vacation_excluded_variable_comp',
+  'holiday_pay_unpaid', 'unpaid_overtime', 'unpaid_commission',
+  'unauthorized_deductions', 'expenses_unreimbursed',
+  'esa_term_shortfall', 'esa_sev_shortfall',
   'has_commissions', 'commission_structure',
   'has_equity', 'has_pension', 'has_health_benefits',
   // Contract clauses

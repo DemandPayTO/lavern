@@ -323,6 +323,11 @@ export const employmentIntakeSchema = z.object({
   unpaid_overtime:        optBool,
   vacation_unpaid:        optBool,
   unauthorized_deductions: optBool,
+  // The smaller ESA wage claims: distinct theories, each its own pleading.
+  vacation_underpaid_rate: optBool,
+  vacation_excluded_variable_comp: optBool,
+  holiday_pay_unpaid:     optBool,
+  expenses_unreimbursed:  optBool,
   other_compensation_details: optString,
   benefits_not_continued: optBool,
   esa_shortfall:          optBool,

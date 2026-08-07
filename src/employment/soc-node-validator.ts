@@ -74,6 +74,8 @@ export function syntheticContext(allOn: boolean): Record<string, unknown> {
     has_benefits: allOn || undefined, has_rrsp: allOn || undefined, has_car_allowance: allOn || undefined,
     unpaid_commission: allOn || undefined, unpaid_overtime: allOn || undefined,
     vacation_unpaid: allOn || undefined, unauthorized_deductions: allOn || undefined,
+    vacation_underpaid_rate: allOn || undefined, vacation_excluded_variable_comp: allOn || undefined,
+    holiday_pay_unpaid: allOn || undefined, expenses_unreimbursed: allOn || undefined,
     other_compensation_details: allOn ? 'gym allowance' : undefined,
     benefits_not_continued: allOn || undefined,
     esa_shortfall: allOn || undefined, esa_term_shortfall: allOn || undefined, esa_sev_shortfall: allOn || undefined,

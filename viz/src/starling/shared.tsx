@@ -1139,6 +1139,16 @@ export const CAUSE_TRIGGER_LABELS: Record<string, string> = {
   clause_cause_broader: 'the Termination Clause attack (cause standard ground)',
   clause_no_benefits: 'the Termination Clause attack (benefits ground)',
   clause_limits_below_esa: 'the Termination Clause attack (ESA minimum ground)',
+  vacation_unpaid: 'unpaid vacation pay at termination (ESA)',
+  vacation_underpaid_rate: 'vacation pay below the ESA minimum throughout employment',
+  vacation_excluded_variable_comp: 'vacation pay excluding commissions and bonuses (ESA)',
+  holiday_pay_unpaid: 'unpaid public holiday pay (ESA)',
+  unpaid_overtime: 'unpaid overtime (ESA)',
+  unpaid_commission: 'commissions or bonuses earned but unpaid at termination',
+  unauthorized_deductions: 'unauthorized deductions from wages (ESA)',
+  expenses_unreimbursed: 'unreimbursed business expenses',
+  esa_term_shortfall: 'an ESA termination pay shortfall',
+  esa_sev_shortfall: 'an ESA severance pay shortfall',
 };
 
 export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clientEmail?: string }) {
