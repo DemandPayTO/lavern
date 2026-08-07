@@ -60,6 +60,34 @@ export const debriefAnalysisSchema = z.object({
 
 export type DebriefAnalysis = z.infer<typeof debriefAnalysisSchema>;
 
+/**
+ * Trim an analysis to the schema's caps BEFORE validation.
+ *
+ * A long call produces a long summary and many items, and a model that
+ * runs a few characters over a cap must lose the excess, not the whole
+ * analysis. The same lesson as the style guide's 502: strict validation
+ * on unclamped model output turns "slightly too long" into "failed".
+ */
+export function clampDebriefAnalysis(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const g = raw as Record<string, unknown>;
+  if (typeof g.summary === 'string') g.summary = g.summary.slice(0, 4000);
+  if (Array.isArray(g.actionItems)) {
+    g.actionItems = g.actionItems.slice(0, 40).map(item => {
+      if (!item || typeof item !== 'object') return item;
+      const it = item as Record<string, unknown>;
+      if (typeof it.task === 'string') it.task = it.task.slice(0, 500);
+      if (typeof it.context === 'string') it.context = it.context.slice(0, 1200);
+      if (typeof it.emailSubject === 'string') it.emailSubject = it.emailSubject.slice(0, 300);
+      if (typeof it.emailBody === 'string') it.emailBody = it.emailBody.slice(0, 4000);
+      // A malformed date is dropped, never guessed at.
+      if (typeof it.dueDate === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(it.dueDate)) it.dueDate = null;
+      return it;
+    });
+  }
+  return raw;
+}
+
 export const DEBRIEF_SYSTEM_PROMPT = `You are an assistant to an Ontario employment lawyer. You are given the lawyer's own raw notes from a call about a legal matter. Your job is to organize those notes, not to give legal advice.
 
 Return ONLY valid JSON matching this shape:

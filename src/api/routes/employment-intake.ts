@@ -709,7 +709,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
     const { matterId } = req.params as { matterId: string };
     const schema = z.object({
-      rawNotes: z.string().trim().min(1).max(20000),
+      // 100k characters is roughly forty pages: a marathon call, or a
+      // pasted transcript. The input cost at that size is a few cents. The
+      // old 20k cap was the kind of arbitrary ceiling this pilot has
+      // already hit twice elsewhere, and rightly complained about.
+      rawNotes: z.string().trim().min(1).max(100_000),
       callType: z.enum(['client', 'opposing', 'internal', 'other']).default('client'),
       callDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     }).strict();
@@ -730,7 +734,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     if (intake?.employer_operating_name) definedTerms.push(intake.employer_operating_name);
 
     const callDate = parsed.data.callDate ?? new Date().toISOString().slice(0, 10);
-    const { DEBRIEF_SYSTEM_PROMPT, buildDebriefUserPrompt, debriefAnalysisSchema } = await import('../../employment/debrief.js');
+    const { DEBRIEF_SYSTEM_PROMPT, buildDebriefUserPrompt, debriefAnalysisSchema, clampDebriefAnalysis } = await import('../../employment/debrief.js');
     const { crossProviderChat } = await import('../../providers/cross-provider-chat.js');
 
     let text: string;
@@ -739,7 +743,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         system: DEBRIEF_SYSTEM_PROMPT,
         user: buildDebriefUserPrompt(parsed.data.rawNotes, parsed.data.callType, callDate),
         tier: 'sonnet',
-        maxTokens: 4096,
+        // Scales with the notes: a long call proposes many items, and email
+        // drafts are wordy. 8192 stays under the streaming threshold, and
+        // a truncated response extends rather than failing: cut-off JSON
+        // would otherwise surface as "could not structure the notes".
+        maxTokens: 8192,
+        extendOnTruncation: true,
         maxRetries: 2,
         definedTerms: definedTerms.length > 0 ? definedTerms : undefined,
       });
@@ -755,7 +764,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const braced = jsonText.match(/\{[\s\S]*\}/);
     let proposed;
     try {
-      proposed = debriefAnalysisSchema.parse(JSON.parse(braced ? braced[0] : jsonText));
+      proposed = debriefAnalysisSchema.parse(clampDebriefAnalysis(JSON.parse(braced ? braced[0] : jsonText)));
     } catch {
       return reply.status(502).send({ ok: false, error: 'Could not structure the notes. Try rephrasing or shortening them.' });
     }
