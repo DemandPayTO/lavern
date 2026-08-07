@@ -56,6 +56,8 @@ export interface SOCRequest {
   sourceDocuments?: Array<{ name: string; content: string }>;
   /** Gate results from the analysis; the node triggers read them. */
   gates?: GateResult[];
+  /** The matter's chronology; the Background Facts plead from its dates. */
+  timeline?: Array<{ date: string; label: string; description?: string }>;
   /** The lawyer's per-node overrides from the picker. */
   nodeOverrides?: Record<string, 'on' | 'off'>;
   courtFileNumber?: string;
@@ -417,7 +419,10 @@ ${intake.harassment_details ? `- Harassment particulars: ${intake.harassment_det
 ${intake.bad_faith_details ? `- Manner of dismissal particulars: ${intake.bad_faith_details}` : ''}
 ${intake.additional_information ? `- Additional context: ${intake.additional_information}` : ''}
 
-THE CAUSES THIS CLAIM PLEADS. Write the facts that substantiate each; do not argue them:
+${req.timeline && req.timeline.length > 0 ? `THE CHRONOLOGY ON THE FILE. These dates are the record; plead from them and do not invent others:
+${req.timeline.slice(0, 40).map(e => `- ${e.date}: ${e.label}${e.description ? ` (${e.description})` : ''}`).join('\n')}
+
+` : ''}THE CAUSES THIS CLAIM PLEADS. Write the facts that substantiate each; do not argue them:
 ${causes.map((c, i) => `${i + 1}. ${c}`).join('\n')}`;
 }
 

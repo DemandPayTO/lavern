@@ -298,6 +298,11 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
               {(result.unmapped?.length ?? 0) > 0 && (
                 <div style={{ color: muted, marginTop: 3 }}>For reference only (no intake field): {result.unmapped!.join(', ')}.</div>
               )}
+              {(result.causesUnlocked?.length ?? 0) > 0 && (
+                <div style={{ fontSize: 12.5, color: '#b8860b', fontWeight: 600, marginTop: 6 }}>
+                  Approving these made pleadable in the claim: {result.causesUnlocked!.join('; ')}. The pleading picker on the Statement of Claim shows each one.
+                </div>
+              )}
               {(result.timelineDiff?.added.length ?? 0) > 0 && (
                 <div style={{ color: amber, marginTop: 3 }}>
                   Dates now on the docket: {result.timelineDiff!.added.map(d => `${d.label} (${d.date})`).join('; ')}.

@@ -1153,6 +1153,7 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
     items: ProposedItem[];
     direction: Array<{ text: string; kind: string; checked: boolean }>;
     fields: Array<{ name: string; value: string | number | boolean; sourceQuote?: string; checked: boolean }>;
+    events: Array<{ date: string; label: string; description?: string; checked: boolean }>;
   } | null>(null);
 
   const inputStyle: CSSProperties = { fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink };
@@ -1184,6 +1185,9 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
         // one click from binding every draft, and a cause-trigger fact is
         // one click from a pleadable claim. Those clicks are the lawyer's.
         direction: (json.proposed.proposedDirection ?? []).map((d: { text: string; kind: string }) => ({ ...d, checked: false })),
+        // Chronology defaults to checked: dated case history is the least
+        // dangerous stream, and the timeline is editable afterwards.
+        events: (json.proposed.proposedTimelineEvents ?? []).map((e: { date: string; label: string; description?: string }) => ({ ...e, checked: true })),
         fields: Object.entries(json.proposed.proposedIntakeFields ?? {}).map(([name, f]) => {
           const field = f as { value: string | number | boolean; sourceQuote?: string };
           return { name, value: field.value, sourceQuote: field.sourceQuote, checked: false };
@@ -1210,6 +1214,7 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
           callType, summary: review.summary, actionItems: items,
           directionInstructions: review.direction.filter(d => d.checked).map(d => ({ text: d.text, kind: d.kind })),
           intakeFields: Object.fromEntries(review.fields.filter(f => f.checked).map(f => [f.name, f.value])),
+          timelineEvents: review.events.filter(e => e.checked).map(e => ({ date: e.date, label: e.label, description: e.description })),
         }),
       });
       const json = await res.json();
@@ -1219,6 +1224,8 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
       if (json.emailDrafts) bits.push(`${json.emailDrafts} email draft${json.emailDrafts === 1 ? '' : 's'}`);
       if (json.directionAdded) bits.push(`${json.directionAdded} direction instruction${json.directionAdded === 1 ? '' : 's'} now binding every draft`);
       if ((json.fieldsApplied ?? []).length) bits.push(`${json.fieldsApplied.length} fact${json.fieldsApplied.length === 1 ? '' : 's'} on the client file`);
+      if (json.eventsAdded) bits.push(`${json.eventsAdded} event${json.eventsAdded === 1 ? '' : 's'} on the timeline`);
+      if ((json.causesUnlocked ?? []).length) bits.push(`now pleadable: ${json.causesUnlocked.join(', ')}`);
       setMessage(`Saved. ${bits.join(', ')}.${json.analysisStale ? ' The analysis is now stale; re-run it when convenient.' : ''}`);
       await refresh();
     } catch { setMessage('Could not save the debrief.'); }
@@ -1309,6 +1316,25 @@ export function DebriefPanel({ matterId, clientEmail }: { matterId: string; clie
                     style={{ accentColor: navy, marginTop: 2 }}
                   />
                   <span>{d.text}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {review.events.length > 0 && (
+            <div style={{ borderTop: `1px solid ${border}`, paddingTop: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 3 }}>Case events heard on the call</div>
+              <div style={{ fontSize: 11.5, color: '#5b6472', marginBottom: 8, lineHeight: 1.5 }}>
+                Ticked events join the matter timeline, which the Statement of Claim pleads its chronology from.
+              </div>
+              {review.events.map((e, i) => (
+                <label key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: ink, marginBottom: 5, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox" checked={e.checked}
+                    onChange={() => setReview(r => r ? { ...r, events: r.events.map((x, j) => j === i ? { ...x, checked: !x.checked } : x) } : r)}
+                    style={{ accentColor: navy, marginTop: 2 }}
+                  />
+                  <span><b>{e.date}</b> {e.label}{e.description ? <span style={{ color: '#5b6472' }}> · {e.description}</span> : null}</span>
                 </label>
               ))}
             </div>

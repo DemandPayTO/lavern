@@ -268,6 +268,44 @@ async function loadStyleForGeneration(
 }
 
 /**
+ * Which causes of action a change just made pleadable.
+ *
+ * Approving a fact must never arm a claim invisibly, so the callers that
+ * write intake facts compute the picker's statuses before and after and
+ * report every cause that moved from off to eligible or firing.
+ */
+async function diffUnlockedCauses(
+  matter: unknown,
+  before: EmploymentIntakeData | null | undefined,
+  after: EmploymentIntakeData | null | undefined,
+  employment: { analysis?: unknown; gates?: unknown; approvedIssues?: string[]; demandAmount?: number | null },
+): Promise<string[]> {
+  if (!before || !after) return [];
+  const { loadSocNodes, buildSocEvalContext, nodeStatuses } = await import('../../employment/soc-nodes.js');
+  const overrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+  const nodes = loadSocNodes();
+  const statusFor = (intake: EmploymentIntakeData) => {
+    const ctx = buildSocEvalContext({
+      intake,
+      analysis: (employment.analysis ?? null) as never,
+      gates: (employment.gates ?? []) as never,
+      approvedIssues: employment.approvedIssues ?? [],
+      claimAmount: employment.demandAmount || 0,
+    });
+    return new Map(nodeStatuses(nodes, ctx, employment.approvedIssues ?? [], overrides).map(r => [r.blockId, { status: r.status, header: r.sectionHeader }]));
+  };
+  const was = statusFor(before);
+  const now = statusFor(after);
+  const unlocked: string[] = [];
+  for (const [blockId, cur] of now) {
+    const prev = was.get(blockId);
+    const on = (st: string) => st === 'firing' || st === 'eligible_unapproved';
+    if (prev && !on(prev.status) && on(cur.status)) unlocked.push(cur.header);
+  }
+  return unlocked;
+}
+
+/**
  * The direction that binds a draft: the file's, then this document's.
  *
  * Every generator reads this, so the partner's instruction on the file
@@ -817,6 +855,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       directionInstructions: z.array(debriefDirectionSchema).max(10).default([]),
       /** Approved intake facts, applied with blank-fill semantics. */
       intakeFields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+      /** Approved case events for the matter timeline. */
+      timelineEvents: z.array(z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        label: z.string().trim().min(1).max(200),
+        description: z.string().trim().max(500).optional(),
+      })).max(15).default([]),
     }).strict();
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid debrief', details: parsed.error.issues.map(i => i.message) });
@@ -853,6 +897,26 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
     await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
 
+    // Approved case events join the matter timeline, the chronology the
+    // claim's Background Facts pleads from. Same date and label twice is
+    // the same event: skipped, not doubled.
+    let eventsAdded = 0;
+    if (parsed.data.timelineEvents.length > 0 && employment) {
+      const existing = new Set((employment.timeline ?? []).map(e => `${e.date}|${e.label}`));
+      const fresh = parsed.data.timelineEvents.filter(e => !existing.has(`${e.date}|${e.label}`));
+      eventsAdded = fresh.length;
+      if (fresh.length > 0) {
+        employment.timeline = [
+          ...(employment.timeline ?? []),
+          ...fresh.map(e => ({
+            date: e.date, label: e.label, description: e.description,
+            category: 'other' as const, source: 'lawyer_entry' as const,
+          })),
+        ];
+        m.employmentData = employment;
+      }
+    }
+
     // Approved direction ACCUMULATES on the matter, at matter level: the
     // partner says something on the August call that sits alongside June.
     let directionAdded = 0;
@@ -879,6 +943,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     let fieldsApplied: string[] = [];
     let fieldsSkipped: string[] = [];
     let analysisStale = false;
+    let causesUnlocked: string[] = [];
+    const intakeBefore = employment?.intake ? { ...employment.intake } : undefined;
     const fieldNames = Object.keys(parsed.data.intakeFields).slice(0, 30);
     if (fieldNames.length > 0 && employment?.intake) {
       const { applyExtractionSelections } = await import('../../employment/extraction-apply.js');
@@ -897,9 +963,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         fieldsSkipped = outcome.skippedNotBlank;
         analysisStale = outcome.analysisStale;
         m.employmentData = employment;
+        causesUnlocked = await diffUnlockedCauses(matter, intakeBefore, employment.intake, employment);
       }
     }
-    if (directionAdded > 0 || fieldsApplied.length > 0) {
+    if (directionAdded > 0 || fieldsApplied.length > 0 || eventsAdded > 0) {
       await saveMatter(userId, matterId, JSON.stringify(m), (m.status as string) ?? 'active');
     }
 
@@ -913,6 +980,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       fieldsApplied,
       fieldsSkipped,
       analysisStale,
+      eventsAdded,
+      causesUnlocked,
     });
   });
 
@@ -1465,6 +1534,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(400).send({ ok: false, error: 'Collective agreements apply automatically at extraction time.' });
     }
 
+    const applyIntakeBefore = { ...employment.intake };
     const outcome = parsed.data.fields.length > 0
       ? applyExtractionSelections(
           employment.intake,
@@ -1545,6 +1615,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     const timelineDiff = diffTimelines(timelineBefore, employment.timeline);
     logger.info('Extraction applied', { userId, matterId, extractionId: extraction.id, applied: outcome.applied, overwritten: outcome.overwritten });
+    // What did approving this arm? Every cause that moved from off to
+    // eligible or firing is named in the response, so the consequence is
+    // read here and not discovered at generation.
+    const causesUnlocked = await diffUnlockedCauses(matter, applyIntakeBefore, employment.intake, employment);
+
     return reply.send({
       ok: true,
       applied: outcome.applied,
@@ -1556,6 +1631,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       skippedDuplicateOffers,
       timelineDiff,
       gates: employment.gates,
+      causesUnlocked,
     });
   });
 
@@ -1929,6 +2005,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       styleContext: [socStyle?.context, socDirection.context].filter(Boolean).join('\n\n') || undefined,
       styleTypicalWords: socStyle?.typicalWords,
       gates: employment.gates,
+      timeline: (employment.timeline ?? []).map(e => ({ date: e.date, label: e.label, description: e.description })),
       nodeOverrides: socOverrides,
       customNodes,
       courtFileNumber: ((matter as Record<string, unknown>).courtFileNumber as string) || undefined,
@@ -3052,7 +3129,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       analysis: employment.analysis ?? null,
       gates: employment.gates ?? [],
       approvedIssues: employment.approvedIssues ?? [],
-      claimAmount: employment.demandAmount ?? 0,
+      claimAmount: employment.demandAmount || 0,
     });
     const overrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
     return reply.send({
@@ -3157,6 +3234,38 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const removed = deleteFirmSocNode(firmId, blockId);
     if (!removed) return reply.status(404).send({ ok: false, error: 'No firm version of that node.' });
     return reply.send({ ok: true });
+  });
+
+  // ── POST /api/employment/soc-node-library/import ───────────────────────
+  // The firm's node spreadsheet, diffed against the current library and
+  // returned as proposals through the same gate as teaching. Content only:
+  // a trigger that differs is reported, never applied.
+
+  fastify.post('/api/employment/soc-node-library/import', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const parsed = z.object({
+      xlsxBase64: z.string().min(1).max(15_000_000),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Upload the node spreadsheet as .xlsx.' });
+
+    const { importNodeSpreadsheet } = await import('../../employment/soc-import.js');
+    const { mergeFirmNodes, loadSocNodes } = await import('../../employment/soc-nodes.js');
+    const { getFirmSocNodes } = await import('../../db/database.js');
+    try {
+      const nodes = mergeFirmNodes(loadSocNodes(), getFirmSocNodes(firmId));
+      const result = await importNodeSpreadsheet(Buffer.from(parsed.data.xlsxBase64, 'base64'), nodes);
+      logger.info('Node spreadsheet read', {
+        firmId,
+        proposals: result.proposals.filter(p => p.proposed).length,
+        unchanged: result.unchanged,
+        unknown: result.unknownBlocks.length,
+      });
+      return reply.send({ ok: true, ...result });
+    } catch (err) {
+      logger.warn('Node spreadsheet import failed', { error: err instanceof Error ? err.message : String(err) });
+      return reply.status(400).send({ ok: false, error: 'That file could not be read as the node spreadsheet. It needs the DemandPay column layout with Block_ID in column A and Content in column G.' });
+    }
   });
 
   // ── POST /api/employment/soc-node-library/teach ────────────────────────

@@ -1575,6 +1575,8 @@ export interface ApplyExtractionResult {
   appliedOffers?: string[];
   skippedDuplicateOffers?: number;
   timelineDiff?: { added: Array<{ date: string; label: string }>; removed: Array<{ date: string; label: string }> };
+  /** Causes of action this apply made pleadable. */
+  causesUnlocked?: string[];
 }
 
 /**

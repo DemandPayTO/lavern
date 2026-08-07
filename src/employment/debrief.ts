@@ -73,6 +73,18 @@ export const debriefAnalysisSchema = z.object({
    * cause-trigger true without a quote that verifies against the notes is
    * discarded before the lawyer sees it.
    */
+  /**
+   * Dated case events heard on the call, offered to the matter timeline.
+   * The chronology in a lawyer's notes is exactly what the claim's
+   * Background Facts pleads, so it belongs on the record, not in a note.
+   */
+  proposedTimelineEvents: z.array(
+    z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      label: z.string().trim().min(1).max(200),
+      description: z.string().trim().max(500).optional(),
+    }),
+  ).max(15).default([]),
   proposedIntakeFields: z.record(
     z.string(),
     z.object({
@@ -114,6 +126,21 @@ export function clampDebriefAnalysis(raw: unknown): unknown {
       // A malformed date is dropped, never guessed at.
       if (typeof it.dueDate === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(it.dueDate)) it.dueDate = null;
       return it;
+    });
+  }
+  if (Array.isArray(g.proposedTimelineEvents)) {
+    g.proposedTimelineEvents = g.proposedTimelineEvents.slice(0, 15).map(e => {
+      if (!e || typeof e !== 'object') return e;
+      const ev = e as Record<string, unknown>;
+      if (ev.description === null) delete ev.description;
+      if (typeof ev.label === 'string') ev.label = ev.label.slice(0, 200);
+      if (typeof ev.description === 'string') ev.description = ev.description.slice(0, 500);
+      return ev;
+    }).filter(e => {
+      const ev = e as Record<string, unknown>;
+      // An event without a well-formed date is not a timeline event; the
+      // no-invented-dates rule holds by dropping it, never guessing.
+      return typeof ev?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ev.date as string);
     });
   }
   if (Array.isArray(g.proposedDirection)) {
@@ -164,7 +191,9 @@ Rules:
 - Be faithful to the notes. Do not add tasks, facts, or advice that are not in the notes.
 - Canadian English. No em dashes.
 
-Two further keys, both OPTIONAL and both proposals the lawyer approves separately:
+Three further keys, all OPTIONAL and all proposals the lawyer approves separately:
+
+"proposedTimelineEvents": dated CASE EVENTS from the notes, each {"date": "YYYY-MM-DD", "label": "short factual label", "description": "optional detail"}. These are things that HAPPENED in the case's history ("Told termination was restructuring", "Role reposted publicly"), not things to do: deliverables belong in actionItems. Only events whose date the notes state or clearly anchor. NEVER invent a date. Omit the key when there are none.
 
 "proposedDirection": drafting instructions heard on the call, each {"text": "...", "kind": "scope"|"include"|"exclude"|"figures"|"tone"|"process"}. An instruction is something a drafter can follow and a reader can check ("Do not commit to a number on the next call with opposing counsel", "Demand only the unpaid notice period"). Write each in the imperative, one sentence. Where the notes mark something as the supervising partner's direction, keep that attribution in the text. A conditional ("if they come back under 50, then...") is not yet direction: leave it out. Extract only what the notes support. Omit the key when there is none.
 

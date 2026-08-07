@@ -1286,6 +1286,35 @@ export default function MatterDetailView() {
     } finally { setSocTeachBusy(false); }
   }, []);
 
+  const socImportInputRef = useRef<HTMLInputElement | null>(null);
+  const importSocNodes = useCallback(async (file: File) => {
+    setSocTeachBusy(true); setSocTeachMsg(null); setSocProposals(null);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const res = await fetch('/api/employment/soc-node-library/import', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ xlsxBase64: btoa(binary) }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setSocTeachMsg(d.error ?? 'The spreadsheet could not be read.'); return; }
+      // The import feeds the same proposal surface as teaching: one place
+      // to read, one Approve button, one gate.
+      setSocProposals((d.proposals ?? []).map((p: { blockId: string; sectionHeader: string; current: string; proposed: string | null; validation: unknown; triggerDiffers?: string; skipped?: string }) => ({
+        ...p,
+        sources: [file.name],
+        additions: [],
+        notes: p.triggerDiffers ? [p.triggerDiffers] : [],
+      })));
+      const changed = (d.proposals ?? []).filter((p: { proposed: string | null }) => p.proposed).length;
+      setSocTeachMsg(`Read ${file.name}: ${changed} node${changed === 1 ? '' : 's'} differ from the library, ${d.unchanged} unchanged${(d.unknownBlocks ?? []).length ? `, unknown block ids ignored: ${d.unknownBlocks.join(', ')}` : ''}. Nothing changes until you approve it.`);
+    } catch {
+      setSocTeachMsg('The spreadsheet could not be read.');
+    } finally { setSocTeachBusy(false); }
+  }, []);
+
   const approveSocProposal = useCallback(async (blockId: string, content: string, provenance: 'edited' | 'learned') => {
     const res = await fetch(`/api/employment/soc-node-library/${encodeURIComponent(blockId)}`, {
       method: 'PUT', credentials: 'include',
@@ -3154,7 +3183,20 @@ export default function MatterDetailView() {
                       disabled={socTeachBusy}
                       style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: socTeachBusy ? '#b0b0b0' : navy, color: '#fff', border: 'none', cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
                     >
-                      {socTeachBusy ? 'Reading your claims…' : 'Teach from your claims'}
+                      {socTeachBusy ? 'Reading…' : 'Teach from your claims'}
+                    </button>
+                    <input
+                      ref={socImportInputRef}
+                      type="file" accept=".xlsx" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) void importSocNodes(f); e.target.value = ''; }}
+                      aria-label="Import the node spreadsheet"
+                    />
+                    <button
+                      onClick={() => socImportInputRef.current?.click()}
+                      disabled={socTeachBusy}
+                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
+                    >
+                      Import node spreadsheet
                     </button>
                     <span style={{ fontSize: 11.5, color: muted }}>
                       {socLib.filter(n => n.provenance !== 'default').length > 0
