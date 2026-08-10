@@ -233,3 +233,49 @@ describe('adopting a draft prepared outside Starling', () => {
     expect(res.body.adopted).toBe(false);
   });
 });
+
+describe('the letter being answered (rebuttal source)', () => {
+  it('attaches, surfaces, and replaces the letter on the matter', async () => {
+    const first = await app.inject({
+      method: 'PUT', url: `/api/employment/${MID}/rebuttal-source`,
+      payload: { name: 'OC letter.pdf', text: 'We are counsel to the employer and write in response to your letter of demand dated July 20, 2026.' },
+    });
+    expect(first.statusCode).toBe(200);
+
+    const get = await app.inject({ method: 'GET', url: `/api/employment/${MID}` });
+    const body = get.json() as { rebuttalSource?: { name: string; words: number } };
+    expect(body.rebuttalSource?.name).toBe('OC letter.pdf');
+    expect(body.rebuttalSource?.words).toBeGreaterThan(10);
+
+    const second = await app.inject({
+      method: 'PUT', url: `/api/employment/${MID}/rebuttal-source`,
+      payload: { name: 'OC letter v2.pdf', text: 'A revised response letter from opposing counsel, long enough to pass the minimum length gate for attachment.' },
+    });
+    expect(second.statusCode).toBe(200);
+    const after = (await app.inject({ method: 'GET', url: `/api/employment/${MID}` })).json() as { rebuttalSource?: { name: string } };
+    expect(after.rebuttalSource?.name).toBe('OC letter v2.pdf');
+  });
+
+  it('generating the rebuttal without a letter attached fails with a plain message', async () => {
+    const del = await app.inject({ method: 'DELETE', url: `/api/employment/${MID}/rebuttal-source` });
+    expect(del.statusCode).toBe(200);
+    // The generator's intake gate runs first; give the matter a minimal
+    // analysis so the missing-letter message is the one under test.
+    const row = getMatterById(MID, userId)!;
+    const matter = JSON.parse(row.data_json) as Record<string, unknown>;
+    (matter.employmentData as Record<string, unknown>).analysis = { computedAt: new Date().toISOString() };
+    saveMatter(userId, MID, JSON.stringify(matter));
+    const res = await post(`/api/employment/${MID}/litigation-document`, {
+      documentType: 'rebuttal_letter',
+      lawyerName: 'Jordan Evans',
+      firmName: 'Evans Law Firm',
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toContain('Attach the letter you are responding to first');
+  });
+
+  it('discarding twice reports there is nothing attached', async () => {
+    const res = await app.inject({ method: 'DELETE', url: `/api/employment/${MID}/rebuttal-source` });
+    expect(res.statusCode).toBe(404);
+  });
+});

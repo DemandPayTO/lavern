@@ -1135,6 +1135,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       openedBy: row.owner_name ?? '',
       openedByMe: row.user_id === userId,
       lastModifiedByName: row.last_modified_by_name ?? '',
+      rebuttalSource: (() => {
+        const src = (matter as Record<string, unknown>).rebuttalSource as { name?: string; words?: number; savedAt?: string } | undefined;
+        return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
+      })(),
       briefSources: (((matter as Record<string, unknown>).briefSources ?? []) as Array<Record<string, unknown>>)
         .map(sd => ({ id: sd.id, name: sd.name, words: sd.words, kind: sd.kind ?? 'other' })),
       mediationLogistics: (matter as Record<string, unknown>).mediationLogistics ?? null,
@@ -2235,7 +2239,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   // ── POST /api/employment/:matterId/litigation-document ──────────────────
   // Generate a discovery plan, affidavit of documents, or mediation brief.
 
-  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'notice_of_arbitration', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'sp_timetable_motion', 'consent_timetable_order', 'timetable_order', 'undertakings_answers', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'] as const;
+  const LITIGATION_DOC_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'rebuttal_letter', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'notice_of_arbitration', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'sp_timetable_motion', 'consent_timetable_order', 'timetable_order', 'undertakings_answers', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'] as const;
 
   const litigationDocBodySchema = z.object({
     documentType: z.enum(LITIGATION_DOC_TYPES),
@@ -2452,6 +2456,19 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       parsed.data.formFields.mediation_date = norm.value;
     }
 
+    // The rebuttal is built FROM opposing counsel's letter; without it the
+    // generator would be answering a letter it has not read.
+    let rebuttalContext: string | undefined;
+    let rebuttalSourceDoc: { name: string; content: string } | undefined;
+    if (parsed.data.documentType === 'rebuttal_letter') {
+      const src = (matter as Record<string, unknown>).rebuttalSource as { name?: string; text?: string } | undefined;
+      if (!src?.text) {
+        return reply.status(400).send({ ok: false, error: 'Attach the letter you are responding to first. The workspace has a place for it.' });
+      }
+      rebuttalSourceDoc = { name: String(src.name ?? 'Letter from opposing counsel'), content: src.text };
+      rebuttalContext = `THE LETTER BEING ANSWERED (from opposing counsel, ${JSON.stringify(rebuttalSourceDoc.name)}):\n"""\n${src.text}\n"""`;
+    }
+
     const litDirection = directionForGeneration(matter, parsed.data.documentType);
 
     let result;
@@ -2468,7 +2485,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         courtLocation: parsed.data.courtLocation,
         // The direction goes last in the context: it is what overrides
         // the rest, so it is read with the rest still in view.
-        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext, litDirection.context]
+        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext, rebuttalContext, litDirection.context]
           .filter(Boolean).join('\n\n') || undefined,
         formFields: parsed.data.formFields,
         procedureType: parsed.data.procedureType,
@@ -2480,9 +2497,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         styleFlowHeadings,
         affidavit: parsed.data.affidavit,
         positionDocuments: positionDocuments.length > 0 ? positionDocuments : undefined,
-        sourceDocuments: positionDocuments.length > 0
-          ? positionDocuments.map(d => ({ name: d.title, content: d.text }))
-          : undefined,
+        sourceDocuments: (() => {
+          const docs = positionDocuments.map(d => ({ name: d.title, content: d.text }));
+          if (rebuttalSourceDoc) docs.push(rebuttalSourceDoc);
+          return docs.length > 0 ? docs : undefined;
+        })(),
       }, definedTerms);
     } catch (err) {
       // Deterministic court forms validate their inputs and fail with a
@@ -3080,6 +3099,48 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const next = sources.filter(sd => sd.id !== sourceId);
     if (next.length === sources.length) return reply.status(404).send({ ok: false, error: 'Source not found' });
     (matter as Record<string, unknown>).briefSources = next;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true });
+  });
+
+  // ── The letter being answered ──────────────────────────────────────────
+  // A Reply to Opposing Counsel is built FROM their letter. It is stored
+  // on the matter (one at a time; a new save replaces it) so regeneration
+  // and the departure checks read the same text the lawyer attached.
+
+  const rebuttalSourceSchema = z.object({
+    name: z.string().trim().min(1).max(300),
+    text: z.string().trim().min(50).max(80_000),
+  }).strict();
+
+  fastify.put('/api/employment/:matterId/rebuttal-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = rebuttalSourceSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid letter', details: parsed.error.issues.map(i => i.message) });
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const text = parsed.data.text.slice(0, 80_000);
+    (matter as Record<string, unknown>).rebuttalSource = {
+      name: parsed.data.name,
+      text,
+      words: text.split(/\s+/).filter(Boolean).length,
+      savedAt: new Date().toISOString(),
+    };
+    await saveEmploymentData(userId, matterId, matter, employment);
+    logger.info('Rebuttal source saved', { userId, matterId, name: parsed.data.name });
+    return reply.send({ ok: true, name: parsed.data.name });
+  });
+
+  fastify.delete('/api/employment/:matterId/rebuttal-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!(matter as Record<string, unknown>).rebuttalSource) return reply.status(404).send({ ok: false, error: 'No letter attached' });
+    delete (matter as Record<string, unknown>).rebuttalSource;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true });
   });

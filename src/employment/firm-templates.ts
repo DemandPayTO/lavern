@@ -36,6 +36,7 @@ export type TemplateDocumentType =
   | 'mediation_brief'
   | 'severance_assessment'
   | 'counter_offer'
+  | 'rebuttal_letter'
   | 'reply'
   | 'rule49_offer'
   | 'settlement_minutes'
@@ -260,7 +261,7 @@ export const templateUploadSchema = z.object({
     'demand_letter', 'statement_of_claim', 'notice_of_application',
     'hrto_application', 'esa_complaint', 'discovery_plan',
     'affidavit_of_documents', 'mediation_brief',
-    'severance_assessment', 'counter_offer',
+    'severance_assessment', 'counter_offer', 'rebuttal_letter',
     'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log',
     'settlement_conference_brief', 'hrto_schedule_a',
   ]),

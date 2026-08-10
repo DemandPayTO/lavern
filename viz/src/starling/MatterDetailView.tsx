@@ -192,6 +192,13 @@ const DEMO_DRAFT_TYPES: DraftType[] = [
     section: 'Advice and negotiation',
   },
   {
+    id: 'rebuttal',
+    title: 'Reply to Opposing Counsel',
+    description: 'Answer their response letter point by point, correcting the record on your client\u2019s instructions.',
+    cost: '~$5 \u00b7 2 to 4 min',
+    section: 'Advice and negotiation',
+  },
+  {
     id: 'demand',
     title: 'Demand Letter',
     description: 'Demand to the employer\u2019s counsel with entitlements, deadline, and settlement position.',
@@ -401,6 +408,7 @@ const DRAFT_TO_DOCTYPE: Record<string, string> = {
   mediation: 'mediation_brief',
   severance: 'severance_assessment',
   counter: 'counter_offer',
+  rebuttal: 'rebuttal_letter',
   reply: 'reply',
   rule49: 'rule49_offer',
   minutes: 'settlement_minutes',
@@ -1154,6 +1162,47 @@ export default function MatterDetailView() {
   // The lawyer's own improved version becomes the version of record.
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const adoptInputRef = useRef<HTMLInputElement | null>(null);
+  const rebuttalInputRef = useRef<HTMLInputElement | null>(null);
+  const [rebuttalPasting, setRebuttalPasting] = useState(false);
+  const [rebuttalText, setRebuttalText] = useState('');
+  const [rebuttalSaving, setRebuttalSaving] = useState(false);
+  const [rebuttalError, setRebuttalError] = useState<string | null>(null);
+
+  const attachRebuttalText = useCallback(async (name: string, text: string) => {
+    if (!sessionId) return;
+    setRebuttalSaving(true);
+    setRebuttalError(null);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/rebuttal-source`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, text: text.slice(0, 80_000) }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setRebuttalError(d.error ?? 'The letter could not be attached.'); return; }
+      setRebuttalPasting(false);
+      setRebuttalText('');
+      void employment.refresh();
+    } catch {
+      setRebuttalError('The letter could not be attached.');
+    } finally { setRebuttalSaving(false); }
+  }, [sessionId, employment]);
+
+  const attachRebuttalFile = useCallback(async (file: File) => {
+    setRebuttalSaving(true);
+    setRebuttalError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const parseRes = await fetch('/api/documents/parse', { method: 'POST', credentials: 'include', body: formData });
+      if (!parseRes.ok) { setRebuttalError('Could not read the file. Supported: PDF, DOCX, Markdown, plain text.'); return; }
+      const parsedDoc = await parseRes.json() as { fullText?: string };
+      if (!parsedDoc.fullText?.trim()) { setRebuttalError('No text could be read from this file.'); return; }
+      await attachRebuttalText(file.name, parsedDoc.fullText);
+    } catch {
+      setRebuttalError('Could not read the file.');
+    } finally { setRebuttalSaving(false); }
+  }, [attachRebuttalText]);
   const [adoptPasting, setAdoptPasting] = useState(false);
   const [adoptText, setAdoptText] = useState('');
   const [replacing, setReplacing] = useState(false);
@@ -3022,6 +3071,76 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {selectedDraft === 'rebuttal' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The letter you are responding to</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
+                    Upload or paste opposing counsel&rsquo;s letter. The reply is drafted against its actual words, so this is required.
+                    Your client&rsquo;s corrections go in the direction box below; they override everything else.
+                  </div>
+                  {employment.rebuttalSource ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
+                      <span><b>{employment.rebuttalSource.name}</b> · {employment.rebuttalSource.words} words · attached {new Date(employment.rebuttalSource.savedAt).toLocaleDateString()}</span>
+                      <button
+                        onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/rebuttal-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
+                        style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
+                      >
+                        Discard
+                      </button>
+                      <span style={{ fontSize: 12, color: muted }}>Discarding removes the attachment only. Attach another to replace it.</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <input
+                          ref={rebuttalInputRef}
+                          type="file"
+                          accept=".pdf,.docx,.doc,.txt,.md,.rtf"
+                          style={{ display: 'none' }}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f); e.target.value = ''; }}
+                          aria-label="Upload the letter from opposing counsel"
+                        />
+                        <button
+                          onClick={() => rebuttalInputRef.current?.click()}
+                          disabled={rebuttalSaving}
+                          style={{ background: '#fff', color: navy, border: `1px solid ${navy}`, fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                        >
+                          {rebuttalSaving ? 'Reading…' : 'Upload their letter'}
+                        </button>
+                        <button
+                          onClick={() => setRebuttalPasting(v => !v)}
+                          style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                        >
+                          Paste the text
+                        </button>
+                      </div>
+                      {rebuttalPasting && (
+                        <div style={{ marginTop: 10 }}>
+                          <textarea
+                            value={rebuttalText}
+                            onChange={e => setRebuttalText(e.target.value)}
+                            rows={5}
+                            placeholder="Paste opposing counsel's letter here."
+                            aria-label="Paste the letter from opposing counsel"
+                            style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+                          />
+                          <button
+                            onClick={() => { if (rebuttalText.trim().length >= 50) void attachRebuttalText('Letter from opposing counsel (pasted)', rebuttalText); }}
+                            disabled={rebuttalSaving || rebuttalText.trim().length < 50}
+                            style={{ marginTop: 8, background: rebuttalSaving || rebuttalText.trim().length < 50 ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, border: 'none', cursor: rebuttalSaving || rebuttalText.trim().length < 50 ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                          >
+                            {rebuttalSaving ? 'Saving…' : 'Attach their letter'}
+                          </button>
+                          {rebuttalText.trim().length < 50 && !rebuttalSaving && (
+                            <span style={{ fontSize: 12.5, color: muted, marginLeft: 10 }}>Paste the letter first.</span>
+                          )}
+                        </div>
+                      )}
+                      {rebuttalError && <div role="alert" style={{ marginTop: 8, fontSize: 12.5, color: red }}>{rebuttalError}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
               {selectedDraft && selectedDraft !== 'timetable' && showOptions && renderDirection('document')}
 
               {/* Generation options */}

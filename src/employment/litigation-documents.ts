@@ -41,6 +41,7 @@ export type LitigationDocumentType =
   | 'mediation_brief'
   | 'severance_assessment'
   | 'counter_offer'
+  | 'rebuttal_letter'
   | 'reply'
   | 'rule49_offer'
   | 'settlement_minutes'
@@ -298,6 +299,33 @@ RULES:
 - Professional and firm in tone: this letter is designed to advance the negotiation, not to inflame it.
 - Every factual claim must come from the intake data. Never invent case citations.
 - The counter amount is the claim amount provided in the filing details.
+- Canadian spelling.
+
+Output as HTML with h1, h2, p, strong. Letter format, no tables. No inline styles.`,
+
+    rebuttal_letter: `You are a senior Ontario employment lawyer drafting a LETTER TO OPPOSING COUNSEL answering their response to your demand letter, on behalf of a terminated employee. Their letter is provided in the source documents. Your client's instructions arrive as drafting direction and override everything else.
+
+STRUCTURE:
+
+1. HEADER: "WITHOUT PREJUDICE" prominently. Date, addressee, re-line (client name, former employer).
+
+2. ACKNOWLEDGMENT: One sentence confirming receipt of their letter by its date. No summary of it.
+   Emit sections 2 to 5 as <h2> headings using the EXACT wording given
+   (without the number), so the letter can be placed into a firm template
+   section by section.
+
+3. THE POINTS THAT REQUIRE CORRECTION: Take each substantive assertion in their letter that is wrong on the facts or the law and answer it in one short paragraph: state their assertion accurately in a clause, then the correction, grounded in the intake facts or the client's instructions. Where their letter mischaracterizes a document, say what the document says. Do NOT respond to rhetoric, only to substance. Where their point cannot be answered from the record, write "[LAWYER: their assertion that ... is not answered by the file]" rather than inventing an answer.
+
+4. THE POSITION MAINTAINED: Restate the client's position and entitlements briefly. Do not re-argue the whole demand letter: assert, do not argue. Where their letter contained an offer, address it in one paragraph (accepted, rejected, or countered per the direction).
+
+5. TERMS: Response deadline, reservation of rights, limitation periods continue to run, no admission.
+
+RULES:
+- One to three pages. Less is more: every paragraph earns its place.
+- Never concede a point unless the direction says to.
+- Every factual statement must come from the intake data, the source documents, or the direction. Never invent case citations.
+- Characterize their letter accurately: paraphrase tightly or quote exactly. A rebuttal that misstates what it rebuts loses the reader.
+- Professional and firm. This letter advances the file, it does not inflame it.
 - Canadian spelling.
 
 Output as HTML with h1, h2, p, strong. Letter format, no tables. No inline styles.`,
@@ -625,7 +653,7 @@ function buildUserPrompt(req: LitigationDocumentRequest): string {
   }
   const offerSection = offerParts.length > 0
     ? `SEVERANCE OFFER:\n${offerParts.join('\n')}`
-    : (req.documentType === 'severance_assessment' || req.documentType === 'counter_offer')
+    : (req.documentType === 'severance_assessment' || req.documentType === 'counter_offer' || req.documentType === 'rebuttal_letter')
       ? 'SEVERANCE OFFER: details not captured in the intake; state clearly that the offer terms must be confirmed before this document is used.'
       : '';
 
@@ -908,6 +936,7 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
     case 'mediation_brief': return 'Mediation Brief';
     case 'severance_assessment': return 'Severance Offer Assessment';
     case 'counter_offer': return 'Counter-Offer Letter';
+    case 'rebuttal_letter': return 'Reply to Opposing Counsel';
     case 'reply': return 'Reply (Form 25A)';
     case 'rule49_offer': return 'Offer to Settle (Form 49A)';
     case 'settlement_minutes': return 'Minutes of Settlement & Release';
@@ -947,6 +976,8 @@ function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
       return ['offer_terms_confirmed', 'entitlement_math', 'recommendation', 'tax_treatment_flag_for_accountant'];
     case 'counter_offer':
       return ['counter_amount', 'entitlement_analysis', 'deadline_terms', 'without_prejudice_header'];
+    case 'rebuttal_letter':
+      return ['every_assertion_answered_or_flagged', 'characterizations_verified_against_their_letter', 'client_instructions_followed', 'without_prejudice_header'];
     case 'reply':
       return ['confirm_against_actual_defence', 'no_new_causes_of_action', 'responsive_paragraphs_only'];
     case 'rule49_offer':
