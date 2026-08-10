@@ -77,6 +77,8 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
   const [reading, setReading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [docPasting, setDocPasting] = useState(false);
+  const [docPasteText, setDocPasteText] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const mainInputRef = useRef<HTMLInputElement>(null);
   const compareInputRef = useRef<HTMLInputElement>(null);
@@ -100,7 +102,7 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
     else setCompareDoc({ name: file.name, text: parsed.text });
   };
 
-  const blockedReason = !mainDoc ? 'Choose a document first.' : null;
+  const blockedReason = !mainDoc ? 'Choose or paste the document first.' : null;
 
   const read = async () => {
     if (!mainDoc || reading) return;
@@ -188,6 +190,12 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
         >
           {mainDoc ? `Document: ${mainDoc.name}` : 'Choose the document'}
         </button>
+        <button
+          onClick={() => setDocPasting(v => !v)}
+          style={{ background: '#fff', color: navy, fontSize: 13, padding: '9px 14px', borderRadius: 2, border: `1px solid ${border}`, cursor: 'pointer', fontFamily: sans }}
+        >
+          Paste the text instead
+        </button>
         <input
           ref={compareInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.md,.rtf" style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) void pickFile(f, 'compare'); if (compareInputRef.current) compareInputRef.current.value = ''; }}
@@ -204,6 +212,34 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
           </button>
         )}
       </div>
+
+      {docPasting && !mainDoc && (
+        <div style={{ marginBottom: 10 }}>
+          <textarea
+            value={docPasteText}
+            onChange={e => setDocPasteText(e.target.value)}
+            rows={6}
+            placeholder="Paste the document or the client's written summary here. This is the text Starling reads."
+            aria-label="Paste the document to read"
+            style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+          />
+          <button
+            onClick={() => {
+              if (docPasteText.trim().length < 20) return;
+              setMainDoc({ name: 'Pasted text', text: docPasteText.slice(0, 100_000), definedTerms: [] });
+              setDocPasting(false);
+              setDocPasteText('');
+            }}
+            disabled={docPasteText.trim().length < 20}
+            style={{ marginTop: 8, background: docPasteText.trim().length < 20 ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, border: 'none', cursor: docPasteText.trim().length < 20 ? 'not-allowed' : 'pointer', fontFamily: sans }}
+          >
+            Use this text as the document
+          </button>
+          {docPasteText.trim().length < 20 && (
+            <span style={{ fontSize: 12.5, color: muted, marginLeft: 10 }}>Paste the text first. The box above this one is where the document goes; the box below is for your questions.</span>
+          )}
+        </div>
+      )}
 
       <textarea
         value={questionsText}
