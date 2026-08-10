@@ -173,3 +173,63 @@ describe('applying approved revisions', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('adopting a draft prepared outside Starling', () => {
+  const LETTER = [
+    'WITHOUT PREJUDICE',
+    '',
+    'Dear Sir or Madam:',
+    '',
+    'RE: Vera Nunes v. Halcyon Retail Inc',
+    '',
+    'We are counsel to Vera Nunes. Our client was terminated without cause on May 20, 2026 after nine years of service, and this letter sets out the amounts owed to her, which exceed two hundred words of careful prose when the enclosures and particulars are counted, as they are here for the purposes of this test document so the minimum length check is satisfied.',
+    '',
+    'Yours very truly,',
+  ].join('\n');
+
+  it('replace with no existing draft ADOPTS the upload as version of record', async () => {
+    const res = await post(`/api/employment/${MID}/draft/replace`, {
+      docType: 'demand_letter',
+      pastedText: LETTER,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.adopted).toBe(true);
+    const row = await getMatterById(MID, userId);
+    const matter = JSON.parse(row!.data_json) as Record<string, unknown>;
+    const doc = matter.generated_demand_letter as Record<string, unknown>;
+    expect(doc).toBeTruthy();
+    expect(String(doc.html)).toContain('Vera Nunes');
+    expect(doc.status).toBe('draft');
+  });
+
+  it('the feedback loop then plans against the adopted draft', async () => {
+    modelReply = JSON.stringify({
+      items: [{
+        feedback: 'The termination date is wrong: it was May 21, not May 20.',
+        kind: 'factual_correction',
+        paragraphIndices: [3],
+        proposal: 'Correct the termination date.',
+        intakeField: 'termination_date',
+        intakeValue: '2026-05-21',
+      }],
+    });
+    const res = await post(`/api/employment/${MID}/revision/plan`, {
+      docType: 'demand_letter',
+      feedback: 'The termination date is wrong: it was May 21, not May 20.',
+      source: 'client',
+    });
+    expect(res.status).toBe(200);
+    const items = res.body.items as Array<{ kind: string }>;
+    expect(items.length).toBeGreaterThan(0);
+    expect(items[0].kind).toBe('factual_correction');
+  });
+
+  it('a second replace on the same type is a replacement, not an adoption', async () => {
+    const res = await post(`/api/employment/${MID}/draft/replace`, {
+      docType: 'demand_letter',
+      pastedText: LETTER + '\n\nP.S. This is the corrected version with a little more text for the length check to pass again.',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.adopted).toBe(false);
+  });
+});

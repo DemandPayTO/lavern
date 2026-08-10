@@ -1153,6 +1153,9 @@ export default function MatterDetailView() {
   const [sourceParsing, setSourceParsing] = useState(false);
   // The lawyer's own improved version becomes the version of record.
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const adoptInputRef = useRef<HTMLInputElement | null>(null);
+  const [adoptPasting, setAdoptPasting] = useState(false);
+  const [adoptText, setAdoptText] = useState('');
   const [replacing, setReplacing] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [pastedText, setPastedText] = useState('');
@@ -1170,9 +1173,12 @@ export default function MatterDetailView() {
       const d = await res.json();
       if (!d.ok) { setGenError(d.error ?? 'That version could not be saved.'); return; }
       setGeneratedHtml(d.html);
+      setDraftView('draft');
       setPasting(false);
       setPastedText('');
-      setGenNotice('Your version is now the one on file. The previous draft is kept in this document\u2019s history.');
+      setGenNotice(d.adopted
+        ? 'That draft is now the version of record on this matter. To have Starling apply the client\u2019s corrections, use Apply feedback above the draft: paste their email, or upload the Word file they marked up.'
+        : 'Your version is now the one on file. The previous draft is kept in this document\u2019s history.');
       refreshDraftHistory();
       void employment.refresh();
     } catch {
@@ -1197,7 +1203,10 @@ export default function MatterDetailView() {
       const d = await res.json();
       if (!d.ok) { setGenError(d.error ?? 'That version could not be read.'); return; }
       setGeneratedHtml(d.html);
-      setGenNotice('Your version is now the one on file. The previous draft is kept in this document\u2019s history.');
+      setDraftView('draft');
+      setGenNotice(d.adopted
+        ? 'That draft is now the version of record on this matter. To have Starling apply the client\u2019s corrections, use Apply feedback above the draft: paste their email, or upload the Word file they marked up.'
+        : 'Your version is now the one on file. The previous draft is kept in this document\u2019s history.');
       refreshDraftHistory();
       void employment.refresh();
     } catch {
@@ -3771,6 +3780,74 @@ export default function MatterDetailView() {
                     {blockedReason}
                   </div>
                 )}
+                </div>
+              )}
+
+              {/* A draft prepared outside Starling can be adopted instead of
+                  generated; from there the feedback loop treats it as the
+                  version of record. */}
+              {showOptions && !generatedHtml && selectedDraft && selectedDraft !== 'timetable' && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+                    Already drafted outside Starling?
+                  </div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
+                    Upload the Word file or paste the text and that draft becomes the version on file for this document.
+                    Starling can then apply the client&rsquo;s feedback to it: every proposed change comes back to you for approval before anything is touched.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <input
+                      ref={adoptInputRef}
+                      type="file"
+                      accept=".docx"
+                      style={{ display: 'none' }}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        const dt = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
+                        if (f && dt) void replaceDraftWithUpload(f, dt);
+                        e.target.value = '';
+                      }}
+                      aria-label="Upload the draft prepared outside Starling"
+                    />
+                    <button
+                      onClick={() => adoptInputRef.current?.click()}
+                      disabled={replacing}
+                      style={{ background: '#fff', color: navy, border: `1px solid ${navy}`, fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, cursor: replacing ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                    >
+                      {replacing ? 'Reading…' : 'Upload the Word file'}
+                    </button>
+                    <button
+                      onClick={() => setAdoptPasting(v => !v)}
+                      style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                    >
+                      Paste the text
+                    </button>
+                  </div>
+                  {adoptPasting && (
+                    <div style={{ marginTop: 10 }}>
+                      <textarea
+                        value={adoptText}
+                        onChange={e => setAdoptText(e.target.value)}
+                        rows={6}
+                        placeholder="Paste the full draft here."
+                        aria-label="Paste the draft prepared outside Starling"
+                        style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+                      />
+                      <button
+                        onClick={() => {
+                          const dt = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
+                          if (dt && adoptText.trim()) { void replaceDraftWithPaste(adoptText, dt); setAdoptText(''); setAdoptPasting(false); }
+                        }}
+                        disabled={replacing || !adoptText.trim()}
+                        style={{ marginTop: 8, background: replacing || !adoptText.trim() ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, border: 'none', cursor: replacing || !adoptText.trim() ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                      >
+                        {replacing ? 'Saving…' : 'Save as the version on file'}
+                      </button>
+                      {!adoptText.trim() && !replacing && (
+                        <span style={{ fontSize: 12.5, color: muted, marginLeft: 10 }}>Paste the draft first.</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

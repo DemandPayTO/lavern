@@ -2619,8 +2619,27 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const row = await getMatterById(matterId, userId);
     if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
     const { matter, employment } = loadEmploymentData(row.data_json);
-    const key = findGeneratedDocKey(matter, parsed.data.docType);
-    if (!key) return reply.status(404).send({ ok: false, error: 'No generated document of that type on this matter.' });
+    // A draft prepared outside Starling can be ADOPTED: when no generated
+    // document of this type exists yet, the upload creates it as the
+    // version of record, and everything downstream (the revision loop,
+    // the partner lane, the download pipeline) works on it as if Starling
+    // had drafted it.
+    let key = findGeneratedDocKey(matter, parsed.data.docType);
+    let adopted = false;
+    if (!key) {
+      key = `generated_${parsed.data.docType}`;
+      matter[key] = {
+        documentType: parsed.data.docType,
+        documentTitle: titleForDoc(parsed.data.docType, {}),
+        html: '',
+        citations: [],
+        lawyerReviewFlags: [],
+        generatedAt: new Date().toISOString(),
+        costUsd: 0,
+        status: 'draft',
+      };
+      adopted = true;
+    }
     const doc = matter[key] as Record<string, unknown>;
 
     let html: string;
@@ -2650,13 +2669,16 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
 
     // Keep what is being replaced: the lawyer must be able to get back.
-    recordDraftHistory(matter, {
-      docType: parsed.data.docType,
-      title: String(doc.documentTitle ?? parsed.data.docType),
-      html: String(doc.html ?? ''),
-      costUsd: 0,
-      meta: { source: 'superseded_by_upload' },
-    }, { userId, matterId });
+    // An adoption replaces nothing, so there is nothing to keep.
+    if (!adopted) {
+      recordDraftHistory(matter, {
+        docType: parsed.data.docType,
+        title: String(doc.documentTitle ?? parsed.data.docType),
+        html: String(doc.html ?? ''),
+        costUsd: 0,
+        meta: { source: 'superseded_by_upload' },
+      }, { userId, matterId });
+    }
 
     doc.html = html;
     doc.revisedAt = new Date().toISOString();
@@ -2668,8 +2690,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // DOCX from the approval lane must not keep overriding the download.
     delete doc.uploadedDocx;
     await saveEmploymentData(userId, matterId, matter, employment);
-    logger.info('Draft replaced by lawyer version', { userId, matterId, docType: parsed.data.docType });
-    return reply.send({ ok: true, html });
+    logger.info(adopted ? 'Outside draft adopted as version of record' : 'Draft replaced by lawyer version', { userId, matterId, docType: parsed.data.docType });
+    return reply.send({ ok: true, html, adopted });
   });
 
   // ── POST /api/employment/:matterId/draft/review ────────────────────────
