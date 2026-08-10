@@ -1139,6 +1139,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         const src = (matter as Record<string, unknown>).rebuttalSource as { name?: string; words?: number; savedAt?: string } | undefined;
         return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
       })(),
+      rebuttalFeedback: (() => {
+        const fb = (matter as Record<string, unknown>).rebuttalFeedback as { name?: string; words?: number; savedAt?: string } | undefined;
+        return fb ? { name: fb.name, words: fb.words, savedAt: fb.savedAt } : null;
+      })(),
       briefSources: (((matter as Record<string, unknown>).briefSources ?? []) as Array<Record<string, unknown>>)
         .map(sd => ({ id: sd.id, name: sd.name, words: sd.words, kind: sd.kind ?? 'other' })),
       mediationLogistics: (matter as Record<string, unknown>).mediationLogistics ?? null,
@@ -2459,6 +2463,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // The rebuttal is built FROM opposing counsel's letter; without it the
     // generator would be answering a letter it has not read.
     let rebuttalContext: string | undefined;
+    let rebuttalFeedbackContext: string | undefined;
     let rebuttalSourceDoc: { name: string; content: string } | undefined;
     if (parsed.data.documentType === 'rebuttal_letter') {
       const src = (matter as Record<string, unknown>).rebuttalSource as { name?: string; text?: string } | undefined;
@@ -2466,6 +2471,15 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         return reply.status(400).send({ ok: false, error: 'Attach the letter you are responding to first. The workspace has a place for it.' });
       }
       rebuttalSourceDoc = { name: String(src.name ?? 'Letter from opposing counsel'), content: src.text };
+      const fb = (matter as Record<string, unknown>).rebuttalFeedback as { name?: string; text?: string } | undefined;
+      if (fb?.text) {
+        rebuttalFeedbackContext = [
+          'THE CLIENT\'S FEEDBACK (binding). Follow the instructions in it and correct the record with the facts in it. It is raw and unfiltered: anything in it that is personal, confidential, about the client\'s health or finances, or about what the client would actually accept in settlement must NEVER appear in the letter.',
+          '"""',
+          fb.text,
+          '"""',
+        ].join('\n');
+      }
       rebuttalContext = `THE LETTER BEING ANSWERED (from opposing counsel, ${JSON.stringify(rebuttalSourceDoc.name)}):\n"""\n${src.text}\n"""`;
     }
 
@@ -2485,7 +2499,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         courtLocation: parsed.data.courtLocation,
         // The direction goes last in the context: it is what overrides
         // the rest, so it is read with the rest still in view.
-        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext, rebuttalContext, litDirection.context]
+        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext, rebuttalContext, rebuttalFeedbackContext, litDirection.context]
           .filter(Boolean).join('\n\n') || undefined,
         formFields: parsed.data.formFields,
         procedureType: parsed.data.procedureType,
@@ -2510,6 +2524,13 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         return reply.status(400).send({ ok: false, error: err instanceof Error ? err.message : 'Form inputs are incomplete.' });
       }
       throw err;
+    }
+
+    if (rebuttalFeedbackContext) {
+      result.lawyerReviewFlags = [
+        'The client\'s feedback was read raw while drafting. Check the letter repeats nothing said in confidence: health, finances, or what the client would accept.',
+        ...(result.lawyerReviewFlags ?? []),
+      ];
     }
 
     await applyDirectionAftermath(result, litDirection);
@@ -3131,6 +3152,41 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     await saveEmploymentData(userId, matterId, matter, employment);
     logger.info('Rebuttal source saved', { userId, matterId, name: parsed.data.name });
     return reply.send({ ok: true, name: parsed.data.name });
+  });
+
+  // The client's feedback, attached raw. The reply generator reads it
+  // directly while drafting, so there is no extraction step to fail.
+  // Confidences are guarded in the prompt and flagged for review.
+  fastify.put('/api/employment/:matterId/rebuttal-feedback', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = rebuttalSourceSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid feedback', details: parsed.error.issues.map(i => i.message) });
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const text = parsed.data.text.slice(0, 80_000);
+    (matter as Record<string, unknown>).rebuttalFeedback = {
+      name: parsed.data.name,
+      text,
+      words: text.split(/\s+/).filter(Boolean).length,
+      savedAt: new Date().toISOString(),
+    };
+    await saveEmploymentData(userId, matterId, matter, employment);
+    logger.info('Rebuttal feedback saved', { userId, matterId, name: parsed.data.name });
+    return reply.send({ ok: true, name: parsed.data.name });
+  });
+
+  fastify.delete('/api/employment/:matterId/rebuttal-feedback', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!(matter as Record<string, unknown>).rebuttalFeedback) return reply.status(404).send({ ok: false, error: 'No feedback attached' });
+    delete (matter as Record<string, unknown>).rebuttalFeedback;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true });
   });
 
   fastify.delete('/api/employment/:matterId/rebuttal-source', async (req: FastifyRequest, reply: FastifyReply) => {

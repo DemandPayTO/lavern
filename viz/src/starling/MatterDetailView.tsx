@@ -1163,17 +1163,20 @@ export default function MatterDetailView() {
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const adoptInputRef = useRef<HTMLInputElement | null>(null);
   const rebuttalInputRef = useRef<HTMLInputElement | null>(null);
+  const feedbackInputRef = useRef<HTMLInputElement | null>(null);
+  const [feedbackPasting, setFeedbackPasting] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
   const [rebuttalPasting, setRebuttalPasting] = useState(false);
   const [rebuttalText, setRebuttalText] = useState('');
   const [rebuttalSaving, setRebuttalSaving] = useState(false);
   const [rebuttalError, setRebuttalError] = useState<string | null>(null);
 
-  const attachRebuttalText = useCallback(async (name: string, text: string) => {
+  const attachRebuttalText = useCallback(async (name: string, text: string, slot: 'rebuttal-source' | 'rebuttal-feedback' = 'rebuttal-source') => {
     if (!sessionId) return;
     setRebuttalSaving(true);
     setRebuttalError(null);
     try {
-      const res = await fetch(`/api/employment/${sessionId}/rebuttal-source`, {
+      const res = await fetch(`/api/employment/${sessionId}/${slot}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, text: text.slice(0, 80_000) }),
@@ -1188,7 +1191,7 @@ export default function MatterDetailView() {
     } finally { setRebuttalSaving(false); }
   }, [sessionId, employment]);
 
-  const attachRebuttalFile = useCallback(async (file: File) => {
+  const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' = 'rebuttal-source') => {
     setRebuttalSaving(true);
     setRebuttalError(null);
     try {
@@ -1198,7 +1201,7 @@ export default function MatterDetailView() {
       if (!parseRes.ok) { setRebuttalError('Could not read the file. Supported: PDF, DOCX, Markdown, plain text.'); return; }
       const parsedDoc = await parseRes.json() as { fullText?: string };
       if (!parsedDoc.fullText?.trim()) { setRebuttalError('No text could be read from this file.'); return; }
-      await attachRebuttalText(file.name, parsedDoc.fullText);
+      await attachRebuttalText(file.name, parsedDoc.fullText, slot);
     } catch {
       setRebuttalError('Could not read the file.');
     } finally { setRebuttalSaving(false); }
@@ -3141,6 +3144,69 @@ export default function MatterDetailView() {
                       {rebuttalError && <div role="alert" style={{ marginTop: 8, fontSize: 12.5, color: red }}>{rebuttalError}</div>}
                     </div>
                   )}
+
+                  <div style={{ borderTop: `1px solid ${border}`, marginTop: 14, paddingTop: 12 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The client&rsquo;s feedback (optional)</div>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
+                      Upload or paste the client&rsquo;s reply as it arrived. Starling reads it directly while drafting: instructions are followed, facts correct the record, and anything said in confidence is kept out of the letter and flagged for your check.
+                    </div>
+                    {employment.rebuttalFeedback ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
+                        <span><b>{employment.rebuttalFeedback.name}</b> · {employment.rebuttalFeedback.words} words · attached {new Date(employment.rebuttalFeedback.savedAt).toLocaleDateString()}</span>
+                        <button
+                          onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/rebuttal-feedback`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
+                          style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <input
+                            ref={feedbackInputRef}
+                            type="file"
+                            accept=".pdf,.docx,.doc,.txt,.md,.rtf"
+                            style={{ display: 'none' }}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f, 'rebuttal-feedback'); e.target.value = ''; }}
+                            aria-label="Upload the client's feedback"
+                          />
+                          <button
+                            onClick={() => feedbackInputRef.current?.click()}
+                            disabled={rebuttalSaving}
+                            style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                          >
+                            Upload the client&rsquo;s feedback
+                          </button>
+                          <button
+                            onClick={() => setFeedbackPasting(v => !v)}
+                            style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                          >
+                            Paste it
+                          </button>
+                        </div>
+                        {feedbackPasting && (
+                          <div style={{ marginTop: 10 }}>
+                            <textarea
+                              value={feedbackText}
+                              onChange={e => setFeedbackText(e.target.value)}
+                              rows={5}
+                              placeholder="Paste the client's feedback here, as it arrived."
+                              aria-label="Paste the client's feedback"
+                              style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+                            />
+                            <button
+                              onClick={() => { if (feedbackText.trim().length >= 50) { void attachRebuttalText('Client feedback (pasted)', feedbackText, 'rebuttal-feedback'); setFeedbackText(''); setFeedbackPasting(false); } }}
+                              disabled={rebuttalSaving || feedbackText.trim().length < 50}
+                              style={{ marginTop: 8, background: rebuttalSaving || feedbackText.trim().length < 50 ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, border: 'none', cursor: rebuttalSaving || feedbackText.trim().length < 50 ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                            >
+                              {rebuttalSaving ? 'Saving…' : 'Attach the feedback'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               {selectedDraft && selectedDraft !== 'timetable' && showOptions && renderDirection('document')}

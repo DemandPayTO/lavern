@@ -1495,6 +1495,7 @@ export interface UseEmploymentDataResult {
   /** Sources attached to the matter for brief generation (metadata only). */
   briefSources: Array<{ id: string; name: string; words: number }>;
   rebuttalSource: { name: string; words: number; savedAt: string } | null;
+  rebuttalFeedback: { name: string; words: number; savedAt: string } | null;
   /** Mediation logistics stored at the last generation, for prefill. */
   mediationLogistics: { date?: string; mediator?: string } | null;
   runAnalysis: () => Promise<{ ok: boolean; error?: string }>;
@@ -1598,6 +1599,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [attribution, setAttribution] = useState<{ openedBy: string; openedByMe: boolean; lastModifiedByName: string }>({ openedBy: '', openedByMe: true, lastModifiedByName: '' });
   const [briefSources, setBriefSources] = useState<Array<{ id: string; name: string; words: number }>>([]);
   const [rebuttalSource, setRebuttalSource] = useState<{ name: string; words: number; savedAt: string } | null>(null);
+  const [rebuttalFeedback, setRebuttalFeedback] = useState<{ name: string; words: number; savedAt: string } | null>(null);
   const [mediationLogistics, setMediationLogistics] = useState<{ date?: string; mediator?: string } | null>(null);
   const loadedUpdatedAt = useRef<string | undefined>(undefined);
 
@@ -1628,6 +1630,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       loadedUpdatedAt.current = typeof json.updatedAt === 'string' ? json.updatedAt : undefined;
       setBriefSources(Array.isArray(json.briefSources) ? json.briefSources : []);
       setRebuttalSource(json.rebuttalSource && typeof json.rebuttalSource === 'object' ? json.rebuttalSource : null);
+      setRebuttalFeedback(json.rebuttalFeedback && typeof json.rebuttalFeedback === 'object' ? json.rebuttalFeedback : null);
       setMediationLogistics(json.mediationLogistics && typeof json.mediationLogistics === 'object' ? json.mediationLogistics : null);
       setAttribution({
         openedBy: typeof json.openedBy === 'string' ? json.openedBy : '',
@@ -1965,7 +1968,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, rebuttalFeedback, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────
