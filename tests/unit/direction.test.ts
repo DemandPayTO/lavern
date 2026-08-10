@@ -295,3 +295,49 @@ describe('clampDirectionExtraction', () => {
     expect(out.proposedHeads[0].basis.length).toBeLessThanOrEqual(300);
   });
 });
+
+describe('repairTruncatedJson', () => {
+  it('closes a reply cut off mid-list and keeps every complete instruction', async () => {
+    const { repairTruncatedJson } = await import('../../src/employment/direction.js');
+    const truncated = '{"instructions":[{"text":"Demand only the commission.","kind":"scope"},{"text":"Keep it to two pa';
+    const repaired = repairTruncatedJson(truncated);
+    expect(repaired).not.toBeNull();
+    const parsed = JSON.parse(repaired!) as { instructions: Array<{ text: string }> };
+    expect(parsed.instructions.length).toBe(1);
+    expect(parsed.instructions[0].text).toBe('Demand only the commission.');
+  });
+
+  it('a reply cut off between objects survives with both', async () => {
+    const { repairTruncatedJson } = await import('../../src/employment/direction.js');
+    const truncated = '{"instructions":[{"text":"A.","kind":"scope"},{"text":"B.","kind":"tone"}],"withheld":["the settlement figure"';
+    const parsed = JSON.parse(repairTruncatedJson(truncated)!) as { instructions: unknown[]; withheld: string[] };
+    expect(parsed.instructions.length).toBe(2);
+    expect(parsed.withheld).toEqual(['the settlement figure']);
+  });
+
+  it('complete JSON comes back whole', async () => {
+    const { repairTruncatedJson } = await import('../../src/employment/direction.js');
+    const whole = '{"instructions":[{"text":"A.","kind":"scope"}]}';
+    expect(JSON.parse(repairTruncatedJson(whole)!)).toEqual(JSON.parse(whole));
+  });
+
+  it('handles escaped quotes inside instruction text', async () => {
+    const { repairTruncatedJson } = await import('../../src/employment/direction.js');
+    const truncated = String.raw`{"instructions":[{"text":"Say \"without prejudice\" on top.","kind":"include"},{"text":"unfini`;
+    const parsed = JSON.parse(repairTruncatedJson(truncated)!) as { instructions: Array<{ text: string }> };
+    expect(parsed.instructions.length).toBe(1);
+    expect(parsed.instructions[0].text).toContain('without prejudice');
+  });
+
+  it('returns null when nothing is salvageable', async () => {
+    const { repairTruncatedJson } = await import('../../src/employment/direction.js');
+    expect(repairTruncatedJson('I could not produce instructions.')).toBeNull();
+    expect(repairTruncatedJson('{"instru')).toBeNull();
+  });
+
+  it('the extraction prompt states the hard output limits', async () => {
+    const { DIRECTION_EXTRACTION_SYSTEM } = await import('../../src/employment/direction.js');
+    expect(DIRECTION_EXTRACTION_SYSTEM).toContain('at most 20 instructions');
+    expect(DIRECTION_EXTRACTION_SYSTEM).toContain('merge repeated points');
+  });
+});

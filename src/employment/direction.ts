@@ -86,6 +86,69 @@ export const MAX_INSTRUCTIONS = 20;
  * for "none") is dropped. "Slightly too much" must not become a hard
  * failure with an error message the lawyer cannot act on.
  */
+/**
+ * Salvage a truncated JSON reply. A model cut off mid-list leaves JSON
+ * with an unterminated string or unclosed brackets; the complete prefix
+ * is still good data. This walks the text and remembers every position
+ * where a complete VALUE just ended (a closed string in value position,
+ * a closed object or array, a finished number or literal), along with
+ * the bracket stack at that point. On truncation it cuts at the last
+ * such position and closes the stack. Returns null when nothing
+ * parseable can be salvaged.
+ */
+export function repairTruncatedJson(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  const src = text.slice(start);
+
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  /** True when the next string is a VALUE (after ':' or inside an array). */
+  let expectingValue = false;
+  let safeCut: { index: number; closers: string } | null = null;
+
+  const markSafe = (i: number) => { safeCut = { index: i, closers: stack.slice().reverse().join('') }; };
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === '"') {
+        inString = false;
+        if (expectingValue) { expectingValue = false; markSafe(i); }
+      }
+      continue;
+    }
+    switch (ch) {
+      case '"': inString = true; break;
+      case ':': expectingValue = true; break;
+      case '{': stack.push('}'); expectingValue = false; break;
+      case '[': stack.push(']'); expectingValue = true; break;
+      case ',': expectingValue = stack[stack.length - 1] === ']'; break;
+      case '}':
+      case ']':
+        if (stack[stack.length - 1] !== ch) return null;
+        stack.pop();
+        expectingValue = false;
+        markSafe(i);
+        if (stack.length === 0) return src.slice(0, i + 1);
+        break;
+      default:
+        // Numbers and literals complete only at a delimiter, which the
+        // cases above handle; nothing to mark mid-token.
+        break;
+    }
+  }
+
+  if (!safeCut) return null;
+  const chosen: { index: number; closers: string } = safeCut;
+  let cut = src.slice(0, chosen.index + 1);
+  cut = cut.replace(/,\s*$/, '');
+  return cut + chosen.closers;
+}
+
 export function clampDirectionExtraction(raw: unknown): unknown {
   if (typeof raw !== 'object' || raw === null) return raw;
   const r = { ...(raw as Record<string, unknown>) };
@@ -142,6 +205,8 @@ Rules:
 - Where an instruction is conditional on something not yet known ("if they come back under 50, then..."), do not extract it as an instruction. It is not yet direction.
 - An instruction attributed to the partner carries more weight than a passing thought. Where the notes mark something as the partner's direction, keep that wording.
 - For each instruction, give the terms a compliant draft must contain (mustInclude) or must avoid (mustNotInclude), but ONLY where a specific word or phrase is genuinely required or forbidden. Leave them empty otherwise. These are checked literally, so a term that is merely likely will produce a false alarm.
+
+Output limits, which are hard: at most 20 instructions, each one sentence; at most 20 withheld phrases, each under 15 words; at most 20 proposed heads. Long or repetitive notes still produce a SHORT list: merge repeated points into one instruction rather than writing one per repetition, and never quote the notes at length anywhere in the output.
 
 Do not use em-dashes. Do not use contractions.
 

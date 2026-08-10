@@ -3298,13 +3298,26 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
     let proposed;
     try {
-      const { clampDirectionExtraction } = await import('../../employment/direction.js');
-      proposed = extractionSchema.parse(clampDirectionExtraction(JSON.parse(braced ? braced[0] : jsonText)));
+      const { clampDirectionExtraction, repairTruncatedJson } = await import('../../employment/direction.js');
+      const candidate = braced ? braced[0] : jsonText;
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(candidate);
+      } catch {
+        // A reply cut off mid-list still carries every completed
+        // instruction; salvage the complete prefix rather than losing all.
+        const repaired = repairTruncatedJson(jsonText);
+        if (repaired === null) throw new Error('Model reply was not JSON and could not be repaired');
+        parsedJson = JSON.parse(repaired);
+        logger.warn('Direction extraction reply was truncated; salvaged the complete prefix', { matterId, replyChars: text.length });
+      }
+      proposed = extractionSchema.parse(clampDirectionExtraction(parsedJson));
     } catch (err) {
       // The reason goes to the log, not the lawyer: they cannot fix a Zod
       // path, but we cannot fix what we never see.
       logger.warn('Direction extraction did not fit the schema', {
         matterId,
+        replyChars: text.length,
         error: err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500),
       });
       return reply.status(502).send({ ok: false, error: 'Could not turn those notes into instructions. Try again; if it repeats, split the paste or write the instruction yourself.' });
