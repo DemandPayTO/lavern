@@ -79,6 +79,49 @@ export interface MatterDirection {
 export const MAX_NOTES_CHARS = 100_000;
 export const MAX_INSTRUCTIONS = 20;
 
+/**
+ * Normalise model output before the schema sees it. A long client email
+ * earns long output: instruction lists past the cap are cut, overlong
+ * strings are trimmed, and null on an optional key (which a model writes
+ * for "none") is dropped. "Slightly too much" must not become a hard
+ * failure with an error message the lawyer cannot act on.
+ */
+export function clampDirectionExtraction(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const r = { ...(raw as Record<string, unknown>) };
+  const clampStr = (v: unknown, max: number): unknown =>
+    typeof v === 'string' && v.length > max ? v.slice(0, max - 1).trimEnd() : v;
+  const clampList = (v: unknown, max: number, each: number): unknown =>
+    Array.isArray(v) ? v.slice(0, max).map(x => clampStr(x, each)) : v;
+
+  if (Array.isArray(r.instructions)) {
+    r.instructions = r.instructions.slice(0, MAX_INSTRUCTIONS).map(item => {
+      if (typeof item !== 'object' || item === null) return item;
+      const i = { ...(item as Record<string, unknown>) };
+      i.text = clampStr(i.text, 600);
+      i.mustInclude = clampList(i.mustInclude, 8, 120);
+      i.mustNotInclude = clampList(i.mustNotInclude, 8, 120);
+      for (const k of ['mustInclude', 'mustNotInclude']) if (i[k] == null) delete i[k];
+      return i;
+    });
+  }
+  r.withheld = clampList(r.withheld, 20, 300);
+  if (r.withheld == null) delete r.withheld;
+  if (Array.isArray(r.proposedHeads)) {
+    r.proposedHeads = r.proposedHeads.slice(0, 20).map(item => {
+      if (typeof item !== 'object' || item === null) return item;
+      const h = { ...(item as Record<string, unknown>) };
+      h.label = clampStr(h.label, 200);
+      h.basis = clampStr(h.basis, 300);
+      if (h.basis == null) delete h.basis;
+      return h;
+    });
+  } else if (r.proposedHeads == null) {
+    delete r.proposedHeads;
+  }
+  return r;
+}
+
 // ── The extraction ───────────────────────────────────────────────────────
 
 export const DIRECTION_EXTRACTION_SYSTEM = `You read a lawyer's working notes and pull out the DRAFTING INSTRUCTIONS.

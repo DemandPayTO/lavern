@@ -246,3 +246,52 @@ describe('the note must not take the sign-off with it', () => {
     expect(note).toBe('Something to know.');
   });
 });
+
+describe('clampDirectionExtraction', () => {
+  it('cuts an instruction list past the cap instead of failing it', async () => {
+    const { clampDirectionExtraction, MAX_INSTRUCTIONS } = await import('../../src/employment/direction.js');
+    const raw = { instructions: Array.from({ length: 40 }, (_, i) => ({ text: `Instruction ${i}`, kind: 'scope' })) };
+    const out = clampDirectionExtraction(raw) as { instructions: unknown[] };
+    expect(out.instructions.length).toBe(MAX_INSTRUCTIONS);
+  });
+
+  it('trims overlong instruction text and drops null optionals', async () => {
+    const { clampDirectionExtraction } = await import('../../src/employment/direction.js');
+    const raw = {
+      instructions: [{ text: 'x'.repeat(1000), kind: 'scope', mustInclude: null, mustNotInclude: null }],
+      withheld: null,
+      proposedHeads: null,
+    };
+    const out = clampDirectionExtraction(raw) as { instructions: Array<Record<string, unknown>> };
+    expect((out.instructions[0].text as string).length).toBeLessThanOrEqual(600);
+    expect('mustInclude' in out.instructions[0]).toBe(false);
+    expect('withheld' in out).toBe(false);
+    expect('proposedHeads' in out).toBe(false);
+  });
+
+  it('clamped output passes the shape a long client email produces', async () => {
+    const { clampDirectionExtraction } = await import('../../src/employment/direction.js');
+    const raw = {
+      instructions: Array.from({ length: 25 }, (_, i) => ({
+        text: `Point ${i}: ` + 'the client explains at length. '.repeat(30),
+        kind: i % 2 ? 'include' : 'scope',
+        mustInclude: Array.from({ length: 12 }, (_, n) => `term ${n} ` + 'y'.repeat(150)),
+      })),
+      withheld: Array.from({ length: 30 }, () => 'z'.repeat(400)),
+      proposedHeads: [{ label: 'L'.repeat(300), basis: 'B'.repeat(400), amount: null }],
+    };
+    const out = clampDirectionExtraction(raw) as {
+      instructions: Array<{ text: string; mustInclude: string[] }>;
+      withheld: string[];
+      proposedHeads: Array<{ label: string; basis: string }>;
+    };
+    expect(out.instructions.length).toBeLessThanOrEqual(20);
+    expect(out.instructions[0].text.length).toBeLessThanOrEqual(600);
+    expect(out.instructions[0].mustInclude.length).toBeLessThanOrEqual(8);
+    expect(out.instructions[0].mustInclude[0].length).toBeLessThanOrEqual(120);
+    expect(out.withheld.length).toBeLessThanOrEqual(20);
+    expect(out.withheld[0].length).toBeLessThanOrEqual(300);
+    expect(out.proposedHeads[0].label.length).toBeLessThanOrEqual(200);
+    expect(out.proposedHeads[0].basis.length).toBeLessThanOrEqual(300);
+  });
+});

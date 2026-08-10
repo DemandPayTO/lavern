@@ -3265,7 +3265,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
           analysis: employment.analysis,
         }),
         tier: 'sonnet',
-        maxTokens: 4096,
+        // Long client feedback earns long output; a truncated JSON reply
+        // fails the parse and reads as "could not turn those notes into
+        // instructions", so the ceiling extends rather than cutting off.
+        maxTokens: 6144,
+        extendOnTruncation: true,
         maxRetries: 2,
       });
       text = result.text;
@@ -3294,9 +3298,16 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     });
     let proposed;
     try {
-      proposed = extractionSchema.parse(JSON.parse(braced ? braced[0] : jsonText));
-    } catch {
-      return reply.status(502).send({ ok: false, error: 'Could not turn those notes into instructions. Try shortening them, or write the instruction yourself.' });
+      const { clampDirectionExtraction } = await import('../../employment/direction.js');
+      proposed = extractionSchema.parse(clampDirectionExtraction(JSON.parse(braced ? braced[0] : jsonText)));
+    } catch (err) {
+      // The reason goes to the log, not the lawyer: they cannot fix a Zod
+      // path, but we cannot fix what we never see.
+      logger.warn('Direction extraction did not fit the schema', {
+        matterId,
+        error: err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500),
+      });
+      return reply.status(502).send({ ok: false, error: 'Could not turn those notes into instructions. Try again; if it repeats, split the paste or write the instruction yourself.' });
     }
     return reply.send({ ok: true, proposed });
   });
