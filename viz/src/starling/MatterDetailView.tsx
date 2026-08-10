@@ -1698,7 +1698,9 @@ export default function MatterDetailView() {
                 {dirBusy && active ? 'Reading…' : 'Read the notes'}
               </button>
               <span style={{ fontSize: 11.5, color: muted }}>
-                Nothing binds until you approve it.
+                {dirBusy && active
+                  ? 'Starling reads everything you pasted before proposing. Long notes take a minute or two.'
+                  : 'Nothing binds until you approve it.'}
               </span>
             </div>
           </>

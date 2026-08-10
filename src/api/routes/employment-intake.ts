@@ -3265,11 +3265,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
           analysis: employment.analysis,
         }),
         tier: 'sonnet',
-        // Long client feedback earns long output; a truncated JSON reply
-        // fails the parse and reads as "could not turn those notes into
-        // instructions", so the ceiling extends rather than cutting off.
+        // No extendOnTruncation here: that retry re-ran the WHOLE read at a
+        // higher ceiling, doubling the wait exactly on long notes. A cut-off
+        // reply is salvaged downstream instead, so one pass is enough.
         maxTokens: 6144,
-        extendOnTruncation: true,
         maxRetries: 2,
       });
       text = result.text;
