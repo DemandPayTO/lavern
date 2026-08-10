@@ -1684,7 +1684,7 @@ export default function MatterDetailView() {
               onChange={e => { setDirScope(scope); setDirNotes(e.target.value); setDirSaved(null); }}
               placeholder={scope === 'matter'
                 ? 'Paste your notes from the call or from the partner. For example: "DE says we are only chasing the four weeks of unpaid notice, do not plead common law, keep it short."'
-                : `Instructions for ${documentTitle} alone.`}
+                : `Instructions for ${documentTitle} alone. Pasting the client's feedback as it arrived works: Starling reads the instructions out of it, and you approve each one.`}
               rows={4}
               aria-label={scope === 'matter' ? 'Notes directing the drafting on this file' : `Notes directing ${documentTitle}`}
               style={{ width: '100%', fontFamily: sans, fontSize: 13.5, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5 }}

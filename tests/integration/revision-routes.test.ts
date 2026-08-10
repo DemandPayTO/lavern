@@ -279,3 +279,28 @@ describe('the letter being answered (rebuttal source)', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe('reading long direction notes', () => {
+  it('accepts a long client email: the cap is 100k, not 20k', async () => {
+    // Validation must pass; the (mocked) model then answers.
+    modelReply = JSON.stringify({ instructions: [{ text: 'Demand only the unpaid commission.', kind: 'scope' }] });
+    const notes = 'The client writes at length about the file. '.repeat(1200); // ~52k chars
+    const res = await post(`/api/employment/${MID}/direction/extract`, { notes });
+    expect(res.status).toBe(200);
+  });
+
+  it('over the cap, the error says HOW LONG the notes are, never "paste the notes"', async () => {
+    const notes = 'x'.repeat(100_001);
+    const res = await post(`/api/employment/${MID}/direction/extract`, { notes });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toContain('characters');
+    expect(String(res.body.error)).toContain('Split the paste');
+    expect(String(res.body.error)).not.toBe('Paste the notes to read.');
+  });
+
+  it('truly empty notes still get the paste message', async () => {
+    const res = await post(`/api/employment/${MID}/direction/extract`, { notes: '' });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toBe('Paste the notes to read.');
+  });
+});

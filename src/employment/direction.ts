@@ -76,7 +76,7 @@ export interface MatterDirection {
   byDocument?: Record<string, DirectionRecord>;
 }
 
-export const MAX_NOTES_CHARS = 20_000;
+export const MAX_NOTES_CHARS = 100_000;
 export const MAX_INSTRUCTIONS = 20;
 
 // ── The extraction ───────────────────────────────────────────────────────

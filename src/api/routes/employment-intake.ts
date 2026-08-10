@@ -3235,7 +3235,17 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       documentType: z.string().trim().max(60).optional(),
       documentLabel: z.string().trim().max(120).optional(),
     }).safeParse(req.body);
-    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Paste the notes to read.' });
+    if (!parsed.success) {
+      // Say what is actually wrong. This route once answered every invalid
+      // input with "Paste the notes to read.", including notes that WERE
+      // pasted but ran past the length cap: the pilot pasted a long client
+      // email and was told, on every click, to paste it.
+      const rawNotes = (req.body as { notes?: unknown })?.notes;
+      const error = typeof rawNotes === 'string' && rawNotes.length > MAX_NOTES_CHARS
+        ? `The notes are ${rawNotes.length.toLocaleString('en-CA')} characters and the reader takes ${MAX_NOTES_CHARS.toLocaleString('en-CA')}. Split the paste and read it in parts.`
+        : 'Paste the notes to read.';
+      return reply.status(400).send({ ok: false, error });
+    }
 
     const row = await getMatterById(matterId, userId);
     if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
