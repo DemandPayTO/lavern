@@ -4,6 +4,10 @@
 
 app = "demandpay-starling"
 primary_region = "yyz"
+# Give the OLD machine two minutes to finish in-flight work before a
+# deploy kills it. Without this, a deploy landing mid-generation cut the
+# connection and the pilot saw "unexpected end of JSON input" (2026-08-11).
+kill_timeout = 120
 
 [build]
   dockerfile = "Dockerfile"

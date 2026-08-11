@@ -1733,7 +1733,19 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
         body: JSON.stringify(body),
       });
 
-      const json = await res.json();
+      // A dropped connection mid-generation (a deploy, a network blip)
+      // leaves an empty reply that res.json() turns into a cryptic
+      // "unexpected end of JSON input". Catch it and say what to do.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let json: any;
+      try {
+        json = await res.json();
+      } catch {
+        return {
+          ok: false,
+          error: 'The connection dropped while the draft was generating. It may still have completed on the server: wait a minute, refresh, and check the draft history before generating again.',
+        };
+      }
       if (!res.ok) {
         // A rejected timetable names each problem (ordering, a past date, an
         // unreadable one). Showing only "Generation failed" would leave the

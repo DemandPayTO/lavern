@@ -386,13 +386,13 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
         />
         <button
           onClick={() => void build(false)}
-          disabled={files.length < 3 || !label.trim() || busy}
+          disabled={files.length < 2 || !label.trim() || busy}
           style={{
             fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans,
-            background: files.length >= 3 && label.trim() && !busy ? navy : '#fff',
-            color: files.length >= 3 && label.trim() && !busy ? '#fff' : muted,
-            border: `1px solid ${files.length >= 3 && label.trim() && !busy ? navy : border}`,
-            cursor: files.length >= 3 && label.trim() && !busy ? 'pointer' : 'default',
+            background: files.length >= 2 && label.trim() && !busy ? navy : '#fff',
+            color: files.length >= 2 && label.trim() && !busy ? '#fff' : muted,
+            border: `1px solid ${files.length >= 2 && label.trim() && !busy ? navy : border}`,
+            cursor: files.length >= 2 && label.trim() && !busy ? 'pointer' : 'default',
           }}
         >
           {busy ? 'Reading your precedents…' : 'Learn the style'}
@@ -420,6 +420,9 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
       )}
       {files.length === 1 && (
         <p style={{ fontSize: 12.5, color: amber, margin: '8px 0 0' }}>Add at least one more; a single document shows a draft, not a style.</p>
+      )}
+      {files.length === 2 && (
+        <p style={{ fontSize: 12.5, color: muted, margin: '8px 0 0' }}>Two examples work; three or more teach the style more reliably. Read what was learned before you draft with it.</p>
       )}
       {error && <p role="alert" style={{ fontSize: 12.5, color: red, margin: '8px 0 0' }}>{error}</p>}
 
