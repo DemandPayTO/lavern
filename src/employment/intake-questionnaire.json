@@ -1,0 +1,1632 @@
+{
+ "generatedFrom": "Employment_Law_Intake_Schema.xlsx",
+ "sections": [
+  {
+   "id": "s0",
+   "title": "Gate 0 — Preliminary",
+   "questions": [
+    {
+     "id": "G0_Q1",
+     "key": "termination_date",
+     "text": "What is your date of termination or the date you left the employer?",
+     "type": "date",
+     "required": true,
+     "note": "Anchors ESA limitation, HRC 1-year HRTO, 2-year civil limitation, EI ROE timing."
+    },
+    {
+     "id": "G0_Q2",
+     "key": "hire_date",
+     "text": "What is your date of hire with this employer (or the earliest date you started working for them or a predecessor)?",
+     "type": "date",
+     "required": true,
+     "note": "Used to calculate length of service for Bardal and ESA minimums."
+    },
+    {
+     "id": "G0_Q3",
+     "key": "work_province",
+     "text": "In which province did you primarily perform your work?",
+     "type": "select",
+     "optionsRef": "OPT_PROVINCE",
+     "required": true,
+     "note": "Federal if ON + federally regulated industry. ESA/HRC apply to provincial employees."
+    },
+    {
+     "id": "G0_Q4",
+     "key": "is_federal",
+     "text": "Was your employer in a federally regulated industry (e.g., banking, interprovincial transport, airline, telecom, broadcasting, federal crown corporation)?",
+     "type": "yesno",
+     "required": true,
+     "note": "If YES → Canada Labour Code s.240 unjust dismissal; ESA does not apply. Flag for lawyer."
+    },
+    {
+     "id": "G0_Q5",
+     "key": "is_unionized",
+     "text": "Were you covered by a collective agreement or union at the time of termination?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "is_federal = NO",
+     "note": "If unionized → civil courts have no jurisdiction (Weber v Ontario Hydro). Refer to grievance arbitration. End questionnaire."
+    }
+   ]
+  },
+  {
+   "id": "s1",
+   "title": "Gate 1 — Worker Status",
+   "questions": [
+    {
+     "id": "G1_Q1",
+     "key": "worker_classification",
+     "text": "How were you formally classified by this employer?",
+     "type": "select",
+     "optionsRef": "OPT_WORKER_CLASS",
+     "required": true,
+     "showIf": "is_federal = NO AND is_unionized = NO",
+     "note": "Classification affects notice rights. Dependent contractors get common law notice but not ESA."
+    },
+    {
+     "id": "G1_Q2",
+     "key": "de_facto_employee",
+     "text": "Were you labelled an 'independent contractor' or 'self-employed' but working exclusively or nearly exclusively for this employer?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "worker_classification = CONTRACTOR",
+     "note": "Sagaz / McKee / Keenan / Thurston. If near-exclusive engagement → likely dependent contractor or employee."
+    },
+    {
+     "id": "G1_Q3",
+     "key": "other_clients",
+     "text": "Did you work for any other clients or employers during your engagement with this employer?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "de_facto_employee = YES",
+     "note": "Working for others weighs against dependent contractor status but does not rule it out if engagement was dominant."
+    }
+   ]
+  },
+  {
+   "id": "s2",
+   "title": "Gate 2 — Contract Type",
+   "questions": [
+    {
+     "id": "G2_Q1",
+     "key": "has_written_contract",
+     "text": "Did you sign a written employment agreement or offer letter?",
+     "type": "yesno",
+     "required": true,
+     "note": "Written contract triggers termination clause analysis and entire-agreement clause review."
+    },
+    {
+     "id": "G2_Q2",
+     "key": "contract_type",
+     "text": "Was your contract for a fixed end date (e.g., a 12-month contract), or ongoing/indefinite?",
+     "type": "select",
+     "optionsRef": "OPT_CONTRACT_TYPE",
+     "required": true,
+     "showIf": "has_written_contract = YES",
+     "note": "Fixed term → Howard v Benson balance-of-term damages, no mitigation duty."
+    },
+    {
+     "id": "G2_Q3",
+     "key": "is_probationary",
+     "text": "Were you still within a probationary period at the time of termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "Probation triggers suitability standard, not just cause or Bardal. ESA minimums still apply after 3 months."
+    },
+    {
+     "id": "G2_Q4",
+     "key": "probation_length_months",
+     "text": "How long was the probationary period stated in your contract or handbook?",
+     "type": "number",
+     "required": true,
+     "showIf": "is_probationary = YES",
+     "note": "If >3 months and clause tries to exclude ESA, may void entire termination scheme via Waksdale."
+    },
+    {
+     "id": "G2_Q5",
+     "key": "terminated_within_probation",
+     "text": "Were you terminated within that stated probationary period?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "is_probationary = YES",
+     "note": "If YES → employer must still show good-faith suitability assessment (Mison). Discrimination pretext possible."
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "title": "Gate 3 — Termination Clause",
+   "questions": [
+    {
+     "id": "G3_Q1",
+     "key": "has_term_clause",
+     "text": "Does your written agreement contain a clause that limits or describes your entitlements on termination?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_written_contract = YES",
+     "note": "If no clause or contract → common law Bardal applies automatically."
+    },
+    {
+     "id": "G3_Q2",
+     "key": "clause_has_cause",
+     "text": "Does the clause include a provision for termination 'for cause' or 'with cause'?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_term_clause = YES",
+     "note": "Waksdale: if for-cause provision uses standard broader than ESA wilful misconduct → entire clause void."
+    },
+    {
+     "id": "G3_Q3",
+     "key": "cause_standard",
+     "text": "Does the for-cause provision use the exact phrase 'wilful misconduct' (matching the ESA standard), or does it use broader language such as 'just cause', 'cause', 'serious breach', or similar?",
+     "type": "select",
+     "optionsRef": "OPT_CAUSE_STANDARD",
+     "required": true,
+     "showIf": "clause_has_cause = YES",
+     "note": "If broader than wilful misconduct → Waksdale voids entire clause. Confirmed at SCC level 2025."
+    },
+    {
+     "id": "G3_Q4",
+     "key": "clause_specifies_notice",
+     "text": "Does the clause specify the amount of notice or pay in lieu you would receive on termination without cause?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_term_clause = YES",
+     "note": "Specified amount must meet or exceed ESA minimum at all times (Machtinger; Rossman)."
+    },
+    {
+     "id": "G3_Q5",
+     "key": "clause_limits_to_esa",
+     "text": "Does the clause state that you receive only ESA minimums (i.e., no more than the statutory minimum)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "clause_specifies_notice = YES"
+    },
+    {
+     "id": "G3_Q6",
+     "key": "clause_has_saving",
+     "text": "Does the clause include a provision stating that if any part conflicts with the ESA, the ESA applies (a 'saving clause')?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "clause_limits_to_esa = YES",
+     "note": "Saving clauses cannot rehabilitate an illegal provision (Waksdale; Rossman; Tan v Stostac)."
+    },
+    {
+     "id": "G3_Q7",
+     "key": "clause_benefits_continuation",
+     "text": "Does the clause require continuation of your group benefits (health, dental, life insurance) during the notice period?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_term_clause = YES",
+     "note": "Absence of benefits continuation renders clause void (Wood v Fred Deeley; North v Metaswitch)."
+    },
+    {
+     "id": "G3_Q8",
+     "key": "clause_at_any_time",
+     "text": "Does the clause contain any language permitting the employer to terminate your employment 'at any time' or 'at its sole discretion'?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_term_clause = YES",
+     "note": "CURRENCY FLAG: Dufault doctrine. ONCA heard Baker/Jones Jan 16 2026. Decision pending. Strong demand-letter leverage; risky as sole SOC basis until ONCA rules."
+    },
+    {
+     "id": "G3_Q9",
+     "key": "clause_constructive_dismissal",
+     "text": "Does the clause address your rights in the event of constructive dismissal (i.e., fundamental change to your job)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_term_clause = YES",
+     "note": "If clause silent on constructive dismissal → common law Bardal applies to CD scenario."
+    },
+    {
+     "id": "G3_Q10",
+     "key": "no_fresh_consideration",
+     "text": "Was the contract (or the termination clause specifically) introduced after you had already started working, without any additional pay raise, bonus, or other benefit offered in exchange?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_written_contract = YES",
+     "note": "Hobbs v TDI; Holland v Hostopia. Continued employment alone ≠ sufficient consideration for new restrictive term."
+    },
+    {
+     "id": "G3_Q11",
+     "key": "had_ila",
+     "text": "Did you have an opportunity to obtain independent legal advice before signing the contract?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "no_fresh_consideration = YES",
+     "note": "Absence of ILA + grossly unfair terms supports unconscionability challenge (Titus v Cooke)."
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "title": "Gate 4 — Manner of Separation",
+   "questions": [
+    {
+     "id": "G4_Q1",
+     "key": "separation_type",
+     "text": "How did your employment end?",
+     "type": "select",
+     "optionsRef": "OPT_SEPARATION_TYPE",
+     "required": true,
+     "note": "Determines which legal pathways are available."
+    },
+    {
+     "id": "G4_Q2",
+     "key": "employer_stated_reason",
+     "text": "Did the employer state a specific reason for your termination?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "separation_type = TERMINATED"
+    },
+    {
+     "id": "G4_Q3",
+     "key": "employer_alleged_cause",
+     "text": "Did the employer allege 'just cause' or 'cause' for your termination (i.e., claiming you did something that justified dismissal without any notice or pay)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "employer_stated_reason = YES"
+    },
+    {
+     "id": "G4_Q4",
+     "key": "cause_reasons",
+     "text": "What reason(s) did the employer give for alleging cause?",
+     "type": "multi",
+     "optionsRef": "OPT_CAUSE_REASONS",
+     "required": true,
+     "showIf": "employer_alleged_cause = YES"
+    },
+    {
+     "id": "G4_Q5",
+     "key": "prior_discipline",
+     "text": "Had the employer previously warned you, issued written discipline, or put you on a performance improvement plan before termination?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "employer_alleged_cause = YES",
+     "note": "Absence of progressive discipline supports finding that cause was not proportionate (McKinley contextual test)."
+    },
+    {
+     "id": "G4_Q6",
+     "key": "condonation",
+     "text": "Did the employer ever condone the conduct they are now relying on as cause (i.e., knew about it but did not act)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "employer_alleged_cause = YES",
+     "note": "Condonation defeats cause; also defeats after-acquired cause."
+    }
+   ]
+  },
+  {
+   "id": "s5",
+   "title": "Gate 5 — Constructive Dismissal",
+   "questions": [
+    {
+     "id": "G5_Q1",
+     "key": "cd_changes",
+     "text": "Did the employer make any of the following changes to your job before you left? (Select all that apply)",
+     "type": "multi",
+     "optionsRef": "OPT_CD_CHANGES",
+     "required": true,
+     "showIf": "separation_type IN [RESIGNED, CONSTRUCTIVE]",
+     "note": "Potter Branch 1: unilateral act breaching essential term. Branch 2: cumulative conduct.",
+     "joinAsString": true
+    },
+    {
+     "id": "G5_Q2",
+     "key": "cd_advance_notice",
+     "text": "Did the employer communicate this change to you in advance or give you any notice?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "cd_changes IS NOT EMPTY",
+     "note": "Unilateral = no genuine consent obtained."
+    },
+    {
+     "id": "G5_Q3",
+     "key": "cd_accepted",
+     "text": "Did you agree, in writing or by your conduct, to accept these changes and continue working?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "cd_changes IS NOT EMPTY",
+     "note": "Acceptance/condonation may defeat CD claim. Must resign within reasonable time (Belton; Pham)."
+    },
+    {
+     "id": "G5_Q4",
+     "key": "cd_delay_weeks",
+     "text": "How long after the change occurred did you continue to work before resigning or being terminated?",
+     "type": "number",
+     "required": true,
+     "showIf": "cd_changes IS NOT EMPTY",
+     "note": "Excessive delay may constitute condonation. Assessed contextually."
+    },
+    {
+     "id": "G5_Q5",
+     "key": "cd_cumulative",
+     "text": "Did the employer subject you to a pattern of conduct (rather than a single change) that made your workplace intolerable — such as persistent demeaning treatment, isolation, removal of responsibilities, or hostile management?",
+     "type": "yesno",
+     "required": true,
+     "note": "Potter Branch 2: cumulative conduct demonstrating employer no longer intends to be bound."
+    },
+    {
+     "id": "G5_Q6",
+     "key": "cd_code_linked",
+     "text": "Was the pattern of conduct connected to a protected characteristic (e.g., related to your disability, age, sex, race, family status)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "cd_cumulative = YES",
+     "note": "Connects constructive dismissal to HRC claim for Code damages."
+    }
+   ]
+  },
+  {
+   "id": "s6",
+   "title": "Gate 6 — Bardal Factors",
+   "questions": [
+    {
+     "id": "G6_Q1",
+     "key": "age_at_termination",
+     "text": "What was your age at the date your employment ended?",
+     "type": "number",
+     "required": true,
+     "note": "Age >50 is significant Bardal elongating factor. Age >60 may support exceptional-circumstances notice beyond 24 months."
+    },
+    {
+     "id": "G6_Q2",
+     "key": "job_title",
+     "text": "What was your most recent job title?",
+     "type": "text",
+     "required": true,
+     "note": "Used to assess character of employment."
+    },
+    {
+     "id": "G6_Q3",
+     "key": "job_level",
+     "text": "How would you best describe your role?",
+     "type": "select",
+     "optionsRef": "OPT_JOB_LEVEL",
+     "required": true,
+     "note": "Di Tomaso: character of employment of declining importance; no cap for unskilled workers."
+    },
+    {
+     "id": "G6_Q4",
+     "key": "specialized_skills",
+     "text": "Did your role require specialized skills, certifications, or qualifications that are not widely available in the labour market?",
+     "type": "yesno",
+     "required": true,
+     "note": "Specialized/non-transferable skills support longer notice; may support >24 months (Lynch v Avaya)."
+    },
+    {
+     "id": "G6_Q5",
+     "key": "found_comparable_work",
+     "text": "Have you been able to find a comparable job since your termination?",
+     "type": "select",
+     "optionsRef": "OPT_YESNO_PARTIAL",
+     "required": true,
+     "note": "Difficulty finding work = adverse market conditions Bardal factor (Paquette v TeraGo)."
+    },
+    {
+     "id": "G6_Q6",
+     "key": "adverse_market",
+     "text": "Are you in an industry that is currently experiencing layoffs, a downturn, or reduced hiring?",
+     "type": "yesno",
+     "required": true,
+     "note": "Adverse sector conditions elongate notice (Paquette; Milwid IBM)."
+    }
+   ]
+  },
+  {
+   "id": "s7",
+   "title": "Gate 7 — Inducement",
+   "questions": [
+    {
+     "id": "G7_Q1",
+     "key": "had_prior_secure_employment",
+     "text": "Before joining this employer, were you employed in a stable, long-term job with another organization?",
+     "type": "yesno",
+     "required": true
+    },
+    {
+     "id": "G7_Q2",
+     "key": "employer_initiated_recruitment",
+     "text": "Did this employer (or someone acting on their behalf) reach out to recruit you — rather than you applying for the job?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "had_prior_secure_employment = YES",
+     "note": "Active recruitment is the core inducement trigger."
+    },
+    {
+     "id": "G7_Q3",
+     "key": "recruitment_promises",
+     "text": "Were you promised any of the following during the recruitment process? (Select all that apply)",
+     "type": "multi",
+     "optionsRef": "OPT_RECRUIT_PROMISES",
+     "required": true,
+     "showIf": "employer_initiated_recruitment = YES",
+     "note": "Written promises → breach of contract and/or negligent misrep. Verbal → inducement/misrep."
+    },
+    {
+     "id": "G7_Q4",
+     "key": "promises_in_writing",
+     "text": "Were any of those promises made in writing (e.g., in the offer letter, an email, or a formal document)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "recruitment_promises IS NOT EMPTY",
+     "note": "Written = express contractual term or negligent/fraudulent misrepresentation. Stronger than verbal."
+    },
+    {
+     "id": "G7_Q5",
+     "key": "resigned_prior_employer",
+     "text": "Did you resign from your prior employer in order to accept this position?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "had_prior_secure_employment = YES",
+     "note": "Resignation from prior = detrimental reliance anchor."
+    },
+    {
+     "id": "G7_Q6",
+     "key": "prior_employer_service_years",
+     "text": "Approximately how many years of service had you accumulated with your prior employer?",
+     "type": "number",
+     "required": true,
+     "showIf": "resigned_prior_employer = YES",
+     "note": "Prior service used as experience factor (Addison/Manthadi); also grounds misrep reliance damages uncapped by notice."
+    },
+    {
+     "id": "G7_Q7",
+     "key": "promises_not_fulfilled",
+     "text": "Did any of the promises made during recruitment turn out to be inaccurate, misleading, or not fulfilled?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "recruitment_promises IS NOT EMPTY",
+     "note": "If YES and promises untrue at time made → negligent misrep (Cognos). If employer knew = fraudulent."
+    }
+   ]
+  },
+  {
+   "id": "s8",
+   "title": "Gate 8 — Successor Employer",
+   "questions": [
+    {
+     "id": "G8_Q1",
+     "key": "prior_related_employer",
+     "text": "Before this employer, did you work for a different employer doing the same or very similar work, in the same location or role?",
+     "type": "yesno",
+     "required": true,
+     "note": "Addison/Manthadi/Chin: prior service = experience factor benefitting successor."
+    },
+    {
+     "id": "G8_Q2",
+     "key": "no_gap_successor",
+     "text": "Did this employer hire you directly from the predecessor — without any gap in your employment?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "prior_related_employer = YES",
+     "note": "No gap = strongest successor argument. ESA s.9 continuity if sale of business occurred."
+    },
+    {
+     "id": "G8_Q3",
+     "key": "formal_sale",
+     "text": "Was there any formal sale, purchase, or transfer of the business between the two employers (e.g., asset purchase, share purchase, contract assignment)?",
+     "type": "select",
+     "optionsRef": "OPT_YESNO_UNSURE",
+     "required": true,
+     "showIf": "prior_related_employer = YES",
+     "note": "Abbott v Bombardier: sale of a specific bundle of tasks performed by identifiable group = ESA s.9 sale of business."
+    },
+    {
+     "id": "G8_Q4",
+     "key": "service_expressly_negated",
+     "text": "Did the new employer expressly tell you that your prior service would NOT be recognized?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "prior_related_employer = YES",
+     "note": "Express negation reduces (but does not eliminate) experience credit under Antchipalovskaia/Manthadi."
+    }
+   ]
+  },
+  {
+   "id": "s9",
+   "title": "Gate 9 — ESA Entitlements",
+   "questions": [
+    {
+     "id": "G9_Q1",
+     "key": "received_term_pay",
+     "text": "Were you paid any termination pay (notice pay or severance pay) when your employment ended?",
+     "type": "yesno",
+     "required": true
+    },
+    {
+     "id": "G9_Q2",
+     "key": "benefits_continued",
+     "text": "Did your employer continue paying your benefits (health, dental, life insurance) for any period after termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "Benefits must continue during ESA notice period (ESA s.60)."
+    },
+    {
+     "id": "G9_Q3",
+     "key": "unauthorized_deductions",
+     "text": "Were there any deductions taken from your final paycheque that you did not authorize in writing?",
+     "type": "yesno",
+     "required": true,
+     "note": "ESA s.13: unauthorized deductions prohibited. Cash shortages categorically prohibited s.13(5)."
+    },
+    {
+     "id": "G9_Q4",
+     "key": "vacation_paid",
+     "text": "Were you paid out all accrued and unused vacation pay on termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "ESA ss.33-41: vacation pay must be paid on termination."
+    },
+    {
+     "id": "G9_Q5",
+     "key": "unpaid_overtime",
+     "text": "Were you regularly working more than 44 hours per week without overtime pay?",
+     "type": "yesno",
+     "required": true,
+     "note": "ESA s.22: overtime at 1.5x after 44 hours. Manager exemption strictly construed."
+    },
+    {
+     "id": "G9_Q6",
+     "key": "roe_issued",
+     "text": "Has your employer issued your Record of Employment (ROE)?",
+     "type": "yesno",
+     "required": true,
+     "note": "ROE required within 5 calendar days of end of pay period."
+    },
+    {
+     "id": "G9_Q7",
+     "key": "roe_coded_correctly",
+     "text": "Was the reason for separation coded correctly on your ROE? (For example: 'A' = shortage of work; 'M' = dismissal; 'E' = quit)",
+     "type": "select",
+     "optionsRef": "OPT_YESNO_UNSURE",
+     "required": true,
+     "showIf": "roe_issued = YES",
+     "note": "False ROE code = Honda/aggravated damages trigger + EI Act s.38/39 penalty exposure for employer."
+    },
+    {
+     "id": "G9_Q8",
+     "key": "was_laid_off",
+     "text": "Were you laid off (rather than terminated) at any point during your employment?",
+     "type": "yesno",
+     "required": true,
+     "note": "Layoff >13 weeks in 20-week period (or >35 weeks with benefits) = deemed termination."
+    },
+    {
+     "id": "G9_Q9",
+     "key": "mass_termination",
+     "text": "Were at least 50 other employees also terminated around the same time at your workplace?",
+     "type": "yesno",
+     "required": true,
+     "note": "ESA s.58 mass termination: 8-16 weeks enhanced notice; Form 1 required; clock starts only on filing."
+    }
+   ]
+  },
+  {
+   "id": "s10",
+   "title": "Gate 10 — Human Rights",
+   "questions": [
+    {
+     "id": "G10_Q1",
+     "key": "hrc_grounds",
+     "text": "Do you believe your termination or any adverse treatment at work was connected to any of the following characteristics?",
+     "type": "multi",
+     "optionsRef": "OPT_HRC_GROUNDS",
+     "required": true,
+     "note": "Moore v BC Education: protected characteristic need only be a factor, not the sole cause."
+    },
+    {
+     "id": "G10_Q2",
+     "key": "hrc_adverse_treatment",
+     "text": "Please describe the adverse treatment you experienced and how you believe it was connected to that characteristic.",
+     "type": "textarea",
+     "required": true,
+     "showIf": "hrc_grounds IS NOT EMPTY"
+    },
+    {
+     "id": "G10_Q3",
+     "key": "has_disability",
+     "text": "Did you have a disability or medical condition that your employer was aware of?",
+     "type": "yesno",
+     "required": true
+    },
+    {
+     "id": "G10_Q4",
+     "key": "accommodation_requested",
+     "text": "Did you request any accommodation from your employer related to your disability or medical condition?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_disability = YES",
+     "note": "Failure to even inquire = Code violation (Lane v ADGA)."
+    },
+    {
+     "id": "G10_Q5",
+     "key": "accommodation_refused",
+     "text": "Did your employer deny, delay, or fail to adequately provide that accommodation?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "accommodation_requested = YES",
+     "note": "Must exhaust accommodation before frustration claim (Naccarato v Costco)."
+    },
+    {
+     "id": "G10_Q6",
+     "key": "hrc_harassment",
+     "text": "Were you subjected to workplace harassment — repeated vexatious comments or conduct — that you believe was connected to a protected characteristic?",
+     "type": "yesno",
+     "required": true,
+     "note": "Section 5(2): poisoned workplace. Assessed objectively. Single egregious incident may suffice."
+    },
+    {
+     "id": "G10_Q7",
+     "key": "sexual_harassment",
+     "text": "Were you subjected to any sexual harassment or unwanted sexual solicitation or advances?",
+     "type": "yesno",
+     "required": true,
+     "note": "s.7: personal liability of harasser possible; potential for significant IDFS damages ($75K-$200K+)."
+    },
+    {
+     "id": "G10_Q8",
+     "key": "hrc_complaint_made",
+     "text": "Did you complain to HR, a manager, or any authority about the harassment or discrimination you experienced?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "hrc_harassment = YES OR sexual_harassment = YES",
+     "note": "Complaint triggers reprisal protection under s.8."
+    },
+    {
+     "id": "G10_Q9",
+     "key": "adverse_after_complaint",
+     "text": "Did adverse treatment (discipline, demotion, termination, change in duties) occur after or shortly after you made that complaint?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "hrc_complaint_made = YES",
+     "note": "Temporal proximity supports reprisal inference."
+    },
+    {
+     "id": "G10_Q10",
+     "key": "pregnancy_leave_factor",
+     "text": "Were you pregnant, on parental/pregnancy leave, or planning to take such leave around the time of your termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "Termination during/after pregnancy/parental leave = strong presumption of Code violation."
+    },
+    {
+     "id": "G10_Q11",
+     "key": "family_status_issue",
+     "text": "Do you have childcare or eldercare responsibilities that made it difficult for you to meet a workplace requirement (e.g., schedule, location, overtime)?",
+     "type": "yesno",
+     "required": true,
+     "note": "Ontario applies Misetich test (Moore analysis). Federal applies Johnstone test."
+    },
+    {
+     "id": "G10_Q12",
+     "key": "hrto_application",
+     "text": "Have you filed or are you considering filing an application with the Human Rights Tribunal of Ontario (HRTO)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "hrc_grounds IS NOT EMPTY",
+     "note": "CRITICAL: Filing at HRTO may bar civil action on same facts (s.34(11)). Must resolve before filing either."
+    }
+   ]
+  },
+  {
+   "id": "s11",
+   "title": "Gate 11 — Manner of Dismissal",
+   "questions": [
+    {
+     "id": "G11_Q1",
+     "key": "dismissal_manner",
+     "text": "Describe how the termination meeting or dismissal occurred.",
+     "type": "textarea",
+     "required": true,
+     "note": "Honda v Keays: candid, reasonable, honest, forthright standard."
+    },
+    {
+     "id": "G11_Q2",
+     "key": "bad_faith_acts",
+     "text": "Did the employer make any of the following claims or take any of the following actions at or after termination? (Select all that apply)",
+     "type": "multi",
+     "optionsRef": "OPT_BAD_FAITH_ACTS",
+     "required": true,
+     "note": "Each checked item is a potential Honda and/or punitive damages trigger."
+    },
+    {
+     "id": "G11_Q3",
+     "key": "mental_distress_symptoms",
+     "text": "Have you experienced any of the following as a result of the termination or the manner in which it occurred? (Select all that apply)",
+     "type": "multi",
+     "optionsRef": "OPT_DISTRESS_SYMPTOMS",
+     "required": true,
+     "note": "Krmpotic 2024 ONCA: lay evidence of anxiety/sleep disturbance suffices; no medical evidence strictly required."
+    },
+    {
+     "id": "G11_Q4",
+     "key": "false_cause_alleged",
+     "text": "Did the employer make a false or misleading allegation of serious misconduct (e.g., theft, fraud, harassment) as a reason for your termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "False cause allegations = classic Honda trigger; if persisted through trial = punitive (Doyle v Zochem)."
+    },
+    {
+     "id": "G11_Q5",
+     "key": "retaliatory_litigation",
+     "text": "Did the employer threaten or bring legal proceedings against you (e.g., counterclaim, threat of lawsuit, referral to police) that appear to be retaliatory?",
+     "type": "yesno",
+     "required": true,
+     "note": "Tactical/retaliatory counterclaim or complaint = punitive damages trigger (Ruston v Keddco; Pate Estate)."
+    }
+   ]
+  },
+  {
+   "id": "s12",
+   "title": "Gate 12 — Compensation",
+   "questions": [
+    {
+     "id": "G12_Q1",
+     "key": "base_salary",
+     "text": "What was your annual base salary at the time of termination?",
+     "type": "number",
+     "required": true
+    },
+    {
+     "id": "G12_Q2",
+     "key": "has_bonus",
+     "text": "Did your compensation include a bonus (annual, performance, sign-on, retention)?",
+     "type": "yesno",
+     "required": true,
+     "note": "Matthews v Ocean Nutrition: bonus during notice period recoverable unless unambiguously excluded."
+    },
+    {
+     "id": "G12_Q3",
+     "key": "active_employ_clause",
+     "text": "Does your contract or bonus plan state that you must be 'actively employed' at the time of payment to receive the bonus?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_bonus = YES",
+     "note": "Matthews: active-employment clauses generally insufficient to exclude bonus during notice period."
+    },
+    {
+     "id": "G12_Q4",
+     "key": "has_equity_comp",
+     "text": "Did you hold stock options, RSUs, LTIP units, or other equity-based compensation?",
+     "type": "yesno",
+     "required": true,
+     "note": "O'Reilly; Battiston; Manastersky; Andros; Celestini. Same Matthews two-step applies."
+    },
+    {
+     "id": "G12_Q5",
+     "key": "battiston_click",
+     "text": "Did you have to click-through or sign equity plan documents online without those plans being specifically highlighted or explained to you?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_equity_comp = YES",
+     "note": "Battiston 2021 ONCA: conscious annual click-through may be sufficient acceptance. Lawyer review required."
+    },
+    {
+     "id": "G12_Q6",
+     "key": "other_compensation",
+     "text": "Did your compensation include any of the following? (Select all that apply)",
+     "type": "multi",
+     "optionsRef": "OPT_OTHER_COMP",
+     "required": true,
+     "note": "All compensation components form part of damages (Matthews para 49; Wallace)."
+    },
+    {
+     "id": "G12_Q7",
+     "key": "unpaid_commission",
+     "text": "Did the employer owe you any commission, draw, or variable pay that was unpaid at termination?",
+     "type": "yesno",
+     "required": true
+    },
+    {
+     "id": "G12_Q8",
+     "key": "clawback_dispute",
+     "text": "Did you have a signing bonus or retention bonus that the employer is attempting to claw back?",
+     "type": "yesno",
+     "required": true,
+     "note": "ESA s.13 prohibition on unauthorized deductions; penalty doctrine; restraint of trade analysis."
+    }
+   ]
+  },
+  {
+   "id": "s13",
+   "title": "Gate 13 — Restrictive Covenants",
+   "questions": [
+    {
+     "id": "G13_Q1",
+     "key": "has_noncompete",
+     "text": "Does your employment agreement contain a non-competition clause (restricting you from working for competitors)?",
+     "type": "yesno",
+     "required": true
+    },
+    {
+     "id": "G13_Q2",
+     "key": "noncompete_post_oct2021",
+     "text": "Was the non-competition clause signed on or after October 25, 2021?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_noncompete = YES",
+     "note": "ESA s.67.2: non-competes signed on/after Oct 25 2021 are void (subject to sale-of-business and executive exceptions)."
+    },
+    {
+     "id": "G13_Q3",
+     "key": "is_executive_noncompete",
+     "text": "At the time you signed the non-compete, were you a 'C-Suite' executive (CEO, COO, CFO, CIO, CLO, CHRO, or similar chief officer)?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "noncompete_post_oct2021 = YES",
+     "note": "Executive exception to ESA s.67.2 ban: C-suite officers may be bound by non-competes post-Oct 2021."
+    },
+    {
+     "id": "G13_Q4",
+     "key": "has_nonsolicit",
+     "text": "Does your agreement contain a non-solicitation clause (restricting you from contacting clients or employees)?",
+     "type": "yesno",
+     "required": true,
+     "note": "Non-solicitation clauses not banned by ESA s.67.2; common-law reasonableness test applies."
+    },
+    {
+     "id": "G13_Q5",
+     "key": "covenant_enforcement_threat",
+     "text": "Is the employer threatening to enforce any restrictive covenant against you, or seeking damages for an alleged breach?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "has_noncompete = YES OR has_nonsolicit = YES"
+    }
+   ]
+  },
+  {
+   "id": "s14",
+   "title": "Gate 14 — OHSA Reprisal",
+   "questions": [
+    {
+     "id": "G14_Q1",
+     "key": "ohsa_concern_raised",
+     "text": "Did you raise a workplace health and safety concern with your employer, a supervisor, or the Ministry of Labour before your termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "OHSA s.50 reprisal: reverse onus on employer. Reinstatement + back pay available."
+    },
+    {
+     "id": "G14_Q2",
+     "key": "ohsa_work_refusal",
+     "text": "Did you refuse to perform unsafe work under OHSA s.43 before your termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "Work refusal = protected activity under OHSA s.43; reprisal prohibited s.50."
+    },
+    {
+     "id": "G14_Q3",
+     "key": "ohsa_jhsc",
+     "text": "Were you a Joint Health and Safety Committee member or a Health and Safety Representative?",
+     "type": "yesno",
+     "required": true,
+     "note": "JHSC role = additional OHSA protection."
+    },
+    {
+     "id": "G14_Q4",
+     "key": "workplace_violence",
+     "text": "Did you experience or witness workplace violence or threats of violence?",
+     "type": "yesno",
+     "required": true,
+     "note": "OHSA ss.32.0.1-32.0.7: violence prevention duties; s.32.0.5(3)-(4): disclosure obligation for violent-history persons."
+    },
+    {
+     "id": "G14_Q5",
+     "key": "ohsa_harassment_reported",
+     "text": "Were you subjected to workplace harassment as defined under OHSA — repeated vexatious comment or conduct — and did you report it?",
+     "type": "yesno",
+     "required": true,
+     "note": "OHSA ss.32.0.6-32.0.7: employer must investigate and report results. Failure grounds constructive dismissal."
+    }
+   ]
+  },
+  {
+   "id": "s15",
+   "title": "Gate 15 — Special Situations",
+   "questions": [
+    {
+     "id": "G15_Q1",
+     "key": "on_leave_at_termination",
+     "text": "Were you on a disability, medical, pregnancy, parental, or any other statutory leave when you were terminated?",
+     "type": "yesno",
+     "required": true,
+     "note": "Termination during protected leave = ESA s.53 + Code violation presumption."
+    },
+    {
+     "id": "G15_Q2",
+     "key": "signed_release",
+     "text": "Did you sign a release or severance agreement when your employment ended?",
+     "type": "yesno",
+     "required": true,
+     "note": "Release may be challenged on unconscionability (Titus v Cooke): grossly unfair terms + no ILA + pressure."
+    },
+    {
+     "id": "G15_Q3",
+     "key": "release_ila_time",
+     "text": "When you signed the release, were you given adequate time to review it (e.g., at least a few days), and did you receive independent legal advice?",
+     "type": "yesno",
+     "required": true,
+     "showIf": "signed_release = YES",
+     "note": "No ILA + immediate pressure = strong unconscionability indicator (Rubin v Home Depot)."
+    },
+    {
+     "id": "G15_Q4",
+     "key": "insolvency_concern",
+     "text": "Is the employer a corporation that may be insolvent, or is there a concern about collecting any judgment?",
+     "type": "yesno",
+     "required": true,
+     "note": "ESA s.81 / OBCA s.131: directors personally liable for up to 6 months wages + 12 months vacation."
+    },
+    {
+     "id": "G15_Q5",
+     "key": "common_employer",
+     "text": "Is this a situation where you believe a related company or common employer (not just the named employer) is also responsible?",
+     "type": "yesno",
+     "required": true,
+     "note": "Downtown Eatery / King v Danbury: common employer doctrine — degree of legal commonality test."
+    },
+    {
+     "id": "G15_Q6",
+     "key": "defamatory_statements",
+     "text": "Has your employer made any statements to industry contacts, clients, or former colleagues about the reasons for your departure that you believe are inaccurate or damaging?",
+     "type": "yesno",
+     "required": true,
+     "note": "Defamatory statements post-dismissal = tort + Honda damages trigger."
+    }
+   ]
+  },
+  {
+   "id": "s16",
+   "title": "Gate 16 — Mitigation",
+   "questions": [
+    {
+     "id": "G16_Q1",
+     "key": "actively_mitigating",
+     "text": "Since your termination, have you been actively looking for work?",
+     "type": "yesno",
+     "required": true,
+     "note": "Red Deer College: burden on employer to prove failure to mitigate."
+    },
+    {
+     "id": "G16_Q2",
+     "key": "found_new_employment",
+     "text": "Have you found any new employment since your termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "Income earned during notice period is deductible (Sylvester v BC)."
+    },
+    {
+     "id": "G16_Q3",
+     "key": "new_employment_details",
+     "text": "If yes, when did you start the new job, and what is your new annual compensation?",
+     "type": "textarea",
+     "required": true,
+     "showIf": "found_new_employment = YES",
+     "note": "Quantifies income differential; commute/other costs may be special damages."
+    },
+    {
+     "id": "G16_Q4",
+     "key": "employer_offered_reemployment",
+     "text": "Did your former employer offer to reinstate you or offer you continued employment after your termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "Evans v Teamsters: may be required to accept if offer genuine, comparable, not hostile/humiliating."
+    },
+    {
+     "id": "G16_Q5",
+     "key": "received_ei",
+     "text": "Have you received Employment Insurance (EI) benefits since your termination?",
+     "type": "yesno",
+     "required": true,
+     "note": "EI not deducted from damages (Jack Cewe v Jorgenson); employer must withhold/remit on settlement (EI Act s.46)."
+    },
+    {
+     "id": "G16_Q6",
+     "key": "received_cerb",
+     "text": "Did you receive any CERB, CRB, or other COVID-era government income support?",
+     "type": "yesno",
+     "required": true,
+     "note": "CURRENCY FLAG: Ontario courts generally do NOT deduct CERB (Iriotakis; Fogelman). No SCC ruling. Yates (BCCA); Oostlander (ABCA) also not deducting."
+    },
+    {
+     "id": "G16_Q7",
+     "key": "additional_info",
+     "text": "Is there anything else about your employment or termination that you believe is relevant and has not been covered?",
+     "type": "textarea",
+     "required": false,
+     "note": "Open field for lawyer review. May surface additional issues."
+    }
+   ]
+  }
+ ],
+ "optionSets": {
+  "OPT_PROVINCE": [
+   {
+    "value": "ON",
+    "label": "Ontario"
+   },
+   {
+    "value": "AB",
+    "label": "Alberta"
+   },
+   {
+    "value": "BC",
+    "label": "British Columbia"
+   },
+   {
+    "value": "QC",
+    "label": "Quebec"
+   },
+   {
+    "value": "MB",
+    "label": "Manitoba"
+   },
+   {
+    "value": "SK",
+    "label": "Saskatchewan"
+   },
+   {
+    "value": "NS",
+    "label": "Nova Scotia"
+   },
+   {
+    "value": "NB",
+    "label": "New Brunswick"
+   },
+   {
+    "value": "NL",
+    "label": "Newfoundland"
+   },
+   {
+    "value": "PE",
+    "label": "Prince Edward Island"
+   },
+   {
+    "value": "YT",
+    "label": "Yukon"
+   },
+   {
+    "value": "NT",
+    "label": "Northwest Territories"
+   },
+   {
+    "value": "NU",
+    "label": "Nunavut"
+   }
+  ],
+  "OPT_YESNO": [
+   {
+    "value": "YES",
+    "label": "Yes"
+   },
+   {
+    "value": "NO",
+    "label": "No"
+   }
+  ],
+  "OPT_YESNO_PARTIAL": [
+   {
+    "value": "YES",
+    "label": "Yes, fully comparable"
+   },
+   {
+    "value": "PARTIAL",
+    "label": "Yes, but lower pay or status"
+   },
+   {
+    "value": "NO",
+    "label": "No, still looking"
+   },
+   {
+    "value": "NA",
+    "label": "Not applicable (too soon)"
+   }
+  ],
+  "OPT_YESNO_UNSURE": [
+   {
+    "value": "YES",
+    "label": "Yes"
+   },
+   {
+    "value": "NO",
+    "label": "No"
+   },
+   {
+    "value": "UNSURE",
+    "label": "Unsure"
+   }
+  ],
+  "OPT_WORKER_CLASS": [
+   {
+    "value": "EMPLOYEE",
+    "label": "Employee"
+   },
+   {
+    "value": "CONTRACTOR",
+    "label": "Independent contractor / self-employed"
+   },
+   {
+    "value": "TEMP",
+    "label": "Temporary / agency worker"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other"
+   }
+  ],
+  "OPT_CONTRACT_TYPE": [
+   {
+    "value": "INDEFINITE",
+    "label": "Ongoing / indefinite term"
+   },
+   {
+    "value": "FIXED",
+    "label": "Fixed term (specific end date)"
+   },
+   {
+    "value": "SEASONAL",
+    "label": "Seasonal or project-based"
+   },
+   {
+    "value": "UNKNOWN",
+    "label": "I am not sure"
+   }
+  ],
+  "OPT_SEPARATION_TYPE": [
+   {
+    "value": "TERMINATED",
+    "label": "Terminated by employer (without cause or for cause)"
+   },
+   {
+    "value": "CONSTRUCTIVE",
+    "label": "Resigned due to intolerable changes (constructive dismissal)"
+   },
+   {
+    "value": "RESIGNED",
+    "label": "Resigned voluntarily"
+   },
+   {
+    "value": "LAID_OFF",
+    "label": "Laid off"
+   },
+   {
+    "value": "FRUSTRATED",
+    "label": "Contract ended due to illness / impossibility"
+   },
+   {
+    "value": "FIXED_END",
+    "label": "Fixed-term contract ended"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other"
+   }
+  ],
+  "OPT_CAUSE_REASONS": [
+   {
+    "value": "THEFT",
+    "label": "Theft or dishonesty"
+   },
+   {
+    "value": "INSUBORDINATION",
+    "label": "Insubordination or refusal of reasonable direction"
+   },
+   {
+    "value": "HARASSMENT",
+    "label": "Harassment or misconduct toward a colleague"
+   },
+   {
+    "value": "PERFORMANCE",
+    "label": "Poor performance or incompetence"
+   },
+   {
+    "value": "POLICY",
+    "label": "Breach of company policy"
+   },
+   {
+    "value": "ABSENT",
+    "label": "Excessive absenteeism or abandonment"
+   },
+   {
+    "value": "CONFLICT",
+    "label": "Conflict of interest"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other"
+   }
+  ],
+  "OPT_CD_CHANGES": [
+   {
+    "value": "SALARY",
+    "label": "Pay cut or reduction in compensation"
+   },
+   {
+    "value": "DEMOTION",
+    "label": "Demotion or reduction in title/responsibilities"
+   },
+   {
+    "value": "RELOCATION",
+    "label": "Required to move to a different work location"
+   },
+   {
+    "value": "HOURS",
+    "label": "Material change in hours or schedule"
+   },
+   {
+    "value": "REPORTING",
+    "label": "Change in reporting structure"
+   },
+   {
+    "value": "REMOTE",
+    "label": "Required to attend office after remote-work arrangement"
+   },
+   {
+    "value": "DISCIPLINE",
+    "label": "Unwarranted discipline or performance management"
+   },
+   {
+    "value": "ISOLATION",
+    "label": "Removal from projects, team, or communications"
+   },
+   {
+    "value": "LAYOFF",
+    "label": "Temporary layoff without consent"
+   },
+   {
+    "value": "HOSTILE",
+    "label": "Persistent hostile or demeaning treatment"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other fundamental change"
+   }
+  ],
+  "OPT_JOB_LEVEL": [
+   {
+    "value": "EXECUTIVE",
+    "label": "Executive / C-Suite (CEO, COO, CFO, etc.)"
+   },
+   {
+    "value": "SENIOR_MGR",
+    "label": "Senior manager or director"
+   },
+   {
+    "value": "MANAGER",
+    "label": "Manager or supervisor"
+   },
+   {
+    "value": "PROFESSIONAL",
+    "label": "Professional / specialist (non-managerial)"
+   },
+   {
+    "value": "TECHNICAL",
+    "label": "Technical or skilled trades"
+   },
+   {
+    "value": "SEMI_SKILLED",
+    "label": "Semi-skilled worker"
+   },
+   {
+    "value": "UNSKILLED",
+    "label": "Unskilled or manual labour"
+   },
+   {
+    "value": "SALES",
+    "label": "Sales or commissioned"
+   },
+   {
+    "value": "CLERICAL",
+    "label": "Clerical or administrative"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other"
+   }
+  ],
+  "OPT_RECRUIT_PROMISES": [
+   {
+    "value": "JOB_SECURITY",
+    "label": "Long-term job security or stable employment"
+   },
+   {
+    "value": "ROLE_LEAD",
+    "label": "Opportunity to build, lead, or grow a team or division"
+   },
+   {
+    "value": "BONUS_LARGE",
+    "label": "Significant bonus or commission potential"
+   },
+   {
+    "value": "SALARY_INC",
+    "label": "Salary increase over prior role"
+   },
+   {
+    "value": "SUPERVISION",
+    "label": "Supervision by a qualified professional for credential advancement"
+   },
+   {
+    "value": "TITLE",
+    "label": "Enhanced title or seniority"
+   },
+   {
+    "value": "REMOTE_WORK",
+    "label": "Remote or hybrid work arrangement"
+   },
+   {
+    "value": "RELOC_ASSIST",
+    "label": "Relocation assistance"
+   },
+   {
+    "value": "BENEFITS",
+    "label": "Superior benefits package"
+   },
+   {
+    "value": "GROWTH",
+    "label": "Career advancement or promotion path"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other promise"
+   }
+  ],
+  "OPT_HRC_GROUNDS": [
+   {
+    "value": "AGE",
+    "label": "Age"
+   },
+   {
+    "value": "DISABILITY",
+    "label": "Disability (physical or mental)"
+   },
+   {
+    "value": "SEX_PREG",
+    "label": "Sex / pregnancy"
+   },
+   {
+    "value": "RACE_COLOUR",
+    "label": "Race or colour"
+   },
+   {
+    "value": "ANCESTRY",
+    "label": "Ancestry or place of origin"
+   },
+   {
+    "value": "ETHNIC",
+    "label": "Ethnic origin"
+   },
+   {
+    "value": "CREED",
+    "label": "Creed / religion"
+   },
+   {
+    "value": "FAMILY_STATUS",
+    "label": "Family status (childcare / eldercare)"
+   },
+   {
+    "value": "MARITAL",
+    "label": "Marital status"
+   },
+   {
+    "value": "SEXUAL_ORIENT",
+    "label": "Sexual orientation"
+   },
+   {
+    "value": "GENDER_ID",
+    "label": "Gender identity or expression"
+   },
+   {
+    "value": "RECORD",
+    "label": "Record of offences"
+   },
+   {
+    "value": "CITIZENSHIP",
+    "label": "Citizenship"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other"
+   }
+  ],
+  "OPT_BAD_FAITH_ACTS": [
+   {
+    "value": "FALSE_CAUSE",
+    "label": "Falsely alleged serious misconduct (e.g. theft, fraud, harassment)"
+   },
+   {
+    "value": "ROE_WRONG",
+    "label": "Issued ROE with incorrect reason for separation"
+   },
+   {
+    "value": "DELAY_ROE",
+    "label": "Delayed issuing the ROE"
+   },
+   {
+    "value": "BENEFIT_LIE",
+    "label": "Promised benefits would continue but cut them off"
+   },
+   {
+    "value": "DELAY_PAY",
+    "label": "Delayed or withheld final pay or termination pay"
+   },
+   {
+    "value": "REPUTATION",
+    "label": "Made damaging statements about you to others"
+   },
+   {
+    "value": "NO_ESA",
+    "label": "Paid nothing or less than ESA minimums"
+   },
+   {
+    "value": "COUNTERCLAIM",
+    "label": "Filed or threatened a lawsuit against you"
+   },
+   {
+    "value": "POLICE",
+    "label": "Made a complaint to police or regulator without legitimate basis"
+   },
+   {
+    "value": "SHAM_INVEST",
+    "label": "Conducted a sham or inadequate investigation"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other bad-faith conduct"
+   }
+  ],
+  "OPT_DISTRESS_SYMPTOMS": [
+   {
+    "value": "ANXIETY",
+    "label": "Anxiety or panic attacks"
+   },
+   {
+    "value": "DEPRESSION",
+    "label": "Depression or low mood"
+   },
+   {
+    "value": "SLEEP",
+    "label": "Sleep disturbance or insomnia"
+   },
+   {
+    "value": "FINANCIAL",
+    "label": "Significant financial hardship"
+   },
+   {
+    "value": "REPUTATION",
+    "label": "Damage to professional reputation"
+   },
+   {
+    "value": "HEALTH",
+    "label": "Physical health effects"
+   },
+   {
+    "value": "EI_DENIED",
+    "label": "Difficulty obtaining Employment Insurance due to false ROE"
+   },
+   {
+    "value": "ISOLATION",
+    "label": "Social withdrawal or isolation"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other effects"
+   }
+  ],
+  "OPT_OTHER_COMP": [
+   {
+    "value": "CAR_ALLOW",
+    "label": "Car allowance"
+   },
+   {
+    "value": "GAS_CARD",
+    "label": "Company gas card or fuel reimbursement"
+   },
+   {
+    "value": "RRSP",
+    "label": "RRSP / pension / retirement plan contributions"
+   },
+   {
+    "value": "PHONE",
+    "label": "Company phone"
+   },
+   {
+    "value": "LAPTOP",
+    "label": "Company laptop or equipment"
+   },
+   {
+    "value": "MILEAGE",
+    "label": "Mileage reimbursement"
+   },
+   {
+    "value": "CLUB",
+    "label": "Club memberships or expense accounts"
+   },
+   {
+    "value": "LTD",
+    "label": "Long-term disability insurance"
+   },
+   {
+    "value": "VACATION_EXTRA",
+    "label": "Vacation above 4 weeks"
+   },
+   {
+    "value": "SICK_DAYS",
+    "label": "Paid sick days"
+   },
+   {
+    "value": "OTHER",
+    "label": "Other compensation component"
+   }
+  ],
+  "OPT_CAUSE_STANDARD": [
+   {
+    "value": "wilful_misconduct",
+    "label": "Uses the exact phrase 'wilful misconduct'"
+   },
+   {
+    "value": "broader",
+    "label": "Uses a broader standard (e.g. 'just cause', 'any breach')"
+   },
+   {
+    "value": "unsure",
+    "label": "Unsure"
+   }
+  ]
+ },
+ "aliases": [
+  {
+   "from": "base_salary",
+   "to": "annual_salary"
+  },
+  {
+   "from": "age_at_termination",
+   "to": "client_age"
+  },
+  {
+   "from": "employer_alleged_cause",
+   "to": "employer_alleged_just_cause"
+  },
+  {
+   "from": "found_new_employment",
+   "to": "new_employment_found"
+  },
+  {
+   "from": "has_noncompete",
+   "to": "has_non_compete"
+  },
+  {
+   "from": "has_nonsolicit",
+   "to": "has_non_solicitation"
+  },
+  {
+   "from": "bad_faith_acts",
+   "to": "bad_faith_conduct"
+  },
+  {
+   "from": "hrc_grounds",
+   "to": "hrc_protected_ground",
+   "transform": "join"
+  },
+  {
+   "from": "recruitment_promises",
+   "to": "inducement_representations",
+   "transform": "join"
+  },
+  {
+   "from": "vacation_paid",
+   "to": "vacation_unpaid",
+   "transform": "invert"
+  },
+  {
+   "from": "benefits_continued",
+   "to": "benefits_not_continued",
+   "transform": "invert"
+  },
+  {
+   "from": "received_term_pay",
+   "to": "esa_term_shortfall",
+   "transform": "invert"
+  }
+ ]
+}

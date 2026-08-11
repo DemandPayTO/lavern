@@ -529,7 +529,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       return reply.status(400).send({ ok: false, error: 'Invalid intake data' });
     }
 
-    const { matterId, intake } = parsed.data;
+    const { matterId, intake: rawIntake } = parsed.data;
+    // Questionnaire answers mirror onto the fields the engines read
+    // (vacation_paid = No writes vacation_unpaid = true, and so on).
+    const { applyQuestionnaireAliases } = await import('../../employment/intake-questionnaire.js');
+    const intake = applyQuestionnaireAliases(rawIntake as Record<string, unknown>) as typeof rawIntake;
 
     // Load existing matter
     const row = await getMatterById(matterId, userId);
@@ -1248,6 +1252,14 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     await saveEmploymentData(userId, matterId, matter, employment);
 
     return reply.send({ ok: true, timeline: employment.timeline });
+  });
+
+  // ── GET /api/employment/questionnaire ──────────────────────────────────
+  // The firm's full intake question bank, generated from its DemandPay
+  // schema workbook. Static data; the dashboard renders it as sections.
+  fastify.get('/api/employment/questionnaire', async (_req: FastifyRequest, reply: FastifyReply) => {
+    const { loadQuestionnaire } = await import('../../employment/intake-questionnaire.js');
+    return reply.send({ ok: true, questionnaire: loadQuestionnaire() });
   });
 
   // ── POST /api/employment/extract ───────────────────────────────────────

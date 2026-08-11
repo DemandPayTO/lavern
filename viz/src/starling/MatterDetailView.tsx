@@ -17,6 +17,7 @@ import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
 import { StyleProfilePanel, useStyleProfiles } from './StyleProfilePanel.js';
 import { CaseFileDropPanel } from './CaseFileDropPanel.js';
 import { DocAnalysisPanel } from './DocAnalysisPanel.js';
+import { QuestionnairePanel } from './QuestionnairePanel.js';
 import { PrecedentAlignPanel } from './PrecedentAlignPanel.js';
 import { RevisionPanel } from './RevisionPanel.js';
 import type { SourceCitation, DocumentExtraction } from './hooks/useStarlingApi.js';
@@ -4683,7 +4684,13 @@ export default function MatterDetailView() {
                   though it could only be filled by sending the client a
                   link. */}
 
+              <QuestionnairePanel
+                intake={(employment.data?.intake ?? {}) as Record<string, unknown>}
+                onSave={employment.saveIntake}
+              />
               <IntakeEditorPanel
+                heading="Quick edit"
+                subheading="The core fields in one grid, for fast corrections. The full intake above covers everything; both save to the same file."
                 fields={EMPLOYMENT_INTAKE_FIELDS}
                 values={(employment.data?.intake ?? {}) as Record<string, unknown>}
                 onSave={async (edited) => {
