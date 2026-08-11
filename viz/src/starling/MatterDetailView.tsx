@@ -1168,6 +1168,15 @@ export default function MatterDetailView() {
 
   const showOptions = !generatedHtml || draftView === 'options';
   const showDraft = Boolean(generatedHtml) && draftView === 'draft';
+  // The draft is STALE when the intake changed after it was generated:
+  // the file moved and the document did not.
+  const draftIsStale = (() => {
+    if (!selectedDraft || !generatedHtml) return false;
+    const dt = DRAFT_TO_DOCTYPE[selectedDraft];
+    const doc = employment.generatedDocuments.find(d => d.docType === dt);
+    const revisedAt = (employment.data as { intakeRevisedAt?: string } | null | undefined)?.intakeRevisedAt;
+    return Boolean(doc?.generatedAt && revisedAt && revisedAt > doc.generatedAt);
+  })();
 
   const selectedTemplateDocType = selectedDraft ? DRAFT_TO_DOCTYPE[selectedDraft] : undefined;
   const styleProfiles = useStyleProfiles(selectedTemplateDocType);
@@ -2137,6 +2146,96 @@ export default function MatterDetailView() {
   const statusLabel = matter!.status === 'urgent' ? 'Urgent' : matter!.status === 'stale' ? 'Needs attention' : matter!.status === 'complete' ? 'Complete' : 'Active';
   const statusColour = matter!.status === 'urgent' ? red : matter!.status === 'stale' ? amber : matter!.status === 'complete' ? green : navy;
   const statusBg = matter!.status === 'urgent' ? '#fce8e6' : matter!.status === 'stale' ? '#fdf0dd' : matter!.status === 'complete' ? '#e7f6ec' : '#eef1f6';
+
+  /**
+   * Run a FULL generation from the current file. Shared by the
+   * Options Generate button and the regenerate action on the draft,
+   * so a redraft after an intake change is one click, not a hunt.
+   */
+  const runGeneration = async () => {
+    setGenerating(true);
+    setGenError(null);
+    const amount = parseInt(genDemandAmount) || 100000;
+    const fieldDefs = COURT_FORM_FIELDS[selectedDraft ?? ''];
+    const formFields = fieldDefs
+      ? Object.fromEntries(fieldDefs
+          .map(f => [f.key, (courtFields[f.key] ?? '').trim()])
+          .filter(([, v]) => v !== ''))
+      : undefined;
+    const result = await employment.generateDocument(
+      DRAFT_TO_DOCTYPE[selectedDraft ?? ''] ?? 'demand_letter',
+      {
+        tone: genTone,
+        demandAmount: amount,
+        claimAmount: amount,
+        procedureType: genProcedure,
+        formFields,
+        lawyerName: profile.displayName || 'Lawyer Name',
+        lawyerBlock: profile.lawyerBlock || undefined,
+        firmName: profile.firmName || 'Firm Name',
+        // Composed contact block — the generators accept a single
+        // firmAddress string and the model fills the signature
+        // block from it instead of leaving [Address] fill-ins
+        firmAddress: [
+          profile.firmAddress,
+          profile.firmPhone && `Tel: ${profile.firmPhone}`,
+          profile.firmEmail && `Email: ${profile.firmEmail}`,
+          profile.lsoNumber && `LSO# ${profile.lsoNumber}`,
+        ].filter(Boolean).join(' · ') || undefined,
+        courtLocation: genCourtLocation,
+        responseDeadlineDays: 14,
+        ...(styleProfileId ? { styleProfileId } : {}),
+
+        ...(selectedDraft === 'demand' ? {
+          sourceIds: [...dlSourceIds],
+          damageHeads: dlHeads
+            .filter(h => h.label.trim() !== '')
+            .map(h => ({
+              label: h.label.trim(),
+              basis: h.basis.trim() || undefined,
+              amount: h.amount ? Number(h.amount) : null,
+            })),
+          recipientName: dlRecipient.trim() || undefined,
+          amountsPaid: dlPaid
+            .map(r => ({ label: r.label.trim(), amount: Number(r.amount) }))
+            .filter(r => r.label !== '' && r.amount > 0),
+          mitigationEarnings: dlMitigation ? Number(dlMitigation) : undefined,
+        } : {}),
+
+        ...(selectedDraft === 'mediation' ? {
+          briefSourceIds: [...selectedSourceIds],
+          includeGeneratedDemand: includeGenDemand,
+          includeGeneratedSoc: includeGenSoc,
+        } : {}),
+      },
+    );
+    setGenerating(false);
+    if (result.ok && result.html) {
+      setGeneratedHtml(result.html);
+      setDraftView('draft');
+      setGenCitations(result.citations ?? []);
+      setGenReviewFlags(result.reviewFlags ?? []);
+      // Tell the lawyer their dates reached the docket, and
+      // pass on any Rule 48.14 caution.
+      const notes: string[] = [];
+      if (typeof result.costUsd === 'number' && result.costUsd > 0) {
+        notes.push(`Draft cost $${result.costUsd.toFixed(2)}.`);
+      }
+      if (result.positionsUsed?.length) {
+        notes.push(`Drafted from the positions already served: ${result.positionsUsed.join(' and ')}.`);
+      }
+      if (result.docketedDates) {
+        notes.push(`${result.docketedDates} timetable date${result.docketedDates === 1 ? '' : 's'} added to your docket.`);
+      }
+      if (result.cautions?.length) notes.push(...result.cautions);
+      setGenNotice(notes.length > 0 ? notes.join(' ') : null);
+      void employment.refresh();
+      refreshDraftHistory();
+    } else {
+      setGenNotice(null);
+      setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
+    }
+  };
 
   return (
     <div style={{ fontFamily: sans, background: frame, color: ink, lineHeight: 1.5, minHeight: '100vh', WebkitFontSmoothing: 'antialiased' }}>
@@ -4149,90 +4248,7 @@ export default function MatterDetailView() {
               {selectedDraft && selectedDraft !== 'timetable' && showOptions && (
                 <div>
                 <button
-                  onClick={async () => {
-                    setGenerating(true);
-                    setGenError(null);
-                    const amount = parseInt(genDemandAmount) || 100000;
-                    const fieldDefs = COURT_FORM_FIELDS[selectedDraft ?? ''];
-                    const formFields = fieldDefs
-                      ? Object.fromEntries(fieldDefs
-                          .map(f => [f.key, (courtFields[f.key] ?? '').trim()])
-                          .filter(([, v]) => v !== ''))
-                      : undefined;
-                    const result = await employment.generateDocument(
-                      DRAFT_TO_DOCTYPE[selectedDraft ?? ''] ?? 'demand_letter',
-                      {
-                        tone: genTone,
-                        demandAmount: amount,
-                        claimAmount: amount,
-                        procedureType: genProcedure,
-                        formFields,
-                        lawyerName: profile.displayName || 'Lawyer Name',
-                        lawyerBlock: profile.lawyerBlock || undefined,
-                        firmName: profile.firmName || 'Firm Name',
-                        // Composed contact block — the generators accept a single
-                        // firmAddress string and the model fills the signature
-                        // block from it instead of leaving [Address] fill-ins
-                        firmAddress: [
-                          profile.firmAddress,
-                          profile.firmPhone && `Tel: ${profile.firmPhone}`,
-                          profile.firmEmail && `Email: ${profile.firmEmail}`,
-                          profile.lsoNumber && `LSO# ${profile.lsoNumber}`,
-                        ].filter(Boolean).join(' · ') || undefined,
-                        courtLocation: genCourtLocation,
-                        responseDeadlineDays: 14,
-                        ...(styleProfileId ? { styleProfileId } : {}),
-
-                        ...(selectedDraft === 'demand' ? {
-                          sourceIds: [...dlSourceIds],
-                          damageHeads: dlHeads
-                            .filter(h => h.label.trim() !== '')
-                            .map(h => ({
-                              label: h.label.trim(),
-                              basis: h.basis.trim() || undefined,
-                              amount: h.amount ? Number(h.amount) : null,
-                            })),
-                          recipientName: dlRecipient.trim() || undefined,
-                          amountsPaid: dlPaid
-                            .map(r => ({ label: r.label.trim(), amount: Number(r.amount) }))
-                            .filter(r => r.label !== '' && r.amount > 0),
-                          mitigationEarnings: dlMitigation ? Number(dlMitigation) : undefined,
-                        } : {}),
-
-                        ...(selectedDraft === 'mediation' ? {
-                          briefSourceIds: [...selectedSourceIds],
-                          includeGeneratedDemand: includeGenDemand,
-                          includeGeneratedSoc: includeGenSoc,
-                        } : {}),
-                      },
-                    );
-                    setGenerating(false);
-                    if (result.ok && result.html) {
-                      setGeneratedHtml(result.html);
-                      setDraftView('draft');
-                      setGenCitations(result.citations ?? []);
-                      setGenReviewFlags(result.reviewFlags ?? []);
-                      // Tell the lawyer their dates reached the docket, and
-                      // pass on any Rule 48.14 caution.
-                      const notes: string[] = [];
-                      if (typeof result.costUsd === 'number' && result.costUsd > 0) {
-                        notes.push(`Draft cost $${result.costUsd.toFixed(2)}.`);
-                      }
-                      if (result.positionsUsed?.length) {
-                        notes.push(`Drafted from the positions already served: ${result.positionsUsed.join(' and ')}.`);
-                      }
-                      if (result.docketedDates) {
-                        notes.push(`${result.docketedDates} timetable date${result.docketedDates === 1 ? '' : 's'} added to your docket.`);
-                      }
-                      if (result.cautions?.length) notes.push(...result.cautions);
-                      setGenNotice(notes.length > 0 ? notes.join(' ') : null);
-                      void employment.refresh();
-                      refreshDraftHistory();
-                    } else {
-                      setGenNotice(null);
-                      setGenError(result.error ?? 'Generation failed. Check that at least one legal issue is approved.');
-                    }
-                  }}
+                  onClick={() => void runGeneration()}
                   disabled={generating || blockedReason !== null}
                   style={{
                     // A disabled button has to LOOK disabled. This one stayed
@@ -4341,6 +4357,20 @@ export default function MatterDetailView() {
               )}
 
               {/* Document Preview */}
+              {showDraft && generatedHtml && draftIsStale && (
+                <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: '#fdf0dd', border: `1px solid ${amber}`, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: ink }}>
+                  <span>The file changed after this draft was generated: the intake now says more than the document does.</span>
+                  <button
+                    onClick={() => void runGeneration()}
+                    disabled={generating || blockedReason !== null}
+                    style={{ background: generating || blockedReason ? '#b0b0b0' : navy, color: '#fff', fontSize: 12.5, fontWeight: 600, padding: '7px 14px', borderRadius: 2, border: 'none', cursor: generating || blockedReason ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                  >
+                    {generating ? 'Regenerating\u2026' : 'Regenerate from the updated file'}
+                  </button>
+                  {blockedReason && !generating && <span style={{ fontSize: 12.5, color: amber }}>{blockedReason}</span>}
+                  <span style={{ fontSize: 12, color: muted }}>The current draft is kept in this document\u2019s history.</span>
+                </div>
+              )}
               {showDraft && generatedHtml && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
