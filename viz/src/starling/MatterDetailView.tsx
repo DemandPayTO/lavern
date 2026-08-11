@@ -2876,6 +2876,11 @@ export default function MatterDetailView() {
                     {extractPasteMsg}
                   </div>
                 )}
+                {classifying && (
+                  <div role="status" style={{ marginTop: 10, fontSize: 12.5, color: muted }}>
+                    Reading the document. A scanned file is transcribed page by page first and can take a minute or two: one click is enough.
+                  </div>
+                )}
                 {pendingUpload && !extracting && (
                   <div style={{ marginTop: 12, padding: '12px 14px', border: `1px solid ${border}`, background: '#faf8f5', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }} role="status">
                     <span style={{ fontSize: 13, color: ink }}>

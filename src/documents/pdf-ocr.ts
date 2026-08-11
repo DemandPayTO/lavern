@@ -14,6 +14,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createHash } from 'node:crypto';
 import { ensureApiKey } from '../utils/ensure-api-key.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -36,7 +37,29 @@ export interface OcrResult {
   costNote: string;
 }
 
+// The same scan gets parsed more than once in a normal session (the
+// classify step, a retry, the document reader). Transcribing is slow and
+// paid, so completed transcripts cache by content hash, and concurrent
+// requests for the SAME document share one in-flight transcription
+// instead of each paying for their own.
+const ocrCache = new Map<string, Promise<OcrResult>>();
+const OCR_CACHE_MAX = 20;
+
 export async function ocrPdfWithClaude(buffer: Buffer, filename: string, pageCount: number): Promise<OcrResult> {
+  const hash = createHash('sha256').update(buffer).digest('hex');
+  const hit = ocrCache.get(hash);
+  if (hit) return hit;
+  const job = ocrPdfUncached(buffer, filename, pageCount);
+  ocrCache.set(hash, job);
+  job.catch(() => ocrCache.delete(hash));
+  if (ocrCache.size > OCR_CACHE_MAX) {
+    const oldest = ocrCache.keys().next().value;
+    if (oldest) ocrCache.delete(oldest);
+  }
+  return job;
+}
+
+async function ocrPdfUncached(buffer: Buffer, filename: string, pageCount: number): Promise<OcrResult> {
   const key = ensureApiKey();
   if (!key) throw new Error('AI transcription needs the API key configured.');
   if (pageCount > MAX_OCR_PAGES) {
