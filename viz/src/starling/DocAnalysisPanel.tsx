@@ -110,7 +110,7 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
     setMessage(null);
     setErrorMsg(null);
     try {
-      const questions = questionsText.split('\n').map(q => q.trim()).filter(Boolean).slice(0, 12);
+      const questions = questionsText.split('\n').map(q => q.trim().slice(0, 600)).filter(Boolean).slice(0, 12);
       const res = await fetch(`/api/employment/${matterId}/doc-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

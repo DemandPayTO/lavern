@@ -1394,7 +1394,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     docName: z.string().trim().min(1).max(500),
     kind: z.enum(['bonus_plan', 'employment_agreement', 'termination_letter', 'pay_stub', 'client_summary', 'other']),
     docText: z.string().min(20).max(100_000),
-    questions: z.array(z.string().trim().min(1).max(600)).max(12).default([]),
+    // Long lines are trimmed, not rejected: lawyers paste notes here.
+    questions: z.array(z.string().trim().min(1).transform(q => q.slice(0, 600))).max(12).default([]),
     comparisonName: z.string().trim().max(500).optional(),
     comparisonText: z.string().max(100_000).optional(),
     definedTerms: z.array(z.string().max(200)).max(20).optional(),
@@ -1405,7 +1406,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const { matterId } = req.params as { matterId: string };
     const parsed = docAnalysisBodySchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ ok: false, error: 'Invalid request', details: parsed.error.issues.map(i => i.message) });
+      const issue = parsed.error.issues[0];
+      const where = issue?.path?.[0] ? ` (${String(issue.path[0])})` : '';
+      return reply.status(400).send({ ok: false, error: `The read could not start${where}: ${issue?.message ?? 'the request was not understood'}.`, details: parsed.error.issues.map(i => i.message) });
     }
 
     const row = await getMatterById(matterId, userId);

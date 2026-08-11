@@ -959,6 +959,9 @@ export default function MatterDetailView() {
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [uploadKind, setUploadKind] = useState('employment_agreement');
   const [extracting, setExtracting] = useState(false);
+  const [extractPasting, setExtractPasting] = useState(false);
+  const [extractPasteText, setExtractPasteText] = useState('');
+  const [extractPasteMsg, setExtractPasteMsg] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [lastExtraction, setLastExtraction] = useState<DocumentExtraction | null>(null);
   // Analysis empty state
@@ -1209,6 +1212,24 @@ export default function MatterDetailView() {
       setRebuttalError('The letter could not be attached.');
     } finally { setRebuttalSaving(false); }
   }, [sessionId, employment]);
+
+  const extractFromPaste = useCallback(async () => {
+    const content = extractPasteText.trim();
+    if (!content || content.length < 40) return;
+    setExtracting(true);
+    setExtractPasteMsg(null);
+    try {
+      const kindLabel = uploadKind.replace(/_/g, ' ');
+      const result = await employment.extractParsed(content.slice(0, 100_000), `Pasted ${kindLabel}`, uploadKind);
+      if (!result.ok) { setExtractPasteMsg(result.error ?? 'The text could not be read. Try again.'); return; }
+      const found = Object.keys(result.extraction?.extractedFields ?? {}).length;
+      setExtractPasteMsg(`Read the pasted text as ${kindLabel}. ${found} fact${found === 1 ? '' : 's'} proposed below, each with the line it came from. Nothing reaches the file until you approve it.`);
+      setExtractPasteText('');
+      setExtractPasting(false);
+    } catch {
+      setExtractPasteMsg('The text could not be read. Try again.');
+    } finally { setExtracting(false); }
+  }, [extractPasteText, uploadKind, employment]);
 
   const setWaitingOn = useCallback(async (who: string) => {
     if (!sessionId) return;
@@ -2706,7 +2727,43 @@ export default function MatterDetailView() {
                   >
                     {classifying ? 'Detecting type...' : extracting ? 'Extracting facts...' : '+ Upload & detect'}
                   </button>
+                  <button
+                    onClick={() => setExtractPasting(v => !v)}
+                    style={{ background: '#fff', color: navy, fontSize: 13.5, padding: '10px 16px', borderRadius: 2, border: `1px solid ${border}`, cursor: 'pointer', fontFamily: sans }}
+                  >
+                    Paste text instead
+                  </button>
                 </div>
+                {extractPasting && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 6 }}>
+                      Paste the document or your call notes. Pick the kind in the dropdown above ("Correspondence" fits call notes). Starling reads it and proposes the facts it finds, each with the line it came from; you approve what reaches the file.
+                    </div>
+                    <textarea
+                      value={extractPasteText}
+                      onChange={e => setExtractPasteText(e.target.value)}
+                      rows={6}
+                      placeholder="Paste the text here."
+                      aria-label="Paste text to read facts from"
+                      style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+                    />
+                    <button
+                      onClick={() => { void extractFromPaste(); }}
+                      disabled={extracting || extractPasteText.trim().length < 40}
+                      style={{ marginTop: 8, background: extracting || extractPasteText.trim().length < 40 ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 2, border: 'none', cursor: extracting || extractPasteText.trim().length < 40 ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                    >
+                      {extracting ? 'Reading\u2026' : 'Read the pasted text'}
+                    </button>
+                    {extractPasteText.trim().length < 40 && !extracting && (
+                      <span style={{ fontSize: 12.5, color: muted, marginLeft: 10 }}>Paste at least a few sentences first.</span>
+                    )}
+                  </div>
+                )}
+                {extractPasteMsg && (
+                  <div role="status" style={{ marginTop: 10, fontSize: 13, color: ink, background: '#faf8f5', border: `1px solid ${border}`, padding: '10px 12px' }}>
+                    {extractPasteMsg}
+                  </div>
+                )}
                 {pendingUpload && !extracting && (
                   <div style={{ marginTop: 12, padding: '12px 14px', border: `1px solid ${border}`, background: '#faf8f5', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }} role="status">
                     <span style={{ fontSize: 13, color: ink }}>
