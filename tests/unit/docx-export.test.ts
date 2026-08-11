@@ -70,3 +70,59 @@ describe('htmlToDocx — ordered list numbering', () => {
     expect(text).not.toMatch(/1\.\s*Bullet point alpha/);
   });
 });
+
+describe('htmlToDocx — court format is court-ready', () => {
+  const SOC_HTML = [
+    '<p class="right">Court File No.: CV-26-001</p>',
+    '<p class="centre"><strong>ONTARIO<br>SUPERIOR COURT OF JUSTICE</strong></p>',
+    '<p class="centre"><strong>AISHA OSEI</strong></p>',
+    '<p class="centre"><strong><u>STATEMENT OF CLAIM</u></strong></p>',
+    '<p>1. The Plaintiff claims against the Defendant.</p>',
+    '<hr>',
+    '<p class="centre">OSEI v. ACME</p>',
+    '<p class="centre">PROCEEDING COMMENCED AT TORONTO</p>',
+  ].join('\n');
+
+  async function rawXml(buffer: Buffer, file: string): Promise<string> {
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(buffer);
+    const f = zip.file(file);
+    return f ? await f.async('string') : '';
+  }
+
+  it('centres and right-aligns the cover, underlines the title, double-spaces in TNR', async () => {
+    const buffer = await htmlToDocx(SOC_HTML, { title: 'Statement of Claim', documentType: 'statement_of_claim', firmName: 'Evans Law Firm' });
+    const xml = await rawXml(buffer, 'word/document.xml');
+    expect(xml).toContain('<w:jc w:val="center"/>');
+    expect(xml).toContain('<w:jc w:val="right"/>');
+    const title = xml.slice(Math.max(0, xml.indexOf('STATEMENT OF CLAIM') - 400), xml.indexOf('STATEMENT OF CLAIM'));
+    expect(title).toContain('<w:u ');
+    expect(xml).toContain('Times New Roman');
+    expect(xml).toContain('w:line="480"');
+  });
+
+  it('the backsheet gets its own page: hr becomes a page break in court format', async () => {
+    const buffer = await htmlToDocx(SOC_HTML, { title: 'Statement of Claim', documentType: 'statement_of_claim' });
+    const xml = await rawXml(buffer, 'word/document.xml');
+    expect(xml).toContain('<w:pageBreakBefore/>');
+    const afterBreak = xml.slice(xml.indexOf('<w:pageBreakBefore/>'));
+    expect(afterBreak).toContain('PROCEEDING COMMENCED AT');
+  });
+
+  it('a court document carries no firm chrome: page number only', async () => {
+    const buffer = await htmlToDocx(SOC_HTML, { title: 'Statement of Claim', documentType: 'statement_of_claim', firmName: 'Evans Law Firm', lawyerName: 'Jordan Evans' });
+    const header = await rawXml(buffer, 'word/header1.xml');
+    const footer = await rawXml(buffer, 'word/footer1.xml');
+    expect(header).not.toContain('Evans');
+    expect(footer).toContain('PAGE');
+    expect(footer).not.toContain('Evans');
+  });
+
+  it('a letter keeps its rule and its firm header: court furniture stays in court', async () => {
+    const buffer = await htmlToDocx('<p>Dear Counsel:</p>\n<hr>\n<p>More text.</p>', { title: 'Letter', documentType: 'demand_letter', firmName: 'Evans Law Firm' });
+    const xml = await rawXml(buffer, 'word/document.xml');
+    expect(xml).not.toContain('<w:pageBreakBefore/>');
+    const header = await rawXml(buffer, 'word/header1.xml');
+    expect(header).toContain('Evans');
+  });
+});
