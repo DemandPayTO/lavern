@@ -237,3 +237,41 @@ describe('document lifecycle', () => {
     expect(ticklers[0].date).toBe('2026-07-24'); // sent 2026-07-10 + 14 days
   });
 });
+
+describe('the intake save MERGES: partial saves never erase each other', () => {
+  const MID = 'm-merge-1';
+
+  it('two section saves both survive, and the engines read the union', async () => {
+    saveMatter(USER, MID, JSON.stringify({ title: MID }), 'active');
+    const first = await post('/api/employment/intake', {
+      matterId: MID,
+      intake: { client_first_name: 'Aisha', client_last_name: 'Osei', hire_date: '2019-09-03' },
+    });
+    expect(first.status).toBe(200);
+    const second = await post('/api/employment/intake', {
+      matterId: MID,
+      intake: { was_terminated: true, termination_date: '2026-04-20', separation_type: 'CONSTRUCTIVE' },
+    });
+    expect(second.status).toBe(200);
+
+    const row = getMatterById(MID, USER)!;
+    const intake = (JSON.parse(row.data_json).employmentData ?? {}).intake ?? {};
+    // The first save's answers survived the second save.
+    expect(intake.client_first_name).toBe('Aisha');
+    expect(intake.hire_date).toBe('2019-09-03');
+    // The second save landed too, and its derivation with it.
+    expect(intake.was_terminated).toBe(true);
+    expect(intake.is_constructive_dismissal).toBe(true);
+  });
+
+  it('an explicit null deletes; an absent key changes nothing', async () => {
+    const res = await post('/api/employment/intake', {
+      matterId: MID,
+      intake: { hire_date: null },
+    });
+    expect(res.status).toBe(200);
+    const intake = (JSON.parse(getMatterById(MID, USER)!.data_json).employmentData ?? {}).intake ?? {};
+    expect('hire_date' in intake).toBe(false);
+    expect(intake.client_first_name).toBe('Aisha');
+  });
+});

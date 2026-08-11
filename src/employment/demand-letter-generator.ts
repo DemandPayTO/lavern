@@ -144,7 +144,7 @@ THE DAMAGES TABLE IS ALSO ADDED AUTOMATICALLY, built from the matter record. Und
 function buildUserPrompt(req: DemandLetterRequest): string {
   const intake = req.intake;
   const bardal = computeBardalFactors(intake);
-  const limitation = computeLimitationDeadline(intake.termination_date);
+  const limitation = computeLimitationDeadline(intake.termination_date ?? undefined);
 
   // Build the case facts section
   const startDate = intake.hire_date ?? intake.first_day_of_work ?? 'unknown';

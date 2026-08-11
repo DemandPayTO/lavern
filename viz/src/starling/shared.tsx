@@ -395,7 +395,9 @@ export function IntakeEditorPanel({
       const raw = draft[f.key];
       if (f.type === 'checkbox') { edited[f.key] = Boolean(raw); continue; }
       const s = String(raw ?? '').trim();
-      if (s === '') { edited[f.key] = undefined; continue; }
+      // The server merges now: absent keys keep their value, so clearing
+      // a field must say so explicitly. Null is the delete.
+      if (s === '') { edited[f.key] = null; continue; }
       if (f.type === 'number') {
         const n = parseFloat(s.replace(/[^\d.-]/g, ''));
         edited[f.key] = Number.isFinite(n) ? n : undefined;

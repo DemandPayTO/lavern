@@ -140,7 +140,7 @@ Produce the document in HTML format with semantic HTML (h1, h2, p, ol, li, stron
 function buildUserPrompt(req: ApplicationRequest): string {
   const intake = req.intake;
   const bardal = computeBardalFactors(intake);
-  const limitation = computeLimitationDeadline(intake.termination_date);
+  const limitation = computeLimitationDeadline(intake.termination_date ?? undefined);
   const startDate = intake.hire_date ?? intake.first_day_of_work ?? 'unknown';
   const endDate = intake.termination_date ?? 'unknown';
 

@@ -18,10 +18,11 @@ import { z } from 'zod';
 
 // ── Reusable primitives ──────────────────────────────────────────────────
 
-const optString = z.string().trim().max(2000).optional().or(z.literal(''));
+const optString = z.string().trim().max(2000).optional().nullable().or(z.literal(''));
 const optDate = z.string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, 'Invalid date format (YYYY-MM-DD)')
   .optional()
+  .nullable()
   .or(z.literal(''));
 const optBool = z.boolean().optional().nullable();
 const optNumber = z.number().nonnegative().max(99_999_999).optional().nullable();

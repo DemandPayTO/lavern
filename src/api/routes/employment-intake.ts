@@ -434,7 +434,7 @@ function recomputeAnalysis(employment: EmploymentMatterData): void {
   const bardal = computeBardalFactors(intake);
 
   // Limitation deadline
-  const limitation = computeLimitationDeadline(intake.termination_date);
+  const limitation = computeLimitationDeadline(intake.termination_date ?? undefined);
 
   // ESA calculation (simplified — full version would mirror DemandPay's calculator)
   const salary = intake.annual_salary ?? 0;
@@ -560,15 +560,25 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     }
 
     const { matter, employment } = loadEmploymentData(row.data_json);
-    employment.intake = intake as EmploymentIntakeData;
+    // MERGE, never replace. This route once assigned the payload over the
+    // whole intake, so each partial save (a questionnaire section, the
+    // quick-edit grid) silently erased every answer it did not carry: the
+    // pilot filled seventeen sections and kept whichever one saved last.
+    // An explicit null deletes a field; an absent key changes nothing.
+    const merged: Record<string, unknown> = { ...(employment.intake as Record<string, unknown>) };
+    for (const [k, v] of Object.entries(intake as Record<string, unknown>)) {
+      if (v === null) delete merged[k];
+      else if (v !== undefined) merged[k] = v;
+    }
+    employment.intake = merged as EmploymentIntakeData;
     employment.intakeRevisedAt = new Date().toISOString();
 
     // Rebuild intake-derived timeline, preserving lawyer entries and
     // route-added ticklers (court dates, SOC-sent, debriefs, outcomes).
-    employment.timeline = rebuildTimelinePreserving(employment.timeline, intake as EmploymentIntakeData);
+    employment.timeline = rebuildTimelinePreserving(employment.timeline, employment.intake);
 
     // Auto-evaluate gates
-    employment.gates = evaluateGates(intake as EmploymentIntakeData);
+    employment.gates = evaluateGates(employment.intake);
 
     await saveEmploymentData(userId, matterId, matter, employment);
 
@@ -3844,15 +3854,15 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       templateVariantId,
       demandAmount: employment?.demandAmount ?? null,
       intake: employment?.intake ? {
-        client_first_name: employment.intake.client_first_name,
-        client_last_name: employment.intake.client_last_name,
-        client_address: employment.intake.client_address,
-        employer_legal_name: employment.intake.employer_legal_name,
-        employer_address: employment.intake.employer_address,
-        job_title: employment.intake.job_title,
-        hire_date: employment.intake.hire_date,
-        termination_date: employment.intake.termination_date,
-        annual_salary: employment.intake.annual_salary,
+        client_first_name: employment.intake.client_first_name ?? undefined,
+        client_last_name: employment.intake.client_last_name ?? undefined,
+        client_address: employment.intake.client_address ?? undefined,
+        employer_legal_name: employment.intake.employer_legal_name ?? undefined,
+        employer_address: employment.intake.employer_address ?? undefined,
+        job_title: employment.intake.job_title ?? undefined,
+        hire_date: employment.intake.hire_date ?? undefined,
+        termination_date: employment.intake.termination_date ?? undefined,
+        annual_salary: employment.intake.annual_salary ?? undefined,
       } : undefined,
     });
 
@@ -4109,10 +4119,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
           const i = employment.intake;
           if (i) {
             matterFacts = {
-              client_first_name: i.client_first_name, client_last_name: i.client_last_name,
-              client_address: i.client_address, employer_legal_name: i.employer_legal_name,
-              employer_address: i.employer_address, job_title: i.job_title,
-              hire_date: i.hire_date, termination_date: i.termination_date,
+              client_first_name: i.client_first_name ?? undefined, client_last_name: i.client_last_name ?? undefined,
+              client_address: i.client_address ?? undefined, employer_legal_name: i.employer_legal_name ?? undefined,
+              employer_address: i.employer_address ?? undefined, job_title: i.job_title ?? undefined,
+              hire_date: i.hire_date ?? undefined, termination_date: i.termination_date ?? undefined,
               annual_salary: i.annual_salary,
             };
           }
