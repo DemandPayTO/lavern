@@ -319,6 +319,12 @@ export function computeBardalFactors(intake: EmploymentIntakeData): {
       tenureYears = Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25)) * 10) / 10;
     }
   }
+  // No dates on file, but the record recites the tenure (a demand letter
+  // saying "33 years of service"): the estimate carries every downstream
+  // calculation rather than leaving them all blank.
+  if (tenureYears === null && typeof intake.years_of_service_estimate === 'number' && intake.years_of_service_estimate > 0) {
+    tenureYears = intake.years_of_service_estimate;
+  }
 
   // Character of employment (from job title — rough heuristic)
   const title = (intake.job_title ?? '').toLowerCase();

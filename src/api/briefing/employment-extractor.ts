@@ -215,6 +215,7 @@ Extract these RECITED facts:
 - employer_legal_name (string): Employer name as stated
 - job_title (string): The client's position
 - hire_date (string, YYYY-MM-DD): Start of employment as recited
+- years_of_service_estimate (number): Tenure in years where the letter recites it ("33 years of service") and no exact start date is given
 - termination_date (string, YYYY-MM-DD): End of employment as recited
 - annual_salary (number): Base salary as recited
 - bonus_amount (number), commission_amount (number): Variable compensation recited

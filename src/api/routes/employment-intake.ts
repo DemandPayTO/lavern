@@ -448,6 +448,11 @@ function recomputeAnalysis(employment: EmploymentMatterData): void {
       tenureYears = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
     }
   }
+  // The recited tenure carries the maths when the exact dates are
+  // unknowable ("33 years of service" in the demand letter).
+  if (tenureYears === 0 && typeof intake.years_of_service_estimate === 'number' && intake.years_of_service_estimate > 0) {
+    tenureYears = intake.years_of_service_estimate;
+  }
 
   const weeklySalary = salary / 52;
   const esaNoticeWeeks = Math.min(8, Math.max(0, Math.floor(tenureYears)));

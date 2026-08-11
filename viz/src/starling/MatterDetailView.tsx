@@ -744,6 +744,7 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
   { key: 'job_title', label: 'Job title' },
   { key: 'annual_salary', label: 'Annual salary (CAD)', type: 'number' },
   { key: 'hire_date', label: 'Hire date', type: 'date' },
+  { key: 'years_of_service_estimate', label: 'Years of service (estimate, when the start date is unknown)', type: 'number' },
   { key: 'termination_date', label: 'Termination date', type: 'date' },
   { key: 'termination_reasons', label: 'Stated reason for termination' },
   { key: 'was_terminated', label: 'Terminated by the employer', type: 'checkbox' },

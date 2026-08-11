@@ -336,6 +336,13 @@ export const employmentIntakeSchema = z.object({
   esa_sev_shortfall:      optBool,
 
 
+  /**
+   * Tenure in years when the exact start date is unknown and may never
+   * be known (a demand letter reciting "33 years of service"). Dates
+   * win when both exist; every tenure consumer falls back to this.
+   */
+  years_of_service_estimate: optNumber,
+
   // ── Questionnaire fields (generated from the DemandPay intake schema;
   // see src/employment/intake-questionnaire.json) ──
   is_federal: optBool,

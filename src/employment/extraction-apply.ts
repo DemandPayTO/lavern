@@ -31,7 +31,7 @@ export const APPLYABLE_INTAKE_FIELDS: ReadonlySet<string> = new Set([
   // Parties + role
   'employer_legal_name', 'employer_operating_name', 'job_title',
   // Dates
-  'hire_date', 'contract_signed_date', 'first_day_of_work',
+  'hire_date', 'contract_signed_date', 'first_day_of_work', 'years_of_service_estimate',
   'termination_date', 'last_day_worked',
   // Compensation
   'annual_salary', 'salary_period', 'hours_per_week',
