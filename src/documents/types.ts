@@ -56,7 +56,7 @@ export interface ParsedDocument {
   /** Defined terms found in the document (quoted, bold, or ALLCAPS terms) */
   definedTerms: string[];
   /** Which parser was used */
-  parseMethod: 'pdf-parse' | 'mammoth' | 'plaintext';
+  parseMethod: 'pdf-parse' | 'mammoth' | 'plaintext' | 'claude-ocr';
   /** ISO timestamp of when parsing completed */
   parsedAt: string;
   /** Audit log of invisible/hidden content stripped during sanitization (SMAC-L1) */
@@ -71,7 +71,7 @@ export interface ParsedDocument {
 
 export interface ParseWarning {
   /** What type of issue was detected */
-  type: 'garbled_table' | 'misaligned_columns' | 'dense_numbers' | 'possible_ocr_errors';
+  type: 'garbled_table' | 'misaligned_columns' | 'dense_numbers' | 'possible_ocr_errors' | 'scan_transcription';
   /** Human-readable description */
   message: string;
   /** Approximate location in the document (line number or char offset) */

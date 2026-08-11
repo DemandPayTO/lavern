@@ -49,7 +49,27 @@ export async function parsePdf(
   // Clean up
   await parser.destroy();
 
-  const wordCount = fullText.split(/\s+/).filter((w: string) => w.length > 0).length;
+  let wordCount = fullText.split(/\s+/).filter((w: string) => w.length > 0).length;
+  let parseMethod: 'pdf-parse' | 'claude-ocr' = 'pdf-parse';
+  const scanWarnings: import('./types.js').ParseWarning[] = [];
+
+  // A scan: pages exist, text does not. Claude reads PDFs as images, so
+  // the fallback transcribes the document instead of shrugging at it.
+  // Under ~15 words a page on a multi-page document is not a text layer;
+  // it is page numbers and noise.
+  if (pageCount > 0 && wordCount < Math.max(20, pageCount * 15)) {
+    const { ocrPdfWithClaude } = await import('./pdf-ocr.js');
+    const ocr = await ocrPdfWithClaude(buffer, filename, pageCount);
+    if (ocr.text.trim().length > fullText.trim().length) {
+      fullText = ocr.text;
+      wordCount = fullText.split(/\s+/).filter((w: string) => w.length > 0).length;
+      parseMethod = 'claude-ocr';
+      scanWarnings.push({
+        type: 'scan_transcription',
+        message: `"${filename}" had no text layer (a scan), so Starling read it with AI transcription (${ocr.costNote}). Verify quoted passages against the original image before relying on them; passages the model could not read are marked [illegible].${ocr.truncated ? ' The transcript hit the output ceiling and may be incomplete at the end.' : ''}`,
+      });
+    }
+  }
 
   // Structural analysis
   const sections = detectSections(fullText);
@@ -68,8 +88,8 @@ export async function parsePdf(
     sections,
     tables,
     definedTerms,
-    parseMethod: 'pdf-parse',
+    parseMethod,
     parsedAt: new Date().toISOString(),
-    parseWarnings: parseWarnings.length > 0 ? parseWarnings : undefined,
+    parseWarnings: [...scanWarnings, ...parseWarnings].length > 0 ? [...scanWarnings, ...parseWarnings] : undefined,
   };
 }
