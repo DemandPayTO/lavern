@@ -1126,6 +1126,16 @@ const KIND_LABEL: Record<DebriefActionItem['kind'], string> = {
  * Shared by the extraction review and the debrief, so ticking one says the
  * same thing wherever it happens.
  */
+/**
+ * Fields that ARM DRAFTING without being cause triggers themselves:
+ * approving one changes which passages a claim assembles. They arrive
+ * unticked, per the checkbox rule the review surfaces state.
+ */
+export const ARMS_DRAFTING_FIELDS: ReadonlySet<string> = new Set([
+  'is_constructive_dismissal', 'cd_changes', 'cd_primary', 'cd_alternative',
+  'cd_cumulative', 'cd_remote', 'employer_alleged_just_cause',
+]);
+
 export const CAUSE_TRIGGER_LABELS: Record<string, string> = {
   defamatory_statements: 'Defamation',
   privacy_breach: 'Intrusion upon Seclusion',

@@ -50,6 +50,8 @@ export interface SOCRequest {
   lawyerName: string;
   firmName: string;
   firmAddress?: string;
+  /** Multi-lawyer counsel block, one lawyer per line; overrides lawyerName on the shell. */
+  lawyerBlock?: string;
   /** Court location (e.g. "Toronto", "Ottawa", "Hamilton"). */
   courtLocation: string;
   /** Uploaded source documents for citation tracking. */
@@ -509,6 +511,7 @@ async function generateNodeAssembledSoc(
     firmName: req.firmName,
     firmAddress: req.firmAddress,
     lsoNumber: req.lsoNumber,
+    lawyerBlock: req.lawyerBlock,
   };
   const html = [buildSocFrontMatter(shellInput), numbered, buildSocClosing(shellInput)].join('\n');
 

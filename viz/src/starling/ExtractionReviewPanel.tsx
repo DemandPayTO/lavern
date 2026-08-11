@@ -14,7 +14,7 @@
 
 import { useState, useMemo } from 'react';
 import type { DocumentExtraction, ApplyExtractionResult } from './hooks/useStarlingApi.js';
-import { CAUSE_TRIGGER_LABELS } from './shared.js';
+import { CAUSE_TRIGGER_LABELS, ARMS_DRAFTING_FIELDS } from './shared.js';
 
 const navy = '#0f1a2e';
 const green = '#16a34a';
@@ -56,8 +56,17 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
       .filter(([, f]) => f && !isBlank(f.value)),
   [extraction.extractedFields]);
 
+  // The checkbox rule, enforced where it was only stated: routine facts
+  // come ticked; anything that makes a cause pleadable or changes which
+  // passages a claim assembles starts unticked. Those clicks are the
+  // lawyer's. (The pilot's own demand letter argued constructive
+  // dismissal in the alternative; pre-ticked cd fields turned that
+  // argument into pleaded fact with one bulk approve.)
   const [checked, setChecked] = useState<Set<string>>(() =>
-    new Set(rows.filter(([k]) => isBlank(intake[k])).map(([k]) => k)));
+    new Set(rows
+      .filter(([k]) => isBlank(intake[k]))
+      .filter(([k]) => !CAUSE_TRIGGER_LABELS[k] && !ARMS_DRAFTING_FIELDS.has(k))
+      .map(([k]) => k)));
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
   const proposedOffers = extraction.offers ?? [];
   // Offers with a verified quote come pre-checked; an unverified proposal
@@ -142,6 +151,11 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
                     {CAUSE_TRIGGER_LABELS[name] && f.value === true && (
                       <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, color: amber, whiteSpace: 'normal', maxWidth: 180 }}>
                         Approving this makes {CAUSE_TRIGGER_LABELS[name]} pleadable in the claim
+                      </span>
+                    )}
+                    {!CAUSE_TRIGGER_LABELS[name] && ARMS_DRAFTING_FIELDS.has(name) && !isBlank(f.value) && (
+                      <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, color: amber, whiteSpace: 'normal', maxWidth: 180 }}>
+                        Approving this changes which passages the claim assembles
                       </span>
                     )}
                   </td>

@@ -35,6 +35,12 @@ export interface UserProfile {
   firmPhone: string;
   /** Firm email for correspondence — fills the signature block. */
   firmEmail: string;
+  /**
+   * The lawyer block for court documents, one lawyer per line, exactly as
+   * it should appear (e.g. "John Evans" / "Jordan Haworth (LSO# ...)").
+   * Fills the counsel block on the Statement of Claim cover and backsheet.
+   */
+  lawyerBlock: string;
 
   // Engagement defaults
   defaultWorkflowId: string;
@@ -64,6 +70,7 @@ const DEFAULT_PROFILE: UserProfile = {
   lsoNumber: '',
   defaultCourtLocation: '',
   firmAddress: '',
+  lawyerBlock: '',
   firmPhone: '',
   firmEmail: '',
   defaultWorkflowId: 'counsel',
@@ -111,6 +118,7 @@ function syncToServer(profile: UserProfile): void {
         lsoNumber: profile.lsoNumber,
         defaultCourtLocation: profile.defaultCourtLocation,
         firmAddress: profile.firmAddress,
+        lawyerBlock: profile.lawyerBlock,
         firmPhone: profile.firmPhone,
         firmEmail: profile.firmEmail,
         defaultWorkflowId: profile.defaultWorkflowId,
@@ -161,6 +169,7 @@ export function useUserProfile() {
             lsoNumber: (serverProfile.lsoNumber as string) || prev.lsoNumber,
             defaultCourtLocation: (serverProfile.defaultCourtLocation as string) || prev.defaultCourtLocation,
             firmAddress: (serverProfile.firmAddress as string) || prev.firmAddress,
+            lawyerBlock: (serverProfile.lawyerBlock as string) || prev.lawyerBlock,
             firmPhone: (serverProfile.firmPhone as string) || prev.firmPhone,
             firmEmail: (serverProfile.firmEmail as string) || prev.firmEmail,
             defaultWorkflowId: (serverProfile.defaultWorkflowId as string) || prev.defaultWorkflowId,

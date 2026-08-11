@@ -58,6 +58,12 @@ export interface SocShellInput {
   firmName: string;
   firmAddress?: string;
   lsoNumber?: string;
+  /**
+   * The lawyer block exactly as it should appear on court documents, one
+   * lawyer per line (e.g. "John Evans (LSO# 12345A)"). When present it
+   * replaces the single lawyerName line on the cover and backsheet.
+   */
+  lawyerBlock?: string;
 }
 
 /**
@@ -101,11 +107,14 @@ export function buildSocFrontMatter(input: SocShellInput): string {
 
 /** The lawyer of record and the backsheet. */
 export function buildSocClosing(input: SocShellInput): string {
+  const lawyerLines = input.lawyerBlock?.trim()
+    ? input.lawyerBlock.trim().split(/\r?\n/).map(l => esc(l.trim())).filter(Boolean)
+    : [`${esc(input.lawyerName)}${input.lsoNumber ? ` (LSO# ${esc(input.lsoNumber)})` : ' [LAWYER: LSO number]'}`];
   const contact = [
     `<strong>${esc(input.firmName)}</strong>`,
     input.firmAddress ? esc(input.firmAddress) : '[LAWYER: address for service]',
-    `${esc(input.lawyerName)}${input.lsoNumber ? ` (LSO# ${esc(input.lsoNumber)})` : ' [LAWYER: LSO number]'}`,
-    'Lawyers for the Plaintiff',
+    ...lawyerLines,
+    lawyerLines.length > 1 ? 'Lawyers for the Plaintiff' : 'Lawyers for the Plaintiff',
   ].join('<br>');
 
   return [

@@ -65,3 +65,30 @@ describe('Application — getApplicationFormName', () => {
     expect(name).toContain('Ministry of Labour');
   });
 });
+
+describe('the counsel block on the shell', () => {
+  it('a multi-lawyer block replaces the single lawyer line on cover and backsheet', async () => {
+    const { buildSocClosing } = await import('../../src/employment/soc-shell.js');
+    const html = buildSocClosing({
+      courtLocation: 'Toronto', plaintiffName: 'Aisha Osei', defendantName: 'Acme Widgets Ltd',
+      procedureType: 'ordinary', lawyerName: 'Jordan Haworth', firmName: 'Evans Law Firm',
+      firmAddress: '15 Prince Arthur Avenue, Toronto ON M5R 1B2',
+      lawyerBlock: 'John Evans\nJordan Haworth',
+    });
+    expect(html).toContain('John Evans');
+    expect(html).toContain('Jordan Haworth');
+    expect(html).toContain('15 Prince Arthur Avenue');
+    expect(html).toContain('Lawyers for the Plaintiff');
+    expect(html).not.toContain('[LAWYER: LSO number]');
+  });
+
+  it('without a block, the single lawyer line and its LSO reminder stand', async () => {
+    const { buildSocClosing } = await import('../../src/employment/soc-shell.js');
+    const html = buildSocClosing({
+      courtLocation: 'Toronto', plaintiffName: 'A', defendantName: 'B',
+      procedureType: 'ordinary', lawyerName: 'Jordan Haworth', firmName: 'Evans Law Firm',
+    });
+    expect(html).toContain('Jordan Haworth');
+    expect(html).toContain('[LAWYER: LSO number]');
+  });
+});

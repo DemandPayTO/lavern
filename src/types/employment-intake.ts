@@ -57,6 +57,7 @@ export const SEVERANCE_PAYMENT_TYPES = ['lump_sum', 'salary_continuation', 'unsu
 export const UPLOADABLE_DOCUMENT_TYPES = [
   'employment_agreement',
   'termination_letter',
+  'demand_letter',
   'roe',
   't4',
   'pay_stub',

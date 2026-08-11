@@ -78,3 +78,26 @@ describe('ExtractionReviewPanel', () => {
     });
   });
 });
+
+describe('the checkbox rule is enforced, not just stated', () => {
+  const ARMING: DocumentExtraction = {
+    id: 'ext-10',
+    filename: 'our-demand-letter.pdf',
+    documentType: 'demand_letter',
+    extractedFields: {
+      hire_date: { value: '2019-09-03', confidence: 'high', sourceQuote: 'employed since September 3, 2019', verified: true },
+      cd_changes: { value: 'territory reduced overnight', confidence: 'medium', sourceQuote: 'her territory was reduced', verified: true },
+      defamatory_statements: { value: true, confidence: 'high', sourceQuote: 'statements were made to industry contacts', verified: true },
+    },
+    keyFindings: [],
+    confirmed: false,
+  };
+
+  it('routine facts come ticked; cause triggers and drafting-arming fields do not', () => {
+    render(<ExtractionReviewPanel extraction={ARMING} intake={{}} onApply={vi.fn()} />);
+    expect(screen.getByLabelText('Apply hire date')).toBeChecked();
+    expect(screen.getByLabelText('Apply cd changes')).not.toBeChecked();
+    expect(screen.getByLabelText('Apply defamatory statements')).not.toBeChecked();
+    expect(screen.getByText(/changes which passages the claim assembles/)).toBeInTheDocument();
+  });
+});

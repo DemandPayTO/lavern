@@ -1441,6 +1441,7 @@ export default function MatterDetailView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           lawyerName: profile.displayName || 'Lawyer Name',
+                        lawyerBlock: profile.lawyerBlock || undefined,
           firmName: profile.firmName || 'Firm Name',
           firmAddress: [profile.firmAddress, profile.firmPhone && `Tel: ${profile.firmPhone}`, profile.firmEmail && `Email: ${profile.firmEmail}`].filter(Boolean).join(' · ') || undefined,
           courtLocation: genCourtLocation,
@@ -2697,6 +2698,7 @@ export default function MatterDetailView() {
                   >
                     <option value="employment_agreement">Employment agreement</option>
                     <option value="termination_letter">Termination letter</option>
+                    <option value="demand_letter">Demand letter (ours)</option>
                     <option value="roe">Record of Employment</option>
                     <option value="t4">T4</option>
                     <option value="pay_stub">Pay stub</option>
@@ -4155,6 +4157,7 @@ export default function MatterDetailView() {
                         procedureType: genProcedure,
                         formFields,
                         lawyerName: profile.displayName || 'Lawyer Name',
+                        lawyerBlock: profile.lawyerBlock || undefined,
                         firmName: profile.firmName || 'Firm Name',
                         // Composed contact block — the generators accept a single
                         // firmAddress string and the model fills the signature

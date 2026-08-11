@@ -207,6 +207,23 @@ VACATION PAY CAUTION: some employers pay vacation pay only when the employee tak
 
 Also provide keyFindings: notable observations (e.g. "Regular overtime of 10+ hours/week suggests unpaid overtime claim").`,
 
+    demand_letter: `
+This is the firm's OWN demand letter: an advocacy document about the client. Facts RECITED in it are reliable; positions ARGUED in it are not facts. Never set a field from an argument, a position taken in the alternative, or doctrine discussed (constructive dismissal, cause, bad faith): those are the lawyer's craft, not the record.
+
+Extract these RECITED facts:
+- client_first_name (string), client_last_name (string)
+- employer_legal_name (string): Employer name as stated
+- job_title (string): The client's position
+- hire_date (string, YYYY-MM-DD): Start of employment as recited
+- termination_date (string, YYYY-MM-DD): End of employment as recited
+- annual_salary (number): Base salary as recited
+- bonus_amount (number), commission_amount (number): Variable compensation recited
+- has_benefits (boolean): Benefits described as part of compensation
+- severance_weeks_offered (number): Any employer offer the letter responds to
+- demand_amount_stated (number): The total amount the letter demands
+
+Also provide keyFindings: the letter's key positions and theories, AS POSITIONS (e.g. "The letter argues constructive dismissal in the alternative"), so the lawyer sees them without them becoming facts.`,
+
     correspondence: `
 Extract these fields from the correspondence/emails:
 - key_dates (string): Any significant dates mentioned

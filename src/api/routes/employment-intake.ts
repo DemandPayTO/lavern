@@ -2046,6 +2046,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     lawyerName: z.string().trim().min(1).max(200),
     firmName: z.string().trim().min(1).max(200),
     firmAddress: z.string().trim().max(500).optional(),
+    /** One lawyer per line, exactly as the counsel block should read. */
+    lawyerBlock: z.string().trim().max(600).optional(),
     courtLocation: z.string().trim().min(1).max(200),
     /** Draft in the firm's style, learned from its precedents. */
     styleProfileId: z.string().trim().max(100).optional(),
@@ -2108,6 +2110,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       procedureType: parsed.data.procedureType,
       claimAmount: parsed.data.claimAmount,
       lawyerName: parsed.data.lawyerName,
+      lawyerBlock: parsed.data.lawyerBlock,
       firmName: parsed.data.firmName,
       firmAddress: parsed.data.firmAddress,
       courtLocation: parsed.data.courtLocation,

@@ -134,6 +134,20 @@ export default function MyPageView({ onBack }: Props) {
             placeholder="Fills the signature block — e.g. 10 Dundas St W, Unit 1002, Toronto, ON M5B 2G9"
             style={styles.input}
           />
+
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 14, marginBottom: 4 }}>
+              Lawyer block for court documents
+            </label>
+            <div style={{ fontSize: 12.5, color: '#5a6472', marginBottom: 6 }}>
+              One lawyer per line, exactly as the counsel block should read on a Statement of Claim cover and backsheet.
+            </div>
+            <textarea
+              value={profile.lawyerBlock}
+              onChange={e => field('lawyerBlock')(e.target.value)}
+              rows={3}
+              placeholder={'John Evans\nJordan Haworth (LSO# 12345A)'}
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 13.5, padding: '9px 12px', border: '1px solid rgba(15,26,46,0.15)', borderRadius: 2 }}
+            />
         </FieldRow>
         <FieldRow label="Firm Phone">
           <input

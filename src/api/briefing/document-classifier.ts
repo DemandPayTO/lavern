@@ -41,6 +41,7 @@ Guidance:
 - roe: Record of Employment (Service Canada form, reason codes)
 - t4: T4 statement of remuneration
 - pay_stub: pay statements, earnings statements
+- demand_letter: a demand letter from the employee's side (WITHOUT PREJUDICE, recites employment facts, demands payment)
 - correspondence: emails and letters between the parties
 - performance_review: appraisals, PIPs, warning letters about performance
 - policy_document: employee handbooks, workplace policies
