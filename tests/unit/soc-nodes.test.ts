@@ -256,3 +256,16 @@ describe('rendering', () => {
     expect(facts.content).toContain('[AI-GENERATED BLOCK');
   });
 });
+
+describe('forceable', () => {
+  it('every triggered node is forceable; the ALWAYS blocks are not', async () => {
+    const { loadSocNodes, buildSocEvalContext, nodeStatuses } = await import('../../src/employment/soc-nodes.js');
+    const ctx = buildSocEvalContext({ intake: { client_first_name: 'A', was_terminated: true } as never, analysis: null, gates: [], approvedIssues: [] });
+    const statuses = nodeStatuses(loadSocNodes(), ctx, [], {});
+    const byId = new Map(statuses.map(s => [s.blockId, s]));
+    expect(byId.get('SOC_CLAIM_01')!.forceable).toBe(false);
+    expect(byId.get('SOC_TERM_CLAUSE_01')!.forceable).toBe(true);
+    expect(byId.get('SOC_BAD_FAITH_01')!.forceable).toBe(true);
+    expect(byId.get('SOC_CD_01')!.forceable).toBe(true);
+  });
+});

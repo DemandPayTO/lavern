@@ -401,6 +401,8 @@ export interface SocNodeStatus {
   reason: string;
   /** Trigger fields the intake never answered (undefined, not false). */
   unanswered: string[];
+  /** The lawyer may force this section on or off. Only the ALWAYS blocks are immovable. */
+  forceable: boolean;
 }
 
 export function nodeStatuses(
@@ -418,6 +420,7 @@ export function nodeStatuses(
       blockId: node.blockId,
       sectionHeader: node.sectionHeader || node.blockId.replace(/^SOC_|_01$/g, '').replace(/_/g, ' '),
       tier: node.tier,
+      forceable: !/^\s*ALWAYS/i.test(node.triggerCondition),
       lawyerReview: node.lawyerReview,
       unanswered,
     };
@@ -442,8 +445,8 @@ export function nodeStatuses(
         ...base,
         status: 'off' as const,
         reason: unanswered.length > 0
-          ? `The intake never answered ${unanswered.join(', ')}, so this cause cannot fire. Answer it on the Intake tab, or force the section on.`
-          : `The facts on file do not meet: ${node.triggerCondition}.`,
+          ? `Not pleaded, and nothing here suggests it should be. It would need ${unanswered.join(', ')} answered on the Intake tab, or the section forced on.`
+          : `Not pleaded. The facts on file do not meet: ${node.triggerCondition}.`,
       };
     }
 

@@ -765,6 +765,14 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
   { key: 'esa_term_shortfall', label: 'ESA termination pay shortfall', type: 'checkbox' },
   { key: 'esa_sev_shortfall', label: 'ESA severance pay shortfall', type: 'checkbox' },
   { key: 'benefits_not_continued', label: 'Benefits not continued through the statutory notice period', type: 'checkbox' },
+  // The fields that arm the claim's main attack sections. Without these
+  // in the editor, a lawyer whose documents did not supply them had no
+  // way to plead the clause attack or bad faith at all.
+  { key: 'termination_clause_text', label: 'Termination clause, quoted from the contract (arms the clause attack)', type: 'textarea' },
+  { key: 'clause_cause_broader', label: 'Clause attack: for-cause standard below wilful misconduct', type: 'checkbox' },
+  { key: 'clause_no_benefits', label: 'Clause attack: benefits not continued through notice', type: 'checkbox' },
+  { key: 'clause_limits_below_esa', label: 'Clause attack: purports to limit below ESA minimums', type: 'checkbox' },
+  { key: 'bad_faith_details', label: 'Bad faith in the manner of dismissal (describe the conduct; arms the bad faith section)', type: 'textarea' },
 ];
 
 // ── Tab definitions ─────────────────────────────────────────────────────
@@ -1481,6 +1489,7 @@ export default function MatterDetailView() {
   const [socNodes, setSocNodes] = useState<Array<{
     blockId: string; sectionHeader: string; tier: 1 | 2; lawyerReview: boolean;
     status: 'firing' | 'eligible_unapproved' | 'off' | 'forced_on' | 'forced_off';
+    forceable?: boolean;
     reason: string; unanswered: string[];
   }>>([]);
   const refreshSocNodes = useCallback(() => {
@@ -3333,7 +3342,7 @@ export default function MatterDetailView() {
                           <span style={{ fontWeight: 600 }}>{n.sectionHeader}</span>
                           <span style={{ display: 'block', fontSize: 11.5, color: muted, lineHeight: 1.45 }}>{n.reason}</span>
                         </span>
-                        {n.status !== 'firing' && n.tier === 2 && (
+                        {n.status !== 'firing' && (n.forceable ?? n.tier === 2) && (
                           <button
                             onClick={() => void setSocOverride(n.blockId, n.status === 'forced_on' || n.status === 'forced_off' ? null : 'on')}
                             style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: navy, cursor: 'pointer', padding: '3px 9px', borderRadius: 2 }}
