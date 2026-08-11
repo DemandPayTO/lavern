@@ -72,6 +72,8 @@ export function QuestionnairePanel({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [sectionMsg, setSectionMsg] = useState<Record<string, string>>({});
+  const [savingAll, setSavingAll] = useState(false);
+  const [allMsg, setAllMsg] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -126,6 +128,60 @@ export function QuestionnairePanel({
     }
   };
 
+  /** Every unsaved answer, across all sections. */
+  const dirtyCount = Object.keys(draft).length;
+
+  const saveAll = useCallback(async () => {
+    if (dirtyCount === 0) return;
+    setSavingAll(true);
+    setAllMsg(null);
+    const edited = { ...draft };
+    const result = await onSave(edited);
+    setSavingAll(false);
+    if (result.ok) {
+      setDraft({});
+      setAllMsg(`Saved ${Object.keys(edited).length} answer${Object.keys(edited).length === 1 ? '' : 's'} across the questionnaire. The analysis, clocks, and claim sections read the updated file.`);
+    } else {
+      setAllMsg(result.error ?? 'The answers could not be saved. They are still here; try again.');
+    }
+  }, [dirtyCount, draft, onSave]);
+
+  /** Opening another section saves the one being left, silently. Answers
+      must never depend on the lawyer remembering a button. */
+  const switchSection = useCallback((nextId: string | null) => {
+    setOpenSection(prev => {
+      if (prev && def) {
+        const leaving = def.sections.find(x => x.id === prev);
+        if (leaving) {
+          const keys = new Set(leaving.questions.map(q => q.key));
+          const edited: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(draft)) if (keys.has(k)) edited[k] = v;
+          if (Object.keys(edited).length > 0) {
+            void onSave(edited).then(result => {
+              if (result.ok) {
+                setDraft(d => {
+                  const next = { ...d };
+                  for (const k of Object.keys(edited)) delete next[k];
+                  return next;
+                });
+                setSectionMsg(m => ({ ...m, [prev]: `Saved ${Object.keys(edited).length} answer${Object.keys(edited).length === 1 ? '' : 's'} on your way out.` }));
+              }
+            });
+          }
+        }
+      }
+      return nextId;
+    });
+  }, [def, draft, onSave]);
+
+  // Leaving the page with unsaved answers gets the browser's own guard.
+  useEffect(() => {
+    if (dirtyCount === 0) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirtyCount]);
+
   if (!def) return null;
 
   return (
@@ -140,6 +196,23 @@ export function QuestionnairePanel({
         proposing answers too; this is the checklist that shows what is still uncovered.
       </div>
 
+      {dirtyCount > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#fdf0dd', border: `1px solid #d97706`, padding: '8px 12px', marginBottom: 10, position: 'sticky', top: 0, zIndex: 2 }}>
+          <span style={{ fontSize: 12.5, color: ink, fontWeight: 600 }}>
+            {dirtyCount} unsaved answer{dirtyCount === 1 ? '' : 's'}
+          </span>
+          <button
+            onClick={() => void saveAll()}
+            disabled={savingAll}
+            style={{ background: savingAll ? '#b0b0b0' : navy, color: '#fff', fontSize: 12.5, fontWeight: 600, padding: '6px 14px', borderRadius: 2, border: 'none', cursor: savingAll ? 'not-allowed' : 'pointer', fontFamily: sans }}
+          >
+            {savingAll ? 'Saving\u2026' : 'Save all answers'}
+          </button>
+          <span style={{ fontSize: 11.5, color: muted }}>Sections also save themselves when you move between them.</span>
+        </div>
+      )}
+      {allMsg && <div role="status" style={{ fontSize: 12.5, color: ink, marginBottom: 10 }}>{allMsg}</div>}
+
       {def.sections.map(section => {
         const vis = visibleQuestions(section.questions);
         const done = vis.filter(answered).length;
@@ -148,7 +221,7 @@ export function QuestionnairePanel({
         return (
           <div key={section.id} style={{ border: `1px solid ${border}`, marginBottom: 6 }}>
             <button
-              onClick={() => setOpenSection(open ? null : section.id)}
+              onClick={() => switchSection(open ? null : section.id)}
               aria-expanded={open}
               style={{ width: '100%', display: 'flex', alignItems: 'baseline', gap: 10, textAlign: 'left', background: open ? '#faf8f5' : '#fff', border: 'none', padding: '10px 14px', cursor: 'pointer', fontFamily: sans }}
             >
