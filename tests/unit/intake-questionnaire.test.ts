@@ -64,3 +64,64 @@ describe('applyQuestionnaireAliases', () => {
     expect('annual_salary' in none).toBe(false);
   });
 });
+
+describe('deriveEngineFields: the answers reach the engines', () => {
+  it('a constructive dismissal answer fires gate G5 end to end', async () => {
+    const { applyQuestionnaireAliases } = await import('../../src/employment/intake-questionnaire.js');
+    const { evaluateGates } = await import('../../src/employment/gate-evaluator.js');
+    const saved = applyQuestionnaireAliases({
+      separation_type: 'CONSTRUCTIVE',
+      cd_changes: 'Territory reduced, Compensation cut',
+    });
+    expect(saved.is_constructive_dismissal).toBe(true);
+    expect(saved.was_terminated).toBe(true);
+    expect(saved.constructive_dismissal_grounds).toContain('Territory reduced');
+    const gates = evaluateGates(saved as never);
+    expect(gates.find(g => g.gate === 'G5')?.triggered).toBe(true);
+  });
+
+  it('human rights grounds fire G10; OHSA answers fire G14', async () => {
+    const { applyQuestionnaireAliases } = await import('../../src/employment/intake-questionnaire.js');
+    const { evaluateGates } = await import('../../src/employment/gate-evaluator.js');
+    const saved = applyQuestionnaireAliases({
+      hrc_grounds: ['disability', 'age'],
+      has_disability: true,
+      accommodation_refused: true,
+      ohsa_work_refusal: true,
+    });
+    expect(saved.believes_discriminatory_termination).toBe(true);
+    expect(saved.discrimination_grounds).toEqual(['disability', 'age']);
+    expect(saved.accommodation_denied).toBe(true);
+    expect(saved.experienced_reprisal).toBe(true);
+    const gates = evaluateGates(saved as never);
+    expect(gates.find(g => g.gate === 'G10')?.triggered).toBe(true);
+    expect(gates.find(g => g.gate === 'G14')?.triggered).toBe(true);
+  });
+
+  it('the clause answers arm the clause fields without inventing an attack', async () => {
+    const { applyQuestionnaireAliases } = await import('../../src/employment/intake-questionnaire.js');
+    const saved = applyQuestionnaireAliases({
+      has_term_clause: true,
+      cause_standard: 'broader',
+      clause_benefits_continuation: false,
+      no_fresh_consideration: true,
+    });
+    expect(saved.termination_clause_exists).toBe(true);
+    expect(saved.clause_cause_broader).toBe(true);
+    expect(saved.clause_no_benefits).toBe(true);
+    expect(saved.fresh_consideration_provided).toBe(false);
+  });
+
+  it('a resignation answer says so: was_terminated false, nothing armed', async () => {
+    const { applyQuestionnaireAliases } = await import('../../src/employment/intake-questionnaire.js');
+    const saved = applyQuestionnaireAliases({ separation_type: 'RESIGNED' });
+    expect(saved.was_terminated).toBe(false);
+    expect(saved.is_constructive_dismissal).toBe(false);
+  });
+
+  it('a direct answer always beats a derivation', async () => {
+    const { applyQuestionnaireAliases } = await import('../../src/employment/intake-questionnaire.js');
+    const saved = applyQuestionnaireAliases({ separation_type: 'CONSTRUCTIVE', is_constructive_dismissal: false });
+    expect(saved.is_constructive_dismissal).toBe(false);
+  });
+});
