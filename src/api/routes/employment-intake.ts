@@ -1130,6 +1130,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       firmFileNumber: ((matter as Record<string, unknown>).firmFileNumber as string) ?? '',
       matterNumber: ((matter as Record<string, unknown>).matterNumber as string) ?? '',
       stage,
+      waiting: (await import('../../employment/worklist.js')).waitingState((matter as Record<string, unknown>).waitingOn),
       nextSteps: recommendEmploymentNextSteps(matter as Record<string, unknown>, employment, stage),
       updatedAt: row.updated_at,
       openedBy: row.owner_name ?? '',

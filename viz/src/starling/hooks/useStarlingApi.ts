@@ -32,7 +32,30 @@ const USE_DEMO_DATA = false;
 // ── Shared types ────────────────────────────────────────────────────────
 
 /** A matter in the list view. */
+export interface WorklistAction {
+  action: string;
+  reason: string;
+  urgency: 'urgent' | 'now' | 'soon';
+  goTo?: string;
+  stage: string;
+  stageLabel: string;
+}
+
+export interface WaitingInfo {
+  who: string;
+  whoLabel: string;
+  since: string;
+  days: number;
+  note?: string;
+  nudgeAfterDays: number;
+  nudged: boolean;
+}
+
 export interface MatterListItem {
+  /** The file's single most pressing next step, from the stage engine. */
+  nextAction?: WorklistAction;
+  /** Set when the file is waiting on someone else. */
+  waiting?: WaitingInfo;
   id: string;
   name: string;
   number: string;
@@ -543,6 +566,8 @@ export function useMatterList(): MatterListResult {
             _isLabour: m.isLabour === true || undefined,
             _openedBy: m.openedBy,
             _openedByMe: m.openedByMe,
+            _nextAction: m.nextAction ?? undefined,
+            _waiting: m.waiting ?? undefined,
           });
         }
 
@@ -681,6 +706,8 @@ function mapSessionToMatterListItem(session: Record<string, unknown>): MatterLis
     metaColour: status === 'urgent' ? '#dc2626' : undefined,
     // Only a colleague's name is shown; your own files carry no label.
     openedBy: session._openedByMe === false && session._openedBy ? String(session._openedBy) : undefined,
+    nextAction: (session._nextAction as WorklistAction | undefined) ?? undefined,
+    waiting: (session._waiting as WaitingInfo | undefined) ?? undefined,
   };
 }
 
@@ -1496,6 +1523,7 @@ export interface UseEmploymentDataResult {
   briefSources: Array<{ id: string; name: string; words: number }>;
   rebuttalSource: { name: string; words: number; savedAt: string } | null;
   rebuttalFeedback: { name: string; words: number; savedAt: string } | null;
+  waiting: WaitingInfo | null;
   /** Mediation logistics stored at the last generation, for prefill. */
   mediationLogistics: { date?: string; mediator?: string } | null;
   runAnalysis: () => Promise<{ ok: boolean; error?: string }>;
@@ -1600,6 +1628,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [briefSources, setBriefSources] = useState<Array<{ id: string; name: string; words: number }>>([]);
   const [rebuttalSource, setRebuttalSource] = useState<{ name: string; words: number; savedAt: string } | null>(null);
   const [rebuttalFeedback, setRebuttalFeedback] = useState<{ name: string; words: number; savedAt: string } | null>(null);
+  const [waiting, setWaiting] = useState<WaitingInfo | null>(null);
   const [mediationLogistics, setMediationLogistics] = useState<{ date?: string; mediator?: string } | null>(null);
   const loadedUpdatedAt = useRef<string | undefined>(undefined);
 
@@ -1631,6 +1660,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setBriefSources(Array.isArray(json.briefSources) ? json.briefSources : []);
       setRebuttalSource(json.rebuttalSource && typeof json.rebuttalSource === 'object' ? json.rebuttalSource : null);
       setRebuttalFeedback(json.rebuttalFeedback && typeof json.rebuttalFeedback === 'object' ? json.rebuttalFeedback : null);
+      setWaiting(json.waiting && typeof json.waiting === 'object' ? json.waiting as WaitingInfo : null);
       setMediationLogistics(json.mediationLogistics && typeof json.mediationLogistics === 'object' ? json.mediationLogistics : null);
       setAttribution({
         openedBy: typeof json.openedBy === 'string' ? json.openedBy : '',
@@ -1968,7 +1998,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, rebuttalFeedback, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, rebuttalFeedback, waiting, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────

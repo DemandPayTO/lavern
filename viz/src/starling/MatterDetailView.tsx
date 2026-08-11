@@ -856,9 +856,14 @@ export default function MatterDetailView() {
   // longer takes uploads, so without this the lawyer is left on Issues with
   // nothing to act on and no hint where the documents go.
   const openedFresh = window.location.hash.includes('new=1');
-  const [activeTab, setActiveTab] = useState<TabKey>(openedFresh ? 'docs' : 'issues');
+  // A worklist action deep-links straight to its tab: ?goto=draft etc.
+  const gotoParam = window.location.hash.match(/[?&]goto=([a-z]+)/)?.[1];
+  const VALID_TABS: TabKey[] = ['issues', 'docs', 'draft', 'timeline', 'intake', 'client', 'negotiation', 'debrief', 'notes'];
+  const gotoTab = gotoParam && (VALID_TABS as string[]).includes(gotoParam) ? gotoParam as TabKey : null;
+  const [activeTab, setActiveTab] = useState<TabKey>(gotoTab ?? (openedFresh ? 'docs' : 'issues'));
   const [showDocsHint, setShowDocsHint] = useState(openedFresh);
   const [editingFileNumber, setEditingFileNumber] = useState(false);
+  const [waitingMsg, setWaitingMsg] = useState<string | null>(null);
   const [fileNumberDraft, setFileNumberDraft] = useState('');
   const [keyDate, setKeyDate] = useState({ date: '', label: '', category: 'legal', courtDeadline: true });
   const [keyDateSaving, setKeyDateSaving] = useState(false);
@@ -1189,6 +1194,26 @@ export default function MatterDetailView() {
     } catch {
       setRebuttalError('The letter could not be attached.');
     } finally { setRebuttalSaving(false); }
+  }, [sessionId, employment]);
+
+  const setWaitingOn = useCallback(async (who: string) => {
+    if (!sessionId) return;
+    setWaitingMsg(null);
+    try {
+      const res = who
+        ? await fetch(`/api/matters/${sessionId}/waiting`, {
+            method: 'PUT', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ who }),
+          })
+        : await fetch(`/api/matters/${sessionId}/waiting`, { method: 'DELETE', credentials: 'include' });
+      const d = await res.json().catch(() => ({})) as { ok?: boolean; message?: string; error?: string };
+      if (!res.ok) { setWaitingMsg(d.error ?? 'The waiting state could not be saved.'); return; }
+      setWaitingMsg(d.message ?? null);
+      void employment.refresh();
+    } catch {
+      setWaitingMsg('The waiting state could not be saved.');
+    }
   }, [sessionId, employment]);
 
   const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' = 'rebuttal-source') => {
@@ -2166,6 +2191,32 @@ export default function MatterDetailView() {
             {matter!.dates.start && <FactItem label="Start date" value={matter!.dates.start} />}
             {matter!.dates.limitation && <FactItem label="Limitation" value={matter!.dates.limitation} isLast />}
             {!matter!.dates.limitation && !matter!.dates.start && <FactItem label="" value="" isLast />}
+          </div>
+
+          {/* Waiting state: park the file on someone else's desk, and get
+              it back automatically when the wait outruns the nudge window. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Waiting on</span>
+            <select
+              value={employment.waiting?.who ?? ''}
+              onChange={e => { void setWaitingOn(e.target.value); }}
+              aria-label="Who this file is waiting on"
+              style={{ fontFamily: sans, fontSize: 13, padding: '6px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
+            >
+              <option value="">Nobody: this file needs the firm</option>
+              <option value="client">The client</option>
+              <option value="opposing_counsel">Opposing counsel</option>
+              <option value="tribunal">The court or tribunal</option>
+              <option value="partner">Partner review</option>
+            </select>
+            {employment.waiting && (
+              <span style={{ fontSize: 12.5, color: employment.waiting.nudged ? '#b8860b' : muted }}>
+                {employment.waiting.nudged
+                  ? `Waiting ${employment.waiting.days} days: past the ${employment.waiting.nudgeAfterDays}-day window, so it is back on your needs-me list to follow up.`
+                  : `Since ${employment.waiting.since.slice(0, 10)} (${employment.waiting.days} ${employment.waiting.days === 1 ? 'day' : 'days'}). Off your needs-me list; back automatically after ${employment.waiting.nudgeAfterDays} days.`}
+              </span>
+            )}
+            {waitingMsg && <span role="status" style={{ fontSize: 12.5, color: ink }}>{waitingMsg}</span>}
           </div>
 
           <NextStepsPanel steps={employment.nextSteps} onGoTo={(tab) => setActiveTab(tab as TabKey)} />

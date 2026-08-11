@@ -16,6 +16,7 @@ import type { MatterRecord, ConflictCheckResult, KycResult, EngagementLetter } f
 import { agentProfiles, teamPresets } from '../../agents/profiles.js';
 import { validateBody } from '../middleware/validation.js';
 import { saveMatter as dbSaveMatter, getMattersByUser, getMatterById as dbGetMatterById, deleteMatter as dbDeleteMatter } from '../../db/database.js';
+import { topStepOf, waitingState, nudgeAction, WAITING_PARTIES, WAITING_LABELS } from '../../employment/worklist.js';
 import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('MATTERS');
@@ -102,6 +103,20 @@ function listSummaryOf(record: Record<string, unknown>): {
     };
   }
   return { clientName: '', employerName: '', limitationDate: null, grievanceDeadline: null, isLabour: false };
+}
+
+/**
+ * The worklist fields for a list row: the file's top next action, and
+ * its waiting state. A waiting file whose nudge window has passed gets
+ * the follow-up as its action, because following up IS the next step.
+ */
+function worklistOf(record: Record<string, unknown>): {
+  nextAction: ReturnType<typeof topStepOf>;
+  waiting: ReturnType<typeof waitingState>;
+} {
+  const waiting = waitingState(record.waitingOn);
+  if (waiting?.nudged) return { nextAction: nudgeAction(waiting), waiting };
+  return { nextAction: waiting ? null : topStepOf(record), waiting };
 }
 
 /** Best available client name on a stored matter record. */
@@ -296,9 +311,62 @@ export function registerMatterRoutes(fastify: FastifyInstance): void {
         openedByMe: row.user_id === userId,
         lastModifiedBy: row.last_modified_by ?? '',
         ...listSummaryOf(m as unknown as Record<string, unknown>),
+        ...worklistOf(m as unknown as Record<string, unknown>),
       })),
       total: matters.length,
     });
+  });
+
+  // ── Waiting state ─────────────────────────────────────────────────────
+  // "This file is waiting on X since Y." Waiting files leave the needs-me
+  // pile; past the nudge window they return with a follow-up action.
+
+  fastify.put('/api/matters/:id/waiting', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = requireAuth(request, reply);
+    if (!userId) return;
+    ensureLoaded(userId);
+    const matter = matterStore.get(id);
+    if (!matter || !dbGetMatterById(id, userId)) {
+      return reply.status(404).send({ error: `Matter not found: ${id}` });
+    }
+
+    const body = (request.body ?? {}) as { who?: string; note?: string; nudgeAfterDays?: number };
+    if (!body.who || !(WAITING_PARTIES as readonly string[]).includes(body.who)) {
+      return reply.status(400).send({ error: `waiting "who" must be one of: ${WAITING_PARTIES.join(', ')}` });
+    }
+    const record = matter as unknown as Record<string, unknown>;
+    record.waitingOn = {
+      who: body.who,
+      since: new Date().toISOString(),
+      ...(typeof body.note === 'string' && body.note.trim() ? { note: body.note.trim().slice(0, 300) } : {}),
+      ...(typeof body.nudgeAfterDays === 'number' ? { nudgeAfterDays: Math.min(90, Math.max(1, Math.round(body.nudgeAfterDays))) } : {}),
+    };
+    persistMatter(userId, matter);
+    const state = waitingState(record.waitingOn);
+    logger.info('Matter marked waiting', { matterId: id, userId, who: body.who });
+    return reply.send({
+      ok: true,
+      waiting: state,
+      message: `This file is now waiting on ${WAITING_LABELS[body.who as keyof typeof WAITING_LABELS]}. It leaves your needs-attention list and comes back in ${state?.nudgeAfterDays ?? 7} days if nothing moves.`,
+    });
+  });
+
+  fastify.delete('/api/matters/:id/waiting', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = requireAuth(request, reply);
+    if (!userId) return;
+    ensureLoaded(userId);
+    const matter = matterStore.get(id);
+    if (!matter || !dbGetMatterById(id, userId)) {
+      return reply.status(404).send({ error: `Matter not found: ${id}` });
+    }
+    const record = matter as unknown as Record<string, unknown>;
+    if (!record.waitingOn) return reply.status(404).send({ error: 'This file is not marked as waiting.' });
+    delete record.waitingOn;
+    persistMatter(userId, matter);
+    logger.info('Matter waiting cleared', { matterId: id, userId });
+    return reply.send({ ok: true, message: 'The wait is over: this file is back on your needs-attention list.' });
   });
 
   // ── DELETE /api/matters/:id — Delete a matter ────────────────────────

@@ -29,7 +29,7 @@ const sans = "system-ui, -apple-system, sans-serif";
 // ── Types ────────────────────────────────────────────────────────────────
 
 type MatterStatus = 'urgent' | 'stale' | 'active' | 'complete';
-type FilterKey = 'all' | 'urgent' | 'stale' | 'active';
+type FilterKey = 'needs_me' | 'waiting' | 'all' | 'urgent' | 'stale' | 'active';
 
 interface MatterItem {
   id: string;
@@ -144,10 +144,11 @@ const BAR_COLOURS: Record<MatterStatus, string> = {
 // ── Filter labels ────────────────────────────────────────────────────────
 
 const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'needs_me', label: 'Needs me' },
+  { key: 'waiting', label: 'Waiting' },
   { key: 'all', label: 'All' },
   { key: 'urgent', label: 'Urgent' },
   { key: 'stale', label: 'Needs attention' },
-  { key: 'active', label: 'Active' },
 ];
 
 // ── Greeting helper ──────────────────────────────────────────────────────
@@ -175,7 +176,7 @@ export default function StarlingDashboard() {
   // session to end, so the logout control simply does not render.
   const userCtx = useContext(UserContext);
   const approvalsEnabled = useApprovalsEnabled();
-  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('needs_me');
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(25);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -253,9 +254,20 @@ export default function StarlingDashboard() {
   const completedMatters = scopedMatters.filter(m => m.status === 'complete');
 
   // Filter active matters by status chip
-  const filteredMatters = activeFilter === 'all'
-    ? activeMatters
-    : activeMatters.filter(m => m.status === activeFilter);
+  // "Needs me": every active file except those parked as waiting (a wait
+  // past its nudge window comes BACK, carrying the follow-up as its
+  // action). "Waiting": the parked files, so the pile stays visible.
+  const URGENCY_RANK: Record<string, number> = { urgent: 0, now: 1, soon: 2 };
+  const byPressure = (a: typeof activeMatters[number], b: typeof activeMatters[number]) =>
+    (URGENCY_RANK[a.nextAction?.urgency ?? ''] ?? 3) - (URGENCY_RANK[b.nextAction?.urgency ?? ''] ?? 3);
+  const filteredMatters = activeFilter === 'needs_me'
+    ? activeMatters.filter(m => !m.waiting || m.waiting.nudged).sort(byPressure)
+    : activeFilter === 'waiting'
+      ? activeMatters.filter(m => m.waiting && !m.waiting.nudged)
+          .sort((a, b) => (b.waiting?.days ?? 0) - (a.waiting?.days ?? 0))
+      : activeFilter === 'all'
+        ? activeMatters
+        : activeMatters.filter(m => m.status === activeFilter);
 
   // Free-text search over client name, matter/file number, and the summary
   // (which carries the employer). Then page the list so 200 matters stay
@@ -802,11 +814,37 @@ export default function StarlingDashboard() {
                     {matter.flagText}
                   </span>
                 </div>
-                {/* Line 2 */}
-                <div style={{ fontSize: 13.5, color: muted }}>
-                  <b style={{ color: ink, fontWeight: 600 }}>{matter.description.split(':')[0]}:</b>
-                  {matter.description.split(':').slice(1).join(':')}
-                </div>
+                {/* Line 2: the file's next action when the engine knows it,
+                    the old description otherwise. Clicking the action lands
+                    inside the right tab, not just the matter. */}
+                {matter.nextAction ? (
+                  <div style={{ fontSize: 13.5, color: muted, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 700, padding: '1px 7px', borderRadius: 2,
+                      background: matter.nextAction.urgency === 'urgent' ? '#fdecea' : matter.nextAction.urgency === 'now' ? '#fdf0dd' : '#f4f1ec',
+                      color: matter.nextAction.urgency === 'urgent' ? '#b3372f' : matter.nextAction.urgency === 'now' ? '#b8860b' : muted,
+                    }}>
+                      {matter.nextAction.urgency === 'urgent' ? 'URGENT' : matter.nextAction.urgency === 'now' ? 'NOW' : 'SOON'}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleNav(`#/matter-detail/${matter.id}?goto=${matter.nextAction!.goTo ?? 'issues'}`); }}
+                      style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: navy, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+                    >
+                      {matter.nextAction.action}
+                    </button>
+                    <span style={{ fontSize: 12 }}>{matter.nextAction.stageLabel}</span>
+                  </div>
+                ) : matter.waiting ? (
+                  <div style={{ fontSize: 13.5, color: muted }}>
+                    Waiting on <b style={{ color: ink }}>{matter.waiting.whoLabel}</b> for {matter.waiting.days} {matter.waiting.days === 1 ? 'day' : 'days'}
+                    {matter.waiting.note ? ` · ${matter.waiting.note}` : ''}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13.5, color: muted }}>
+                    <b style={{ color: ink, fontWeight: 600 }}>{matter.description.split(':')[0]}:</b>
+                    {matter.description.split(':').slice(1).join(':')}
+                  </div>
+                )}
               </div>
 
               {/* Meta */}
