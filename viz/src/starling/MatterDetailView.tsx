@@ -860,7 +860,19 @@ export default function MatterDetailView() {
   const gotoParam = window.location.hash.match(/[?&]goto=([a-z]+)/)?.[1];
   const VALID_TABS: TabKey[] = ['issues', 'docs', 'draft', 'timeline', 'intake', 'client', 'negotiation', 'debrief', 'notes'];
   const gotoTab = gotoParam && (VALID_TABS as string[]).includes(gotoParam) ? gotoParam as TabKey : null;
-  const [activeTab, setActiveTab] = useState<TabKey>(gotoTab ?? (openedFresh ? 'docs' : 'issues'));
+  // Resume: reopening a matter lands where you left it, unless a worklist
+  // deep link or a fresh file says otherwise.
+  const resumeSid = window.location.hash.split('?')[0].match(/#\/matter-detail\/(.+)/)?.[1] ?? '';
+  const resumed = (() => {
+    if (gotoTab || openedFresh || !resumeSid) return null;
+    try {
+      const raw = localStorage.getItem(`starling.resume.${resumeSid}`);
+      if (!raw) return null;
+      const st = JSON.parse(raw) as { tab?: string; draft?: string | null };
+      return (VALID_TABS as string[]).includes(st.tab ?? '') ? st as { tab: TabKey; draft?: string | null } : null;
+    } catch { return null; }
+  })();
+  const [activeTab, setActiveTab] = useState<TabKey>(gotoTab ?? resumed?.tab ?? (openedFresh ? 'docs' : 'issues'));
   const [showDocsHint, setShowDocsHint] = useState(openedFresh);
   const [editingFileNumber, setEditingFileNumber] = useState(false);
   const [waitingMsg, setWaitingMsg] = useState<string | null>(null);
@@ -869,7 +881,9 @@ export default function MatterDetailView() {
   const [keyDateSaving, setKeyDateSaving] = useState(false);
   const [notes, setNotes] = useState('');
   const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [selectedDraft, setSelectedDraft] = useState<string | null>(null);
+  const [selectedDraft, setSelectedDraft] = useState<string | null>(
+    resumed?.tab === 'draft' && resumed.draft ? resumed.draft : null,
+  );
 
 
   const [draftFilter, setDraftFilter] = useState('');
@@ -1215,6 +1229,28 @@ export default function MatterDetailView() {
       setWaitingMsg('The waiting state could not be saved.');
     }
   }, [sessionId, employment]);
+
+  // Persist where the lawyer is, so switching files costs nothing on the
+  // way back. Also record the visit for the recent-files strip.
+  useEffect(() => {
+    if (!resumeSid) return;
+    try {
+      localStorage.setItem(`starling.resume.${resumeSid}`, JSON.stringify({ tab: activeTab, draft: selectedDraft }));
+    } catch { /* private mode: resume is a convenience */ }
+  }, [resumeSid, activeTab, selectedDraft]);
+
+  useEffect(() => {
+    if (!resumeSid) return;
+    const label = matter?.client ? `${matter.client}${matter.employer ? ` v ${matter.employer}` : ''}` : null;
+    if (!label) return;
+    try {
+      const raw = localStorage.getItem('starling.recentMatters');
+      const list = raw ? (JSON.parse(raw) as Array<{ id: string; label: string; at: string }>) : [];
+      const next = [{ id: resumeSid, label, at: new Date().toISOString() },
+        ...list.filter(x => x.id !== resumeSid)].slice(0, 8);
+      localStorage.setItem('starling.recentMatters', JSON.stringify(next));
+    } catch { /* same */ }
+  }, [resumeSid, matter?.client, matter?.employer]);
 
   const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' = 'rebuttal-source') => {
     setRebuttalSaving(true);
@@ -2109,6 +2145,35 @@ export default function MatterDetailView() {
           &larr; My Cases
         </a>
 
+        {/* Recent files: the last few matters, one click apart. Each link
+            resumes exactly where you left that file. */}
+        {(() => {
+          let recents: Array<{ id: string; label: string }> = [];
+          try {
+            const raw = localStorage.getItem('starling.recentMatters');
+            recents = raw ? (JSON.parse(raw) as Array<{ id: string; label: string }>) : [];
+          } catch { /* convenience only */ }
+          const others = recents.filter(r => r.id !== resumeSid).slice(0, 5);
+          if (others.length === 0) return null;
+          return (
+            <span style={{ marginLeft: 18, fontSize: 12.5, color: muted }}>
+              Recent:{' '}
+              {others.map((r, i) => (
+                <span key={r.id}>
+                  {i > 0 && ' · '}
+                  <a
+                    href={`#/matter-detail/${r.id}`}
+                    onClick={(e) => { e.preventDefault(); handleNav(`#/matter-detail/${r.id}`); }}
+                    style={{ color: navy, fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    {r.label}
+                  </a>
+                </span>
+              ))}
+            </span>
+          );
+        })()}
+
         {/* ── Matter Header ─────────────────────────────────────── */}
         <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '22px 26px' }}>
           {/* Top row */}
@@ -2677,6 +2742,49 @@ export default function MatterDetailView() {
                   the drafting options, the draft itself, and the revision tools, all in one place.
                 </p>
               )}
+              {/* Stage first: the two or three documents this file's stage
+                  calls for, plus anything already in flight. Every other
+                  card stays exactly where it always was, below. */}
+              {!selectedDraft && !draftFilter.trim() && (() => {
+                const stage = employment.stage?.stage;
+                const STAGE_CARDS: Record<string, string[]> = {
+                  intake: ['severance', 'demand'],
+                  assessment: ['severance', 'demand'],
+                  demand: ['demand', 'rebuttal', 'counter'],
+                  negotiation: ['counter', 'rebuttal', 'mediation'],
+                  proceedings: ['soc', 'mediation', 'confbrief'],
+                  resolution: ['minutes'],
+                };
+                const inFlight = employment.generatedDocuments
+                  .map(d => DOCTYPE_TO_DRAFT[d.docType]).filter(Boolean) as string[];
+                const forNow = [...new Set([...inFlight, ...(stage ? STAGE_CARDS[stage] ?? [] : [])])].slice(0, 4);
+                const cards = forNow.map(id => DEMO_DRAFT_TYPES.find(d => d.id === id)).filter(Boolean) as typeof DEMO_DRAFT_TYPES;
+                if (cards.length === 0) return null;
+                return (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: orange, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>
+                      For this file now{employment.stage ? ` · ${employment.stage.label}` : ''}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                      {cards.map(dt => (
+                        <div
+                          key={`now-${dt.id}`}
+                          onClick={() => openDraftCard(dt.id)}
+                          style={{ background: '#fff', border: `1px solid ${orange}`, padding: 18, cursor: 'pointer', boxShadow: `0 2px 0 ${orange}` }}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDraftCard(dt.id); } }}
+                        >
+                          <div style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, marginBottom: 4 }}>{dt.title}</div>
+                          <div style={{ fontSize: 12.5, color: muted, lineHeight: 1.5 }}>
+                            {inFlight.includes(dt.id) ? 'A draft is already on file: open it, revise it, or regenerate.' : dt.description}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               {selectedDraft && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
                   <button

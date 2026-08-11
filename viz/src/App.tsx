@@ -202,9 +202,12 @@ export function App() {
   const userRef = useRef(userCtx?.user);
   userRef.current = userCtx?.user;
 
-  // Hash-based routing
+  // Hash-based routing. The full hash is state too: two matter-detail
+  // URLs are the same VIEW, so setView alone would not re-render, and the
+  // per-matter key below would never change when switching file to file.
+  const [routeHash, setRouteHash] = useState(window.location.hash);
   useEffect(() => {
-    const onHashChange = () => setView(getViewFromHash());
+    const onHashChange = () => { setView(getViewFromHash()); setRouteHash(window.location.hash); };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -1257,7 +1260,10 @@ export function App() {
         {offlineBanner}
         {verifyBanner}
         <Suspense fallback={<ViewFallback text="Loading matter..." />}>
-          <MatterDetailView />
+          {/* Keyed by matter id: switching file to file remounts the view,
+              so each matter resumes ITS OWN last tab and workspace instead
+              of inheriting whatever the previous file was showing. */}
+          <MatterDetailView key={routeHash.split('?')[0].replace('#/matter-detail/', '')} />
         </Suspense>
       </ErrorBoundary>
     );
