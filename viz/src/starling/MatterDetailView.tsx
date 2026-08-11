@@ -1252,6 +1252,54 @@ export default function MatterDetailView() {
     } catch { /* same */ }
   }, [resumeSid, matter?.client, matter?.employer]);
 
+  // "Since you were here": one sentence when you return to a file after a
+  // gap, built from what actually changed. Counts snapshot to local
+  // storage; timestamps come from the documents themselves.
+  const [digest, setDigest] = useState<string | null>(null);
+  const digestDone = useRef(false);
+  useEffect(() => {
+    if (digestDone.current || !resumeSid || !employment.data) return;
+    digestDone.current = true;
+    try {
+      const key = `starling.lastSeen.${resumeSid}`;
+      const raw = localStorage.getItem(key);
+      const now = new Date();
+      const extractions = (employment.data.documentExtractions ?? []).length;
+      const events = (employment.data.timeline ?? []).length;
+      if (raw) {
+        const prev = JSON.parse(raw) as { at: string; extractions: number; events: number };
+        const sinceDate = new Date(prev.at);
+        const hoursAway = (now.getTime() - sinceDate.getTime()) / 3_600_000;
+        if (hoursAway > 18) {
+          const bits: string[] = [];
+          const drafted = employment.generatedDocuments.filter(d => d.generatedAt && d.generatedAt > prev.at);
+          if (drafted.length > 0) {
+            bits.push(`${drafted.slice(0, 2).map(d => d.title).join(' and ')}${drafted.length > 2 ? ` and ${drafted.length - 2} more` : ''} ${drafted.length === 1 ? 'was' : 'were'} drafted`);
+          }
+          const moved = employment.generatedDocuments.filter(d => d.statusDate && d.statusDate > prev.at && (!d.generatedAt || d.generatedAt <= prev.at));
+          if (moved.length > 0) {
+            bits.push(`${moved[0].title} was marked ${moved[0].status}${moved.length > 1 ? `, and ${moved.length - 1} more moved` : ''}`);
+          }
+          if (extractions > prev.extractions) {
+            const n = extractions - prev.extractions;
+            bits.push(`${n} document${n === 1 ? ' was' : 's were'} read into the file`);
+          }
+          if (events > prev.events) {
+            const n = events - prev.events;
+            bits.push(`${n} timeline event${n === 1 ? '' : 's'} added`);
+          }
+          if (bits.length > 0) {
+            const lim = matter?.dates?.limitation;
+            if (lim) bits.push(`the limitation date stands at ${lim}`);
+            const label = sinceDate.toLocaleDateString('en-CA', { month: 'long', day: 'numeric' });
+            setDigest(`Since ${label}: ${bits.join(' \u00b7 ')}.`);
+          }
+        }
+      }
+      localStorage.setItem(key, JSON.stringify({ at: now.toISOString(), extractions, events }));
+    } catch { /* the digest is a courtesy; never block the matter */ }
+  }, [resumeSid, employment.data, employment.generatedDocuments, matter]);
+
   const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' = 'rebuttal-source') => {
     setRebuttalSaving(true);
     setRebuttalError(null);
@@ -2257,6 +2305,19 @@ export default function MatterDetailView() {
             {matter!.dates.limitation && <FactItem label="Limitation" value={matter!.dates.limitation} isLast />}
             {!matter!.dates.limitation && !matter!.dates.start && <FactItem label="" value="" isLast />}
           </div>
+
+          {digest && (
+            <div role="status" style={{ display: 'flex', alignItems: 'baseline', gap: 12, background: '#f4f6fa', border: `1px solid ${border}`, padding: '10px 14px', marginTop: 12, fontSize: 13, color: ink }}>
+              <span>{digest}</span>
+              <button
+                onClick={() => setDigest(null)}
+                aria-label="Dismiss the summary of what changed"
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: 0 }}
+              >
+                Got it
+              </button>
+            </div>
+          )}
 
           {/* Waiting state: park the file on someone else's desk, and get
               it back automatically when the wait outruns the nudge window. */}
