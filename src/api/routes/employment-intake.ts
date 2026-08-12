@@ -1191,6 +1191,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         const src = (matter as Record<string, unknown>).rebuttalSource as { name?: string; words?: number; savedAt?: string } | undefined;
         return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
       })(),
+      defenceSource: (() => {
+        const src = (matter as Record<string, unknown>).defenceSource as { name?: string; words?: number; savedAt?: string } | undefined;
+        return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
+      })(),
       socSource: (() => {
         const src = (matter as Record<string, unknown>).socSource as { name?: string; words?: number; savedAt?: string } | undefined;
         return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
@@ -2572,6 +2576,18 @@ nodeReport: result.nodeReport,
       rebuttalContext = `THE LETTER BEING ANSWERED (from opposing counsel, ${JSON.stringify(rebuttalSourceDoc.name)}):\n"""\n${src.text}\n"""`;
     }
 
+    // The Reply answers the pleaded Defence, so it must have read it.
+    let defenceContext: string | undefined;
+    let defenceSourceDoc: { name: string; content: string } | undefined;
+    if (parsed.data.documentType === 'reply') {
+      const src = (matter as Record<string, unknown>).defenceSource as { name?: string; text?: string } | undefined;
+      if (!src?.text) {
+        return reply.status(400).send({ ok: false, error: 'Attach the Statement of Defence first. The Reply workspace has a place for it.' });
+      }
+      defenceSourceDoc = { name: String(src.name ?? 'Statement of Defence'), content: src.text };
+      defenceContext = `THE STATEMENT OF DEFENCE BEING ANSWERED (${defenceSourceDoc.name}):\n` + '"'.repeat(3) + `\n${src.text}\n` + '"'.repeat(3) + `\nRespond ONLY to the NEW MATTERS actually raised in this Defence (cause particulars, mitigation allegations, after-acquired cause, set-off, limitation defences). Do not use [CONFIRM AGAINST DEFENCE] markers: the Defence is in front of you. Cite its paragraph numbers when responding.`;
+    }
+
     const litDirection = directionForGeneration(matter, parsed.data.documentType);
 
     let result;
@@ -2588,7 +2604,7 @@ nodeReport: result.nodeReport,
         courtLocation: parsed.data.courtLocation,
         // The direction goes last in the context: it is what overrides
         // the rest, so it is read with the rest still in view.
-        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext, rebuttalContext, rebuttalFeedbackContext, litDirection.context]
+        additionalContext: [parsed.data.additionalContext, timetableContext, styleContext, rebuttalContext, rebuttalFeedbackContext, defenceContext, litDirection.context]
           .filter(Boolean).join('\n\n') || undefined,
         formFields: parsed.data.formFields,
         procedureType: parsed.data.procedureType,
@@ -2603,6 +2619,7 @@ nodeReport: result.nodeReport,
         sourceDocuments: (() => {
           const docs = positionDocuments.map(d => ({ name: d.title, content: d.text }));
           if (rebuttalSourceDoc) docs.push(rebuttalSourceDoc);
+          if (defenceSourceDoc) docs.push(defenceSourceDoc);
           return docs.length > 0 ? docs : undefined;
         })(),
       }, definedTerms);
@@ -2649,6 +2666,22 @@ nodeReport: result.nodeReport,
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,
       status: 'draft',
+      // A Reply files like the claim files: same Form 4C backsheet.
+      ...(parsed.data.documentType === 'reply' ? {
+        socBacksheet: {
+          plaintiff: [employment.intake.client_first_name, employment.intake.client_last_name].filter(Boolean).join(' ').toUpperCase() || '[LAWYER: client name]',
+          defendant: String(employment.intake.employer_legal_name ?? employment.intake.employer_operating_name ?? '[LAWYER: employer name]').toUpperCase(),
+          plaintiffRole: 'Plaintiff', defendantRole: 'Defendant',
+          courtFileNo: String((matter as Record<string, unknown>).courtFileNumber ?? ''),
+          city: (parsed.data.courtLocation ?? 'Toronto').toUpperCase(),
+          docTitle: 'REPLY',
+          firmLines: [
+            [parsed.data.firmName.toUpperCase(), ...(parsed.data.firmAddress ? parsed.data.firmAddress.split(/\r?\n/) : [])],
+            [parsed.data.lawyerName],
+            ['Lawyers for the Plaintiff'],
+          ],
+        },
+      } : {}),
     };
 
     // Docket the proposed timetable. These are the lawyer's own dates, not
@@ -3307,6 +3340,39 @@ nodeReport: result.nodeReport,
     const { matter, employment } = loadEmploymentData(row.data_json);
     if (!(matter as Record<string, unknown>).socSource) return reply.status(404).send({ ok: false, error: 'No document attached' });
     delete (matter as Record<string, unknown>).socSource;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true });
+  });
+
+  // The Statement of Defence the Reply answers. Required: a Reply to a
+  // pleading nobody has read would be anticipation dressed as response.
+  fastify.put('/api/employment/:matterId/defence-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = rebuttalSourceSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid document', details: parsed.error.issues.map(i => i.message) });
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const text = parsed.data.text.slice(0, 80_000);
+    (matter as Record<string, unknown>).defenceSource = {
+      name: parsed.data.name,
+      text,
+      words: text.split(/\s+/).filter(Boolean).length,
+      savedAt: new Date().toISOString(),
+    };
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, name: parsed.data.name });
+  });
+
+  fastify.delete('/api/employment/:matterId/defence-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!(matter as Record<string, unknown>).defenceSource) return reply.status(404).send({ ok: false, error: 'No Statement of Defence attached' });
+    delete (matter as Record<string, unknown>).defenceSource;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true });
   });

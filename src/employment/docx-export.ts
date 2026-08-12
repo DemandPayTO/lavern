@@ -459,7 +459,7 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
   // A court filing bypasses the firm template entirely. Its format is
   // prescribed, not the firm's to choose: 12-point Times New Roman,
   // double-spaced, and no letterhead in front of a general heading.
-  const courtFormat = options.documentType === 'statement_of_claim' && !options.smallClaims;
+  const courtFormat = (options.documentType === 'statement_of_claim' || options.documentType === 'reply') && !options.smallClaims;
   // Try firm template first if firmId and documentType are provided
   if (!courtFormat && options.firmId && options.documentType) {
     const placeholderValues = buildPlaceholderValues({

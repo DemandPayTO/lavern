@@ -1205,6 +1205,9 @@ export default function MatterDetailView() {
   const adoptInputRef = useRef<HTMLInputElement | null>(null);
   const rebuttalInputRef = useRef<HTMLInputElement | null>(null);
   const socSourceInputRef = useRef<HTMLInputElement | null>(null);
+  const defenceInputRef = useRef<HTMLInputElement | null>(null);
+  const [defencePasting, setDefencePasting] = useState(false);
+  const [defenceText, setDefenceText] = useState('');
   const feedbackInputRef = useRef<HTMLInputElement | null>(null);
   const [feedbackPasting, setFeedbackPasting] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -1213,7 +1216,7 @@ export default function MatterDetailView() {
   const [rebuttalSaving, setRebuttalSaving] = useState(false);
   const [rebuttalError, setRebuttalError] = useState<string | null>(null);
 
-  const attachRebuttalText = useCallback(async (name: string, text: string, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' = 'rebuttal-source') => {
+  const attachRebuttalText = useCallback(async (name: string, text: string, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' | 'defence-source' = 'rebuttal-source') => {
     if (!sessionId) return;
     setRebuttalSaving(true);
     setRebuttalError(null);
@@ -1341,7 +1344,7 @@ export default function MatterDetailView() {
     } catch { /* the digest is a courtesy; never block the matter */ }
   }, [resumeSid, employment.data, employment.generatedDocuments, matter]);
 
-  const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' = 'rebuttal-source') => {
+  const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' | 'defence-source' = 'rebuttal-source') => {
     setRebuttalSaving(true);
     setRebuttalError(null);
     try {
@@ -3511,6 +3514,71 @@ export default function MatterDetailView() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {selectedDraft === 'reply' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The Statement of Defence you are replying to</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
+                    Upload or paste the Defence. The Reply answers the new matters it actually raises, citing its paragraph numbers, so this is required.
+                    Your own or the client&rsquo;s comments go in the direction box below; they bind the drafting.
+                  </div>
+                  {employment.defenceSource ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
+                      <span>\u2713 <b>{employment.defenceSource.name}</b> \u00b7 {employment.defenceSource.words} words \u00b7 attached {new Date(employment.defenceSource.savedAt).toLocaleDateString()}</span>
+                      <button
+                        onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/defence-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
+                        style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
+                      >
+                        Discard
+                      </button>
+                      <span style={{ fontSize: 12, color: muted }}>Discarding removes the attachment only. Attach another to replace it.</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        ref={defenceInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.doc,.txt,.md,.rtf"
+                        style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f, 'defence-source'); e.target.value = ''; }}
+                        aria-label="Upload the Statement of Defence"
+                      />
+                      <button
+                        onClick={() => defenceInputRef.current?.click()}
+                        disabled={rebuttalSaving}
+                        style={{ background: '#fff', color: navy, border: `1px solid ${navy}`, fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                      >
+                        {rebuttalSaving ? 'Reading\u2026' : 'Upload the Defence'}
+                      </button>
+                      <button
+                        onClick={() => setDefencePasting(v => !v)}
+                        style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
+                      >
+                        Paste the text
+                      </button>
+                    </div>
+                  )}
+                  {defencePasting && !employment.defenceSource && (
+                    <div style={{ marginTop: 10 }}>
+                      <textarea
+                        value={defenceText}
+                        onChange={e => setDefenceText(e.target.value)}
+                        rows={5}
+                        placeholder="Paste the Statement of Defence here."
+                        aria-label="Paste the Statement of Defence"
+                        style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+                      />
+                      <button
+                        onClick={() => { if (defenceText.trim().length >= 50) { void attachRebuttalText('Statement of Defence (pasted)', defenceText, 'defence-source'); setDefenceText(''); setDefencePasting(false); } }}
+                        disabled={rebuttalSaving || defenceText.trim().length < 50}
+                        style={{ marginTop: 8, background: rebuttalSaving || defenceText.trim().length < 50 ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, border: 'none', cursor: rebuttalSaving || defenceText.trim().length < 50 ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                      >
+                        {rebuttalSaving ? 'Saving\u2026' : 'Attach the Defence'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
