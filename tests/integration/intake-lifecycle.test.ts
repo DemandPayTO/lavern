@@ -275,3 +275,34 @@ describe('the intake save MERGES: partial saves never erase each other', () => {
     expect(intake.client_first_name).toBe('Aisha');
   });
 });
+
+describe('the intake inherits the matter\'s own identity', () => {
+  it('names the matter title knows never render as PLAINTIFF', async () => {
+    const { loadEmploymentData } = await import('../../src/api/routes/employment-intake.js');
+    const { employment } = loadEmploymentData(JSON.stringify({
+      title: 'Kimberly Botsford v. Hamilton Health Sciences Corporation',
+      clientId: 'Kimberly Botsford',
+      employmentData: { intake: { annual_salary: 182728 }, timeline: [], gates: [], approvedIssues: [], dismissedIssues: [], documentExtractions: [], analysis: null },
+    }));
+    const i = employment.intake as Record<string, unknown>;
+    expect(i.client_first_name).toBe('Kimberly');
+    expect(i.client_last_name).toBe('Botsford');
+    expect(i.employer_legal_name).toBe('Hamilton Health Sciences Corporation');
+  });
+
+  it('a typed name always beats the derivation, and an opaque id derives nothing', async () => {
+    const { loadEmploymentData } = await import('../../src/api/routes/employment-intake.js');
+    const { employment } = loadEmploymentData(JSON.stringify({
+      title: 'Osei v. Acme', clientId: 'client-8f2a1',
+      employmentData: { intake: { client_first_name: 'Aisha', client_last_name: 'Osei', employer_legal_name: 'Acme Widgets Ltd' }, timeline: [], gates: [], approvedIssues: [], dismissedIssues: [], documentExtractions: [], analysis: null },
+    }));
+    const i = employment.intake as Record<string, unknown>;
+    expect(i.client_first_name).toBe('Aisha');
+    expect(i.employer_legal_name).toBe('Acme Widgets Ltd');
+    const { employment: e2 } = loadEmploymentData(JSON.stringify({
+      title: 'No versus here', clientId: 'client-8f2a1',
+      employmentData: { intake: {}, timeline: [], gates: [], approvedIssues: [], dismissedIssues: [], documentExtractions: [], analysis: null },
+    }));
+    expect((e2.intake as Record<string, unknown>).client_first_name).toBeUndefined();
+  });
+});

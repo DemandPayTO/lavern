@@ -118,7 +118,38 @@ export function sanitiseHtml(html: string): string {
 export function loadEmploymentData(matterDataJson: string): { matter: Record<string, unknown>; employment: EmploymentMatterData } {
   const matter = JSON.parse(matterDataJson) as Record<string, unknown>;
   const employment = (matter.employmentData as EmploymentMatterData) ?? createEmploymentMatterData();
+  backfillIntakeIdentity(matter, employment);
   return { matter, employment };
+}
+
+/**
+ * The matter record knows the parties: the lawyer typed them at creation
+ * and they live in the title ("Kimberly Botsford v. Hamilton Health
+ * Sciences Corporation") and clientId. The intake's name fields can be
+ * missing (the replace-bug era erased some), and every generator reads
+ * the intake, so the cover said PLAINTIFF while the file's own title
+ * named her. Names the intake lacks are derived from the matter itself,
+ * on every read; the next save persists them.
+ */
+export function backfillIntakeIdentity(matter: Record<string, unknown>, employment: EmploymentMatterData): void {
+  const intake = employment.intake as Record<string, unknown>;
+  if (!intake) return;
+
+  if (!intake.client_first_name && !intake.client_last_name) {
+    const clientName = String(matter.clientId ?? '').trim();
+    // Only something that reads as a person's name; never an opaque id.
+    if (clientName && /^[A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){1,3}$/.test(clientName)) {
+      const parts = clientName.split(/\s+/);
+      intake.client_first_name = parts.slice(0, -1).join(' ');
+      intake.client_last_name = parts[parts.length - 1];
+    }
+  }
+
+  if (!intake.employer_legal_name && !intake.employer_operating_name) {
+    const title = String(matter.title ?? '');
+    const m = title.match(/\bv\.?\s+(.{2,200})$/);
+    if (m) intake.employer_legal_name = m[1].trim();
+  }
 }
 
 /** Persist employment data back onto the matter record. */
