@@ -1204,6 +1204,7 @@ export default function MatterDetailView() {
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const adoptInputRef = useRef<HTMLInputElement | null>(null);
   const rebuttalInputRef = useRef<HTMLInputElement | null>(null);
+  const socSourceInputRef = useRef<HTMLInputElement | null>(null);
   const feedbackInputRef = useRef<HTMLInputElement | null>(null);
   const [feedbackPasting, setFeedbackPasting] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -1212,7 +1213,7 @@ export default function MatterDetailView() {
   const [rebuttalSaving, setRebuttalSaving] = useState(false);
   const [rebuttalError, setRebuttalError] = useState<string | null>(null);
 
-  const attachRebuttalText = useCallback(async (name: string, text: string, slot: 'rebuttal-source' | 'rebuttal-feedback' = 'rebuttal-source') => {
+  const attachRebuttalText = useCallback(async (name: string, text: string, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' = 'rebuttal-source') => {
     if (!sessionId) return;
     setRebuttalSaving(true);
     setRebuttalError(null);
@@ -1340,7 +1341,7 @@ export default function MatterDetailView() {
     } catch { /* the digest is a courtesy; never block the matter */ }
   }, [resumeSid, employment.data, employment.generatedDocuments, matter]);
 
-  const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' = 'rebuttal-source') => {
+  const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' = 'rebuttal-source') => {
     setRebuttalSaving(true);
     setRebuttalError(null);
     try {
@@ -3425,6 +3426,49 @@ export default function MatterDetailView() {
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {selectedDraft === 'soc' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>What the claim reads before it drafts</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
+                    Blanks the intake cannot fill are looked up in these documents; every fill carries the quote it came from as a review flag, and anything no document answers stays marked [LAWYER: ...] rather than guessed.
+                  </div>
+                  <div style={{ fontSize: 13, color: ink, marginBottom: 8 }}>
+                    {employment.demandLetterOnFile
+                      ? '\u2713 The demand letter on this matter is included automatically.'
+                      : 'No demand letter is on this matter yet. Generate one, or adopt yours in the Demand Letter workspace, and the claim will read it.'}
+                  </div>
+                  {employment.socSource ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
+                      <span>\u2713 <b>{employment.socSource.name}</b> \u00b7 {employment.socSource.words} words \u00b7 attached {new Date(employment.socSource.savedAt).toLocaleDateString()}</span>
+                      <button
+                        onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/soc-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
+                        style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        ref={socSourceInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.doc,.txt,.md,.rtf"
+                        style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f, 'soc-source'); e.target.value = ''; }}
+                        aria-label="Attach a document for the claim to read"
+                      />
+                      <button
+                        onClick={() => socSourceInputRef.current?.click()}
+                        disabled={rebuttalSaving}
+                        style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                      >
+                        {rebuttalSaving ? 'Reading\u2026' : 'Attach another document (optional)'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

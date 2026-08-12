@@ -1159,6 +1159,11 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         const src = (matter as Record<string, unknown>).rebuttalSource as { name?: string; words?: number; savedAt?: string } | undefined;
         return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
       })(),
+      socSource: (() => {
+        const src = (matter as Record<string, unknown>).socSource as { name?: string; words?: number; savedAt?: string } | undefined;
+        return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
+      })(),
+      demandLetterOnFile: Boolean(findGeneratedDocKey(matter, 'demand_letter')),
       rebuttalFeedback: (() => {
         const fb = (matter as Record<string, unknown>).rebuttalFeedback as { name?: string; words?: number; savedAt?: string } | undefined;
         return fb ? { name: fb.name, words: fb.words, savedAt: fb.savedAt } : null;
@@ -2130,6 +2135,20 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       const u = getUserById(userId);
       if (u?.profile_json) socLso = String((JSON.parse(u.profile_json) as Record<string, unknown>).lsoNumber ?? '');
     } catch { /* best-effort */ }
+    // The claim reads the file's own documents: the demand letter on the
+    // matter (generated or adopted) rides along automatically, plus any
+    // document the lawyer attached to the claim workspace. Blanks fill
+    // from them with verified quotes; every fill is flagged on the draft.
+    const socSources: Array<{ name: string; content: string }> = [];
+    const dlKey = findGeneratedDocKey(matter, 'demand_letter');
+    if (dlKey) {
+      const dlHtml = String(((matter as Record<string, unknown>)[dlKey] as Record<string, unknown>)?.html ?? '');
+      const dlText = dlHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (dlText.length > 200) socSources.push({ name: 'the demand letter on this matter', content: dlText.slice(0, 60_000) });
+    }
+    const attached = (matter as Record<string, unknown>).socSource as { name?: string; text?: string } | undefined;
+    if (attached?.text) socSources.push({ name: String(attached.name ?? 'attached document'), content: attached.text.slice(0, 60_000) });
+
     const result = await generateStatementOfClaim({
       intake: employment.intake,
       approvedIssues: employment.approvedIssues,
@@ -2149,6 +2168,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       customNodes,
       courtFileNumber: ((matter as Record<string, unknown>).courtFileNumber as string) || undefined,
       lsoNumber: socLso || undefined,
+      sourceDocuments: socSources.length > 0 ? socSources : undefined,
     }, definedTerms);
     await applyDirectionAftermath(result, socDirection);
     if (socStyle) {
@@ -3219,6 +3239,39 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const { matter, employment } = loadEmploymentData(row.data_json);
     if (!(matter as Record<string, unknown>).rebuttalFeedback) return reply.status(404).send({ ok: false, error: 'No feedback attached' });
     delete (matter as Record<string, unknown>).rebuttalFeedback;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true });
+  });
+
+  // A document attached to the CLAIM workspace: the slot-fill pass and
+  // the Background Facts read it alongside the matter's demand letter.
+  fastify.put('/api/employment/:matterId/soc-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = rebuttalSourceSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid document', details: parsed.error.issues.map(i => i.message) });
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const text = parsed.data.text.slice(0, 80_000);
+    (matter as Record<string, unknown>).socSource = {
+      name: parsed.data.name,
+      text,
+      words: text.split(/\s+/).filter(Boolean).length,
+      savedAt: new Date().toISOString(),
+    };
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, name: parsed.data.name });
+  });
+
+  fastify.delete('/api/employment/:matterId/soc-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!(matter as Record<string, unknown>).socSource) return reply.status(404).send({ ok: false, error: 'No document attached' });
+    delete (matter as Record<string, unknown>).socSource;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true });
   });

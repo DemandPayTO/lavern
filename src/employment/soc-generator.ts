@@ -27,6 +27,7 @@ import {
   numberSocParagraphs, AI_NARRATIVE_BLOCK, type SocNodeStatus,
 } from './soc-nodes.js';
 import { buildSocFrontMatter, buildSocClosing, FORM_14A_CURRENCY_FLAG } from './soc-shell.js';
+import { fillSocSlots, PROSE_SLOTS } from './soc-slot-fill.js';
 import type { GateResult } from '../types/employment-intake.js';
 
 const logger = createLogger('SOC-GEN');
@@ -455,7 +456,10 @@ async function generateNodeAssembledSoc(
   const causes = active
     .filter(n => n.blockId !== AI_NARRATIVE_BLOCK && n.sectionHeader)
     .map(n => n.sectionHeader);
-  const userPrompt = [buildNarrativePrompt(req, causes), req.styleContext]
+  const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 4)
+    .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n\"\"\"\n${d.content.slice(0, 20_000)}\n\"\"\"`)
+    .join('\n\n');
+  const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]
     .filter(Boolean).join('\n\n');
 
   let narrative = '';
@@ -484,7 +488,42 @@ async function generateNodeAssembledSoc(
   // mark every paragraph for the document-wide pass.
   narrativeHtml = narrativeHtml.replace(/<p([^>]*)>\s*(?:\d+[.)]\s*)?/gi, '<p$1>{{para}}. ');
 
-  // Assemble the pleading in node order.
+  // First pass: what is BLANK, and what intake prose deserves pleading
+  // register instead of verbatim insertion.
+  const firstPassMissing = new Set<string>();
+  for (const node of active) {
+    if (node.blockId === AI_NARRATIVE_BLOCK) continue;
+    for (const m of renderNode(node, ctx).missing) firstPassMissing.add(m);
+  }
+  const proseSlots: Record<string, string> = {};
+  for (const name of PROSE_SLOTS) {
+    const v = ctx[name];
+    if (typeof v === 'string' && v.trim().length > 80) proseSlots[name] = v;
+  }
+
+  const fillFlags: string[] = [];
+  let ctx2 = ctx;
+  if ((firstPassMissing.size > 0 && (req.sourceDocuments ?? []).length > 0) || Object.keys(proseSlots).length > 0) {
+    const filled = await fillSocSlots({
+      missingSlots: [...firstPassMissing],
+      proseSlots,
+      sources: (req.sourceDocuments ?? []).map(d => ({ name: d.name, text: d.content })),
+    });
+    if (filled) {
+      const overlay: Record<string, unknown> = {};
+      for (const [slot, f] of Object.entries(filled.kept.fills)) {
+        overlay[slot] = f.value;
+        fillFlags.push(`Filled "${slot.replace(/_/g, ' ')}" from ${f.sourceName ?? 'the attached source'}: "${f.sourceQuote.slice(0, 140)}". Verify it against the document.`);
+      }
+      for (const [slot, text] of Object.entries(filled.kept.rewrites)) {
+        overlay[slot] = text;
+        fillFlags.push(`The ${slot.replace(/_/g, ' ')} were rewritten from your intake wording into pleading language. The original wording stays on the Intake tab; check nothing was lost.`);
+      }
+      if (Object.keys(overlay).length > 0) ctx2 = { ...ctx, ...overlay };
+    }
+  }
+
+  // Final pass: assemble the pleading in node order from the filled context.
   const sections: string[] = [];
   const missingByHeader: Array<{ header: string; missing: string[] }> = [];
   for (const node of active) {
@@ -492,7 +531,7 @@ async function generateNodeAssembledSoc(
       sections.push(`<h2>${node.sectionHeader || 'BACKGROUND FACTS'}</h2>\n${narrativeHtml}`);
       continue;
     }
-    const rendered = renderNode(node, ctx);
+    const rendered = renderNode(node, ctx2);
     if (rendered.missing.length > 0) {
       missingByHeader.push({ header: rendered.header || node.blockId, missing: rendered.missing });
     }
@@ -523,6 +562,7 @@ async function generateNodeAssembledSoc(
       lawyerReviewFlags.push(`The firm marks "${node.sectionHeader || node.blockId}" for review whenever it is used. Read it before finalising.`);
     }
   }
+  lawyerReviewFlags.push(...fillFlags);
   for (const m of missingByHeader) {
     lawyerReviewFlags.push(`"${m.header}" needs: ${m.missing.map(x => x.replace(/_/g, ' ')).join(', ')}. Each is marked [LAWYER: ...] in the text.`);
   }
