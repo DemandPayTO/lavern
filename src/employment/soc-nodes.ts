@@ -482,17 +482,25 @@ export function applyConditionals(body: string, ctx: Record<string, unknown>): s
     const s = String(v).trim();
     return s.length > 0 && s !== 'No' && s !== '0' && s !== 'false';
   };
+  // A branch may not cross ANY conditional boundary: without this guard
+  // the else-form regex reached from one block's opening across a sibling
+  // block to steal ITS {{else}}, splicing two conditionals together and
+  // leaking literal {{/if}} into a filed pleading. Innermost blocks match
+  // first (their branches contain no markers); outer blocks resolve on
+  // later iterations once their insides are plain text.
+  const BRANCH = String.raw`((?:(?!\{\{[#\/](?:if|unless))(?!\{\{else\}\})[\s\S])*?)`;
+  const IF_ELSE = new RegExp(String.raw`\{\{#if\s+([\w_]+)\}\}` + BRANCH + String.raw`\{\{else\}\}` + BRANCH + String.raw`\{\{\/if(?:\s+[\w_]+)?\}\}`, 'g');
+  const IF_PLAIN = new RegExp(String.raw`\{\{#if\s+([\w_]+)\}\}` + BRANCH + String.raw`\{\{\/if(?:\s+[\w_]+)?\}\}`, 'g');
+  const UNLESS = new RegExp(String.raw`\{\{#unless\s+([\w_]+)\}\}` + BRANCH + String.raw`\{\{\/unless(?:\s+[\w_]+)?\}\}`, 'g');
+
   let result = body;
   let prev = '';
   let guard = 0;
   while (result !== prev && guard < 20) {
     prev = result;
-    result = result.replace(/\{\{#unless\s+([\w_]+)\}\}([\s\S]*?)\{\{\/unless(?:\s+[\w_]+)?\}\}/g,
-      (_m, f, c) => (truthy(f) ? '' : c));
-    result = result.replace(/\{\{#if\s+([\w_]+)\}\}([\s\S]*?)\{\{else\}\}([\s\S]*?)\{\{\/if(?:\s+[\w_]+)?\}\}/g,
-      (_m, f, a, b) => (truthy(f) ? a : b));
-    result = result.replace(/\{\{#if\s+([\w_]+)\}\}([\s\S]*?)\{\{\/if(?:\s+[\w_]+)?\}\}/g,
-      (_m, f, c) => (truthy(f) ? c : ''));
+    result = result.replace(UNLESS, (_m, f, c) => (truthy(f) ? '' : c));
+    result = result.replace(IF_ELSE, (_m, f, a, b) => (truthy(f) ? a : b));
+    result = result.replace(IF_PLAIN, (_m, f, c) => (truthy(f) ? c : ''));
     guard++;
   }
   return result;

@@ -269,3 +269,38 @@ describe('forceable', () => {
     expect(byId.get('SOC_CD_01')!.forceable).toBe(true);
   });
 });
+
+describe('applyConditionals: branches never cross block boundaries', () => {
+  it('a plain if cannot steal a sibling block\'s else', async () => {
+    const { applyConditionals } = await import('../../src/employment/soc-nodes.js');
+    const body = 'A{{#if hwc}} dated X{{/if}}. {{#if perf}}GOOD{{else}}PLAIN{{/if}}.';
+    expect(applyConditionals(body, { hwc: false, perf: true } as never)).toBe('A. GOOD.');
+    expect(applyConditionals(body, { hwc: true, perf: false } as never)).toBe('A dated X. PLAIN.');
+    // The exact leak the pilot pasted from a real claim: no literal
+    // markers may ever survive rendering.
+    for (const ctx of [{ hwc: false, perf: false }, { hwc: true, perf: true }]) {
+      expect(applyConditionals(body, ctx as never)).not.toMatch(/\{\{/);
+    }
+  });
+
+  it('nested conditionals resolve inner-first', async () => {
+    const { applyConditionals } = await import('../../src/employment/soc-nodes.js');
+    const body = '{{#if outer}}O1 {{#if inner}}I{{/if}} O2{{/if}}';
+    expect(applyConditionals(body, { outer: true, inner: true } as never)).toBe('O1 I O2');
+    expect(applyConditionals(body, { outer: true, inner: false } as never)).toBe('O1  O2');
+    expect(applyConditionals(body, { outer: false, inner: true } as never)).toBe('');
+  });
+
+  it('the employment facts node renders clean in every branch state', async () => {
+    const { loadSocNodes, applyConditionals } = await import('../../src/employment/soc-nodes.js');
+    const node = loadSocNodes().find(n => n.blockId === 'SOC_EMPLOY_FACTS_01')!;
+    for (const flags of [
+      { has_written_contract: false, positive_performance: true, has_bonus: false },
+      { has_written_contract: true, positive_performance: false, has_bonus: true },
+    ]) {
+      const out = applyConditionals(node.content, flags as never);
+      expect(out).not.toMatch(/\{\{[#/]/);
+      expect(out).not.toMatch(/\{\{else\}\}/);
+    }
+  });
+});

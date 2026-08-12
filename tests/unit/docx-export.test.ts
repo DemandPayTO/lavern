@@ -126,3 +126,26 @@ describe('htmlToDocx — court format is court-ready', () => {
     expect(header).toContain('Evans');
   });
 });
+
+describe('htmlToDocx — the Form 4C backsheet is a landscape section', () => {
+  it('renders the structured backsheet landscape with the style of cause and firm block', async () => {
+    const buffer = await htmlToDocx('<p class="centre">STATEMENT OF CLAIM</p>\n<p>1. Claim text.</p>\n<hr>\n<p>old html backsheet</p>', {
+      title: 'Statement of Claim', documentType: 'statement_of_claim',
+      socBacksheet: {
+        plaintiff: 'AISHA OSEI', defendant: 'ACME WIDGETS LTD',
+        plaintiffRole: 'Plaintiff', defendantRole: 'Defendant',
+        courtFileNo: '', city: 'TORONTO', docTitle: 'STATEMENT OF CLAIM',
+        firmLines: [['EVANS LAW FIRM', '15 Prince Arthur Avenue'], ['John Evans (LSO# 34259C)'], ['Lawyers for the Plaintiff']],
+      },
+    });
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('w:orient="landscape"');
+    expect(xml).toContain('-and-');
+    expect(xml).toContain('PROCEEDING COMMENCED AT');
+    expect(xml).toContain('EVANS LAW FIRM');
+    // The HTML backsheet after <hr> was replaced, not duplicated.
+    expect(xml).not.toContain('old html backsheet');
+  });
+});

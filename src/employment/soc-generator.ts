@@ -82,6 +82,20 @@ export interface SOCResult {
   costUsd: number;
   /** What each pleading node did and why, for the picker and the record. */
   nodeReport?: SocNodeStatus[];
+  /** Structured Form 4C backsheet; the Word export renders it landscape. */
+  backsheet?: SocBacksheet;
+}
+
+export interface SocBacksheet {
+  plaintiff: string;
+  defendant: string;
+  plaintiffRole: string;
+  defendantRole: string;
+  courtFileNo: string;
+  city: string;
+  docTitle: string;
+  /** Line groups for the counsel block, rendered with a blank line between groups. */
+  firmLines: string[][];
 }
 
 // ── Prompt builders ──────────────────────────────────────────────────────
@@ -377,6 +391,8 @@ export async function generateStatementOfClaim(
 
 const NARRATIVE_SYSTEM = `You are a senior Ontario employment litigator. You are drafting ONE SECTION of a Statement of Claim: the Background Facts.
 
+THE DISCIPLINE ON MISSING FACTS: plead what the file supports and stop. Do NOT write paragraphs that are requests for information; a paragraph-length [LAWYER: describe...] is an interrogatory wearing a pleading's clothes, and a draft full of them is unusable. Where a fact the pleading genuinely needs is missing, put ONE short inline marker inside an otherwise complete sentence, like "resides in [LAWYER: municipality], Ontario". At most SIX such markers in the whole section; beyond that, simply omit what the file does not support. Never re-plead the parties, the employment history, or the compensation: other sections of the claim already plead them.
+
 Everything else in the claim is already written. The causes of action are pleaded in the firm's settled language; the relief is itemised; the court forms are assembled. Your section tells the story the rest of the claim rests on.
 
 Rules:
@@ -543,8 +559,12 @@ async function generateNodeAssembledSoc(
   const shellInput = {
     courtFileNumber: req.courtFileNumber,
     courtLocation: req.courtLocation,
-    plaintiffName: `${req.intake.client_first_name ?? ''} ${req.intake.client_last_name ?? ''}`.trim() || 'PLAINTIFF',
-    defendantName: req.intake.employer_legal_name ?? req.intake.employer_operating_name ?? 'DEFENDANT',
+    plaintiffName: `${req.intake.client_first_name ?? ''} ${req.intake.client_last_name ?? ''}`.trim()
+      || (typeof ctx2.client_name === 'string' && ctx2.client_name.trim() ? ctx2.client_name.trim() : '')
+      || '[LAWYER: client name]',
+    defendantName: (req.intake.employer_legal_name ?? req.intake.employer_operating_name)
+      || (typeof ctx2.employer_name === 'string' && ctx2.employer_name.trim() ? ctx2.employer_name.trim() : '')
+      || '[LAWYER: employer name]',
     procedureType: req.procedureType as 'simplified' | 'ordinary',
     lawyerName: req.lawyerName,
     firmName: req.firmName,
@@ -593,6 +613,24 @@ async function generateNodeAssembledSoc(
     active: active.length, htmlLength: html.length, costUsd: totalCost.toFixed(4),
   });
 
+  const lawyerLines = req.lawyerBlock?.trim()
+    ? req.lawyerBlock.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    : [req.lawyerName];
+  const backsheet: SocBacksheet = {
+    plaintiff: shellInput.plaintiffName.toUpperCase(),
+    defendant: shellInput.defendantName.toUpperCase(),
+    plaintiffRole: 'Plaintiff',
+    defendantRole: 'Defendant',
+    courtFileNo: req.courtFileNumber?.trim() || '',
+    city: req.courtLocation.toUpperCase(),
+    docTitle: 'STATEMENT OF CLAIM',
+    firmLines: [
+      [req.firmName.toUpperCase(), ...(req.firmAddress ? req.firmAddress.split(/\r?\n/) : ['[LAWYER: address for service]'])],
+      ...lawyerLines.map(l => [l]),
+      ['Lawyers for the Plaintiff'],
+    ],
+  };
+
   return {
     html,
     procedureType: req.procedureType,
@@ -600,6 +638,7 @@ async function generateNodeAssembledSoc(
     citations,
     costUsd: totalCost,
     nodeReport: report,
+    backsheet,
   };
 }
 

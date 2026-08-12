@@ -39,6 +39,7 @@ import { generateApplication } from '../../employment/application-generator.js';
 import type { ApplicationType } from '../../employment/application-generator.js';
 import { htmlToDocx } from '../../employment/docx-export.js';
 import { generateLitigationDocument } from '../../employment/litigation-documents.js';
+import type { DocxExportOptions } from '../../employment/docx-export.js';
 import type { LitigationDocumentType } from '../../employment/litigation-documents.js';
 import { detectPlaceholders, templateUploadSchema } from '../../employment/firm-templates.js';
 import type { FirmTemplate } from '../../employment/firm-templates.js';
@@ -2194,6 +2195,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       // What each pleading node did and why: the record of selection, for
       // the picker and for explaining the claim later.
       ...(result.nodeReport ? { nodeReport: result.nodeReport } : {}),
+      // The structured Form 4C backsheet; the Word export renders it landscape.
+      ...(result.backsheet ? { socBacksheet: result.backsheet } : {}),
     };
     employment.selectedProcedure = parsed.data.procedureType;
     employment.selectedDocumentType = 'statement_of_claim';
@@ -2207,7 +2210,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       lawyerReviewFlags: result.lawyerReviewFlags,
       citations: result.citations,
       costUsd: result.costUsd,
-      nodeReport: result.nodeReport,
+nodeReport: result.nodeReport,
+      socBacksheet: result.backsheet,
     });
   });
 
@@ -3894,7 +3898,9 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     // type to render on; without one, the type's default is used.
     const { templateVariantId } = (req.query ?? {}) as { templateVariantId?: string };
 
+    const socBacksheetOpt = (docKey ? ((matterData[docKey] as Record<string, unknown>).socBacksheet as DocxExportOptions['socBacksheet'] | undefined) : undefined);
     const buffer = await htmlToDocx(html, {
+      socBacksheet: socBacksheetOpt,
       smallClaims: procedure === 'small_claims',
       title,
       firmName,

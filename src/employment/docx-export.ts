@@ -14,7 +14,7 @@
 
 import {
   Document, Packer, Paragraph, TextRun,
-  AlignmentType, Header, Footer, PageNumber, BorderStyle,
+  AlignmentType, Header, Footer, PageNumber, BorderStyle, PageOrientation, VerticalAlign,
   Table, TableRow, TableCell, WidthType,
 } from 'docx';
 import { createLogger } from '../utils/logger.js';
@@ -26,6 +26,11 @@ const logger = createLogger('DOCX-EXPORT');
 // ── Types ────────────────────────────────────────────────────────────────
 
 export interface DocxExportOptions {
+  /** Structured Form 4C backsheet: rendered as its own LANDSCAPE section. */
+  socBacksheet?: {
+    plaintiff: string; defendant: string; plaintiffRole: string; defendantRole: string;
+    courtFileNo: string; city: string; docTitle: string; firmLines: string[][];
+  };
   /** Small Claims filings keep the templated path; Superior Court does not. */
   smallClaims?: boolean;
   /** Who the letter is addressed to, for the firm's own [RECIPIENT] markers. */
@@ -357,6 +362,99 @@ export function htmlToParagraphs(
  * @param options Export options (title, firm name, lawyer name, date, firmId, documentType).
  * @returns       A Buffer containing the DOCX file.
  */
+/**
+ * Form 4C, as filed: a LANDSCAPE page whose top band carries the style
+ * of cause, with the court, place of commencement, boxed document title,
+ * and counsel block confined to the right half above a vertical rule.
+ * 12-point Times New Roman throughout; the left half stays empty.
+ */
+function buildBacksheetSection(b: NonNullable<DocxExportOptions['socBacksheet']>, footer: Footer) {
+  const tnr = (text: string, opts: { bold?: boolean; italics?: boolean; size?: number } = {}) =>
+    new TextRun({ text, font: 'Times New Roman', size: opts.size ?? 24, bold: opts.bold, italics: opts.italics });
+  const para = (children: TextRun[], opts: { align?: (typeof AlignmentType)[keyof typeof AlignmentType]; before?: number; after?: number } = {}) =>
+    new Paragraph({ alignment: opts.align, spacing: { before: opts.before ?? 0, after: opts.after ?? 120 }, children });
+  const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' } as const;
+  const rule = { style: BorderStyle.SINGLE, size: 8, color: '000000' } as const;
+
+  // Top band: party — and — party, roles beneath, court file no. right.
+  const band = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 42, type: WidthType.PERCENTAGE },
+          borders: { top: noBorder, left: noBorder, right: noBorder, bottom: rule },
+          children: [para([tnr(b.plaintiff, { bold: true })], { after: 0 }), para([tnr(b.plaintiffRole)], { after: 60 })],
+        }),
+        new TableCell({
+          width: { size: 16, type: WidthType.PERCENTAGE },
+          borders: { top: noBorder, left: noBorder, right: noBorder, bottom: rule },
+          verticalAlign: VerticalAlign.TOP,
+          children: [para([tnr('-and-')], { align: AlignmentType.CENTER, after: 60 })],
+        }),
+        new TableCell({
+          width: { size: 42, type: WidthType.PERCENTAGE },
+          borders: { top: noBorder, left: noBorder, right: noBorder, bottom: rule },
+          children: [
+            para([tnr(b.defendant, { bold: true })], { after: 0 }),
+            para([tnr(b.defendantRole)], { after: 0 }),
+            para([tnr(`Court File No. ${b.courtFileNo || ''}`)], { align: AlignmentType.RIGHT, after: 60 }),
+          ],
+        }),
+      ],
+    })],
+  });
+
+  // Right-half column: court, city, boxed title, counsel block.
+  const titleBox = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [new TableRow({
+      children: [new TableCell({
+        borders: { top: { ...rule, style: BorderStyle.DOUBLE }, bottom: { ...rule, style: BorderStyle.DOUBLE }, left: noBorder, right: noBorder },
+        children: [para([tnr(b.docTitle, { bold: true })], { align: AlignmentType.CENTER, before: 120, after: 120 })],
+      })],
+    })],
+  });
+  const rightChildren: (Paragraph | Table)[] = [
+    para([tnr('ONTARIO', { bold: true, italics: true })], { align: AlignmentType.CENTER, before: 120, after: 0 }),
+    para([tnr('SUPERIOR COURT OF JUSTICE', { bold: true })], { align: AlignmentType.CENTER, after: 200 }),
+    para([tnr('PROCEEDING COMMENCED AT')], { align: AlignmentType.CENTER, after: 0 }),
+    para([tnr(b.city)], { align: AlignmentType.CENTER, after: 200 }),
+    titleBox,
+    para([], { after: 120 }),
+  ];
+  for (const group of b.firmLines) {
+    group.forEach((line: string, i: number) => {
+      rightChildren.push(para([tnr(line, { bold: i === 0 })], { after: 0 }));
+    });
+    rightChildren.push(para([], { after: 60 }));
+  }
+  const bodyTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 55, type: WidthType.PERCENTAGE },
+          borders: { top: noBorder, left: noBorder, bottom: noBorder, right: rule },
+          children: [new Paragraph({ children: [] })],
+        }),
+        new TableCell({
+          width: { size: 45, type: WidthType.PERCENTAGE },
+          borders: { top: noBorder, left: noBorder, bottom: noBorder, right: noBorder },
+          children: rightChildren,
+        }),
+      ],
+    })],
+  });
+
+  return {
+    properties: { page: { size: { orientation: PageOrientation.LANDSCAPE } } },
+    headers: { default: new Header({ children: [] }) },
+    footers: { default: footer },
+    children: [band, bodyTable],
+  };
+}
+
 export async function htmlToDocx(html: string, options: DocxExportOptions): Promise<Buffer> {
   // A court filing bypasses the firm template entirely. Its format is
   // prescribed, not the firm's to choose: 12-point Times New Roman,
@@ -411,7 +509,12 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
     year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  const paragraphs = htmlToParagraphs(html, courtFormat ? { courtFormat: true } : {});
+  // The structured backsheet replaces the HTML tail the shell writes for
+  // the preview; without the cut the claim would carry two backsheets.
+  const mainHtml = courtFormat && options.socBacksheet && html.includes('<hr')
+    ? html.slice(0, html.indexOf('<hr'))
+    : html;
+  const paragraphs = htmlToParagraphs(mainHtml, courtFormat ? { courtFormat: true } : {});
 
   // A court document carries no firm chrome: no letterhead-style header,
   // no name in the footer. Page numbers only, centred, as filed claims are.
@@ -491,7 +594,9 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
         }),
       },
       children: paragraphs,
-    }],
+    },
+    ...(courtFormat && options.socBacksheet ? [buildBacksheetSection(options.socBacksheet, courtFooter)] : []),
+    ],
   });
 
   const buffer = await Packer.toBuffer(doc);
