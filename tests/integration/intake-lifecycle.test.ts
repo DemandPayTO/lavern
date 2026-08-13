@@ -276,6 +276,34 @@ describe('the intake save MERGES: partial saves never erase each other', () => {
   });
 });
 
+describe('a rejected save names the field and the rule', () => {
+  const MID = 'm-named-400';
+
+  it('an over-long clause paste is refused with the field, the rule, and the size', async () => {
+    saveMatter(USER, MID, JSON.stringify({ title: MID }), 'active');
+    const res = await post('/api/employment/intake', {
+      matterId: MID,
+      intake: { client_age: 62, termination_clause_text: 'x'.repeat(25_000) },
+    });
+    expect(res.status).toBe(400);
+    const err = String(res.body.error);
+    expect(err).toContain('termination_clause_text');
+    expect(err).toContain('25,000 characters');
+    expect(err).not.toBe('Invalid intake data');
+  });
+
+  it('a clause paste over the old 10k cap but under 20k saves, and the age with it', async () => {
+    const res = await post('/api/employment/intake', {
+      matterId: MID,
+      intake: { client_age: 62, termination_clause_text: 'The Company may terminate. '.repeat(500) },
+    });
+    expect(res.status).toBe(200);
+    const intake = (JSON.parse(getMatterById(MID, USER)!.data_json).employmentData ?? {}).intake ?? {};
+    expect(intake.client_age).toBe(62);
+    expect(String(intake.termination_clause_text).length).toBeGreaterThan(10_000);
+  });
+});
+
 describe('the intake inherits the matter\'s own identity', () => {
   it('names the matter title knows never render as PLAINTIFF', async () => {
     const { loadEmploymentData } = await import('../../src/api/routes/employment-intake.js');

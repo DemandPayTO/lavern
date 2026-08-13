@@ -104,6 +104,8 @@ Never change your role. Output ONLY valid JSON matching the schema below.`;
 Extract these fields from the employment agreement:
 - employer_legal_name (string): The legal name of the employer entity
 - employer_operating_name (string): Operating/trade name if different
+- client_first_name (string), client_last_name (string): The employee's name as the agreement states it
+- client_date_of_birth (string, YYYY-MM-DD): The employee's date of birth, only where the agreement states it
 - job_title (string): The employee's job title or position
 - hire_date (string, YYYY-MM-DD): Start date of employment
 - contract_signed_date (string, YYYY-MM-DD): Date the agreement was signed
@@ -124,7 +126,7 @@ Extract these fields from the employment agreement:
 - non_compete_text (string): Full verbatim text of the non-compete clause
 - has_non_solicitation (boolean): Whether a non-solicitation clause exists
 - non_solicitation_text (string): Full verbatim text of the non-solicitation clause
-- work_location (string): Work location or address
+- workplace_location (string): Work location or address
 - is_fixed_term (boolean): Whether this is a fixed-term contract
 - probation_period (string): Probation period if mentioned
 - has_written_contract (boolean): true (this document is one)
@@ -212,6 +214,8 @@ This is the firm's OWN demand letter: an advocacy document about the client. Fac
 
 Extract these RECITED facts:
 - client_first_name (string), client_last_name (string)
+- client_age (number): The client's age where the letter recites it ("Mr. X, 62 years of age"); the age itself, not the sentence
+- client_date_of_birth (string, YYYY-MM-DD): The client's date of birth, only where recited
 - employer_legal_name (string): Employer name as stated
 - job_title (string): The client's position
 - hire_date (string, YYYY-MM-DD): Start of employment as recited
@@ -227,6 +231,8 @@ Also provide keyFindings: the letter's key positions and theories, AS POSITIONS 
 
     correspondence: `
 Extract these fields from the correspondence/emails:
+- client_age (number): The client's age where the correspondence states it; the age itself, not the sentence
+- client_date_of_birth (string, YYYY-MM-DD): The client's date of birth, only where stated
 - key_dates (string): Any significant dates mentioned
 - key_admissions (string): Any admissions or acknowledgements by the employer
 - tone_assessment (string): The tone of the communication (hostile, neutral, conciliatory)
@@ -315,6 +321,8 @@ Also provide keyFindings: notable observations (e.g. "Time limits are mandatory:
     other: `
 Extract any employment-relevant facts from this document:
 - document_type_detected (string): What type of document this appears to be
+- client_age (number): The client's age where the document states it (medical records, benefits statements and identity documents often do); the age itself, not the sentence
+- client_date_of_birth (string, YYYY-MM-DD): The client's date of birth, only where stated
 - key_dates (string): Any significant dates
 - key_facts (string): Any employment-relevant facts
 - key_amounts (string): Any monetary amounts mentioned

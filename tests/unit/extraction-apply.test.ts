@@ -84,6 +84,42 @@ describe('applyExtractionSelections', () => {
     if ('error' in out) throw new Error(out.error);
     expect(out.applied).toEqual([]);
   });
+
+  it('the client age applies, whether the document gave a number or prose', () => {
+    const ext = extraction({
+      client_age: { value: '62 years of age', confidence: 'high' },
+      client_date_of_birth: { value: 'March 2, 1964', confidence: 'high' },
+      client_last_name: { value: 'Botsford', confidence: 'high' },
+    });
+    const out = applyExtractionSelections(baseIntake, ext, ['client_age', 'client_date_of_birth', 'client_last_name'], new Set());
+    if ('error' in out) throw new Error(out.error);
+    expect(out.applied.sort()).toEqual(['client_age', 'client_date_of_birth', 'client_last_name']);
+    expect(out.intake.client_age).toBe(62);
+    expect(out.intake.client_date_of_birth).toBe('1964-03-02');
+    expect(out.intake.client_last_name).toBe('Botsford');
+  });
+
+  it('an age the parser cannot read is refused naming the field, not applied broken', () => {
+    const ext = extraction({ client_age: { value: 'sixty-two', confidence: 'medium' } });
+    const out = applyExtractionSelections(baseIntake, ext, ['client_age'], new Set());
+    expect('error' in out).toBe(true);
+    if ('error' in out) {
+      expect(out.error).toContain('client_age');
+      expect(out.invalidFields).toContain('client_age');
+    }
+  });
+
+  it('commission and workplace location now land instead of surfacing as unmapped', () => {
+    const ext = extraction({
+      commission_amount: { value: '$18,500', confidence: 'high' },
+      workplace_location: { value: 'Mississauga, Ontario', confidence: 'high' },
+    });
+    const out = applyExtractionSelections(baseIntake, ext, ['commission_amount', 'workplace_location'], new Set());
+    if ('error' in out) throw new Error(out.error);
+    expect(out.unmapped).toEqual([]);
+    expect(out.intake.commission_amount).toBe(18500);
+    expect(out.intake.workplace_location).toBe('Mississauga, Ontario');
+  });
 });
 
 describe('resolveExtraction', () => {

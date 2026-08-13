@@ -563,7 +563,21 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const parsed = intakeBodySchema.safeParse(req.body);
     if (!parsed.success) {
       logger.warn('Intake validation failed', { userId, issues: parsed.error.issues.map(i => i.path.join('.')) });
-      return reply.status(400).send({ ok: false, error: 'Invalid intake data' });
+      // Name the field and the rule it broke. "Invalid intake data" cost
+      // the pilot an age: his clause paste was over the length cap, the
+      // rejection took the whole save with it, and nothing said why.
+      const bodyIntake = ((req.body as Record<string, unknown> | null)?.intake ?? {}) as Record<string, unknown>;
+      const detail = parsed.error.issues.slice(0, 4).map(i => {
+        const field = String(i.path[i.path.length - 1] ?? i.path[0] ?? 'field');
+        const v = bodyIntake[field];
+        const size = typeof v === 'string' && i.code === 'too_big'
+          ? ` (the value is ${v.length.toLocaleString('en-CA')} characters)` : '';
+        return `${field}: ${i.message}${size}`;
+      }).join('; ');
+      return reply.status(400).send({
+        ok: false,
+        error: `The intake was not saved. ${detail}. Fix ${parsed.error.issues.length === 1 ? 'that field' : 'those fields'} and save again; your other changes are still in the form.`,
+      });
     }
 
     const { matterId, intake: rawIntake } = parsed.data;

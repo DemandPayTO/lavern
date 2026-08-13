@@ -726,6 +726,9 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
   { key: 'client_first_name', label: 'Client first name' },
   { key: 'client_last_name', label: 'Client last name' },
   { key: 'client_age', label: 'Client age', type: 'number' },
+  // The mediation brief's readiness hint points here for the profile
+  // table's age row; the field has to exist to be pointed at.
+  { key: 'client_date_of_birth', label: 'Client date of birth', type: 'date' },
   // Set by the lawyer, never inferred from the name. Every generated
   // document reads it; before this each one was picking for itself.
   {

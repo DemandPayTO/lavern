@@ -170,7 +170,9 @@ export const employmentIntakeSchema = z.object({
 
   // ── Termination clause ─────────────────────────────────────────────────
   termination_clause_exists: optBool,
-  termination_clause_text: z.string().trim().max(10000).optional().or(z.literal('')),
+  // Lawyers paste whole clause sections from long agreements; 10,000 was
+  // hit in practice and the rejection took the rest of the save with it.
+  termination_clause_text: z.string().trim().max(20000).optional().or(z.literal('')),
   termination_notice_period: optString,
   clause_signed_date:     optDate,
   clause_added_mid_employment: optBool,
@@ -227,9 +229,9 @@ export const employmentIntakeSchema = z.object({
 
   // ── Restrictive covenants ──────────────────────────────────────────────
   has_non_compete:        optBool,
-  non_compete_text:       z.string().trim().max(10000).optional().or(z.literal('')),
+  non_compete_text:       z.string().trim().max(20000).optional().or(z.literal('')),
   has_non_solicitation:   optBool,
-  non_solicitation_text:  z.string().trim().max(10000).optional().or(z.literal('')),
+  non_solicitation_text:  z.string().trim().max(20000).optional().or(z.literal('')),
 
   // ── Severance offer ────────────────────────────────────────────────────
   received_severance_offer: optBool,

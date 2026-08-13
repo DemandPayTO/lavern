@@ -28,14 +28,18 @@ import type { DocumentExtractionResult, EmploymentIntakeData, TimelineEvent } fr
  * intake schema, so drift between this list and the schema fails the build.
  */
 export const APPLYABLE_INTAKE_FIELDS: ReadonlySet<string> = new Set([
+  // Client biographical. Age drives the Bardal analysis and the mediation
+  // brief's profile table; the pilot's documents all stated it and none of
+  // it could land until these were mapped.
+  'client_first_name', 'client_last_name', 'client_age', 'client_date_of_birth',
   // Parties + role
-  'employer_legal_name', 'employer_operating_name', 'job_title',
+  'employer_legal_name', 'employer_operating_name', 'job_title', 'workplace_location',
   // Dates
   'hire_date', 'contract_signed_date', 'first_day_of_work', 'years_of_service_estimate',
   'termination_date', 'last_day_worked',
   // Compensation
   'annual_salary', 'salary_period', 'hours_per_week',
-  'has_bonus', 'bonus_amount',
+  'has_bonus', 'bonus_amount', 'commission_amount',
   // ESA wage claims (pleading fields: quote-verified, arrive unticked)
   'vacation_unpaid', 'vacation_underpaid_rate', 'vacation_excluded_variable_comp',
   'holiday_pay_unpaid', 'unpaid_overtime', 'unpaid_commission',
@@ -86,6 +90,20 @@ export const APPLYABLE_INTAKE_FIELDS: ReadonlySet<string> = new Set([
 const ANALYSIS_INPUT_FIELDS: ReadonlySet<string> = new Set([
   'hire_date', 'termination_date', 'annual_salary', 'salary_period',
   'employer_alleged_just_cause', 'severance_weeks_offered', 'job_title',
+  // Bardal factors: age and tenure move the notice range.
+  'client_age', 'client_date_of_birth', 'years_of_service_estimate',
+]);
+
+/**
+ * Applyable fields the intake schema types as numbers. Documents write
+ * these as prose ("62 years of age", "$88,000 per annum"); the model
+ * usually returns a number but sometimes the prose. Read the number here
+ * rather than failing the whole apply on a type mismatch.
+ */
+const NUMERIC_FIELDS: ReadonlySet<string> = new Set([
+  'client_age', 'annual_salary', 'bonus_amount', 'commission_amount',
+  'hours_per_week', 'severance_weeks_offered', 'years_of_service_estimate',
+  'new_employment_salary',
 ]);
 
 function isBlank(v: unknown): boolean {
@@ -146,6 +164,16 @@ export function applyExtractionSelections(
       }
       value = parsed.value;
     }
+    // Numbers written as prose are read the same way dates are.
+    if (NUMERIC_FIELDS.has(name) && typeof value === 'string') {
+      const n = parseFloat(value.replace(/[^0-9.\-]/g, ''));
+      if (!Number.isFinite(n)) {
+        unreadableDates.push(`${name}: could not read a number from ${JSON.stringify(value)}.`);
+        continue;
+      }
+      // The age slot wants a whole number; "62 years" and "62.0" both mean 62.
+      value = name === 'client_age' ? Math.round(n) : n;
+    }
 
     const current = next[name];
     if (isBlank(current)) {
@@ -159,12 +187,12 @@ export function applyExtractionSelections(
     }
   }
 
-  // A date we could not read is reported on its own, naming the field AND
-  // why, so the lawyer can fix it on the Intake tab instead of guessing
-  // which of the selected fields the schema objected to.
+  // A date or number we could not read is reported on its own, naming the
+  // field AND why, so the lawyer can fix it on the Intake tab instead of
+  // guessing which of the selected fields the schema objected to.
   if (unreadableDates.length > 0 && applied.length === 0 && overwritten.length === 0) {
     return {
-      error: `Could not read ${unreadableDates.length === 1 ? 'a date' : 'some dates'} from the document. ${unreadableDates.join(' ')}`,
+      error: `Could not read ${unreadableDates.length === 1 ? 'a value' : 'some values'} from the document. ${unreadableDates.join(' ')}`,
       invalidFields: unreadableDates.map(d => d.split(':')[0]),
     };
   }
