@@ -1191,6 +1191,12 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         const src = (matter as Record<string, unknown>).rebuttalSource as { name?: string; words?: number; savedAt?: string } | undefined;
         return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
       })(),
+      claimSource: (() => {
+        const src = (matter as Record<string, unknown>).claimSource as { name?: string; words?: number; savedAt?: string } | undefined;
+        return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
+      })(),
+      claimOnFile: Boolean(findGeneratedDocKey(matter, 'statement_of_claim')),
+      replyComparison: ((matter as Record<string, unknown>).replyComparison ?? null),
       defenceSource: (() => {
         const src = (matter as Record<string, unknown>).defenceSource as { name?: string; words?: number; savedAt?: string } | undefined;
         return src ? { name: src.name, words: src.words, savedAt: src.savedAt } : null;
@@ -2348,6 +2354,8 @@ nodeReport: result.nodeReport,
     additionalContext: z.string().trim().max(5000).optional(),
     /** Draft in the firm's style, learned from its precedents. */
     styleProfileId: z.string().trim().max(100).optional(),
+    /** Reply only: comparison item ids the Reply addresses. */
+    replyItemIds: z.array(z.string().max(40)).max(40).optional(),
     /** Which procedure the action is under; the timetable motion adapts. */
     procedureType: z.enum(['simplified', 'ordinary']).optional(),
     /** Structured inputs for the deterministic court forms. */
@@ -2586,6 +2594,16 @@ nodeReport: result.nodeReport,
       }
       defenceSourceDoc = { name: String(src.name ?? 'Statement of Defence'), content: src.text };
       defenceContext = `THE STATEMENT OF DEFENCE BEING ANSWERED (${defenceSourceDoc.name}):\n` + '"'.repeat(3) + `\n${src.text}\n` + '"'.repeat(3) + `\nRespond ONLY to the NEW MATTERS actually raised in this Defence (cause particulars, mitigation allegations, after-acquired cause, set-off, limitation defences). Do not use [CONFIRM AGAINST DEFENCE] markers: the Defence is in front of you. Cite its paragraph numbers when responding.`;
+      // The lawyer's picks from the comparison narrow the Reply to exactly
+      // the new matters they chose to answer.
+      const comparison = (matter as Record<string, unknown>).replyComparison as { items?: Array<{ id: string; defenceParagraph: string; summary: string; quote: string; why?: string }> } | undefined;
+      if (comparison?.items?.length && parsed.data.replyItemIds?.length) {
+        const chosen = comparison.items.filter(i => parsed.data.replyItemIds!.includes(i.id));
+        if (chosen.length > 0) {
+          defenceContext += '\n\nTHE LAWYER REVIEWED THE DEFENCE AGAINST THE CLAIM AND CHOSE THESE NEW MATTERS FOR THE REPLY TO ADDRESS. Address exactly these, and no others:\n' +
+            chosen.map(i => `- [Defence para ${i.defenceParagraph}] ${i.summary}${i.why ? ` (the answer should address: ${i.why})` : ''} Quote: "${i.quote.slice(0, 200)}"`).join('\n');
+        }
+      }
     }
 
     const litDirection = directionForGeneration(matter, parsed.data.documentType);
@@ -3375,6 +3393,94 @@ nodeReport: result.nodeReport,
     delete (matter as Record<string, unknown>).defenceSource;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true });
+  });
+
+  // The as-filed Statement of Claim, when it differs from (or predates)
+  // the one Starling generated. The comparison and the Reply read it.
+  fastify.put('/api/employment/:matterId/claim-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = rebuttalSourceSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid document', details: parsed.error.issues.map(i => i.message) });
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const text = parsed.data.text.slice(0, 80_000);
+    (matter as Record<string, unknown>).claimSource = {
+      name: parsed.data.name, text,
+      words: text.split(/\s+/).filter(Boolean).length,
+      savedAt: new Date().toISOString(),
+    };
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, name: parsed.data.name });
+  });
+
+  fastify.delete('/api/employment/:matterId/claim-source', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!(matter as Record<string, unknown>).claimSource) return reply.status(404).send({ ok: false, error: 'No claim attached' });
+    delete (matter as Record<string, unknown>).claimSource;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true });
+  });
+
+  // ── POST /api/employment/:matterId/reply-comparison ───────────────────
+  // Read the Defence against the Claim: admissions, bare denials, and the
+  // NEW MATTERS a Reply may answer, each quoting the Defence. A review
+  // artifact: the lawyer picks which items the Reply addresses.
+  fastify.post('/api/employment/:matterId/reply-comparison', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+
+    const defence = (matter as Record<string, unknown>).defenceSource as { name?: string; text?: string } | undefined;
+    if (!defence?.text) {
+      return reply.status(400).send({ ok: false, error: 'Attach the Statement of Defence first.' });
+    }
+    const attachedClaim = (matter as Record<string, unknown>).claimSource as { name?: string; text?: string } | undefined;
+    let claimText = attachedClaim?.text ?? '';
+    let claimName = String(attachedClaim?.name ?? '');
+    if (!claimText) {
+      const socKey = findGeneratedDocKey(matter, 'statement_of_claim');
+      if (socKey) {
+        const socHtml = String(((matter as Record<string, unknown>)[socKey] as Record<string, unknown>)?.html ?? '');
+        claimText = socHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        claimName = 'the Statement of Claim on this matter';
+      }
+    }
+    if (claimText.length < 200) {
+      return reply.status(400).send({ ok: false, error: 'No Statement of Claim to compare against. Generate one, or attach the as-filed claim in the Reply workspace.' });
+    }
+
+    const intake = employment.intake;
+    const definedTerms = [intake.client_first_name, intake.client_last_name, intake.employer_legal_name]
+      .filter((x): x is string => Boolean(x));
+
+    const { compareClaimDefence } = await import('../../employment/reply-comparison.js');
+    let comparison;
+    try {
+      comparison = await compareClaimDefence({ claimText, defenceText: defence.text, definedTerms });
+    } catch (err) {
+      logger.error('Reply comparison failed', { matterId, error: err instanceof Error ? err.message.slice(0, 300) : String(err) });
+      return reply.status(502).send({ ok: false, error: 'The comparison could not be completed. Try again.' });
+    }
+
+    const stored = {
+      items: comparison.kept.items,
+      droppedUnverified: comparison.dropped,
+      claimName, defenceName: String(defence.name ?? 'Statement of Defence'),
+      generatedAt: new Date().toISOString(),
+      costUsd: comparison.costUsd,
+    };
+    (matter as Record<string, unknown>).replyComparison = stored;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    try { recordUsageEvent(userId, matterId, 'analysis', 'reply_comparison', comparison.costUsd); } catch { /* metering never blocks */ }
+    return reply.send({ ok: true, comparison: stored });
   });
 
   fastify.delete('/api/employment/:matterId/rebuttal-source', async (req: FastifyRequest, reply: FastifyReply) => {

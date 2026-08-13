@@ -1206,6 +1206,10 @@ export default function MatterDetailView() {
   const rebuttalInputRef = useRef<HTMLInputElement | null>(null);
   const socSourceInputRef = useRef<HTMLInputElement | null>(null);
   const defenceInputRef = useRef<HTMLInputElement | null>(null);
+  const claimSourceInputRef = useRef<HTMLInputElement | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [comparisonMsg, setComparisonMsg] = useState<string | null>(null);
+  const [replySelections, setReplySelections] = useState<Set<string>>(new Set());
   const [defencePasting, setDefencePasting] = useState(false);
   const [defenceText, setDefenceText] = useState('');
   const feedbackInputRef = useRef<HTMLInputElement | null>(null);
@@ -1216,7 +1220,7 @@ export default function MatterDetailView() {
   const [rebuttalSaving, setRebuttalSaving] = useState(false);
   const [rebuttalError, setRebuttalError] = useState<string | null>(null);
 
-  const attachRebuttalText = useCallback(async (name: string, text: string, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' | 'defence-source' = 'rebuttal-source') => {
+  const attachRebuttalText = useCallback(async (name: string, text: string, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' | 'defence-source' | 'claim-source' = 'rebuttal-source') => {
     if (!sessionId) return;
     setRebuttalSaving(true);
     setRebuttalError(null);
@@ -1253,6 +1257,28 @@ export default function MatterDetailView() {
       setExtractPasteMsg('The text could not be read. Try again.');
     } finally { setExtracting(false); }
   }, [extractPasteText, uploadKind, employment]);
+
+  useEffect(() => {
+    const items = employment.replyComparison?.items ?? [];
+    setReplySelections(new Set(items.filter(i => i.kind === 'new_matter' && i.needsReply).map(i => i.id)));
+  }, [employment.replyComparison]);
+
+  const runReplyComparison = useCallback(async () => {
+    if (!sessionId) return;
+    setComparing(true);
+    setComparisonMsg(null);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/reply-comparison`, { method: 'POST', credentials: 'include' });
+      const d = await res.json().catch(() => ({})) as { ok?: boolean; comparison?: { items: unknown[] }; error?: string };
+      if (!res.ok || !d.comparison) { setComparisonMsg(d.error ?? 'The comparison could not be completed. Try again.'); return; }
+      const items = d.comparison.items as Array<{ kind: string; needsReply: boolean }>;
+      const newMatters = items.filter(i => i.kind === 'new_matter').length;
+      setComparisonMsg(`Read both pleadings: ${items.length} points sorted, ${newMatters} new matter${newMatters === 1 ? '' : 's'} for the Reply, each quoting the Defence. Untick anything you choose not to answer.`);
+      void employment.refresh();
+    } catch {
+      setComparisonMsg('The comparison could not be completed. Try again.');
+    } finally { setComparing(false); }
+  }, [sessionId, employment]);
 
   const setWaitingOn = useCallback(async (who: string) => {
     if (!sessionId) return;
@@ -1344,7 +1370,7 @@ export default function MatterDetailView() {
     } catch { /* the digest is a courtesy; never block the matter */ }
   }, [resumeSid, employment.data, employment.generatedDocuments, matter]);
 
-  const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' | 'defence-source' = 'rebuttal-source') => {
+  const attachRebuttalFile = useCallback(async (file: File, slot: 'rebuttal-source' | 'rebuttal-feedback' | 'soc-source' | 'defence-source' | 'claim-source' = 'rebuttal-source') => {
     setRebuttalSaving(true);
     setRebuttalError(null);
     try {
@@ -1465,6 +1491,7 @@ export default function MatterDetailView() {
         body: JSON.stringify({
           lawyerName: profile.displayName || 'Lawyer Name',
                         lawyerBlock: profile.lawyerBlock || undefined,
+                        ...(selectedDraft === 'reply' && replySelections.size > 0 ? { replyItemIds: [...replySelections] } : {}),
           firmName: profile.firmName || 'Firm Name',
           firmAddress: [profile.firmAddress, profile.firmPhone && `Tel: ${profile.firmPhone}`, profile.firmEmail && `Email: ${profile.firmEmail}`].filter(Boolean).join(' · ') || undefined,
           courtLocation: genCourtLocation,
@@ -3577,6 +3604,98 @@ export default function MatterDetailView() {
                       >
                         {rebuttalSaving ? 'Saving\u2026' : 'Attach the Defence'}
                       </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedDraft === 'reply' && showOptions && (
+                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Read the Defence against the Claim</div>
+                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
+                    Starling reads both pleadings and sorts the Defence into admissions, bare denials (deemed denied; a Reply adds nothing), and the new matters you may answer, each quoting the Defence.
+                    You pick which new matters the Reply addresses; new matters arrive ticked, everything else is for the record.
+                    {employment.claimOnFile
+                      ? ' The claim on this matter is compared automatically.'
+                      : ' No claim is on this matter yet: attach the as-filed claim below.'}
+                  </div>
+                  {!employment.claimOnFile && !employment.claimSource && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                      <input
+                        ref={claimSourceInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.doc,.txt,.md,.rtf"
+                        style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f, 'claim-source'); e.target.value = ''; }}
+                        aria-label="Upload the as-filed Statement of Claim"
+                      />
+                      <button
+                        onClick={() => claimSourceInputRef.current?.click()}
+                        disabled={rebuttalSaving}
+                        style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                      >
+                        {rebuttalSaving ? 'Reading…' : 'Attach the as-filed claim'}
+                      </button>
+                    </div>
+                  )}
+                  {employment.claimSource && (
+                    <div style={{ fontSize: 13, color: ink, marginBottom: 10 }}>
+                      ✓ <b>{employment.claimSource.name}</b> · {employment.claimSource.words} words
+                      <button
+                        onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/claim-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
+                        style={{ marginLeft: 10, background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12, fontFamily: sans, padding: '3px 9px', borderRadius: 2 }}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => void runReplyComparison()}
+                      disabled={comparing || !employment.defenceSource}
+                      style={{ background: comparing || !employment.defenceSource ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 2, border: 'none', cursor: comparing || !employment.defenceSource ? 'not-allowed' : 'pointer', fontFamily: sans }}
+                    >
+                      {comparing ? 'Reading…' : 'Read the Defence against the Claim'}
+                    </button>
+                    {!employment.defenceSource && !comparing && (
+                      <span style={{ fontSize: 12.5, color: muted }}>Attach the Statement of Defence above first.</span>
+                    )}
+                    {comparisonMsg && <span role="status" style={{ fontSize: 12.5, color: ink }}>{comparisonMsg}</span>}
+                  </div>
+                  {employment.replyComparison && employment.replyComparison.items.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                        {employment.replyComparison.defenceName} against {employment.replyComparison.claimName}
+                      </div>
+                      {employment.replyComparison.items.map(item => {
+                        const chip = item.kind === 'new_matter' ? { label: 'NEW MATTER', bg: '#fdf0dd', fg: '#b8860b' }
+                          : item.kind === 'admission' ? { label: 'ADMISSION', bg: '#e7f6ec', fg: '#1a7a3a' }
+                          : item.kind === 'denial' ? { label: 'DENIAL', bg: '#f4f1ec', fg: muted }
+                          : { label: 'OTHER', bg: '#f4f1ec', fg: muted };
+                        const selectable = item.kind === 'new_matter';
+                        return (
+                          <div key={item.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 0', borderTop: '1px solid #f0ede8' }}>
+                            {selectable ? (
+                              <input
+                                type="checkbox"
+                                checked={replySelections.has(item.id)}
+                                onChange={() => setReplySelections(prev => { const next = new Set(prev); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })}
+                                aria-label={`Address Defence paragraph ${item.defenceParagraph} in the Reply`}
+                                style={{ accentColor: navy, marginTop: 3 }}
+                              />
+                            ) : <span style={{ width: 13 }} />}
+                            <span style={{ fontSize: 10, fontWeight: 700, color: chip.fg, background: chip.bg, padding: '2px 7px', borderRadius: 2, minWidth: 78, textAlign: 'center', marginTop: 2 }}>{chip.label}</span>
+                            <span style={{ flex: 1, fontSize: 12.5, color: ink, lineHeight: 1.5 }}>
+                              <b>Para {item.defenceParagraph}:</b> {item.summary}
+                              {item.why && <span style={{ display: 'block', color: muted }}>{item.why}</span>}
+                              <span style={{ display: 'block', fontSize: 11.5, color: muted, fontStyle: 'italic' }}>&ldquo;{item.quote.length > 160 ? item.quote.slice(0, 160) + '…' : item.quote}&rdquo;</span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                      <div style={{ fontSize: 12, color: muted, marginTop: 8 }}>
+                        The Reply will address the {replySelections.size} ticked new matter{replySelections.size === 1 ? '' : 's'} and nothing else. Your comments in the direction box below still bind the drafting.
+                      </div>
                     </div>
                   )}
                 </div>

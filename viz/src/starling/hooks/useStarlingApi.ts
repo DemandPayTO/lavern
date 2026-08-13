@@ -1526,6 +1526,12 @@ export interface UseEmploymentDataResult {
   waiting: WaitingInfo | null;
   socSource: { name: string; words: number; savedAt: string } | null;
   defenceSource: { name: string; words: number; savedAt: string } | null;
+  claimSource: { name: string; words: number; savedAt: string } | null;
+  claimOnFile: boolean;
+  replyComparison: {
+    items: Array<{ id: string; defenceParagraph: string; kind: string; summary: string; needsReply: boolean; why?: string; quote: string }>;
+    claimName: string; defenceName: string; generatedAt: string; droppedUnverified?: number;
+  } | null;
   demandLetterOnFile: boolean;
   /** Mediation logistics stored at the last generation, for prefill. */
   mediationLogistics: { date?: string; mediator?: string } | null;
@@ -1634,6 +1640,12 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const [waiting, setWaiting] = useState<WaitingInfo | null>(null);
   const [socSource, setSocSource] = useState<{ name: string; words: number; savedAt: string } | null>(null);
   const [defenceSource, setDefenceSource] = useState<{ name: string; words: number; savedAt: string } | null>(null);
+  const [claimSource, setClaimSource] = useState<{ name: string; words: number; savedAt: string } | null>(null);
+  const [claimOnFile, setClaimOnFile] = useState(false);
+  const [replyComparison, setReplyComparison] = useState<{
+    items: Array<{ id: string; defenceParagraph: string; kind: string; summary: string; needsReply: boolean; why?: string; quote: string }>;
+    claimName: string; defenceName: string; generatedAt: string; droppedUnverified?: number;
+  } | null>(null);
   const [demandLetterOnFile, setDemandLetterOnFile] = useState(false);
   const [mediationLogistics, setMediationLogistics] = useState<{ date?: string; mediator?: string } | null>(null);
   const loadedUpdatedAt = useRef<string | undefined>(undefined);
@@ -1669,6 +1681,9 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
       setWaiting(json.waiting && typeof json.waiting === 'object' ? json.waiting as WaitingInfo : null);
       setSocSource(json.socSource && typeof json.socSource === 'object' ? json.socSource : null);
       setDefenceSource(json.defenceSource && typeof json.defenceSource === 'object' ? json.defenceSource : null);
+      setClaimSource(json.claimSource && typeof json.claimSource === 'object' ? json.claimSource : null);
+      setClaimOnFile(json.claimOnFile === true);
+      setReplyComparison(json.replyComparison && typeof json.replyComparison === 'object' ? json.replyComparison : null);
       setDemandLetterOnFile(json.demandLetterOnFile === true);
       setMediationLogistics(json.mediationLogistics && typeof json.mediationLogistics === 'object' ? json.mediationLogistics : null);
       setAttribution({
@@ -2019,7 +2034,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, rebuttalFeedback, socSource, defenceSource, demandLetterOnFile, waiting, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, rebuttalFeedback, socSource, defenceSource, claimSource, claimOnFile, replyComparison, demandLetterOnFile, waiting, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────
