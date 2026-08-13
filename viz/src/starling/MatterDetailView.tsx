@@ -2868,8 +2868,31 @@ export default function MatterDetailView() {
                 </>
               )}
 
-              {matter!.documents.length === 0 && (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No documents yet.</div>
+              {/* What Starling has actually read on this matter. The legacy
+                  list above only knows briefing-era uploads, so this is the
+                  record that stops the tab claiming "no documents" after
+                  three reads. */}
+              {(employment.data?.documentExtractions ?? []).length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 14, margin: '22px 0 12px', color: muted, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: serif }}>
+                    Read on this matter
+                  </h3>
+                  {(employment.data?.documentExtractions ?? []).map((ext, i) => (
+                    <div key={ext.id ?? i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid #f0ede8', fontSize: 13, color: ink }}>
+                      <b>{ext.filename}</b>
+                      <span style={{ color: muted }}>{String(ext.documentType).replace(/_/g, ' ')}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: ext.appliedAt ? '#1a7a3a' : '#b8860b' }}>
+                        {ext.appliedAt ? 'Facts applied to the intake' : 'Awaiting your review below'}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {matter!.documents.length === 0 && (employment.data?.documentExtractions ?? []).length === 0 && (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>
+                  No documents read yet. Upload below, or drop the case file folder; every read proposes facts for your review.
+                </div>
               )}
 
               {/* The internal read lane: summary, standing checks, questions, comparison */}
@@ -3044,7 +3067,7 @@ export default function MatterDetailView() {
                   .map((ext, i) => ({ ext, key: ext.id ?? `idx-${i}` }))
                   .filter(({ ext }) => !ext.appliedAt && ext.documentType !== 'collective_agreement'
                     && Object.values(ext.extractedFields).some(f => f && f.value !== null && f.value !== ''))
-                  .slice(-2)
+                  .slice(-6)
                   .map(({ ext, key }) => (
                     <div key={key} style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>

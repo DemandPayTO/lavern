@@ -1539,14 +1539,44 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       costUsd: run.costUsd,
     };
     employment.docAnalyses = [...(employment.docAnalyses ?? []), stored].slice(-DOC_ANALYSES_CAP);
+
+    // One read, both effects. The pilot read three documents through this
+    // lane and expected the intake to learn from them; it never did,
+    // because only the upload lane extracted facts. The same text now
+    // also goes through the fact extractor, and the proposals wait in the
+    // same review table as every upload. Best effort: the analysis the
+    // lawyer asked for never fails because the extraction hiccuped.
+    let factsProposed = 0;
+    try {
+      const EXTRACT_KIND: Record<string, string> = {
+        employment_agreement: 'employment_agreement', termination_letter: 'termination_letter',
+        pay_stub: 'pay_stub', client_summary: 'correspondence', bonus_plan: 'other', other: 'other',
+      };
+      const extraction = await extractEmploymentDocument(
+        parsed.data.docText, parsed.data.docName,
+        EXTRACT_KIND[parsed.data.kind] as never, partyTerms.slice(0, 20),
+      );
+      extraction.id = `ext-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      factsProposed = Object.values(extraction.extractedFields).filter(f => f && f.value !== null && f.value !== '').length;
+      if (factsProposed > 0) {
+        employment.documentExtractions.push(extraction);
+        if ((extraction.costUsd ?? 0) > 0) {
+          try { recordUsageEvent(userId, matterId, 'analysis', `extract_${parsed.data.kind}`, extraction.costUsd!); }
+          catch { /* metering never blocks the flow */ }
+        }
+      }
+    } catch (err) {
+      logger.warn('Fact extraction alongside doc analysis failed (non-fatal)', { matterId, error: err instanceof Error ? err.message : String(err) });
+    }
+
     (matter as Record<string, unknown>).employmentData = employment;
     await saveMatter(userId, matterId, JSON.stringify(matter), ((matter as Record<string, unknown>).status as string) ?? 'active');
 
     try { recordUsageEvent(userId, matterId, 'analysis', `doc_analysis_${parsed.data.kind}`, run.costUsd); }
     catch (err) { logger.warn('Usage event failed', { error: err instanceof Error ? err.message : String(err) }); }
 
-    logger.info('Doc analysis stored', { userId, matterId, kind: parsed.data.kind, costUsd: run.costUsd });
-    return reply.send({ ok: true, analysis: stored });
+    logger.info('Doc analysis stored', { userId, matterId, kind: parsed.data.kind, costUsd: run.costUsd, factsProposed });
+    return reply.send({ ok: true, analysis: stored, factsProposed });
   });
 
   fastify.get('/api/employment/:matterId/doc-analyses', async (req: FastifyRequest, reply: FastifyReply) => {

@@ -125,7 +125,7 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
           definedTerms: mainDoc.definedTerms,
         }),
       });
-      const json = await res.json().catch(() => ({})) as { ok?: boolean; analysis?: StoredAnalysis; error?: string };
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; analysis?: StoredAnalysis; error?: string; factsProposed?: number };
       if (!res.ok || !json.analysis) {
         setErrorMsg(json.error ?? 'The read could not be completed. Try again.');
         return;
@@ -137,6 +137,7 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
       if (found > 0) bits.push(`${found} of the standing checks found something, each with the quote it came from.`);
       if (questions.length > 0) bits.push(`Your ${questions.length === 1 ? 'question is' : `${questions.length} questions are`} answered below.`);
       if (compareDoc) bits.push(`Compared against ${compareDoc.name}.`);
+      if ((json.factsProposed ?? 0) > 0) bits.push(`${json.factsProposed} intake facts were proposed from this document; review and apply them in the extraction table on this tab.`);
       bits.push('The read is saved on this matter.');
       setMessage(bits.join(' '));
       setMainDoc(null);
