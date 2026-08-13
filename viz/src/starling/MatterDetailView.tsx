@@ -754,6 +754,12 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
   { key: 'employer_address', label: 'Employer address (service address on forms)' },
   { key: 'job_title', label: 'Job title' },
   { key: 'annual_salary', label: 'Annual salary (CAD)', type: 'number' },
+  // The income breakdown: the brief's profile table and the damages story
+  // read these, and until now only the questionnaire could set them.
+  { key: 'bonus_amount', label: 'Annual bonus (CAD)', type: 'number' },
+  { key: 'commission_amount', label: 'Annual commissions (CAD)', type: 'number' },
+  { key: 'allowances_amount', label: 'Allowances per year (CAD)', type: 'number' },
+  { key: 'allowances_details', label: 'Allowances, described (car, phone, housing)' },
   { key: 'hire_date', label: 'Hire date', type: 'date' },
   { key: 'years_of_service_estimate', label: 'Years of service (estimate, when the start date is unknown)', type: 'number' },
   { key: 'termination_date', label: 'Termination date', type: 'date' },

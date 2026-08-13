@@ -74,8 +74,13 @@ function firmShapedProfileTable(
   const start = intake.hire_date ?? intake.first_day_of_work;
   const comp: string[] = [];
   if (intake.annual_salary) comp.push(`Base salary ${cad(intake.annual_salary)} per year`);
-  if (intake.has_bonus && intake.bonus_amount) comp.push(`bonus ${cad(intake.bonus_amount)}`);
-  if (intake.has_commissions && intake.commission_amount) comp.push(`commissions ${cad(intake.commission_amount)}`);
+  // The amount alone is evidence of the component: a bonus applied from a
+  // document arrives without its has_bonus flag and must still render.
+  if (intake.bonus_amount) comp.push(`bonus ${cad(intake.bonus_amount)}`);
+  if (intake.commission_amount) comp.push(`commissions ${cad(intake.commission_amount)}`);
+  if (intake.allowances_amount) comp.push(`allowances ${cad(intake.allowances_amount)}${intake.allowances_details ? ` (${intake.allowances_details})` : ''}`);
+  else if (intake.allowances_details) comp.push(`allowances: ${intake.allowances_details}`);
+  if (intake.other_compensation_details) comp.push(String(intake.other_compensation_details));
   const dismissalType = intake.was_terminated
     ? (intake.employer_alleged_just_cause ? 'Termination; employer alleges just cause' : 'Termination without cause')
     : intake.is_constructive_dismissal ? 'Constructive dismissal (alleged)' : null;
@@ -164,8 +169,13 @@ export function buildProfileTable(intake: EmploymentIntakeData, analysis: Intake
 
   const comp: string[] = [];
   if (intake.annual_salary) comp.push(`Base salary ${cad(intake.annual_salary)} per year`);
-  if (intake.has_bonus && intake.bonus_amount) comp.push(`bonus ${cad(intake.bonus_amount)}`);
-  if (intake.has_commissions && intake.commission_amount) comp.push(`commissions ${cad(intake.commission_amount)}`);
+  // The amount alone is evidence of the component: a bonus applied from a
+  // document arrives without its has_bonus flag and must still render.
+  if (intake.bonus_amount) comp.push(`bonus ${cad(intake.bonus_amount)}`);
+  if (intake.commission_amount) comp.push(`commissions ${cad(intake.commission_amount)}`);
+  if (intake.allowances_amount) comp.push(`allowances ${cad(intake.allowances_amount)}${intake.allowances_details ? ` (${intake.allowances_details})` : ''}`);
+  else if (intake.allowances_details) comp.push(`allowances: ${intake.allowances_details}`);
+  if (intake.other_compensation_details) comp.push(String(intake.other_compensation_details));
   if (comp.length) rows.push(row('Compensation', esc(comp.join('; '))));
   else flags.push('Profile table: compensation missing from intake.');
 

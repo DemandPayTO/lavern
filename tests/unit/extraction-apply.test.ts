@@ -36,6 +36,22 @@ describe('APPLYABLE_INTAKE_FIELDS whitelist', () => {
   });
 });
 
+describe('every intake field tolerates null (drift guard)', () => {
+  // The editor and the questionnaire send null to mean "cleared", and the
+  // merge deletes the key. A field whose schema rejects null fails the
+  // WHOLE save it rides in: the pilot lost an age to a blank email field
+  // this way. No field may ever reject null again.
+  it('a save of {field: null} parses for every field in the schema', () => {
+    const shape = employmentIntakeSchema.shape as Record<string, unknown>;
+    const offenders: string[] = [];
+    for (const key of Object.keys(shape)) {
+      const res = employmentIntakeSchema.safeParse({ [key]: null });
+      if (!res.success) offenders.push(key);
+    }
+    expect(offenders, `null-intolerant fields: ${offenders.join(', ')}`).toEqual([]);
+  });
+});
+
 describe('applyExtractionSelections', () => {
   it('fills blank fields, skips non-blank without overwrite, overwrites with opt-in', () => {
     const ext = extraction({

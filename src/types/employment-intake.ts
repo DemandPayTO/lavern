@@ -92,11 +92,11 @@ export const employmentIntakeSchema = z.object({
   client_last_name:       optString,
   client_date_of_birth:   optDate,
   client_age:             z.number().int().min(14).max(120).optional().nullable(),
-  client_email:           z.string().email().max(254).optional().or(z.literal('')),
+  client_email:           z.string().email().max(254).optional().nullable().or(z.literal('')),
   client_phone:           optString,
   client_address:         optString,
   client_city:            optString,
-  client_province:        z.string().max(50).optional().or(z.literal('')),
+  client_province:        z.string().max(50).optional().nullable().or(z.literal('')),
   client_postal_code:     optString,
   /**
    * How documents refer to the client. Set by the lawyer, never inferred
@@ -117,14 +117,14 @@ export const employmentIntakeSchema = z.object({
   employer_industry:      optString,
   is_unionized:           optBool,
   is_federal_employee:    optBool,
-  work_province:          z.string().max(50).optional().or(z.literal('Ontario')),
+  work_province:          z.string().max(50).optional().nullable().or(z.literal('Ontario')),
 
   // ── Employment details ─────────────────────────────────────────────────
   hire_date:              optDate,
   contract_signed_date:   optDate,
   first_day_of_work:      optDate,
   job_title:              optString,
-  key_duties:             z.string().trim().max(5000).optional().or(z.literal('')),
+  key_duties:             z.string().trim().max(5000).optional().nullable().or(z.literal('')),
   role_changed_since_signing: optBool,
   role_change_details:    optString,
 
@@ -172,7 +172,7 @@ export const employmentIntakeSchema = z.object({
   termination_clause_exists: optBool,
   // Lawyers paste whole clause sections from long agreements; 10,000 was
   // hit in practice and the rejection took the rest of the save with it.
-  termination_clause_text: z.string().trim().max(20000).optional().or(z.literal('')),
+  termination_clause_text: z.string().trim().max(20000).optional().nullable().or(z.literal('')),
   termination_notice_period: optString,
   clause_signed_date:     optDate,
   clause_added_mid_employment: optBool,
@@ -229,9 +229,9 @@ export const employmentIntakeSchema = z.object({
 
   // ── Restrictive covenants ──────────────────────────────────────────────
   has_non_compete:        optBool,
-  non_compete_text:       z.string().trim().max(20000).optional().or(z.literal('')),
+  non_compete_text:       z.string().trim().max(20000).optional().nullable().or(z.literal('')),
   has_non_solicitation:   optBool,
-  non_solicitation_text:  z.string().trim().max(20000).optional().or(z.literal('')),
+  non_solicitation_text:  z.string().trim().max(20000).optional().nullable().or(z.literal('')),
 
   // ── Severance offer ────────────────────────────────────────────────────
   received_severance_offer: optBool,
@@ -370,7 +370,7 @@ export const employmentIntakeSchema = z.object({
   separation_type: optString,
   employer_stated_reason: optBool,
   employer_alleged_cause: optBool,
-  cause_reasons: z.array(z.string().max(200)).optional(),
+  cause_reasons: z.array(z.string().max(200)).optional().nullable(),
   prior_discipline: optBool,
   condonation: optBool,
   cd_changes: optString,
@@ -383,7 +383,7 @@ export const employmentIntakeSchema = z.object({
   specialized_skills: optBool,
   found_comparable_work: optString,
   adverse_market: optBool,
-  recruitment_promises: z.array(z.string().max(200)).optional(),
+  recruitment_promises: z.array(z.string().max(200)).optional().nullable(),
   promises_in_writing: optBool,
   resigned_prior_employer: optBool,
   prior_employer_service_years: optNumber,
@@ -396,7 +396,7 @@ export const employmentIntakeSchema = z.object({
   roe_coded_correctly: optString,
   was_laid_off: optBool,
   mass_termination: optBool,
-  hrc_grounds: z.array(z.string().max(200)).optional(),
+  hrc_grounds: z.array(z.string().max(200)).optional().nullable(),
   hrc_adverse_treatment: optString,
   has_disability: optBool,
   accommodation_refused: optBool,
@@ -406,13 +406,13 @@ export const employmentIntakeSchema = z.object({
   family_status_issue: optBool,
   hrto_application: optBool,
   dismissal_manner: optString,
-  bad_faith_acts: z.array(z.string().max(200)).optional(),
+  bad_faith_acts: z.array(z.string().max(200)).optional().nullable(),
   retaliatory_litigation: optBool,
   base_salary: optNumber,
   active_employ_clause: optBool,
   has_equity_comp: optBool,
   battiston_click: optBool,
-  other_compensation: z.array(z.string().max(200)).optional(),
+  other_compensation: z.array(z.string().max(200)).optional().nullable(),
   clawback_dispute: optBool,
   has_noncompete: optBool,
   has_nonsolicit: optBool,
@@ -444,8 +444,8 @@ export const employmentIntakeSchema = z.object({
   job_duties:             optString,
 
   // ── Additional context ─────────────────────────────────────────────────
-  additional_information: z.string().trim().max(10000).optional().or(z.literal('')),
-  lawyer_notes:           z.string().trim().max(10000).optional().or(z.literal('')),
+  additional_information: z.string().trim().max(10000).optional().nullable().or(z.literal('')),
+  lawyer_notes:           z.string().trim().max(10000).optional().nullable().or(z.literal('')),
 });
 
 export type EmploymentIntakeData = z.infer<typeof employmentIntakeSchema>;
