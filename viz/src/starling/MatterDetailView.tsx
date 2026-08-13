@@ -743,10 +743,10 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
       ['name', 'Name only, no pronouns'],
     ],
   },
-  // Contact block: the HRTO Form 1 and the court forms print these, and
-  // until now no surface let the lawyer enter them.
-  { key: 'client_email', label: 'Client email' },
-  { key: 'client_phone', label: 'Client phone' },
+  // Addresses only: the HRTO Form 1 and the court forms print them.
+  // Email and phone stay off this grid on the pilot's direction: Starling
+  // is a drafting and matter app, not a contact list. The court forms
+  // print those lines blank when unset, for the lawyer to fill.
   { key: 'client_address', label: 'Client street address' },
   { key: 'client_city', label: 'Client city' },
   { key: 'client_postal_code', label: 'Client postal code' },
