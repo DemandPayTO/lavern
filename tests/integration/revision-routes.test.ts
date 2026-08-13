@@ -280,6 +280,86 @@ describe('the letter being answered (rebuttal source)', () => {
   });
 });
 
+describe('the Reply and the forum', () => {
+  // The generator's user prompt reads the computed analysis; a real matter
+  // always has one by the time a Defence arrives.
+  const FULL_ANALYSIS = {
+    computedAt: new Date().toISOString(),
+    damagesEstimate: {
+      esaNoticeWeeks: 8, esaNoticePay: 13538, esaSeverancePay: 14893,
+      commonLawLowMonths: 8, commonLawHighMonths: 12,
+      commonLawLowAmount: 58667, commonLawHighAmount: 88000,
+      additionalHeads: [], totalEstimateLow: 58667, totalEstimateHigh: 88000,
+    },
+    bardalFactors: { age: 47, tenureYears: 9.2 },
+  };
+
+  function setForum(procedure: string | null) {
+    const row = getMatterById(MID, userId)!;
+    const matter = JSON.parse(row.data_json) as Record<string, unknown>;
+    const emp = matter.employmentData as Record<string, unknown>;
+    emp.analysis = FULL_ANALYSIS;
+    if (procedure === null) delete emp.selectedProcedure;
+    else emp.selectedProcedure = procedure;
+    // A Defence on file proves the forum guard runs FIRST: even with the
+    // Defence attached, a Small Claims matter gets the no-Reply message.
+    matter.defenceSource = { name: 'Statement of Defence', text: 'The Defendant pleads just cause. '.repeat(10), savedAt: new Date().toISOString(), words: 60 };
+    saveMatter(userId, MID, JSON.stringify(matter));
+  }
+
+  it('a Small Claims matter cannot generate a Reply: the rules provide none', async () => {
+    seedMatter();
+    setForum('small_claims');
+    const res = await post(`/api/employment/${MID}/litigation-document`, {
+      documentType: 'reply',
+      lawyerName: 'Jordan Haworth',
+      firmName: 'Evans Law Firm',
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toContain('Small Claims Court');
+    expect(String(res.body.error)).toContain('Form 9A');
+    expect(String(res.body.error)).toContain('settlement conference');
+  });
+
+  it('the recommended procedure gates too, when the lawyer has not chosen one', async () => {
+    seedMatter();
+    const row = getMatterById(MID, userId)!;
+    const matter = JSON.parse(row.data_json) as Record<string, unknown>;
+    const emp = matter.employmentData as Record<string, unknown>;
+    emp.analysis = { ...FULL_ANALYSIS, recommendedProcedure: 'small_claims' };
+    matter.defenceSource = { name: 'Statement of Defence', text: 'The Defendant pleads just cause. '.repeat(10), savedAt: new Date().toISOString(), words: 60 };
+    saveMatter(userId, MID, JSON.stringify(matter));
+    const res = await post(`/api/employment/${MID}/litigation-document`, {
+      documentType: 'reply',
+      lawyerName: 'Jordan Haworth',
+      firmName: 'Evans Law Firm',
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toContain('Small Claims Court');
+  });
+
+  it('a Superior Court matter passes the forum guard and reaches drafting', async () => {
+    seedMatter();
+    setForum('simplified');
+    // The (mocked) model returns a minimal pleading body; reaching 200
+    // proves the guard did not fire for the Superior Court forum.
+    modelReply = '<p>The Plaintiff denies the allegations contained in paragraphs 1 to 9 of the Statement of Defence.</p>';
+    const res = await post(`/api/employment/${MID}/litigation-document`, {
+      documentType: 'reply',
+      lawyerName: 'Jordan Haworth',
+      firmName: 'Evans Law Firm',
+    });
+    expect(res.status).toBe(200);
+    const html = String(res.body.html);
+    // And the Form 25A shell arrived around the body: heading, numbered
+    // paragraph, closing.
+    expect(html).toContain('SUPERIOR COURT OF JUSTICE');
+    expect(html).toContain('<u>REPLY</u>');
+    expect(html).toContain('>1. The Plaintiff denies');
+    expect(html).toContain('Lawyers for the Plaintiff');
+  });
+});
+
 describe('reading long direction notes', () => {
   it('accepts a long client email: the cap is 100k, not 20k', async () => {
     // Validation must pass; the (mocked) model then answers.

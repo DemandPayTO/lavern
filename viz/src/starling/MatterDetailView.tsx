@@ -1150,8 +1150,18 @@ export default function MatterDetailView() {
    * can. A dead button that looks alive is a bug report, so the reason is
    * shown and the button is greyed from the same value.
    */
+  // The matter's forum: the lawyer's chosen procedure where set, otherwise
+  // the analysis recommendation. The Small Claims Court has no Reply, so
+  // the Reply workspace explains instead of generating.
+  const matterProcedure = employment.data?.selectedProcedure
+    ?? ((employment.data?.analysis as { recommendedProcedure?: string } | null)?.recommendedProcedure ?? null);
+  const isSmallClaimsMatter = matterProcedure === 'small_claims';
+
   const blockedReason: string | null = (() => {
     if (!selectedDraft) return null;
+    if (selectedDraft === 'reply' && isSmallClaimsMatter) {
+      return 'This matter is in the Small Claims Court, and its rules provide no Reply to a Defence. See the note above for what happens instead.';
+    }
     if (DRAFTS_NEEDING_AMOUNT.has(selectedDraft) && !genDemandAmount) {
       return selectedDraft === 'demand'
         ? 'Enter the Demand Amount above. It is the figure the letter demands, which is your judgment and not the total of the heads.'
@@ -3541,6 +3551,18 @@ export default function MatterDetailView() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {selectedDraft === 'reply' && showOptions && isSmallClaimsMatter && (
+                <div style={{ background: '#fdf6ec', border: '1px solid #e8d9bd', padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>There is no Reply in the Small Claims Court</div>
+                  <div style={{ fontSize: 12.5, color: ink, lineHeight: 1.6 }}>
+                    This matter is in the Small Claims Court, and the Rules of the Small Claims Court provide no Reply to a Defence: the pleadings end with the Defence, and the Defence is answered at the settlement conference.
+                    If the Defendant has served a Defendant&rsquo;s Claim against your client, the answer to that is a Defence (Form 9A), served and filed within 20 days of service, not a Reply.
+                    You can still read the Defence against the Claim below: the sorted issues are useful preparation for the settlement conference, and the Settlement Conference Brief in this tab can be generated from the same file.
+                    If this matter is not in fact in the Small Claims Court, set the procedure on the Statement of Claim options and the Reply becomes available.
+                  </div>
                 </div>
               )}
 

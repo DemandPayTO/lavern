@@ -2590,6 +2590,14 @@ nodeReport: result.nodeReport,
     let defenceContext: string | undefined;
     let defenceSourceDoc: { name: string; content: string } | undefined;
     if (parsed.data.documentType === 'reply') {
+      // The Rules of the Small Claims Court (O. Reg. 258/98) provide no
+      // Reply: the pleadings end with the Defence. Producing one anyway
+      // would hand the lawyer a document no court accepts.
+      const forum = employment.selectedProcedure
+        ?? ((employment.analysis as { recommendedProcedure?: string } | null)?.recommendedProcedure ?? null);
+      if (forum === 'small_claims') {
+        return reply.status(400).send({ ok: false, error: 'This matter is in the Small Claims Court, and its rules provide no Reply to a Defence. The Defence is answered at the settlement conference. If the Defendant has served a Defendant’s Claim, the answer is a Defence (Form 9A) within 20 days of service.' });
+      }
       const src = (matter as Record<string, unknown>).defenceSource as { name?: string; text?: string } | undefined;
       if (!src?.text) {
         return reply.status(400).send({ ok: false, error: 'Attach the Statement of Defence first. The Reply workspace has a place for it.' });
