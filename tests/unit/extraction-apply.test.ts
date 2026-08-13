@@ -12,7 +12,7 @@ import {
 import { employmentIntakeSchema } from '../../src/types/employment-intake.js';
 import type { DocumentExtractionResult, EmploymentIntakeData, TimelineEvent } from '../../src/types/employment-intake.js';
 import { rebuildTimelinePreserving } from '../../src/employment/timeline-generator.js';
-import { verifySourceQuotes } from '../../src/api/briefing/employment-extractor.js';
+import { verifySourceQuotes, buildExtractionPrompt } from '../../src/api/briefing/employment-extractor.js';
 
 function extraction(fields: DocumentExtractionResult['extractedFields']): DocumentExtractionResult {
   return {
@@ -33,6 +33,19 @@ describe('APPLYABLE_INTAKE_FIELDS whitelist', () => {
     for (const key of APPLYABLE_INTAKE_FIELDS) {
       expect(shape[key], `whitelist key "${key}" missing from intake schema`).toBeDefined();
     }
+  });
+});
+
+describe('offer-bearing document kinds ask for offers (drift guard)', () => {
+  // The negotiation ledger fills from proposed offers. A demand letter's
+  // own demand is the ledger's opening entry; the pilot uploaded one and
+  // the ledger stayed empty because only other kinds asked for offers.
+  it('the kinds that carry offers all instruct the reader to list them', () => {
+    for (const kind of ['demand_letter', 'termination_letter', 'correspondence', 'other'] as const) {
+      const prompt = buildExtractionPrompt(kind);
+      expect(prompt, `${kind} prompt lacks the offers section`).toContain('OFFERS TO SETTLE');
+    }
+    expect(buildExtractionPrompt('demand_letter')).toContain('opening entry of the negotiation ledger');
   });
 });
 

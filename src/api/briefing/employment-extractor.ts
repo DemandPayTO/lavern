@@ -90,7 +90,7 @@ PLEADING FACTS, special rules. Some fields below are marked [PLEADING]. Approvin
 - NEVER set a [PLEADING] field to false. A document that does not mention something is not evidence it did not happen. Use null.
 - For the paired description field, quote or closely paraphrase the document; never embellish.`;
 
-function buildExtractionPrompt(kind: DocumentKind): string {
+export function buildExtractionPrompt(kind: DocumentKind): string {
   const base = `You are a precise employment law document analyst for Ontario, Canada.
 Your job is to extract specific structured facts from the document provided.
 Extract ONLY what is explicitly stated. Never infer, assume, or fabricate.
@@ -232,7 +232,16 @@ Extract these RECITED facts:
 - severance_weeks_offered (number): Any employer offer the letter responds to
 - demand_amount_stated (number): The total amount the letter demands
 
-Also provide keyFindings: the letter's key positions and theories, AS POSITIONS (e.g. "The letter argues constructive dismissal in the alternative"), so the lawyer sees them without them becoming facts.`,
+Also provide keyFindings: the letter's key positions and theories, AS POSITIONS (e.g. "The letter argues constructive dismissal in the alternative"), so the lawyer sees them without them becoming facts.
+
+OFFERS TO SETTLE: The letter's own demand is the opening entry of the negotiation ledger. List it in "offers" as kind "demand", party "client", with the letter's own date as the date and the demanded amount as amountCad (null if expressed only in weeks or months; describe that in terms). Also list any employer offer the letter RECOUNTS (for example the severance offer it responds to), as party "employer" with the date the letter states for it. For each offer:
+- date (string YYYY-MM-DD, or null if not stated)
+- party: "employer" or "client"
+- kind: "offer", "counter", "demand", "acceptance", or "rejection"
+- amountCad (number or null)
+- terms (string): a short factual description: weeks or months, conditions, release required, deadline
+- sourceQuote: the sentence stating the offer, copied exactly
+List ONLY offers explicitly stated or recounted in this letter. Do not infer offers from context.`,
 
     correspondence: `
 Extract these fields from the correspondence/emails:
