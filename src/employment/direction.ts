@@ -166,7 +166,10 @@ export function clampDirectionExtraction(raw: unknown): unknown {
       i.mustNotInclude = clampList(i.mustNotInclude, 8, 120);
       for (const k of ['mustInclude', 'mustNotInclude']) if (i[k] == null) delete i[k];
       return i;
-    });
+    })
+      // Same salvage rule as everywhere: a truncated trailing item with no
+      // text is dropped, never failed.
+      .filter(i => typeof i === 'object' && i !== null && typeof (i as Record<string, unknown>).text === 'string');
   }
   r.withheld = clampList(r.withheld, 20, 300);
   if (r.withheld == null) delete r.withheld;

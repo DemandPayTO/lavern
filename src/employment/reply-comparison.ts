@@ -17,6 +17,7 @@
 
 import { z } from 'zod';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
+import { repairTruncatedJson } from './direction.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('reply-comparison');
@@ -48,7 +49,7 @@ For each substantive point in the Defence, produce one item:
 
 Rules:
 - defenceParagraph is the Defence's own paragraph number where it gives one, or a short locator.
-- quote is a VERBATIM sentence from the Defence. Every item requires one; an item you cannot quote does not exist.
+- quote is ONE verbatim sentence from the Defence, the shortest that carries the point. Every item requires one; an item you cannot quote does not exist. Never quote more than one sentence.
 - summary states the point in one plain sentence. why (for needsReply items) says in one sentence what the answer would address.
 - id: n1, n2, n3... in document order.
 - No em-dashes. No contractions. Return strict JSON only: {"items": [...]}.`;
@@ -69,7 +70,12 @@ export function clampComparison(raw: unknown): unknown {
       if (i.why == null || i.why === '') delete i.why;
       i.quote = clampStr(i.quote, 800);
       return i;
-    });
+    })
+      // A salvaged truncation can leave one trailing partial item; an item
+      // without its substance is dropped, not failed.
+      .filter(i => typeof i === 'object' && i !== null
+        && typeof (i as Record<string, unknown>).summary === 'string'
+        && typeof (i as Record<string, unknown>).quote === 'string');
   }
   return r;
 }
@@ -99,12 +105,14 @@ export async function compareClaimDefence(args: {
     '"""',
   ].join('\n');
 
+  // One pass, no whole-call retry: a cut-off reply is SALVAGED below, so
+  // re-running the entire read would only double the wait (the pilot sat
+  // through 190 seconds of exactly that).
   const chat = await crossProviderChat({
     system: SYSTEM,
     user,
     tier: 'sonnet',
-    maxTokens: 6144,
-    extendOnTruncation: true,
+    maxTokens: 8192,
     maxRetries: 1,
     definedTerms: args.definedTerms,
   });
@@ -112,7 +120,17 @@ export async function compareClaimDefence(args: {
   const fenced = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (fenced) jsonText = fenced[1].trim();
   const braced = jsonText.match(/\{[\s\S]*\}/);
-  const parsed = comparisonSchema.parse(clampComparison(JSON.parse(braced ? braced[0] : jsonText)));
+  let rawJson: unknown;
+  try {
+    rawJson = JSON.parse(braced ? braced[0] : jsonText);
+  } catch {
+    // A reply cut off mid-list still carries every completed item.
+    const repaired = repairTruncatedJson(jsonText);
+    if (repaired === null) throw new Error(`Comparison reply was not parseable JSON (${chat.text.length} chars)`);
+    rawJson = JSON.parse(repaired);
+    logger.warn('Comparison reply was truncated; salvaged the complete prefix', { replyChars: chat.text.length });
+  }
+  const parsed = comparisonSchema.parse(clampComparison(rawJson));
   const { kept, dropped } = enforceComparisonQuotes(parsed, args.defenceText);
   if (dropped > 0) logger.warn('Comparison items dropped: quotes did not verify against the Defence', { dropped });
   return { kept, dropped, costUsd: chat.cost };

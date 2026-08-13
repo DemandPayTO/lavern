@@ -44,3 +44,14 @@ describe('clampComparison', () => {
     expect(parsed.items[1].needsReply).toBe(false);
   });
 });
+
+describe('truncation salvage', () => {
+  it('a comparison reply cut off mid-list keeps every completed item', async () => {
+    const { repairTruncatedJson } = await import('../../src/employment/direction.js');
+    const truncated = '{"items":[{"id":"n1","defenceParagraph":"2","kind":"new_matter","summary":"Cause alleged.","needsReply":true,"quote":"dismissed for just cause"},{"id":"n2","defenceParagraph":"3","kind":"new_matter","summary":"Mitiga';
+    const { clampComparison, comparisonSchema } = await import('../../src/employment/reply-comparison.js');
+    const parsed = comparisonSchema.parse(clampComparison(JSON.parse(repairTruncatedJson(truncated)!)));
+    expect(parsed.items.length).toBe(1);
+    expect(parsed.items[0].id).toBe('n1');
+  });
+});
