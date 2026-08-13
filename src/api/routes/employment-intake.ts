@@ -2348,6 +2348,8 @@ nodeReport: result.nodeReport,
     documentType: z.enum(LITIGATION_DOC_TYPES),
     claimAmount: z.number().positive().max(99_999_999).optional(),
     lawyerName: z.string().trim().min(1).max(200),
+    /** The counsel block for court documents, one lawyer per line. */
+    lawyerBlock: z.string().trim().max(600).optional(),
     firmName: z.string().trim().min(1).max(200),
     firmAddress: z.string().trim().max(500).optional(),
     courtLocation: z.string().trim().max(200).optional(),
@@ -2657,6 +2659,24 @@ nodeReport: result.nodeReport,
       ];
     }
 
+    // The Reply files under Form 25A: the general heading, the title, the
+    // closing blocks and the consecutive paragraph numbers are assembled
+    // here, deterministically, around the pleading paragraphs the model
+    // wrote. The model never touches the shell.
+    if (parsed.data.documentType === 'reply') {
+      const { assembleReply } = await import('../../employment/reply-shell.js');
+      result.html = assembleReply(result.html, {
+        courtFileNumber: ((matter as Record<string, unknown>).courtFileNumber as string) || undefined,
+        courtLocation: parsed.data.courtLocation,
+        plaintiffName: [employment.intake.client_first_name, employment.intake.client_last_name].filter(Boolean).join(' ') || '[LAWYER: client name]',
+        defendantName: String(employment.intake.employer_legal_name ?? employment.intake.employer_operating_name ?? '[LAWYER: employer name]'),
+        lawyerName: parsed.data.lawyerName,
+        lawyerBlock: parsed.data.lawyerBlock,
+        firmName: parsed.data.firmName,
+        firmAddress: parsed.data.firmAddress,
+      });
+    }
+
     await applyDirectionAftermath(result, litDirection);
 
     // Deterministic precedent-bleed scan: the precedents' names and
@@ -2695,7 +2715,9 @@ nodeReport: result.nodeReport,
           docTitle: 'REPLY',
           firmLines: [
             [parsed.data.firmName.toUpperCase(), ...(parsed.data.firmAddress ? parsed.data.firmAddress.split(/\r?\n/) : [])],
-            [parsed.data.lawyerName],
+            parsed.data.lawyerBlock?.trim()
+              ? parsed.data.lawyerBlock.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+              : [parsed.data.lawyerName],
             ['Lawyers for the Plaintiff'],
           ],
         },

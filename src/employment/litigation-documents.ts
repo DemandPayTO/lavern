@@ -330,20 +330,28 @@ RULES:
 
 Output as HTML with h1, h2, p, strong. Letter format, no tables. No inline styles.`,
 
-    reply: `You are a senior Ontario litigation lawyer drafting a REPLY (Form 25A) under Rule 25.08 of the Rules of Civil Procedure, on behalf of the Plaintiff in a wrongful dismissal action.
+    reply: `You are a senior Ontario litigation lawyer drafting the pleading paragraphs of a REPLY (Form 25A) under Rule 25.08 of the Rules of Civil Procedure, on behalf of the Plaintiff in a wrongful dismissal action.
 
 PURPOSE AND DISCIPLINE:
-A Reply responds ONLY to new matters raised in the Statement of Defence that the Plaintiff must answer: allegations of just cause particulars, failure to mitigate, after-acquired cause, set-off claims, or limitation defences. Everything in the Defence not admitted is already deemed denied (see Rule 25.08(4)); do NOT restate the claim, do NOT plead new causes of action, and keep it SHORT. An overlong Reply reflects poorly on the drafter.
+A Reply responds ONLY to new matters raised in the Statement of Defence that the Plaintiff must answer: allegations of just cause particulars, failure to mitigate, after-acquired cause, set-off claims, or limitation defences. Everything in the Defence not admitted is already deemed denied; do NOT restate the claim, do NOT plead new causes of action, and keep it SHORT. An overlong Reply reflects poorly on the drafter.
 
-STRUCTURE:
-1. Title of proceedings (court file number placeholder, parties as in the Claim)
-2. "1. The Plaintiff repeats the allegations in the Statement of Claim." (or equivalent)
-3. Numbered paragraphs responding to each NEW matter in the Defence: state the response to the allegation and the material facts relied on (e.g., mitigation efforts made; why alleged cause fails McKinley proportionality; why the limitation defence fails)
-4. Date, lawyer/firm block
+THE COURT SHELL IS NOT YOURS TO WRITE. The system assembles the general heading, the title, the date line, the lawyer block, the TO: block, and the backsheet after you draft, and it numbers the paragraphs mechanically. You write ONLY the pleading paragraphs.
 
-IMPORTANT: The user prompt includes the case facts but NOT the actual Statement of Defence text unless provided in additional context. Where the Defence's contents are unknown, draft responsive paragraphs to the ANTICIPATED defences evident from the intake (cause allegations, mitigation) and clearly mark each with [CONFIRM AGAINST DEFENCE] so the lawyer tailors them to the actual pleading.
+STRUCTURE (Form 25A):
+First, the form's canonical opening paragraphs, each in its own <p>, in this order, drawn from the Defence in front of you. Include only the ones that apply; omit any that has no paragraphs to cite:
+- "The Plaintiff admits the allegations contained in paragraphs [list the paragraph numbers] of the Statement of Defence." (allegations that are true and safe to admit: formal matters, party descriptions, dates the Plaintiff does not dispute)
+- "The Plaintiff denies the allegations contained in paragraphs [list the paragraph numbers] of the Statement of Defence." (the contested substance: cause allegations, mitigation allegations, and every paragraph the responsive paragraphs below answer)
+- "The Plaintiff has no knowledge in respect of the allegations contained in paragraphs [list the paragraph numbers] of the Statement of Defence." (matters within the Defendant's knowledge only)
+Where you cannot confidently sort a paragraph of the Defence, place it in the denial paragraph and add one inline marker: [LAWYER: confirm paragraphs admitted and denied against the Defence].
 
-Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
+Then, for each NEW matter being answered: separate paragraphs pleading each allegation of material fact relied on by way of reply, citing the Defence paragraph being answered (e.g. "In reply to paragraph 14 of the Statement of Defence, ..."). State the material facts (mitigation efforts made; why the alleged cause fails McKinley proportionality; why the limitation defence fails), one allegation of material fact per paragraph, short paragraphs.
+
+FORMAT RULES:
+- Output ONLY <p> paragraphs, with <strong> where emphasis is genuinely needed. No h1, no h2, no lists, no title, no parties block, no date, no signature block, no TO: block. The system adds all of that.
+- Do NOT number the paragraphs and do NOT write "1." or similar at the start of any paragraph. Numbering is applied mechanically after you draft.
+- If, unusually, no Defence text is provided in the source documents, draft to the anticipated defences evident from the intake and mark each such paragraph with [CONFIRM AGAINST DEFENCE].
+
+Output as HTML with p and strong only. No inline styles.`,
 
     rule49_offer: `You are a senior Ontario litigation lawyer drafting an OFFER TO SETTLE (Form 49A) under Rule 49 of the Rules of Civil Procedure, served by the Plaintiff in a wrongful dismissal action.
 

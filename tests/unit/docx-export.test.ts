@@ -148,4 +148,41 @@ describe('htmlToDocx — the Form 4C backsheet is a landscape section', () => {
     // The HTML backsheet after <hr> was replaced, not duplicated.
     expect(xml).not.toContain('old html backsheet');
   });
+
+  it('a Reply exports court-format with its own landscape backsheet', async () => {
+    const replyHtml = [
+      '<p class="right">Court File No.: CV-26-001</p>',
+      '<p class="centre"><strong>ONTARIO<br>SUPERIOR COURT OF JUSTICE</strong></p>',
+      '<p class="centre"><strong><u>REPLY</u></strong></p>',
+      '<p>1. The Plaintiff admits the allegations contained in paragraphs 1 and 2 of the Statement of Defence.</p>',
+      '<p>2. The Plaintiff denies the allegations contained in paragraphs 3 to 19 of the Statement of Defence.</p>',
+      '<hr>',
+      '<p class="centre">OSEI v. ACME</p>',
+    ].join('\n');
+    const buffer = await htmlToDocx(replyHtml, {
+      title: 'Reply (Form 25A)', documentType: 'reply',
+      socBacksheet: {
+        plaintiff: 'AISHA OSEI', defendant: 'ACME WIDGETS LTD',
+        plaintiffRole: 'Plaintiff', defendantRole: 'Defendant',
+        courtFileNo: 'CV-26-001', city: 'TORONTO', docTitle: 'REPLY',
+        firmLines: [['EVANS LAW FIRM'], ['John Evans (LSO# 34259C)', 'Jordan Haworth (LSO# 12345B)'], ['Lawyers for the Plaintiff']],
+      },
+    });
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    // Court typography and alignment apply to the reply as to the claim.
+    expect(xml).toContain('Times New Roman');
+    expect(xml).toContain('w:line="480"');
+    expect(xml).toContain('<w:jc w:val="center"/>');
+    const title = xml.slice(Math.max(0, xml.indexOf('>REPLY<') - 400), xml.indexOf('>REPLY<'));
+    expect(title).toContain('<w:u ');
+    // The numbered paragraphs survive into the document text.
+    const text = xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    expect(text).toContain('1. The Plaintiff admits');
+    expect(text).toContain('2. The Plaintiff denies');
+    // And the backsheet is the landscape Form 4C page titled REPLY.
+    expect(xml).toContain('w:orient="landscape"');
+    expect(xml).toContain('Jordan Haworth (LSO# 12345B)');
+  });
 });
