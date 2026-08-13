@@ -68,7 +68,7 @@ async function parseFile(file: File): Promise<{ text: string; definedTerms: stri
   return { text: parsed.fullText.slice(0, 100_000), definedTerms: (parsed.definedTerms ?? []).slice(0, 20) };
 }
 
-export function DocAnalysisPanel({ matterId }: { matterId: string }) {
+export function DocAnalysisPanel({ matterId, showComposer = true }: { matterId: string; showComposer?: boolean }) {
   const [analyses, setAnalyses] = useState<StoredAnalysis[]>([]);
   const [kind, setKind] = useState('employment_agreement');
   const [mainDoc, setMainDoc] = useState<{ name: string; text: string; definedTerms: string[] } | null>(null);
@@ -160,8 +160,18 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
     } catch { /* leave the row; nothing worse than a stale list */ }
   };
 
+  // List-only mode: the single drop zone owns the composer now; this panel
+  // keeps the saved reads (summaries, checks, answers) and their delete.
+  if (!showComposer && analyses.length === 0) return null;
+
   return (
     <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginTop: 16 }}>
+      {!showComposer && (
+        <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
+          Saved reads: summaries, checks and answers
+        </div>
+      )}
+      {showComposer && (<>
       <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
         Ask Starling to read a document
       </div>
@@ -268,6 +278,7 @@ export function DocAnalysisPanel({ matterId }: { matterId: string }) {
 
       {errorMsg && <div role="alert" style={{ marginTop: 10, fontSize: 13, color: red }}>{errorMsg}</div>}
       {message && <div role="status" style={{ marginTop: 10, fontSize: 13, color: ink, background: '#faf8f5', border: `1px solid ${border}`, padding: '10px 12px' }}>{message}</div>}
+      </>)}
 
       {analyses.length > 0 && (
         <div style={{ marginTop: 16 }}>

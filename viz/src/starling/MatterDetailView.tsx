@@ -984,11 +984,9 @@ export default function MatterDetailView() {
       .catch(() => { /* best-effort */ });
   }, []);
   useEffect(() => { refreshPendingClient(); }, [refreshPendingClient]);
-  // Docs tab: upload & extract
-  const uploadInputRef = useRef<HTMLInputElement>(null);
+  // Docs tab: the paste lane (files go through the drop zone)
   const [uploadKind, setUploadKind] = useState('employment_agreement');
   const [extracting, setExtracting] = useState(false);
-  const [extractPasting, setExtractPasting] = useState(false);
   const [extractPasteText, setExtractPasteText] = useState('');
   const [extractPasteMsg, setExtractPasteMsg] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
@@ -1120,60 +1118,8 @@ export default function MatterDetailView() {
     }
   }, [sessionId, clientUpdateLoading]);
 
-  // Docs tab: file selection → parse + detect type → lawyer confirms → extract.
-  // The detected kind pre-selects the dropdown; extraction never runs on an
-  // unconfirmed type (a wrong classification costs one click, not a wrong fact).
-  const [pendingUpload, setPendingUpload] = useState<{
-    content: string; name: string; definedTerms?: string[];
-    detectedKind?: string; confidence?: 'high' | 'medium' | 'low'; fallback?: boolean;
-  } | null>(null);
-  const [classifying, setClassifying] = useState(false);
-
-  const handleClassifyFile = useCallback(async (file: File) => {
-    setClassifying(true);
-    setExtractError(null);
-    setLastExtraction(null);
-    setPendingUpload(null);
-    const result = await employment.classifyDocument(file);
-    setClassifying(false);
-    if (!result.ok || !result.content || !result.name) {
-      setExtractError(result.error ?? 'Could not read the document.');
-      return;
-    }
-    if (result.kind && !result.fallback) setUploadKind(result.kind);
-    // A high-confidence detection reads immediately. The old confirm step
-    // read as "already done": four matters of documents died unextracted
-    // because the second click never came. The bulk drop lane has always
-    // read without a confirm; the single upload now matches it. The
-    // lawyer's real decision point is unchanged: nothing reaches the
-    // intake until each proposed fact is reviewed and applied.
-    if (result.kind && !result.fallback && result.confidence === 'high') {
-      setExtracting(true);
-      const ext = await employment.extractParsed(result.content, result.name, result.kind, result.definedTerms);
-      setExtracting(false);
-      if (ext.ok && ext.extraction) setLastExtraction(ext.extraction);
-      else setExtractError(ext.error ?? 'Extraction failed.');
-      return;
-    }
-    setPendingUpload({
-      content: result.content, name: result.name, definedTerms: result.definedTerms,
-      detectedKind: result.kind, confidence: result.confidence, fallback: result.fallback,
-    });
-  }, [employment]);
-
-  const handleExtractConfirmed = useCallback(async () => {
-    if (!pendingUpload) return;
-    setExtracting(true);
-    setExtractError(null);
-    const result = await employment.extractParsed(pendingUpload.content, pendingUpload.name, uploadKind, pendingUpload.definedTerms);
-    setExtracting(false);
-    setPendingUpload(null);
-    if (result.ok && result.extraction) {
-      setLastExtraction(result.extraction);
-    } else {
-      setExtractError(result.error ?? 'Extraction failed.');
-    }
-  }, [employment, uploadKind, pendingUpload]);
+  // Docs tab: the single drop zone (CaseFileDropPanel) is the entry point
+  // for files; the paste lane below it covers text with no file to drop.
 
   // Firm templates for the selected draft type. A firm may hold several
   // variants per type (constructive dismissal, medical leave, and so on);
@@ -1316,7 +1262,6 @@ export default function MatterDetailView() {
       const found = Object.keys(result.extraction?.extractedFields ?? {}).length;
       setExtractPasteMsg(`Read the pasted text as ${kindLabel}. ${found} fact${found === 1 ? '' : 's'} proposed below, each with the line it came from. Nothing reaches the file until you approve it.`);
       setExtractPasteText('');
-      setExtractPasting(false);
     } catch {
       setExtractPasteMsg('The text could not be read. Try again.');
     } finally { setExtracting(false); }
@@ -2895,10 +2840,10 @@ export default function MatterDetailView() {
                 </div>
               )}
 
-              {/* The internal read lane: summary, standing checks, questions, comparison */}
-              {sessionId && <DocAnalysisPanel matterId={sessionId} />}
-
-              {/* Bulk first: real matters arrive as a folder of documents */}
+              {/* One entry point. Every document dropped here is read and
+                  its facts proposed for review; the deep read (summary,
+                  checks, questions, comparison) is an option on the same
+                  surface, not a second lane. */}
               <CaseFileDropPanel
                 classifyDocument={employment.classifyDocument}
                 extractParsed={employment.extractParsed}
@@ -2906,16 +2851,17 @@ export default function MatterDetailView() {
                 applyChronology={employment.applyChronology}
                 generateCaseSynthesis={employment.generateCaseSynthesis}
                 applyExtraction={employment.applyExtraction}
+                analyzeDocument={employment.analyzeDocument}
                 onDone={employment.refresh}
               />
 
-              {/* Upload & extract */}
-              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginTop: 16 }}>
+              {/* Paste lane: call notes and copied text have no file to drop */}
+              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginTop: 16 }}>
                 <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
-                  Upload a single document
+                  Paste text
                 </div>
-                <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
-                  PDF, DOCX, or text. Names and identifiers are anonymised before any AI processing. You review every extracted fact before it's used.
+                <div style={{ fontSize: 12.5, color: muted, marginBottom: 8 }}>
+                  Call notes or copied text with no file to drop are read the same way; every fact still comes back for your review.
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                   <select
@@ -2935,40 +2881,9 @@ export default function MatterDetailView() {
                     <option value="policy_document">Policy document</option>
                     <option value="other">Other</option>
                   </select>
-                  <input
-                    ref={uploadInputRef}
-                    type="file"
-                    accept=".pdf,.docx,.doc,.txt,.md,.rtf"
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) void handleClassifyFile(file);
-                      if (uploadInputRef.current) uploadInputRef.current.value = '';
-                    }}
-                  />
-                  <button
-                    onClick={() => uploadInputRef.current?.click()}
-                    disabled={extracting || classifying}
-                    style={{
-                      background: (extracting || classifying) ? '#b0b0b0' : navy, color: '#fff', fontSize: 13.5, fontWeight: 600,
-                      padding: '10px 18px', borderRadius: 2, border: 'none',
-                      cursor: (extracting || classifying) ? 'not-allowed' : 'pointer', fontFamily: sans,
-                    }}
-                  >
-                    {classifying ? 'Detecting type...' : extracting ? 'Extracting facts...' : '+ Upload & detect'}
-                  </button>
-                  <button
-                    onClick={() => setExtractPasting(v => !v)}
-                    style={{ background: '#fff', color: navy, fontSize: 13.5, padding: '10px 16px', borderRadius: 2, border: `1px solid ${border}`, cursor: 'pointer', fontFamily: sans }}
-                  >
-                    Paste text instead
-                  </button>
+                  <span style={{ fontSize: 12.5, color: muted }}>&ldquo;Correspondence&rdquo; fits call notes.</span>
                 </div>
-                {extractPasting && (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 6 }}>
-                      Paste the document or your call notes. Pick the kind in the dropdown above ("Correspondence" fits call notes). Starling reads it and proposes the facts it finds, each with the line it came from; you approve what reaches the file.
-                    </div>
+                <div style={{ marginTop: 10 }}>
                     <textarea
                       value={extractPasteText}
                       onChange={e => setExtractPasteText(e.target.value)}
@@ -2988,54 +2903,19 @@ export default function MatterDetailView() {
                       <span style={{ fontSize: 12.5, color: muted, marginLeft: 10 }}>Paste at least a few sentences first.</span>
                     )}
                   </div>
-                )}
                 {extractPasteMsg && (
                   <div role="status" style={{ marginTop: 10, fontSize: 13, color: ink, background: '#faf8f5', border: `1px solid ${border}`, padding: '10px 12px' }}>
                     {extractPasteMsg}
                   </div>
                 )}
-                {classifying && (
-                  <div role="status" style={{ marginTop: 10, fontSize: 12.5, color: muted }}>
-                    Reading the document. A scanned file is transcribed page by page first and can take a minute or two: one click is enough.
-                  </div>
-                )}
-                {pendingUpload && !extracting && (
-                  <div style={{ marginTop: 12, padding: '12px 14px', border: `1px solid ${border}`, background: '#faf8f5', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }} role="status">
-                    <span style={{ fontSize: 13, color: ink }}>
-                      <b>{pendingUpload.name}</b>{' — '}
-                      {pendingUpload.fallback ? (
-                        <span style={{ color: amber }}>could not detect the type; confirm it in the dropdown. Nothing from this document is saved until you extract.</span>
-                      ) : (
-                        <>
-                          detected: <b>{(pendingUpload.detectedKind ?? '').replace(/_/g, ' ')}</b>
-                          <span style={{
-                            marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 2,
-                            background: pendingUpload.confidence === 'medium' ? '#fdf0dd' : '#f4f1ec',
-                            color: pendingUpload.confidence === 'medium' ? amber : muted,
-                          }}>
-                            {pendingUpload.confidence}
-                          </span>
-                          {' '}<span style={{ color: muted }}>but not confidently. Confirm the type in the dropdown, then extract. Nothing from this document is saved until you do.</span>
-                        </>
-                      )}
-                    </span>
-                    <button
-                      onClick={() => { void handleExtractConfirmed(); }}
-                      style={{ background: navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', cursor: 'pointer', fontFamily: sans }}
-                    >
-                      Extract as {uploadKind.replace(/_/g, ' ')}
-                    </button>
-                    <button
-                      onClick={() => setPendingUpload(null)}
-                      style={{ background: 'none', color: muted, fontSize: 13, padding: '8px 6px', border: 'none', cursor: 'pointer', fontFamily: sans }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
                 {extractError && (
                   <div style={{ marginTop: 12, padding: '10px 14px', border: '1px solid #dc2626', borderRadius: 2, background: '#fce8e6', color: '#dc2626', fontSize: 13 }}>
                     {extractError}
+                  </div>
+                )}
+                {(lastExtraction || (employment.data?.documentExtractions ?? []).some(e => !e.appliedAt && e.documentType !== 'collective_agreement')) && (
+                  <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginTop: 16, borderTop: `2px solid ${border}`, paddingTop: 14 }}>
+                    Proposed facts awaiting your review
                   </div>
                 )}
                 {lastExtraction && (
@@ -3083,6 +2963,9 @@ export default function MatterDetailView() {
                   ))}
 
               </div>
+
+              {/* Saved deep reads: summaries, checks and answers, list only */}
+              {sessionId && <DocAnalysisPanel matterId={sessionId} showComposer={false} />}
             </div>
           )}
 

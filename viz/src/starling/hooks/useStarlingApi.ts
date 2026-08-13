@@ -1554,6 +1554,15 @@ export interface UseEmploymentDataResult {
   applyChronology: (events: Array<{ date: string; label: string; category: string; sourceDoc: string }>) => Promise<{ ok: boolean; error?: string; added?: Array<{ date: string; label: string }>; skippedExisting?: number }>;
   /** Generate the source-cited case review memo over the structured extractions. */
   generateCaseSynthesis: () => Promise<{ ok: boolean; error?: string; document?: { html: string; documentTitle: string; lawyerReviewFlags?: string[] } }>;
+  /**
+   * The deep read: summary, standing checks, the lawyer's questions, and an
+   * optional comparison. The server also runs the fact extractor on the same
+   * text, so a deep read proposes intake facts like any upload.
+   */
+  analyzeDocument: (args: {
+    docName: string; kind: string; docText: string; questions?: string[];
+    comparisonName?: string; comparisonText?: string; definedTerms?: string[];
+  }) => Promise<{ ok: boolean; error?: string; factsProposed?: number }>;
 }
 
 export interface ChronologyEntry {
@@ -1922,6 +1931,31 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId, refresh]);
 
+  const analyzeDocument = useCallback(async (args: {
+    docName: string; kind: string; docText: string; questions?: string[];
+    comparisonName?: string; comparisonText?: string; definedTerms?: string[];
+  }) => {
+    if (!matterId) return { ok: false, error: 'No matter ID' };
+    try {
+      const res = await fetch(`/api/employment/${matterId}/doc-analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          docName: args.docName, kind: args.kind, docText: args.docText,
+          questions: args.questions ?? [],
+          comparisonName: args.comparisonName, comparisonText: args.comparisonText,
+          definedTerms: args.definedTerms,
+        }),
+      });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; factsProposed?: number };
+      if (!res.ok) return { ok: false, error: json.error ?? 'The read could not be completed.' };
+      return { ok: true, factsProposed: json.factsProposed ?? 0 };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'The read could not be completed.' };
+    }
+  }, [matterId]);
+
   const getCaseReview = useCallback(async () => {
     if (!matterId) return { ok: false, error: 'No matter ID' };
     try {
@@ -2034,7 +2068,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
     }
   }, [matterId]);
 
-  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, rebuttalFeedback, socSource, defenceSource, claimSource, claimOnFile, replyComparison, demandLetterOnFile, waiting, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis };
+  return { data, loading, error, lawyerNotes, generatedDocuments, firmFileNumber, saveFileNumber, stage, nextSteps, attribution, briefSources, rebuttalSource, rebuttalFeedback, socSource, defenceSource, claimSource, claimOnFile, replyComparison, demandLetterOnFile, waiting, mediationLogistics, setDocumentStatus, saveIntake, refresh, approveIssues, generateDocument, saveNotes, runAnalysis, extractDocument, classifyDocument, extractParsed, applyExtraction, getCaseReview, applyChronology, generateCaseSynthesis, analyzeDocument };
 }
 
 // ── Firm templates ──────────────────────────────────────────────────────

@@ -40,15 +40,36 @@ interface Props {
   applyChronology: (events: Array<{ date: string; label: string; category: string; sourceDoc: string }>) => Promise<{ ok: boolean; error?: string; added?: Array<{ date: string; label: string }> }>;
   generateCaseSynthesis: () => Promise<{ ok: boolean; error?: string; document?: { html: string; documentTitle: string; lawyerReviewFlags?: string[] } }>;
   applyExtraction: (extractionId: string, fields: string[], overwrite: string[]) => Promise<ApplyExtractionResult>;
+  /**
+   * The deep read (summary, standing checks, questions, comparison), which
+   * also proposes intake facts server-side. When absent the deep-read
+   * option is not offered and every document goes through extractParsed.
+   */
+  analyzeDocument?: (args: {
+    docName: string; kind: string; docText: string; questions?: string[];
+    comparisonName?: string; comparisonText?: string; definedTerms?: string[];
+  }) => Promise<{ ok: boolean; error?: string; factsProposed?: number }>;
   onDone: () => void;
 }
 
+/** Classifier kinds map onto the deep read's narrower kind set. */
+const ANALYSIS_KIND: Record<string, string> = {
+  employment_agreement: 'employment_agreement',
+  termination_letter: 'termination_letter',
+  pay_stub: 'pay_stub',
+};
+
 const chronKey = (c: ChronologyEntry): string => `${c.field}|${c.date}`;
 
-export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseReview, applyChronology, generateCaseSynthesis, applyExtraction, onDone }: Props) {
+export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseReview, applyChronology, generateCaseSynthesis, applyExtraction, analyzeDocument, onDone }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const compareRef = useRef<HTMLInputElement>(null);
   const [jobs, setJobs] = useState<FileJob[]>([]);
   const [running, setRunning] = useState(false);
+  const [deepRead, setDeepRead] = useState(false);
+  const [questionsText, setQuestionsText] = useState('');
+  const [compareDoc, setCompareDoc] = useState<{ name: string; text: string } | null>(null);
+  const [compareParsing, setCompareParsing] = useState(false);
   const [review, setReview] = useState<{ chronology: ChronologyEntry[]; conflicts: FieldConflict[]; extractionCount: number } | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -83,6 +104,13 @@ export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseRevi
       setJobs(prev => prev.map((j, idx) => idx === i ? { ...j, ...patch } : j));
     };
 
+    // The deep read applies per document; the comparison only makes sense
+    // against a single main document, so it is skipped (and said so) when
+    // several are dropped at once.
+    const questions = questionsText.split('\n').map(q => q.trim().slice(0, 600)).filter(Boolean).slice(0, 12);
+    const wantDeep = deepRead && Boolean(analyzeDocument);
+    const withCompare = wantDeep && compareDoc && files.length === 1;
+
     let next = 0;
     const worker = async (): Promise<void> => {
       while (next < files.length) {
@@ -94,8 +122,19 @@ export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseRevi
           if (!c.ok || !c.content || !c.name) { setJob(i, { status: 'failed', error: c.error ?? 'Could not read the file.' }); continue; }
           const kind = c.fallback || !c.kind ? 'other' : c.kind;
           setJob(i, { status: 'extracting', kind });
-          const r = await extractParsed(c.content, c.name, kind, c.definedTerms);
-          setJob(i, r.ok ? { status: 'done' } : { status: 'failed', error: r.error ?? 'Extraction failed.' });
+          if (wantDeep && analyzeDocument) {
+            const r = await analyzeDocument({
+              docName: c.name, kind: ANALYSIS_KIND[kind] ?? 'other', docText: c.content,
+              questions,
+              comparisonName: withCompare ? compareDoc!.name : undefined,
+              comparisonText: withCompare ? compareDoc!.text : undefined,
+              definedTerms: c.definedTerms,
+            });
+            setJob(i, r.ok ? { status: 'done' } : { status: 'failed', error: r.error ?? 'The read failed.' });
+          } else {
+            const r = await extractParsed(c.content, c.name, kind, c.definedTerms);
+            setJob(i, r.ok ? { status: 'done' } : { status: 'failed', error: r.error ?? 'Extraction failed.' });
+          }
         } catch (err) {
           setJob(i, { status: 'failed', error: err instanceof Error ? err.message : 'Failed.' });
         }
@@ -105,7 +144,7 @@ export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseRevi
     setRunning(false);
     onDone();
     await loadReview();
-  }, [classifyDocument, extractParsed, loadReview, onDone]);
+  }, [classifyDocument, extractParsed, analyzeDocument, deepRead, questionsText, compareDoc, loadReview, onDone]);
 
   const handleApplyChronology = useCallback(async () => {
     if (!review) return;
@@ -143,10 +182,11 @@ export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseRevi
     <div style={{ marginTop: 18, borderTop: `2px solid ${border}`, paddingTop: 16, fontFamily: sans }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 14.5, fontWeight: 700, color: ink }}>Case file drop</div>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: ink }}>Add documents to this matter</div>
           <div style={{ fontSize: 12.5, color: muted, marginTop: 2 }}>
-            Drop the whole file — up to {MAX_FILES} documents. Starling detects each type, extracts the facts,
-            builds the chronology, and flags where the documents disagree. Nothing is saved to the matter without your approval.
+            One document or the whole file, up to {MAX_FILES} at once. Starling detects each type, reads it, and
+            proposes the facts it finds for your review; it builds the chronology and flags where the documents
+            disagree. Names are anonymised before any AI processing. Nothing reaches the intake without your approval.
           </div>
         </div>
         <input
@@ -162,7 +202,7 @@ export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseRevi
           disabled={running}
           style={{ marginLeft: 'auto', background: running ? '#b0b0b0' : navy, color: '#fff', fontSize: 13.5, fontWeight: 600, padding: '10px 18px', borderRadius: 2, border: 'none', cursor: running ? 'not-allowed' : 'pointer' }}
         >
-          {running ? `Processing ${doneCount + failedCount}/${jobs.length}...` : '+ Drop case file'}
+          {running ? `Processing ${doneCount + failedCount}/${jobs.length}...` : '+ Add documents'}
         </button>
         {jobs.length === 0 && !review && (
           <button
@@ -174,6 +214,61 @@ export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseRevi
           </button>
         )}
       </div>
+
+      {analyzeDocument && (
+        <div style={{ marginTop: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, cursor: 'pointer' }}>
+            <input type="checkbox" checked={deepRead} onChange={e => setDeepRead(e.target.checked)} style={{ accentColor: navy }} />
+            Also summarize each document, run its standing checks, and answer my questions. The read is saved under Saved reads below.
+          </label>
+          {deepRead && (
+            <div style={{ marginTop: 8, paddingLeft: 22 }}>
+              <textarea
+                value={questionsText}
+                onChange={e => setQuestionsText(e.target.value)}
+                rows={2}
+                placeholder="Questions to answer about the documents, one per line. Leave blank for the summary and checks alone."
+                aria-label="Questions to answer about the documents"
+                style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 6, fontSize: 12.5, color: muted }}>
+                <input
+                  ref={compareRef}
+                  type="file"
+                  accept=".pdf,.docx,.doc,.txt,.md,.rtf"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      setCompareParsing(true);
+                      void classifyDocument(f).then(c => {
+                        setCompareParsing(false);
+                        if (c.ok && c.content && c.name) setCompareDoc({ name: c.name, text: c.content });
+                      });
+                    }
+                    if (compareRef.current) compareRef.current.value = '';
+                  }}
+                />
+                {compareDoc ? (
+                  <span>
+                    Comparing against <b style={{ color: ink }}>{compareDoc.name}</b>
+                    <button onClick={() => setCompareDoc(null)} style={{ marginLeft: 8, background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12, fontFamily: sans, padding: '2px 8px', borderRadius: 2 }}>Discard</button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => compareRef.current?.click()}
+                    disabled={compareParsing}
+                    style={{ background: 'none', border: `1px solid ${border}`, color: navy, cursor: compareParsing ? 'not-allowed' : 'pointer', fontSize: 12.5, fontFamily: sans, padding: '5px 10px', borderRadius: 2 }}
+                  >
+                    {compareParsing ? 'Reading…' : 'Compare against a second document'}
+                  </button>
+                )}
+                <span>The comparison applies when one document is added at a time; it is skipped on a multi-document drop.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && <div style={{ marginTop: 10, fontSize: 13, color: red }}>{error}</div>}
 
