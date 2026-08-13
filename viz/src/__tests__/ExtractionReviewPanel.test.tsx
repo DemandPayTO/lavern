@@ -60,7 +60,7 @@ describe('ExtractionReviewPanel', () => {
       expect(onApply).toHaveBeenCalledWith('ext-9', ['termination_date'], [], []);
       expect(screen.getByText(/Applied 1 field to the intake/)).toBeInTheDocument();
       expect(screen.getByText(/Limitation period expires \(2028-05-15\)/)).toBeInTheDocument();
-      expect(screen.getByText(/re-run it from the Issues tab/)).toBeInTheDocument();
+      expect(screen.getByText(/figures and deadline clocks were recomputed/)).toBeInTheDocument();
     });
   });
 

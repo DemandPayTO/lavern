@@ -1795,6 +1795,14 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     employment.intakeRevisedAt = new Date().toISOString();
     employment.timeline = rebuildTimelinePreserving(timelineBefore, outcome.intake);
     employment.gates = evaluateGates(outcome.intake);
+    // The analysis is deterministic and cheap: when the applied facts feed
+    // it, recompute it here instead of sending the lawyer to another tab
+    // to press a button whose only job was to run this line. On a fresh
+    // matter this is also the FIRST computation, so the happy path
+    // (upload, apply, draft) never detours through Run Analysis at all.
+    if (outcome.analysisStale || !employment.analysis) {
+      recomputeAnalysis(employment);
+    }
 
     // Audit: the apply is a matter event, and the extraction records what
     // it contributed.

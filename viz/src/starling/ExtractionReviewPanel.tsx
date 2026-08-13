@@ -323,8 +323,8 @@ export function ExtractionReviewPanel({ extraction, intake, onApply, onDone }: P
                 </div>
               )}
               {result.analysisStale && (
-                <div style={{ color: amber, marginTop: 3 }}>
-                  These facts feed the damages analysis — re-run it from the Issues tab so figures match.
+                <div style={{ color: muted, marginTop: 3 }}>
+                  These facts feed the damages analysis; the figures and deadline clocks were recomputed to match.
                 </div>
               )}
               <button

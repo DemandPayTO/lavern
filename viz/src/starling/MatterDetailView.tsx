@@ -960,6 +960,8 @@ export default function MatterDetailView() {
 
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
+  const [amountPrefilled, setAmountPrefilled] = useState(false);
+  const socPrefillDone = useRef(false);
   // Structured inputs for the deterministic court forms
   const [courtFields, setCourtFields] = useState<Record<string, string>>({});
   // Client intake portal (lawyer side)
@@ -1175,6 +1177,27 @@ export default function MatterDetailView() {
    * can. A dead button that looks alive is a bug report, so the reason is
    * shown and the button is greyed from the same value.
    */
+  // The claim workspace opens ready to generate: amount from the high end
+  // of the damages estimate (rounded up to the nearest $5,000) and the
+  // procedure from the analysis recommendation, both freely editable. The
+  // prefill happens once, only for blank fields, only on the claim: the
+  // demand letter's amount stays the lawyer's own judgment, untouched.
+  useEffect(() => {
+    if (socPrefillDone.current || selectedDraft !== 'soc') return;
+    const a = employment.data?.analysis as { recommendedProcedure?: string; damagesEstimate?: { totalEstimateHigh?: number } } | null | undefined;
+    if (!a) return;
+    socPrefillDone.current = true;
+    const high = a.damagesEstimate?.totalEstimateHigh;
+    if (!genDemandAmount && typeof high === 'number' && high > 0) {
+      setGenDemandAmount(String(Math.ceil(high / 5000) * 5000));
+      setAmountPrefilled(true);
+    }
+    if (a.recommendedProcedure && ['small_claims', 'simplified', 'ordinary'].includes(a.recommendedProcedure)) {
+      setGenProcedure(a.recommendedProcedure);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDraft, employment.data?.analysis]);
+
   // The matter's forum: the lawyer's chosen procedure where set, otherwise
   // the analysis recommendation. The Small Claims Court has no Reply, so
   // the Reply workspace explains instead of generating.
@@ -3921,7 +3944,12 @@ export default function MatterDetailView() {
                   {selectedDraft !== 'demand' && (
                     <div>
                       <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
-                      <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                      <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => { setGenDemandAmount(e.target.value.replace(/[^\d]/g, '')); setAmountPrefilled(false); }} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                      {amountPrefilled && selectedDraft === 'soc' && (
+                        <div style={{ fontSize: 12, color: muted, marginTop: 4 }}>
+                          Prefilled from the high end of the damages estimate, rounded up to the nearest $5,000. Your judgment governs; change it freely.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

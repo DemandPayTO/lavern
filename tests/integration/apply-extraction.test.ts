@@ -120,6 +120,13 @@ describe('POST /:matterId/apply-extraction', () => {
     const ext = emp.documentExtractions.find(e => e.id === 'ext-t1')!;
     expect(ext.appliedAt).toBeTruthy();
     expect(ext.appliedFields).toEqual(['termination_date', 'severance_weeks_offered']);
+
+    // The analysis computed itself: this matter had none, the applied
+    // facts feed it, and the lawyer never has to press Run Analysis on
+    // the way from upload to draft.
+    expect(emp.analysis).toBeTruthy();
+    expect(emp.analysis.damagesEstimate).toBeTruthy();
+    expect(emp.analysis.limitationDeadline.date).toBe('2028-05-15');
   });
 
   it('overwrites only with explicit per-field opt-in', async () => {
