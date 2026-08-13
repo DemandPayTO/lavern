@@ -109,6 +109,20 @@ describe('applyExtractionSelections', () => {
     }
   });
 
+  it('the contact block lands: addresses feed the HRTO form and court forms', () => {
+    const ext = extraction({
+      client_address: { value: '12 Elm Street', confidence: 'high' },
+      client_city: { value: 'Hamilton', confidence: 'high' },
+      client_postal_code: { value: 'L8P 1A1', confidence: 'high' },
+      employer_address: { value: '100 Bay Street, Toronto ON', confidence: 'high' },
+    });
+    const out = applyExtractionSelections(baseIntake, ext, ['client_address', 'client_city', 'client_postal_code', 'employer_address'], new Set());
+    if ('error' in out) throw new Error(out.error);
+    expect(out.unmapped).toEqual([]);
+    expect(out.intake.client_address).toBe('12 Elm Street');
+    expect(out.intake.employer_address).toBe('100 Bay Street, Toronto ON');
+  });
+
   it('commission and workplace location now land instead of surfacing as unmapped', () => {
     const ext = extraction({
       commission_amount: { value: '$18,500', confidence: 'high' },

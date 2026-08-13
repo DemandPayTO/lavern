@@ -106,6 +106,9 @@ Extract these fields from the employment agreement:
 - employer_operating_name (string): Operating/trade name if different
 - client_first_name (string), client_last_name (string): The employee's name as the agreement states it
 - client_date_of_birth (string, YYYY-MM-DD): The employee's date of birth, only where the agreement states it
+- client_address (string): The employee's home street address as recited
+- client_city (string), client_postal_code (string): From the same recital
+- employer_address (string): The employer's address as stated in the agreement or its letterhead
 - job_title (string): The employee's job title or position
 - hire_date (string, YYYY-MM-DD): Start date of employment
 - contract_signed_date (string, YYYY-MM-DD): Date the agreement was signed
@@ -145,6 +148,8 @@ ${PLEADING_RULES}`,
 
     termination_letter: `
 Extract these fields from the termination letter:
+- employer_legal_name (string): The employer as the letter or its letterhead names it
+- employer_address (string): The employer's address from the letterhead
 - termination_date (string, YYYY-MM-DD): Effective date of termination
 - last_day_worked (string, YYYY-MM-DD): Last day the employee worked (if different)
 - termination_reasons (string): Stated reason for termination

@@ -743,7 +743,15 @@ const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
       ['name', 'Name only, no pronouns'],
     ],
   },
+  // Contact block: the HRTO Form 1 and the court forms print these, and
+  // until now no surface let the lawyer enter them.
+  { key: 'client_email', label: 'Client email' },
+  { key: 'client_phone', label: 'Client phone' },
+  { key: 'client_address', label: 'Client street address' },
+  { key: 'client_city', label: 'Client city' },
+  { key: 'client_postal_code', label: 'Client postal code' },
   { key: 'employer_legal_name', label: 'Employer legal name' },
+  { key: 'employer_address', label: 'Employer address (service address on forms)' },
   { key: 'job_title', label: 'Job title' },
   { key: 'annual_salary', label: 'Annual salary (CAD)', type: 'number' },
   { key: 'hire_date', label: 'Hire date', type: 'date' },
@@ -1125,6 +1133,20 @@ export default function MatterDetailView() {
       return;
     }
     if (result.kind && !result.fallback) setUploadKind(result.kind);
+    // A high-confidence detection reads immediately. The old confirm step
+    // read as "already done": four matters of documents died unextracted
+    // because the second click never came. The bulk drop lane has always
+    // read without a confirm; the single upload now matches it. The
+    // lawyer's real decision point is unchanged: nothing reaches the
+    // intake until each proposed fact is reviewed and applied.
+    if (result.kind && !result.fallback && result.confidence === 'high') {
+      setExtracting(true);
+      const ext = await employment.extractParsed(result.content, result.name, result.kind, result.definedTerms);
+      setExtracting(false);
+      if (ext.ok && ext.extraction) setLastExtraction(ext.extraction);
+      else setExtractError(ext.error ?? 'Extraction failed.');
+      return;
+    }
     setPendingUpload({
       content: result.content, name: result.name, definedTerms: result.definedTerms,
       detectedKind: result.kind, confidence: result.confidence, fallback: result.fallback,
@@ -2930,18 +2952,18 @@ export default function MatterDetailView() {
                     <span style={{ fontSize: 13, color: ink }}>
                       <b>{pendingUpload.name}</b>{' — '}
                       {pendingUpload.fallback ? (
-                        <span style={{ color: amber }}>could not detect the type; confirm it in the dropdown.</span>
+                        <span style={{ color: amber }}>could not detect the type; confirm it in the dropdown. Nothing from this document is saved until you extract.</span>
                       ) : (
                         <>
                           detected: <b>{(pendingUpload.detectedKind ?? '').replace(/_/g, ' ')}</b>
                           <span style={{
                             marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 2,
-                            background: pendingUpload.confidence === 'high' ? '#e7f6ec' : pendingUpload.confidence === 'medium' ? '#fdf0dd' : '#f4f1ec',
-                            color: pendingUpload.confidence === 'high' ? green : pendingUpload.confidence === 'medium' ? amber : muted,
+                            background: pendingUpload.confidence === 'medium' ? '#fdf0dd' : '#f4f1ec',
+                            color: pendingUpload.confidence === 'medium' ? amber : muted,
                           }}>
                             {pendingUpload.confidence}
                           </span>
-                          {' '}<span style={{ color: muted }}>— change the dropdown if wrong.</span>
+                          {' '}<span style={{ color: muted }}>but not confidently. Confirm the type in the dropdown, then extract. Nothing from this document is saved until you do.</span>
                         </>
                       )}
                     </span>

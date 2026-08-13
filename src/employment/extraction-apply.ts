@@ -32,8 +32,10 @@ export const APPLYABLE_INTAKE_FIELDS: ReadonlySet<string> = new Set([
   // brief's profile table; the pilot's documents all stated it and none of
   // it could land until these were mapped.
   'client_first_name', 'client_last_name', 'client_age', 'client_date_of_birth',
+  // Contact block: the HRTO Form 1 and the court forms print these.
+  'client_email', 'client_phone', 'client_address', 'client_city', 'client_postal_code',
   // Parties + role
-  'employer_legal_name', 'employer_operating_name', 'job_title', 'workplace_location',
+  'employer_legal_name', 'employer_operating_name', 'employer_address', 'job_title', 'workplace_location',
   // Dates
   'hire_date', 'contract_signed_date', 'first_day_of_work', 'years_of_service_estimate',
   'termination_date', 'last_day_worked',
