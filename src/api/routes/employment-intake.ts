@@ -2185,7 +2185,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
 
     const parsed = socBodySchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ ok: false, error: 'Invalid request' });
+      const detail = parsed.error.issues.slice(0, 3).map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      return reply.status(400).send({ ok: false, error: `The claim was not generated. ${detail}.` });
     }
 
     const row = await getMatterById(matterId, userId);
@@ -2241,7 +2242,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       if (dlText.length > 200) socSources.push({ name: 'the demand letter on this matter', content: dlText.slice(0, 60_000) });
     }
     const attached = (matter as Record<string, unknown>).socSource as { name?: string; text?: string } | undefined;
-    if (attached?.text) socSources.push({ name: String(attached.name ?? 'attached document'), content: attached.text.slice(0, 60_000) });
+    if (attached?.text) socSources.push({ name: String(attached.name ?? 'attached document'), content: attached.text.slice(0, 80_000) });
 
     const result = await generateStatementOfClaim({
       intake: employment.intake,
@@ -3790,18 +3791,25 @@ nodeReport: result.nodeReport,
     const { matter, employment } = loadEmploymentData(row.data_json);
     if (!employment.intake) return reply.send({ ok: true, nodes: [] });
 
-    const { loadSocNodes, buildSocEvalContext, nodeStatuses } = await import('../../employment/soc-nodes.js');
+    const { loadSocNodes, buildSocEvalContext, nodeStatuses, mergeFirmNodes } = await import('../../employment/soc-nodes.js');
+    // The picker must preview the SAME language and figures generation
+    // will use: the firm's taught nodes where they exist, and the claim's
+    // own amount where one has been generated.
+    const pickerFirmId = resolveFirmId(req);
+    const { getFirmSocNodes } = await import('../../db/database.js');
+    const pickerNodes = pickerFirmId ? mergeFirmNodes(loadSocNodes(), getFirmSocNodes(pickerFirmId)) : loadSocNodes();
+    const genSoc = (matter as Record<string, unknown>).generatedSOC as { claimAmount?: number } | undefined;
     const ctx = buildSocEvalContext({
       intake: employment.intake,
       analysis: employment.analysis ?? null,
       gates: employment.gates ?? [],
       approvedIssues: employment.approvedIssues ?? [],
-      claimAmount: employment.demandAmount || 0,
+      claimAmount: genSoc?.claimAmount ?? employment.demandAmount ?? 0,
     });
     const overrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
     return reply.send({
       ok: true,
-      nodes: nodeStatuses(loadSocNodes(), ctx, employment.approvedIssues ?? [], overrides),
+      nodes: nodeStatuses(pickerNodes, ctx, employment.approvedIssues ?? [], overrides),
     });
   });
 
@@ -4110,7 +4118,14 @@ nodeReport: result.nodeReport,
     );
     // Court name follows the forum: the lawyer's chosen procedure where set,
     // otherwise the analysis recommendation.
-    const procedure = employment?.selectedProcedure
+    // A generated claim exports under the procedure it was GENERATED for:
+    // changing the matter's forum later must not reformat an existing
+    // Superior Court claim as a Small Claims document.
+    const generatedProcedure = docType === 'statement-of-claim'
+      ? ((matterData.generatedSOC as { procedureType?: string } | undefined)?.procedureType ?? null)
+      : null;
+    const procedure = generatedProcedure
+      ?? employment?.selectedProcedure
       ?? employment?.analysis?.recommendedProcedure
       ?? null;
     const courtName = procedure === 'small_claims'
@@ -4124,7 +4139,9 @@ nodeReport: result.nodeReport,
       const employerName = employment?.intake?.employer_legal_name ?? '';
       title = `Demand Letter${clientName ? ` re ${clientName}` : ''}${employerName ? ` v. ${employerName}` : ''}`;
     } else if (docType === 'statement-of-claim') {
-      const soc = matterData.generatedSOC as Record<string, unknown> | undefined;
+      // An adopted outside claim lives under the pattern key; both count.
+      const socKey = findGeneratedDocKey(matterData, 'statement_of_claim');
+      const soc = (matterData.generatedSOC ?? (socKey ? matterData[socKey] : undefined)) as Record<string, unknown> | undefined;
       if (!soc?.html) return reply.status(404).send({ ok: false, error: 'No statement of claim generated yet.' });
       html = soc.html as string;
       title = `Statement of Claim${employment?.intake?.client_last_name ? ` re ${employment.intake.client_last_name} v. ${employment.intake.employer_legal_name ?? 'Defendant'}` : ''}`;

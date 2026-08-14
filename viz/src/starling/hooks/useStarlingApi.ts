@@ -1474,6 +1474,10 @@ export interface GenerateDocumentResult {
   positionsUsed?: string[];
   /** Ticked sources that did NOT make it into the brief (the six-source room filled). */
   droppedSources?: string[];
+  /** The claim's per-section record: what pleaded and why (statement of claim). */
+  nodeReport?: Array<{ status: string }>;
+  /** The procedure the server actually generated under. */
+  procedureType?: string;
   /** What this draft cost, for the notice line. */
   costUsd?: number;
   /** Non-blocking warnings, e.g. setting down past the Rule 48.14 deadline. */
@@ -1803,6 +1807,8 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
         cautions: Array.isArray(json.cautions) ? (json.cautions as string[]) : undefined,
         positionsUsed: Array.isArray(json.positionsUsed) ? (json.positionsUsed as string[]) : undefined,
         droppedSources: Array.isArray(json.droppedSources) ? (json.droppedSources as string[]) : undefined,
+        nodeReport: Array.isArray(json.nodeReport) ? (json.nodeReport as Array<{ status: string }>) : undefined,
+        procedureType: typeof json.procedureType === 'string' ? json.procedureType : undefined,
         costUsd: typeof json.costUsd === 'number' ? json.costUsd : undefined,
       };
     } catch (err) {

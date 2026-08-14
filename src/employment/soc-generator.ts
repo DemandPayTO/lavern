@@ -518,6 +518,7 @@ async function generateNodeAssembledSoc(
   }
 
   const fillFlags: string[] = [];
+  let slotFillCost = 0;
   let ctx2 = ctx;
   if ((firstPassMissing.size > 0 && (req.sourceDocuments ?? []).length > 0) || Object.keys(proseSlots).length > 0) {
     const filled = await fillSocSlots({
@@ -536,6 +537,12 @@ async function generateNodeAssembledSoc(
         fillFlags.push(`The ${slot.replace(/_/g, ' ')} were rewritten from your intake wording into pleading language. The original wording stays on the Intake tab; check nothing was lost.`);
       }
       if (Object.keys(overlay).length > 0) ctx2 = { ...ctx, ...overlay };
+      // A fill that was attempted and rejected must not vanish without a
+      // word: the lawyer sees which blanks a source ALMOST answered.
+      if (filled.droppedFills.length > 0) {
+        fillFlags.push(`A source appeared to answer ${filled.droppedFills.map(sl => `"${sl.replace(/_/g, ' ')}"`).join(', ')} but the quote did not verify against the document, so the blank stays. Check the source yourself.`);
+      }
+      slotFillCost = filled.costUsd;
     }
   }
 
@@ -590,15 +597,26 @@ async function generateNodeAssembledSoc(
     if (r.status === 'eligible_unapproved') {
       lawyerReviewFlags.push(`The facts support "${r.sectionHeader}" but it is not pleaded: ${r.reason}`);
     }
+    if (r.status === 'forced_off') {
+      lawyerReviewFlags.push(`"${r.sectionHeader}" is turned OFF on this matter and does not appear in the claim. Turn it back on in the pleading picker if that is not intended.`);
+    }
   }
+  // Integrity checks cover the WHOLE assembled claim, not just the model's
+  // narrative: a mis-citation in firm-taught settled language, or a
+  // fill-in the shell carries, must be flagged the same as any other.
   lawyerReviewFlags.push(
-    ...checkCitationIntegrity(narrativeHtml, definedTerms ?? []),
-    ...checkCanonTextIntegrity(narrativeHtml),
-    ...checkFillInPlaceholders(narrativeHtml),
+    ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkCanonTextIntegrity(html),
+    ...checkFillInPlaceholders(html),
   );
+  // A template marker that survives assembly is a rendering defect the
+  // lawyer must see before anything else.
+  if (/\{\{[#\/a-z_]/.test(html)) {
+    lawyerReviewFlags.unshift('Template markers leaked into the claim text ({{...}}). Do not serve this version; regenerate, and report it if it repeats.');
+  }
 
   let citations: SourceCitation[] = [];
-  let totalCost = cost;
+  let totalCost = cost + slotFillCost;
   if (req.sourceDocuments && req.sourceDocuments.length > 0) {
     try {
       const citationResult = await extractCitations(narrativeHtml, req.sourceDocuments, definedTerms);
@@ -625,7 +643,7 @@ async function generateNodeAssembledSoc(
     city: req.courtLocation.toUpperCase(),
     docTitle: 'STATEMENT OF CLAIM',
     firmLines: [
-      [req.firmName.toUpperCase(), ...(req.firmAddress ? req.firmAddress.split(/\r?\n/) : ['[LAWYER: address for service]'])],
+      [req.firmName.toUpperCase(), ...(req.firmAddress ? req.firmAddress.split(/\r?\n|\s·\s/) : ['[LAWYER: address for service]'])],
       ...lawyerLines.map(l => [l]),
       ['Lawyers for the Plaintiff'],
     ],

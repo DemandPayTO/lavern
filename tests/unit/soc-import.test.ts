@@ -98,9 +98,10 @@ describe('round-trip against the real spreadsheet', () => {
     const changed = result.proposals.filter(p => p.proposed);
     // SOC_ESA_01 and SOC_CLAIM_01 gained the smaller ESA wage claims
     // (vacation underpayment theories, holiday pay, unpaid variable comp,
-    // unreimbursed expenses) after the port, so the older spreadsheet now
-    // proposes reverting exactly those two, and nothing else.
-    expect(changed.map(p => p.blockId).sort()).toEqual(['SOC_CLAIM_01', 'SOC_ESA_01']);
+    // unreimbursed expenses) after the port, and SOC_NOTICE_01's Bardal
+    // character line gained the job-level guard (2026-08-14), so the older
+    // spreadsheet now proposes reverting exactly those three.
+    expect(changed.map(p => p.blockId).sort()).toEqual(['SOC_CLAIM_01', 'SOC_ESA_01', 'SOC_NOTICE_01']);
     expect(result.unchanged).toBeGreaterThanOrEqual(18);
     expect(result.unknownBlocks).toEqual([]);
   });

@@ -107,14 +107,17 @@ export function buildSocFrontMatter(input: SocShellInput): string {
 
 /** The lawyer of record and the backsheet. */
 export function buildSocClosing(input: SocShellInput): string {
+  // The LSO number appears once: from the block or the profile, never
+  // repeated because the composed address string also carries it.
+  const addressCarriesLso = /LSO#/i.test(input.firmAddress ?? '');
   const lawyerLines = input.lawyerBlock?.trim()
     ? input.lawyerBlock.trim().split(/\r?\n/).map(l => esc(l.trim())).filter(Boolean)
-    : [`${esc(input.lawyerName)}${input.lsoNumber ? ` (LSO# ${esc(input.lsoNumber)})` : ' [LAWYER: LSO number]'}`];
+    : [`${esc(input.lawyerName)}${input.lsoNumber && !addressCarriesLso ? ` (LSO# ${esc(input.lsoNumber)})` : input.lsoNumber || addressCarriesLso ? '' : ' [LAWYER: LSO number]'}`];
   const contact = [
     `<strong>${esc(input.firmName)}</strong>`,
     input.firmAddress ? esc(input.firmAddress) : '[LAWYER: address for service]',
     ...lawyerLines,
-    lawyerLines.length > 1 ? 'Lawyers for the Plaintiff' : 'Lawyers for the Plaintiff',
+    lawyerLines.length > 1 ? 'Lawyers for the Plaintiff' : 'Lawyer for the Plaintiff',
   ].join('<br>');
 
   return [

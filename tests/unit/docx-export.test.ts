@@ -214,3 +214,30 @@ describe('the exported brief matches the preview', () => {
     expect(xml).toContain('titlePg');
   });
 });
+
+
+describe('the claim keeps its body: the backsheet cut uses the LAST rule', () => {
+  it('a horizontal rule inside the facts does not amputate the causes of action', async () => {
+    const html = [
+      '<p class="centre"><strong><u>STATEMENT OF CLAIM</u></strong></p>',
+      '<p>1. The Plaintiff claims damages.</p>',
+      '<hr>',
+      '<p>2. The Background Facts continue after a divider the model wrote.</p>',
+      '<p>3. The Termination Clause Is Invalid.</p>',
+      '<hr>',
+      '<p class="centre">OSEI v. ACME</p>',
+    ].join('\n');
+    const buffer = await htmlToDocx(html, {
+      title: 'Statement of Claim', documentType: 'statement_of_claim',
+      socBacksheet: {
+        plaintiff: 'AISHA OSEI', defendant: 'ACME', plaintiffRole: 'Plaintiff', defendantRole: 'Defendant',
+        courtFileNo: '', city: 'TORONTO', docTitle: 'STATEMENT OF CLAIM', firmLines: [['EVANS LAW FIRM']],
+      },
+    });
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(buffer);
+    const text = (await zip.file('word/document.xml')!.async('string')).replace(/<[^>]+>/g, ' ');
+    expect(text).toContain('Background Facts continue');
+    expect(text).toContain('Termination Clause Is Invalid');
+  });
+});

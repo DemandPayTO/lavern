@@ -1034,6 +1034,11 @@ export default function MatterDetailView() {
     setGenCitations([]);
     setGenReviewFlags([]);
     setRevising(null);
+    // The amount belongs to ONE document: the demand letter's figure must
+    // never silently become the claim's, or the claim's the factum's.
+    setGenDemandAmount('');
+    setAmountPrefilled(false);
+    socPrefillDone.current = false;
     const docType = DRAFT_TO_DOCTYPE[cardId];
     const existing = docType ? draftHistory.find(d => d.docType === docType) : undefined;
     setGeneratedHtml(existing?.html ?? null);
@@ -1662,11 +1667,21 @@ export default function MatterDetailView() {
 
     const setSocOverride = useCallback(async (blockId: string, override: 'on' | 'off' | null) => {
     if (!sessionId) return;
-    await fetch(`/api/employment/${sessionId}/soc-nodes`, {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blockId, override }),
-    });
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/soc-nodes`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockId, override }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setGenError((d as { error?: string }).error ?? 'The change was not saved. Try again.');
+        return;
+      }
+    } catch {
+      setGenError('The change was not saved. Check the connection and try again.');
+      return;
+    }
     refreshSocNodes();
   }, [sessionId, refreshSocNodes]);
 
@@ -2229,7 +2244,7 @@ export default function MatterDetailView() {
         tone: genTone,
         demandAmount: amount,
         claimAmount: amount,
-        procedureType: genProcedure === 'small_claims' ? undefined : genProcedure,
+        procedureType: selectedDraft === 'soc' ? genProcedure : (genProcedure === 'small_claims' ? undefined : genProcedure),
         formFields,
         lawyerName: profile.displayName || 'Lawyer Name',
         lawyerBlock: profile.lawyerBlock || undefined,
@@ -2279,6 +2294,10 @@ export default function MatterDetailView() {
       // Tell the lawyer their dates reached the docket, and
       // pass on any Rule 48.14 caution.
       const notes: string[] = [];
+      if (selectedDraft === 'soc' && result.nodeReport) {
+        const pleaded = result.nodeReport.filter(r => r.status === 'firing' || r.status === 'forced_on').length;
+        notes.push(`Claim generated${result.procedureType ? ` under the ${result.procedureType.replace(/_/g, ' ')} procedure` : ''}: ${pleaded} section${pleaded === 1 ? '' : 's'} pleaded. The pleading picker under Options shows each decision.`);
+      }
       if (typeof result.costUsd === 'number' && result.costUsd > 0) {
         notes.push(`Draft cost $${result.costUsd.toFixed(2)}.`);
       }
@@ -3466,7 +3485,7 @@ export default function MatterDetailView() {
                   </div>
                   {employment.socSource ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
-                      <span>\u2713 <b>{employment.socSource.name}</b> \u00b7 {employment.socSource.words} words \u00b7 attached {new Date(employment.socSource.savedAt).toLocaleDateString()}</span>
+                      <span>{"\u2713"} <b>{employment.socSource.name}</b> {"\u00b7"} {employment.socSource.words} words {"\u00b7"} attached {new Date(employment.socSource.savedAt).toLocaleDateString()}</span>
                       <button
                         onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/soc-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
                         style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
@@ -3489,7 +3508,7 @@ export default function MatterDetailView() {
                         disabled={rebuttalSaving}
                         style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
                       >
-                        {rebuttalSaving ? 'Reading\u2026' : 'Attach another document (optional)'}
+                        {rebuttalSaving ? 'Reading\u2026' : (employment.socSource ? 'Replace the attached document' : 'Attach a document (optional)')}
                       </button>
                     </div>
                   )}
@@ -3524,12 +3543,22 @@ export default function MatterDetailView() {
                             {n.status === 'forced_on' || n.status === 'forced_off' ? 'reset' : 'force on'}
                           </button>
                         )}
-                        {(n.status === 'firing' || n.status === 'eligible_unapproved') && (
+                        {(n.status === 'firing' || n.status === 'eligible_unapproved') && (n.forceable ?? n.tier === 2) && (
                           <button
                             onClick={() => void setSocOverride(n.blockId, 'off')}
+                            aria-label={`Turn off ${n.sectionHeader}`}
                             style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '3px 4px' }}
                           >
                             turn off
+                          </button>
+                        )}
+                        {n.status === 'forced_off' && !((n.forceable ?? n.tier === 2)) && (
+                          <button
+                            onClick={() => void setSocOverride(n.blockId, null)}
+                            aria-label={`Turn ${n.sectionHeader} back on`}
+                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: navy, cursor: 'pointer', padding: '3px 9px', borderRadius: 2 }}
+                          >
+                            turn back on
                           </button>
                         )}
                       </div>
@@ -3559,7 +3588,7 @@ export default function MatterDetailView() {
                   </div>
                   {employment.defenceSource ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
-                      <span>\u2713 <b>{employment.defenceSource.name}</b> \u00b7 {employment.defenceSource.words} words \u00b7 attached {new Date(employment.defenceSource.savedAt).toLocaleDateString()}</span>
+                      <span>{"\u2713"} <b>{employment.defenceSource.name}</b> {"\u00b7"} {employment.defenceSource.words} words {"\u00b7"} attached {new Date(employment.defenceSource.savedAt).toLocaleDateString()}</span>
                       <button
                         onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/defence-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
                         style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
@@ -4615,7 +4644,7 @@ export default function MatterDetailView() {
                     {generating ? 'Regenerating\u2026' : 'Regenerate from the updated file'}
                   </button>
                   {blockedReason && !generating && <span style={{ fontSize: 12.5, color: amber }}>{blockedReason}</span>}
-                  <span style={{ fontSize: 12, color: muted }}>The current draft is kept in this document\u2019s history.</span>
+                  <span style={{ fontSize: 12, color: muted }}>The current draft is kept in this document{'\u2019'}s history.</span>
                 </div>
               )}
               {showDraft && generatedHtml && (

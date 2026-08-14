@@ -520,8 +520,12 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
 
   // The structured backsheet replaces the HTML tail the shell writes for
   // the preview; without the cut the claim would carry two backsheets.
+  // The shell's backsheet divider is the LAST <hr> in the document. The
+  // cut once used the FIRST, and a single <hr> the model wrote into the
+  // facts silently amputated every cause of action and the prayer for
+  // relief from the filed Word file.
   const mainHtml = courtFormat && options.socBacksheet && html.includes('<hr')
-    ? html.slice(0, html.indexOf('<hr'))
+    ? html.slice(0, html.lastIndexOf('<hr'))
     : html;
   const paragraphs = htmlToParagraphs(mainHtml, { ...(courtFormat ? { courtFormat: true } : {}), documentType: options.documentType });
 

@@ -304,3 +304,49 @@ describe('applyConditionals: branches never cross block boundaries', () => {
     }
   });
 });
+
+
+describe('the evaluator reads the fields the file actually holds', () => {
+  const base = { analysis: null, gates: [], approvedIssues: [], claimAmount: 0 };
+
+  it('a yes to "is there a termination clause" counts without the pasted text', () => {
+    const ctx = buildSocEvalContext({ ...base, intake: { termination_clause_exists: true } as never });
+    expect(ctx.has_term_clause).toBe(true);
+  });
+
+  it('the stored separation_type wins over the boolean derivation', () => {
+    const ctx = buildSocEvalContext({ ...base, intake: { separation_type: 'CONSTRUCTIVE' } as never });
+    expect(ctx.separation_type).toBe('CONSTRUCTIVE');
+  });
+
+  it('the questionnaire answers reach their placeholders', () => {
+    const ctx = buildSocEvalContext({
+      ...base,
+      intake: {
+        hrc_adverse_treatment: 'denied accommodation and terminated within the week',
+        prior_employer_service_years: 11,
+        left_secure_employment: true,
+        has_bonus: true,
+        has_equity: true,
+        employer_changed_through_acquisition: true,
+        predecessor_employer_name: 'Oldco Industries',
+        cause_reasons: ['lateness', 'insubordination'],
+      } as never,
+    });
+    expect(ctx.hrc_conduct_description).toContain('denied accommodation');
+    expect(ctx.prior_service).toBe('11');
+    expect(ctx.had_prior_secure_employment).toBe(true);
+    expect(ctx.has_bonus).toBe(true);
+    expect(ctx.has_equity_comp).toBe(true);
+    expect(ctx.prior_related_employer).toBe(true);
+    expect(ctx.predecessor).toBe('Oldco Industries');
+    expect(String(ctx.cause_reasons)).toContain('insubordination');
+  });
+
+  it('the Bardal character line has a real source and degrades cleanly', () => {
+    const withLevel = buildSocEvalContext({ ...base, intake: { job_level: 'senior management' } as never });
+    expect(withLevel.job_level_description).toBe('senior management');
+    const without = buildSocEvalContext({ ...base, intake: {} as never });
+    expect(without.job_level_description).toBe('');
+  });
+});

@@ -143,20 +143,30 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
   const gateFired = (id: string) => gates.some(g => g.gate === id && g.triggered);
   const approvedGates = new Set(input.approvedIssues.map(i => ISSUE_TO_GATE[i]).filter(Boolean));
 
-  const separationType = intake.is_constructive_dismissal === true
-    ? 'CONSTRUCTIVE'
-    : intake.resigned === true
-      ? 'RESIGNED'
-      : (intake.termination_date || intake.was_terminated) ? 'TERMINATED' : '';
+  // The questionnaire stores the answer directly; the booleans are the
+  // fallback derivation, not the authority.
+  const storedSeparation = typeof (intake as Record<string, unknown>).separation_type === 'string'
+    ? String((intake as Record<string, unknown>).separation_type).toUpperCase() : '';
+  const separationType = ['CONSTRUCTIVE', 'RESIGNED', 'TERMINATED'].includes(storedSeparation)
+    ? storedSeparation
+    : intake.is_constructive_dismissal === true
+      ? 'CONSTRUCTIVE'
+      : intake.resigned === true
+        ? 'RESIGNED'
+        : (intake.termination_date || intake.was_terminated) ? 'TERMINATED' : '';
 
   const cdChanges = intake.constructive_dismissal_details
     ?? (Array.isArray(intake.constructive_dismissal_grounds) && intake.constructive_dismissal_grounds.length > 0
       ? intake.constructive_dismissal_grounds.join(', ')
       : '');
 
-  const badFaithActs = Array.isArray(intake.bad_faith_conduct) && intake.bad_faith_conduct.length > 0
-    ? intake.bad_faith_conduct.join(', ')
-    : (intake.bad_faith_details ?? '');
+  const badFaithFreeText = Array.isArray((intake as Record<string, unknown>).bad_faith_acts)
+    ? ((intake as Record<string, unknown>).bad_faith_acts as string[]).join(', ') : '';
+  const badFaithActs = [
+    Array.isArray(intake.bad_faith_conduct) && intake.bad_faith_conduct.length > 0 ? intake.bad_faith_conduct.join(', ') : '',
+    badFaithFreeText,
+    intake.bad_faith_details ?? '',
+  ].filter(Boolean).join('; ');
 
   const d = analysis?.damagesEstimate;
 
@@ -172,7 +182,7 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
 
     // The contract.
     has_written_contract: intake.has_written_contract ?? (intake.termination_clause_text ? true : undefined),
-    has_term_clause: intake.termination_clause_text?.trim() ? true : undefined,
+    has_term_clause: intake.termination_clause_text?.trim() ? true : (intake.termination_clause_exists === true ? true : undefined),
     term_clause_text: intake.termination_clause_text ?? '',
     clause_cause_broader: intake.clause_cause_broader ?? input.approvedIssues.includes('waksdale_at_any_time'),
     clause_limits_below_esa: intake.clause_limits_below_esa ?? input.approvedIssues.includes('machtinger_below_esa'),
@@ -182,11 +192,11 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     // Bad faith and cause.
     bad_faith_acts: badFaithActs,
     bad_faith_termination_manner: badFaithActs ? true : undefined,
-    false_cause_alleged: intake.false_cause_alleged ?? (intake.employer_alleged_just_cause === true ? undefined : undefined),
+    false_cause_alleged: intake.false_cause_alleged,
 
     // Inducement and misrepresentation.
     employer_initiated_recruitment: intake.employer_initiated_recruitment,
-    had_prior_secure_employment: intake.had_prior_secure_employment ?? (intake.prior_employer_name ? true : undefined),
+    had_prior_secure_employment: intake.had_prior_secure_employment ?? intake.left_secure_employment ?? (intake.prior_employer_name ? true : undefined),
     promises_not_fulfilled: intake.promises_not_fulfilled,
     promises_known_false: intake.promises_known_false,
 
@@ -211,7 +221,7 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     // Successor employer and the constructive dismissal framings. The
     // primary and alternative framings derive from how the file ended; the
     // cumulative and remote framings are the lawyer's own fields.
-    prior_related_employer: intake.prior_related_employer,
+    prior_related_employer: intake.prior_related_employer ?? intake.employer_changed_through_acquisition,
     cd_primary: intake.is_constructive_dismissal === true || undefined,
     cd_alternative: (intake.was_terminated === true && cdChanges) ? true : undefined,
     cd_cumulative: intake.cd_cumulative,
@@ -221,11 +231,20 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     shared_branding: intake.shared_branding,
 
     // Compensation conditionals.
-    has_bonus: intake.bonus_amount ? true : (intake.bonus_type ? true : undefined),
-    has_equity_comp: (Array.isArray(intake.equity_types) && intake.equity_types.length > 0) ? true : undefined,
+    has_bonus: intake.bonus_amount ? true : (intake.bonus_type || intake.has_bonus === true ? true : undefined),
+    has_equity_comp: (Array.isArray(intake.equity_types) && intake.equity_types.length > 0) || intake.has_equity === true || (intake as Record<string, unknown>).has_equity_comp === true ? true : undefined,
     has_benefits: intake.has_benefits,
     has_rrsp: intake.pension_contribution_type ? true : intake.has_rrsp,
     has_car_allowance: intake.has_car_allowance,
+    // Placeholders in settled language deserve real sources: the Bardal
+    // character line fires on EVERY claim, and an unsourced
+    // {{job_level_description}} put a [LAWYER: ...] marker into each one.
+    job_level_description: ((intake as Record<string, unknown>).job_level as string | undefined)
+      ?? (intake.job_duties ? String(intake.job_duties).slice(0, 200) : ''),
+    car_allowance: intake.allowances_amount != null ? `$${Number(intake.allowances_amount).toLocaleString('en-CA')}` : (intake.allowances_details ?? ''),
+    other_compensation_list: Array.isArray((intake as Record<string, unknown>).other_compensation)
+      ? ((intake as Record<string, unknown>).other_compensation as string[]).join(', ')
+      : (intake.other_compensation_details ?? ''),
     unpaid_commission: intake.unpaid_commission,
     unpaid_overtime: intake.unpaid_overtime,
     vacation_unpaid: intake.vacation_unpaid,
@@ -267,9 +286,9 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     common_law_high: d?.commonLawHighMonths ?? '',
     total_claim: input.claimAmount ? cad(input.claimAmount) : '',
     duties_description: intake.job_duties ?? '',
-    cause_reasons: intake.cause_allegations ?? '',
+    cause_reasons: intake.cause_allegations ?? (Array.isArray((intake as Record<string, unknown>).cause_reasons) ? ((intake as Record<string, unknown>).cause_reasons as string[]).join('; ') : ''),
     prior_employer: intake.prior_employer_name ?? '',
-    prior_service: intake.prior_employer_tenure ?? '',
+    prior_service: intake.prior_employer_tenure ?? ((intake as Record<string, unknown>).prior_employer_service_years != null ? String((intake as Record<string, unknown>).prior_employer_service_years) : ''),
     inducement_representations: intake.inducement_representations ?? intake.inducement_details ?? '',
     recruiter_name_and_title: intake.recruiter_name_and_title ?? '',
     bad_faith_acts_list: badFaithActs,
@@ -282,12 +301,12 @@ export function buildSocEvalContext(input: SocEvalInput): Record<string, unknown
     express_term_obligation: intake.express_term_obligation ?? '',
     implied_term_conduct: intake.implied_term_conduct ?? '',
     common_employer_documentation: intake.common_employer_documentation ?? '',
-    hrc_conduct_description: intake.hrc_conduct_description ?? '',
+    hrc_conduct_description: intake.hrc_conduct_description ?? ((intake as Record<string, unknown>).hrc_adverse_treatment as string | undefined) ?? '',
     // Compensation particulars the employment history block prints.
     bonus_amount: intake.bonus_amount ? cad(intake.bonus_amount) : '',
     commission_amount: intake.commission_amount ? cad(intake.commission_amount) : '',
     equity_type: Array.isArray(intake.equity_types) && intake.equity_types.length > 0 ? intake.equity_types.join(', ') : '',
-    predecessor: intake.prior_employer_name ?? '',
+    predecessor: intake.predecessor_employer_name ?? intake.prior_employer_name ?? '',
     bad_faith_termination_particulars: intake.bad_faith_details ?? '',
   };
 

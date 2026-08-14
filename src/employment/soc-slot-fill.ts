@@ -104,7 +104,7 @@ export function enforceFillQuotes(result: SlotFillResult, sources: Array<{ name:
   return { kept, droppedFills };
 }
 
-export async function fillSocSlots(args: SlotFillArgs): Promise<{ kept: SlotFillResult; droppedFills: string[] } | null> {
+export async function fillSocSlots(args: SlotFillArgs): Promise<{ kept: SlotFillResult; droppedFills: string[]; costUsd: number } | null> {
   if (args.missingSlots.length === 0 && Object.keys(args.proseSlots).length === 0) return null;
 
   const parts: string[] = [];
@@ -138,7 +138,7 @@ export async function fillSocSlots(args: SlotFillArgs): Promise<{ kept: SlotFill
     const wantRewrite = new Set(Object.keys(args.proseSlots));
     parsed.fills = Object.fromEntries(Object.entries(parsed.fills).filter(([k]) => wantFill.has(k)));
     parsed.rewrites = Object.fromEntries(Object.entries(parsed.rewrites).filter(([k]) => wantRewrite.has(k)));
-    return enforceFillQuotes(parsed, args.sources);
+    return { ...enforceFillQuotes(parsed, args.sources), costUsd: chat.cost };
   } catch (err) {
     // Best effort by design: a failed lookup must not fail the claim the
     // lawyer already paid for. The blanks stay blanks, honestly marked.
