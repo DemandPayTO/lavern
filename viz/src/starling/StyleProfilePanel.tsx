@@ -1,3 +1,4 @@
+import { parseFileToText, isDocxFile, TEXT_UPLOAD_ACCEPT } from './shared.js';
 /**
  * StyleProfilePanel — teach Starling how the firm writes a document type.
  *
@@ -143,7 +144,12 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
     setError(null);
     if (!ignoreTypeMismatch) setTypeIssues([]);
     try {
-      const precedents = await Promise.all(files.map(async f => ({ name: f.name, docxBase64: await fileToBase64(f) })));
+      const precedents = await Promise.all(files.map(async f => {
+        if (isDocxFile(f)) return { name: f.name, docxBase64: await fileToBase64(f) };
+        const parsed = await parseFileToText(f);
+        if (!parsed.ok) throw new Error(parsed.error);
+        return { name: f.name, text: parsed.text };
+      }));
       const res = await fetch('/api/employment/style-profiles/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -356,7 +362,7 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
       <input
         ref={inputRef}
         type="file"
-        accept=".docx"
+        accept={TEXT_UPLOAD_ACCEPT}
         multiple
         style={{ display: 'none' }}
         onChange={e => {

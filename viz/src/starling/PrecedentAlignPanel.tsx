@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { navy, cream, green, amber, red, border, ink, muted, serif, sans } from './shared.js';
+import { navy, cream, green, amber, red, border, ink, muted, serif, sans, parseFileToText, isDocxFile, TEXT_UPLOAD_ACCEPT } from './shared.js';
 
 interface AlignedSlot {
   id: string;
@@ -96,7 +96,14 @@ export function PrecedentAlignPanel({ documentType, documentLabel, onSaved, onCa
     setBusy(true); setError(null);
     try {
       const precedents = await Promise.all(files.map(async f => ({
-        name: f.name, docxBase64: await fileToBase64(f),
+        name: f.name,
+        ...(isDocxFile(f)
+          ? { docxBase64: await fileToBase64(f) }
+          : await (async () => {
+              const parsed = await parseFileToText(f);
+              if (!parsed.ok) throw new Error(parsed.error);
+              return { text: parsed.text };
+            })()),
       })));
       const res = await fetch('/api/employment/templates/align', {
         method: 'POST', credentials: 'include',
@@ -157,7 +164,7 @@ export function PrecedentAlignPanel({ documentType, documentLabel, onSaved, onCa
         <input
           ref={inputRef}
           type="file"
-          accept=".docx"
+          accept={TEXT_UPLOAD_ACCEPT}
           multiple
           style={{ display: 'none' }}
           onChange={e => {

@@ -1737,3 +1737,31 @@ export function NetSettlementPanel({ matterId }: { matterId: string }) {
     </div>
   );
 }
+
+
+// ── File parsing for non-Word uploads ───────────────────────────────────
+// The precedent and adopt lanes take Word files directly; everything else
+// (PDF including scans, old .doc, plain text) parses server-side first and
+// travels as text. One helper so every lane behaves the same.
+
+export async function parseFileToText(file: File): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch('/api/documents/parse', { method: 'POST', credentials: 'include', body: formData });
+    if (!res.ok) return { ok: false, error: `Could not read "${file.name}". Supported: PDF, Word, plain text.` };
+    const parsed = await res.json() as { fullText?: string };
+    if (!parsed.fullText?.trim()) return { ok: false, error: `No text could be read from "${file.name}". A scanned file can take a minute; try again if it was one.` };
+    return { ok: true, text: parsed.fullText };
+  } catch {
+    return { ok: false, error: `Could not read "${file.name}".` };
+  }
+}
+
+/** True when the file is a Word .docx, which the precedent routes read directly. */
+export function isDocxFile(file: File): boolean {
+  return /\.docx$/i.test(file.name);
+}
+
+/** The accept list for lanes that read a document's text (not its OOXML). */
+export const TEXT_UPLOAD_ACCEPT = '.pdf,.docx,.doc,.txt,.md,.rtf';

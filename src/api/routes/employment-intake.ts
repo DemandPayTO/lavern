@@ -3923,8 +3923,11 @@ nodeReport: result.nodeReport,
     const parsed = z.object({
       precedents: z.array(z.object({
         name: z.string().trim().min(1).max(300),
-        docxBase64: z.string().max(7_000_000),
-      })).min(2).max(12),
+        // A Word file arrives as base64; anything else (PDF, old .doc,
+        // plain text) arrives already parsed to text by the browser.
+        docxBase64: z.string().max(7_000_000).optional(),
+        text: z.string().max(2_000_000).optional(),
+      }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(2).max(12),
     }).safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Upload between two and twelve claims.' });
 
@@ -3932,8 +3935,9 @@ nodeReport: result.nodeReport,
     const claims: Array<{ name: string; text: string }> = [];
     for (const p of parsed.data.precedents) {
       try {
-        const result = await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64, 'base64') });
-        const text = (result.value ?? '').trim();
+        const text = p.text?.trim()
+          ? p.text.trim()
+          : ((await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64!, 'base64') })).value ?? '').trim();
         if (text) claims.push({ name: p.name, text });
       } catch {
         return reply.status(400).send({ ok: false, error: `"${p.name}" could not be read as a Word document.` });
@@ -4262,8 +4266,9 @@ nodeReport: result.nodeReport,
     // that is actually particular to those files.
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
-      docxBase64: z.string().max(7_000_000),
-    })).min(3).max(8),
+      docxBase64: z.string().max(7_000_000).optional(),
+      text: z.string().max(2_000_000).optional(),
+    }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(3).max(8),
   });
 
   fastify.post('/api/employment/style-profiles/build', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -4278,8 +4283,9 @@ nodeReport: result.nodeReport,
     const texts: Array<{ name: string; text: string }> = [];
     for (const p of parsed.data.precedents) {
       try {
-        const buffer = Buffer.from(p.docxBase64, 'base64');
-        const { value } = await mammoth.extractRawText({ buffer });
+        const value = p.text?.trim()
+          ? p.text
+          : (await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64!, 'base64') })).value;
         if (!value || value.trim().length < 150) {
           return reply.status(400).send({ ok: false, error: `"${p.name}" has too little text to learn from. Is it the right file?` });
         }
@@ -4415,11 +4421,12 @@ nodeReport: result.nodeReport,
     documentType: z.string().regex(/^[a-z0-9_]{1,60}$/),
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
-      docxBase64: z.string().max(7_000_000),
+      docxBase64: z.string().max(7_000_000).optional(),
+      text: z.string().max(2_000_000).optional(),
       /** Optional: the matter this precedent came from. Naming placeholders
        *  from real intake data is exact, where pattern matching guesses. */
       matterId: z.string().trim().max(200).optional(),
-    })).min(3).max(8),
+    }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(3).max(8),
   });
 
   fastify.post('/api/employment/templates/align', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -4443,8 +4450,9 @@ nodeReport: result.nodeReport,
     for (const p of parsed.data.precedents) {
       let text = '';
       try {
-        const { value } = await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64, 'base64') });
-        text = value;
+        text = p.text?.trim()
+          ? p.text
+          : (await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64!, 'base64') })).value;
       } catch {
         return reply.status(400).send({ ok: false, error: `Could not read “${p.name}” as a Word document.` });
       }

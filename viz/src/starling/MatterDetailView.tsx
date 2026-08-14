@@ -26,6 +26,7 @@ import { useLabourData } from './hooks/useLabourApi.js';
 import LabourMatterDetailView from './LabourMatterDetailView.js';
 import { GateApprovalPanel, IntakeEditorPanel, GeneratedDocsPanel, NextStepsPanel, CloseMatterPanel, CorrespondencePanel, ComparablesPanel, NegotiationPanel, NetSettlementPanel, DebriefPanel } from './shared.js';
 import type { IntakeFieldDef } from './shared.js';
+import { parseFileToText, isDocxFile, TEXT_UPLOAD_ACCEPT } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
 // ── Design Tokens ───────────────────────────────────────────────────────
@@ -1431,14 +1432,22 @@ export default function MatterDetailView() {
     setReplacing(true);
     setGenError(null);
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      let binary = '';
-      const chunk = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      let payload: Record<string, unknown>;
+      if (isDocxFile(file)) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        payload = { docType, docxBase64: btoa(binary), filename: file.name };
+      } else {
+        const parsed = await parseFileToText(file);
+        if (!parsed.ok) { setGenError(parsed.error); return; }
+        payload = { docType, pastedText: parsed.text, filename: file.name };
+      }
       const res = await fetch(`/api/employment/${sessionId}/draft/replace`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docType, docxBase64: btoa(binary), filename: file.name }),
+        body: JSON.stringify(payload),
       });
       const d = await res.json();
       if (!d.ok) { setGenError(d.error ?? 'That version could not be read.'); return; }
@@ -1582,10 +1591,16 @@ export default function MatterDetailView() {
     try {
       const precedents = [];
       for (const f of files) {
-        const bytes = new Uint8Array(await f.arrayBuffer());
-        let binary = '';
-        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        precedents.push({ name: f.name, docxBase64: btoa(binary) });
+        if (isDocxFile(f)) {
+          const bytes = new Uint8Array(await f.arrayBuffer());
+          let binary = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          precedents.push({ name: f.name, docxBase64: btoa(binary) });
+        } else {
+          const parsed = await parseFileToText(f);
+          if (!parsed.ok) { setSocTeachMsg(parsed.error); return; }
+          precedents.push({ name: f.name, text: parsed.text });
+        }
       }
       const res = await fetch('/api/employment/soc-node-library/teach', {
         method: 'POST', credentials: 'include',
@@ -4170,7 +4185,7 @@ export default function MatterDetailView() {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
                       ref={socTeachInputRef}
-                      type="file" accept=".docx" multiple style={{ display: 'none' }}
+                      type="file" accept={TEXT_UPLOAD_ACCEPT} multiple style={{ display: 'none' }}
                       onChange={e => { const fs = [...(e.target.files ?? [])]; if (fs.length) void teachSocNodes(fs); e.target.value = ''; }}
                       aria-label="Upload the firm's statements of claim"
                     />
@@ -4516,7 +4531,7 @@ export default function MatterDetailView() {
                     <input
                       ref={adoptInputRef}
                       type="file"
-                      accept=".docx"
+                      accept={TEXT_UPLOAD_ACCEPT}
                       style={{ display: 'none' }}
                       onChange={e => {
                         const f = e.target.files?.[0];
@@ -4734,7 +4749,7 @@ export default function MatterDetailView() {
                       <input
                         ref={replaceInputRef}
                         type="file"
-                        accept=".docx"
+                        accept={TEXT_UPLOAD_ACCEPT}
                         style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f && dt) void replaceDraftWithUpload(f, dt); e.target.value = ''; }}
                         aria-label="Upload your edited version of this document"
