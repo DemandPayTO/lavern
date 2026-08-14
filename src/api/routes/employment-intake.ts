@@ -5074,10 +5074,14 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
         ? String(it.kind) as (typeof rl.REVISION_KINDS)[number]
         : 'needs_lawyer' as const,
       paragraphIndices: Array.isArray(it.paragraphIndices)
-        ? (it.paragraphIndices as unknown[]).map(Number).filter(Number.isInteger) : [],
+        ? (it.paragraphIndices as unknown[]).map(Number).filter(Number.isInteger).slice(0, 50) : [],
       proposal: String(it.proposal ?? '').slice(0, 2000),
       intakeField: it.intakeField ? String(it.intakeField).slice(0, 60) : undefined,
-      intakeValue: it.intakeValue as string | number | boolean | undefined,
+      // The model writes null where it means "no value"; a null stored here
+      // failed the whole apply later. Only real values survive.
+      intakeValue: typeof it.intakeValue === 'string' ? it.intakeValue.slice(0, 500)
+        : typeof it.intakeValue === 'number' || typeof it.intakeValue === 'boolean' ? it.intakeValue
+        : undefined,
       reason: it.reason ? String(it.reason).slice(0, 1000) : undefined,
     }));
 
@@ -5124,8 +5128,10 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
       kind: z.enum(REVISION_KIND_VALUES),
       paragraphIndices: z.array(z.number().int().min(0).max(5000)).max(50),
       proposal: z.string().max(2000),
-      intakeField: z.string().max(60).optional(),
-      intakeValue: z.union([z.string().max(500), z.number(), z.boolean()]).optional(),
+      intakeField: z.string().max(60).optional().nullable(),
+      // Null means "no value" wherever a plan or a client stored one; the
+      // union rejecting null once failed the pilot's whole apply.
+      intakeValue: z.union([z.string().max(2000), z.number(), z.boolean()]).optional().nullable(),
     })).min(1).max(60),
   });
 
@@ -5133,7 +5139,13 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     const userId = (req as { userId?: string }).userId ?? 'local-user';
     const { matterId } = req.params as { matterId: string };
     const parsed = revisionApplySchema.safeParse(req.body);
-    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid request' });
+    if (!parsed.success) {
+      // Name the field and the rule: "Invalid request" cost the pilot his
+      // approved changes with no way to know why.
+      const detail = parsed.error.issues.slice(0, 3).map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      logger.warn('Revision apply validation failed', { userId, matterId, detail });
+      return reply.status(400).send({ ok: false, error: `The changes were not applied. ${detail}. Read the feedback again to rebuild the plan, then apply.` });
+    }
 
     const row = await getMatterById(matterId, userId);
     if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
@@ -5147,9 +5159,16 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
 
     const rl = await import('../../employment/revision-loop.js');
     const paragraphs = rl.toParagraphs(html);
+    // Null normalizes to "no value" before anything downstream reads it: a
+    // null intakeValue passing the schema must never become a stored null.
+    const approvedItems = parsed.data.approved.map(i => ({
+      ...i,
+      intakeField: i.intakeField ?? undefined,
+      intakeValue: i.intakeValue ?? undefined,
+    }));
     // A needs_lawyer item is a question for the lawyer, never an instruction
     // to the model: it cannot be approved into an edit.
-    const editable = parsed.data.approved.filter(i => i.kind !== 'needs_lawyer' && i.paragraphIndices.length > 0);
+    const editable = approvedItems.filter(i => i.kind !== 'needs_lawyer' && i.paragraphIndices.length > 0);
 
     let revised: Record<number, string> = {};
     let cost = 0;

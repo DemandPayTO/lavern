@@ -100,6 +100,41 @@ describe('applying approved revisions', () => {
     expect((matter.draftHistory as unknown[]).length).toBeGreaterThan(0);
   });
 
+  it('a null intakeValue is "no value", never a 400 and never a stored null', async () => {
+    seedMatter();
+    modelReply = JSON.stringify({ revised: { 2: '<p>2. The Plaintiff was employed as a Senior Buyer.</p>' } });
+    const res = await post(`/api/employment/${MID}/revision/apply`, {
+      docType: 'statement_of_claim',
+      // The plan once stored the model's nulls verbatim, and the apply
+      // schema rejected the whole request with a nameless Invalid request.
+      approved: [{
+        id: 'rev-0', feedback: 'The tone is too strong on the role description.', kind: 'wording',
+        paragraphIndices: [2], proposal: 'Soften the role description.',
+        intakeField: null, intakeValue: null,
+      }],
+    });
+    expect(res.status).toBe(200);
+    const matter = JSON.parse(getMatterById(MID, userId)!.data_json) as Record<string, unknown>;
+    const employment = matter.employmentData as { intake: Record<string, unknown> };
+    // No intake field was touched by the null.
+    expect(employment.intake.job_title).toBe('Buyer');
+    expect(String((matter.generatedSOC as Record<string, unknown>).html)).toContain('Senior Buyer');
+  });
+
+  it('a rejected apply names the field and the rule, never "Invalid request"', async () => {
+    seedMatter();
+    const res = await post(`/api/employment/${MID}/revision/apply`, {
+      docType: 'statement_of_claim',
+      approved: [{
+        id: 'rev-0', feedback: 'x'.repeat(3000), kind: 'wording',
+        paragraphIndices: [1], proposal: 'Trim.',
+      }],
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toContain('feedback');
+    expect(String(res.body.error)).not.toBe('Invalid request');
+  });
+
   it('REFUSES the whole apply when an unapproved paragraph was altered', async () => {
     seedMatter();
     // The model returns the approved paragraph AND meddles with another.
