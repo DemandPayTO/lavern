@@ -3925,7 +3925,7 @@ nodeReport: result.nodeReport,
         name: z.string().trim().min(1).max(300),
         // A Word file arrives as base64; anything else (PDF, old .doc,
         // plain text) arrives already parsed to text by the browser.
-        docxBase64: z.string().max(7_000_000).optional(),
+        docxBase64: z.string().max(14_000_000).optional(),
         text: z.string().max(2_000_000).optional(),
       }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(2).max(12),
     }).safeParse(req.body);
@@ -4262,7 +4262,7 @@ nodeReport: result.nodeReport,
     // that is actually particular to those files.
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
-      docxBase64: z.string().max(7_000_000).optional(),
+      docxBase64: z.string().max(14_000_000).optional(),
       text: z.string().max(2_000_000).optional(),
     }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(3).max(8),
   });
@@ -4273,7 +4273,18 @@ nodeReport: result.nodeReport,
     if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
 
     const parsed = styleBuildSchema.safeParse(req.body);
-    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid style profile request' });
+    if (!parsed.success) {
+      // Name the field and the rule. "Invalid style profile request" left
+      // the pilot guessing which of eight files the schema disliked.
+      const body = req.body as { precedents?: Array<{ name?: string }> } | null;
+      const detail = parsed.error.issues.slice(0, 3).map(i => {
+        const [head, idx, leaf] = i.path;
+        const fileName = head === 'precedents' && typeof idx === 'number' ? body?.precedents?.[idx]?.name : undefined;
+        const where = fileName ? `"${fileName}" (${String(leaf ?? 'file')})` : i.path.join('.');
+        return `${where}: ${i.message}`;
+      }).join('; ');
+      return reply.status(400).send({ ok: false, error: `The style could not be learned. ${detail}.` });
+    }
 
     const { readPrecedentBuffer } = await import('../../employment/precedent-read.js');
     const texts: Array<{ name: string; text: string }> = [];
@@ -4416,7 +4427,7 @@ nodeReport: result.nodeReport,
     documentType: z.string().regex(/^[a-z0-9_]{1,60}$/),
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
-      docxBase64: z.string().max(7_000_000).optional(),
+      docxBase64: z.string().max(14_000_000).optional(),
       text: z.string().max(2_000_000).optional(),
       /** Optional: the matter this precedent came from. Naming placeholders
        *  from real intake data is exact, where pattern matching guesses. */
