@@ -453,6 +453,32 @@ async function styleReviewFlags(
  * whenever the intake is newer than the analysis, so stale figures never
  * feed a document silently. No model call.
  */
+/**
+ * Additional heads of damage the FILE supports, beyond pay in lieu of
+ * notice. Head and basis are asserted from the record; the amount stays
+ * null for the lawyer to quantify, because these figures are judgment, not
+ * arithmetic. Only what the intake actually flags appears.
+ */
+function buildAdditionalHeads(intake: EmploymentIntakeData): Array<{ name: string; basis: string; estimatedAmount?: number }> {
+  const heads: Array<{ name: string; basis: string; estimatedAmount?: number }> = [];
+  if (intake.believes_discriminatory_termination || intake.hrc_protected_ground) {
+    heads.push({ name: 'Human Rights Code damages', basis: 'injury to dignity, feelings and self-respect (Human Rights Code s. 46.1)' });
+  }
+  if (intake.bad_faith_details || (Array.isArray(intake.bad_faith_conduct) && intake.bad_faith_conduct.length > 0)) {
+    heads.push({ name: 'Moral (aggravated) damages', basis: 'bad faith in the manner of dismissal (Honda v Keays)' });
+  }
+  if (intake.false_cause_alleged || intake.employer_alleged_just_cause) {
+    heads.push({ name: 'Punitive damages', basis: 'reserved pending the conduct particulars; plead where the manner of dismissal warrants' });
+  }
+  if (intake.esa_sev_shortfall || intake.esa_term_shortfall) {
+    heads.push({ name: 'ESA termination and severance shortfall', basis: 'statutory minimums under the Employment Standards Act, 2000, to the extent unpaid' });
+  }
+  if (intake.unpaid_commission || intake.vacation_unpaid || intake.holiday_pay_unpaid) {
+    heads.push({ name: 'Unpaid wages and vacation pay', basis: 'earned amounts outstanding at termination' });
+  }
+  return heads;
+}
+
 function recomputeAnalysis(employment: EmploymentMatterData): void {
   const intake = employment.intake;
 
@@ -515,7 +541,12 @@ function recomputeAnalysis(employment: EmploymentMatterData): void {
       commonLawHighMonths: clHighMonths,
       commonLawLowAmount: clLow,
       commonLawHighAmount: clHigh,
-      additionalHeads: [] as Array<{ name: string; basis: string; estimatedAmount?: number }>,
+      // The additional heads the file supports, so the demand table and the
+      // brief itemise more than pay-in-lieu. Amounts stay unquantified
+      // (the lawyer supplies them); the head and its basis are what the
+      // record can assert. An empty list made every multi-head letter fire
+      // the "differs materially" alarm and trained the lawyer to ignore it.
+      additionalHeads: buildAdditionalHeads(employment.intake),
       totalEstimateLow: totalLow,
       totalEstimateHigh: totalHigh,
     },
@@ -1909,7 +1940,8 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
     const parsed = demandLetterBodySchema.safeParse(req.body);
     if (!parsed.success) {
       logger.warn('Demand letter validation failed', { userId, issues: parsed.error.issues.map(i => i.path.join('.')) });
-      return reply.status(400).send({ ok: false, error: 'Invalid request' });
+      const detail = parsed.error.issues.slice(0, 3).map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      return reply.status(400).send({ ok: false, error: `The letter was not generated. ${detail}.` });
     }
 
     const row = await getMatterById(matterId, userId);
@@ -2112,16 +2144,25 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
         ...(houseFitIssues.length > 0 ? { houseFormFitIssues: houseFitIssues } : {}),
       },
     }, { userId, matterId });
+    // A letter already marked sent keeps that record and its uploaded Word
+    // file across a regeneration: the fact of service, the tickler it set,
+    // and the reviewer's marked-up copy must not be lost to a typo fix.
+    const priorDL = (matter as Record<string, unknown>).generatedDemandLetter as Record<string, unknown> | undefined;
+    const preserved = priorDL && priorDL.status && priorDL.status !== 'draft'
+      ? { status: priorDL.status, statusDate: priorDL.statusDate, statusHistory: priorDL.statusHistory, uploadedDocx: priorDL.uploadedDocx }
+      : {};
     (matter as Record<string, unknown>).generatedDemandLetter = {
       html: sanitiseHtml(result.html),
       lawyerReviewFlags: result.lawyerReviewFlags,
       citations: result.citations,
       tone: parsed.data.tone,
       demandAmount: parsed.data.demandAmount,
+      recipientName: parsed.data.recipientName,
       responseDeadlineDays: parsed.data.responseDeadlineDays,
       generatedAt: new Date().toISOString(),
       costUsd: result.costUsd,
       status: 'draft', // lawyer must review before finalising
+      ...preserved,
       // Recorded, not surfaced: where the firm's standard language assumed
       // facts this file does not have. Kept so a letter can be explained
       // later without adding a warning the lawyer sees on every draft.
@@ -2143,6 +2184,26 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       source: 'system',
     });
 
+    // The demand opens the negotiation: record it on the ledger so the
+    // matter reads as a position put to the employer, and the mediation
+    // brief's history is not blank after a demand was served.
+    {
+      const ledger = (((matter as Record<string, unknown>).negotiation ?? []) as Array<Record<string, unknown>>);
+      const today = new Date().toISOString().slice(0, 10);
+      const already = ledger.some(e => e.kind === 'demand' && e.party === 'client' && e.date === today && e.amountCad === parsed.data.demandAmount);
+      if (!already) {
+        ledger.push({
+          id: `neg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          date: today, party: 'client', kind: 'demand',
+          amountCad: parsed.data.demandAmount,
+          terms: `Demand letter served; ${parsed.data.responseDeadlineDays}-day response deadline`,
+          note: 'Recorded automatically when the demand letter was generated.',
+          recordedAt: new Date().toISOString(),
+        });
+        (matter as Record<string, unknown>).negotiation = ledger;
+      }
+    }
+
     await saveEmploymentData(userId, matterId, matter, employment);
 
     logger.info('Demand letter generated', {
@@ -2160,6 +2221,10 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
       lawyerReviewFlags: result.lawyerReviewFlags,
       citations: result.citations,
       costUsd: result.costUsd,
+      demandAmount: parsed.data.demandAmount,
+      responseDueDate: responseDue.toISOString().slice(0, 10),
+      docketedResponseDeadline: true,
+      recordedOnLedger: true,
     });
   });
 
@@ -4133,8 +4198,11 @@ nodeReport: result.nodeReport,
       : 'ONTARIO SUPERIOR COURT OF JUSTICE';
 
     if (docType === 'demand-letter') {
-      if (!genDL?.html) return reply.status(404).send({ ok: false, error: 'No demand letter generated yet.' });
-      html = genDL.html as string;
+      // An adopted outside letter lives under the pattern key; both count.
+      const dlKey = findGeneratedDocKey(matterData, 'demand_letter');
+      const dlDoc = (genDL ?? (dlKey ? matterData[dlKey] : undefined)) as Record<string, unknown> | undefined;
+      if (!dlDoc?.html) return reply.status(404).send({ ok: false, error: 'No demand letter generated yet.' });
+      html = dlDoc.html as string;
       const clientName = employment ? `${employment.intake?.client_last_name ?? ''}` : '';
       const employerName = employment?.intake?.employer_legal_name ?? '';
       title = `Demand Letter${clientName ? ` re ${clientName}` : ''}${employerName ? ` v. ${employerName}` : ''}`;
@@ -4236,7 +4304,12 @@ nodeReport: result.nodeReport,
       firmId,
       documentType: docTypeMap[docType],
       templateVariantId,
-      demandAmount: employment?.demandAmount ?? null,
+      // The demand figure and recipient belong to the demand letter, and
+      // come from the stored letter, not the matter-wide last-generated
+      // value that bled into every document type's {{AMOUNT}} marker.
+      demandAmount: docType === 'demand-letter' ? ((genDL?.demandAmount as number | undefined) ?? employment?.demandAmount ?? null) : null,
+      recipientName: docType === 'demand-letter' ? (genDL?.recipientName as string | undefined) : undefined,
+      responseDeadlineDays: docType === 'demand-letter' ? (genDL?.responseDeadlineDays as number | undefined) : undefined,
       intake: employment?.intake ? {
         client_first_name: employment.intake.client_first_name ?? undefined,
         client_last_name: employment.intake.client_last_name ?? undefined,

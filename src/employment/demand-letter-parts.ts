@@ -204,10 +204,12 @@ export function buildDemandDamagesTable(input: DemandDamagesInput): { html: stri
 
   let gross = 0;
   for (const head of heads) {
-    const amount = typeof head.amount === 'number' && head.amount > 0 ? head.amount : null;
-    if (amount) gross += amount;
-    rows.push(`<tr><td>${esc(head.label)}</td><td>${esc(head.basis ?? '')}</td><td>${amount ? cad(amount) : '[LAWYER: quantify]'}</td></tr>`);
-    if (!amount) flags.push(`Damages table: "${head.label}" has no amount. Quantify it or remove the head before sending.`);
+    // A head the lawyer entered as exactly $0 is a quantified nil, not an
+    // unfilled blank: null means "not yet quantified", 0 means "nothing".
+    const quantified = typeof head.amount === 'number' && head.amount >= 0;
+    if (quantified && head.amount! > 0) gross += head.amount!;
+    rows.push(`<tr><td>${esc(head.label)}</td><td>${esc(head.basis ?? '')}</td><td>${quantified ? cad(head.amount!) : '[LAWYER: quantify]'}</td></tr>`);
+    if (!quantified) flags.push(`Damages table: "${head.label}" has no amount. Quantify it or remove the head before sending.`);
   }
 
   rows.push(`<tr><th>Subtotal</th><td></td><th>${cad(gross)}</th></tr>`);
@@ -225,9 +227,13 @@ export function buildDemandDamagesTable(input: DemandDamagesInput): { html: stri
     rows.push(`<tr><td>Less: mitigation earnings</td><td>earned to date</td><td>(${cad(input.mitigationEarnings)})</td></tr>`);
   }
 
-  const net = Math.max(0, gross - deductions);
+  const rawNet = gross - deductions;
+  const net = Math.max(0, rawNet);
   if (deductions > 0) {
     rows.push(`<tr><th>Net claim</th><td></td><th>${cad(net)}</th></tr>`);
+  }
+  if (rawNet < 0) {
+    flags.push(`Damages table: what has been paid and earned (${cad(deductions)}) exceeds the itemised heads (${cad(gross)}), so the net claim shows as $0. Check the heads are complete before sending a positive demand.`);
   }
 
   // The demand is the lawyer's number. Where it diverges materially from
@@ -235,15 +241,21 @@ export function buildDemandDamagesTable(input: DemandDamagesInput): { html: stri
   // its own table.
   if (input.demandAmount > 0) {
     rows.push(`<tr><th>Amount demanded in settlement</th><td>all-inclusive</td><th>${cad(input.demandAmount)}</th></tr>`);
-    const reference = net > 0 ? net : gross;
-    if (reference > 0 && Math.abs(input.demandAmount - reference) > reference * 0.25) {
+    // Compare against the net where deductions were entered, gross where
+    // none were: a demand of $150,000 against a $0 clamped net is exactly
+    // the divergence the lawyer needs told about, not hidden by falling
+    // back to gross.
+    const reference = deductions > 0 ? net : gross;
+    if (Math.abs(input.demandAmount - reference) > Math.max(reference * 0.25, 1)) {
       flags.push(
         `The amount demanded (${cad(input.demandAmount)}) differs materially from the itemised ${deductions > 0 ? 'net' : 'gross'} claim (${cad(reference)}). Confirm the demand figure, or adjust the heads so the table and the demand agree.`,
       );
     }
   }
 
-  if ((input.amountsPaid ?? []).length === 0 && !input.mitigationEarnings) {
+  // A zero mitigation ENTERED is a fact worth stating; only the absence of
+  // any entry earns the reminder.
+  if ((input.amountsPaid ?? []).length === 0 && input.mitigationEarnings == null) {
     flags.push('Damages table: no amounts paid and no mitigation earnings were entered. If the employer has paid statutory entitlements or the client has earned income, enter them so the letter nets them off.');
   }
 

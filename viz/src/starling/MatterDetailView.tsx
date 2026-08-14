@@ -938,6 +938,7 @@ export default function MatterDetailView() {
   const [dlRecipient, setDlRecipient] = useState('');
   const [dlPaid, setDlPaid] = useState<Array<{ label: string; amount: string }>>([]);
   const [dlMitigation, setDlMitigation] = useState('');
+  const [dlDeadlineDays, setDlDeadlineDays] = useState(14);
   // Which attached documents this letter reads, and what the next upload
   // is. The kind is the lawyer's to state: a file called "final.docx"
   // tells the model nothing, and a policy manual read as the employment
@@ -2259,18 +2260,26 @@ export default function MatterDetailView() {
           profile.lsoNumber && `LSO# ${profile.lsoNumber}`,
         ].filter(Boolean).join(' · ') || undefined,
         courtLocation: genCourtLocation,
-        responseDeadlineDays: 14,
+        responseDeadlineDays: dlDeadlineDays,
         ...(styleProfileId ? { styleProfileId } : {}),
 
         ...(selectedDraft === 'demand' ? {
           sourceIds: [...dlSourceIds],
-          damageHeads: dlHeads
-            .filter(h => h.label.trim() !== '')
-            .map(h => ({
-              label: h.label.trim(),
-              basis: h.basis.trim() || undefined,
-              amount: h.amount ? Number(h.amount) : null,
-            })),
+          // The heads exactly as shown. The server treats an omitted array
+          // as "use the analysis defaults", so when the lawyer has cleared
+          // every row we send the flag instead of an empty array that would
+          // silently restore the defaults.
+          ...(dlHeads.some(h => h.label.trim() !== '')
+            ? {
+                damageHeads: dlHeads
+                  .filter(h => h.label.trim() !== '')
+                  .map(h => ({
+                    label: h.label.trim(),
+                    basis: h.basis.trim() || undefined,
+                    amount: h.amount !== '' ? Number(h.amount) : null,
+                  })),
+              }
+            : { damageHeads: [{ label: 'No heads itemised', amount: null, basis: 'the lawyer cleared the damages table' }] }),
           recipientName: dlRecipient.trim() || undefined,
           amountsPaid: dlPaid
             .map(r => ({ label: r.label.trim(), amount: Number(r.amount) }))
@@ -2297,6 +2306,14 @@ export default function MatterDetailView() {
       if (selectedDraft === 'soc' && result.nodeReport) {
         const pleaded = result.nodeReport.filter(r => r.status === 'firing' || r.status === 'forced_on').length;
         notes.push(`Claim generated${result.procedureType ? ` under the ${result.procedureType.replace(/_/g, ' ')} procedure` : ''}: ${pleaded} section${pleaded === 1 ? '' : 's'} pleaded. The pleading picker under Options shows each decision.`);
+      }
+      if (selectedDraft === 'demand') {
+        const bits: string[] = [];
+        if (result.demandAmount) bits.push(`Demand letter generated for $${Number(result.demandAmount).toLocaleString('en-CA')}`);
+        else bits.push('Demand letter generated');
+        if (result.responseDueDate) bits.push(`response due ${result.responseDueDate}, now on your docket`);
+        if (result.recordedOnLedger) bits.push('and recorded on the negotiation ledger');
+        notes.push(bits.join(', ') + '.');
       }
       if (typeof result.costUsd === 'number' && result.costUsd > 0) {
         notes.push(`Draft cost $${result.costUsd.toFixed(2)}.`);
@@ -2777,10 +2794,12 @@ export default function MatterDetailView() {
                   const entry = draftHistory.find(d => d.docType === dt);
                   if (!entry) return false;
                   const card = DOCTYPE_TO_DRAFT[dt];
-                  if (card) setSelectedDraft(card);
+                  // Go through openDraftCard so the shared amount and its
+                  // prefill note reset: opening the demand letter from
+                  // Documents must not carry the claim's figure into the
+                  // Demand Amount field.
+                  if (card) openDraftCard(card);
                   setGeneratedHtml(entry.html);
-                  setGenCitations([]);
-                  setGenReviewFlags([]);
                   setActiveTab('draft');
                   window.scrollTo(0, 0);
                   return true;
@@ -3885,8 +3904,13 @@ export default function MatterDetailView() {
                         </select>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Demand Amount (CAD)</div>
-                        <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                        <label htmlFor="dl-amount" style={{ display: 'block', fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Demand Amount (CAD)</label>
+                        <input id="dl-amount" type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label htmlFor="dl-deadline" style={{ display: 'block', fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Response deadline (days)</label>
+                        <input id="dl-deadline" type="number" min={1} max={90} value={dlDeadlineDays} onChange={e => setDlDeadlineDays(Math.min(90, Math.max(1, Number(e.target.value) || 14)))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
+                        <div style={{ fontSize: 11.5, color: muted, marginTop: 3 }}>The letter states the calendar date, and it goes on your docket.</div>
                       </div>
                     </>
                   )}
@@ -4075,17 +4099,26 @@ export default function MatterDetailView() {
                         Add a head
                       </button>
                       {dlHeads.length > 0 && (() => {
-                        const subtotal = dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-                        const asCad = subtotal.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
+                        const gross = dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+                        // The shortcut and the label reflect the NET the
+                        // letter's table actually claims: gross less what has
+                        // been paid and earned in mitigation. Filling the
+                        // demand with the gross while the table nets those
+                        // off made the letterhead figure argue with its body.
+                        const paidTotal = dlPaid.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+                        const mitig = Number(dlMitigation) || 0;
+                        const net = Math.max(0, gross - paidTotal - mitig);
+                        const deducted = paidTotal + mitig > 0;
+                        const asCad = net.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
                         return (
                           <span style={{ fontSize: 12, color: muted }}>
-                            Subtotal {asCad}
+                            {deducted ? 'Net claim' : 'Subtotal'} {asCad}
                             {/* The demand is a judgment call, so it is never
                                 filled in silently. Offered, once, when the
                                 figures are on screen and the field is empty. */}
-                            {subtotal > 0 && !genDemandAmount && (
+                            {net > 0 && !genDemandAmount && (
                               <button
-                                onClick={() => setGenDemandAmount(String(Math.round(subtotal)))}
+                                onClick={() => setGenDemandAmount(String(Math.round(net)))}
                                 style={{ marginLeft: 8, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
                               >
                                 demand this amount

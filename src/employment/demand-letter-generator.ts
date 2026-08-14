@@ -283,6 +283,12 @@ DAMAGES ESTIMATE:
 - Common law reasonable notice: ${damages.commonLawLowMonths}–${damages.commonLawHighMonths} months ($${damages.commonLawLowAmount.toLocaleString('en-CA')}–$${damages.commonLawHighAmount.toLocaleString('en-CA')})
 
 DEMAND AMOUNT: $${req.demandAmount.toLocaleString('en-CA')} CAD
+
+THE FIGURES THE LETTER ACTUALLY CLAIMS (an itemised table with these exact figures is inserted automatically; your prose MUST NOT state a different total or range, and MUST acknowledge amounts already paid and mitigation where they appear):
+${(req.damageHeads?.length ? req.damageHeads : []).map(h => `- ${h.label}: ${typeof h.amount === 'number' ? '$' + h.amount.toLocaleString('en-CA') : 'to be quantified'}`).join('\n') || '- Pay in lieu of reasonable notice (see the estimate above)'}
+${(req.amountsPaid ?? []).filter(p => p.amount > 0).map(p => `- Less, already paid: ${p.label} $${p.amount.toLocaleString('en-CA')}`).join('\n')}
+${typeof req.mitigationEarnings === 'number' ? `- Less, mitigation earnings to date: $${req.mitigationEarnings.toLocaleString('en-CA')}` : ''}
+Refer to the itemisation as set out in the table; do not restate every figure in prose.
 ${clauseSection}${cdSection}${hrSection}${bfSection}${offerSection}
 
 LETTER METADATA:
@@ -404,7 +410,11 @@ export async function generateDemandLetter(
     cost = result.cost;
   } catch (err) {
     logger.error('Demand letter generation failed', { error: err instanceof Error ? err.message : String(err) });
-    throw new Error('Document generation failed. Please try again.');
+    // A 4xx-shaped message so the route surfaces it verbatim instead of the
+    // global handler's "your work is saved" (it was not).
+    const e = new Error('The letter could not be generated. Try again; if it keeps failing, shorten the attached sources or the direction.') as Error & { statusCode?: number };
+    e.statusCode = 502;
+    throw e;
   }
 
   // Extract HTML — Claude may wrap in markdown fences
@@ -472,9 +482,13 @@ export async function generateDemandLetter(
   const lawyerReviewFlags = [
     ...computeReviewFlags(req.approvedIssues),
     ...damages.flags,
+    // Citations are canon-checked over the model's prose (the furniture and
+    // table carry no case law), but the fill-in and [LAWYER: ...] scan
+    // reads the WHOLE assembled letter: a missing recipient or salutation
+    // lives in the furniture, and a served letter must never carry one.
     ...checkCitationIntegrity(narrativeHtml, definedTerms ?? []),
     ...checkCanonTextIntegrity(narrativeHtml),
-    ...checkFillInPlaceholders(narrativeHtml),
+    ...checkFillInPlaceholders(html),
   ];
   // Every AI draft carries at least one review reminder — Rule 26 posture
   if (lawyerReviewFlags.length === 0) {

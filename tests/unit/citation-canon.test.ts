@@ -98,3 +98,15 @@ describe('checkCitationIntegrity — plain text handling', () => {
     expect(checkCitationIntegrity(html)).toEqual([]);
   });
 });
+
+
+describe('checkFillInPlaceholders catches [LAWYER: ...] markers', () => {
+  it('flags a served letter still carrying a [LAWYER: ...] marker', () => {
+    const flags = checkFillInPlaceholders('<p>Dear [LAWYER: salutation]:</p><p>Re: the matter</p>');
+    expect(flags.length).toBeGreaterThan(0);
+    expect(flags[0]).toContain('Do not send');
+  });
+  it('is silent on a clean document', () => {
+    expect(checkFillInPlaceholders('<p>Dear Counsel:</p><p>Yours truly</p>')).toEqual([]);
+  });
+});

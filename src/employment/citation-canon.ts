@@ -110,10 +110,24 @@ export function checkFillInPlaceholders(html: string): string[] {
     if (m[1] === m[1].toUpperCase()) continue;
     found.add(`[${m[1]}]`);
   }
-  if (found.size === 0) return [];
-  return [
-    `This document contains fill-in placeholders that must be completed before sending: ${[...found].join(', ')}. Adding your firm address and contact details to the Starling Profile will populate these automatically.`,
-  ];
+  // [LAWYER: ...] markers carry a colon and often run long, which the
+  // bracket regex above deliberately excludes; they are THE marker this
+  // product emits for a fact the file does not hold, and a served letter
+  // reading "[LAWYER: salutation]" is the worst thing this check exists to
+  // prevent. Match them explicitly.
+  const lawyerMarkers = new Set<string>();
+  const lm = /\[LAWYER:[^\]]{1,120}\]/gi;
+  let lmm: RegExpExecArray | null;
+  while ((lmm = lm.exec(text)) !== null) lawyerMarkers.add(lmm[0]);
+
+  const flags: string[] = [];
+  if (lawyerMarkers.size > 0) {
+    flags.push(`Do not send yet: the document has ${lawyerMarkers.size} place${lawyerMarkers.size === 1 ? '' : 's'} where a fact is missing and marked for you: ${[...lawyerMarkers].slice(0, 6).join(', ')}. Complete each before sending.`);
+  }
+  if (found.size > 0) {
+    flags.push(`This document contains fill-in placeholders that must be completed before sending: ${[...found].join(', ')}. Adding your firm address and contact details to the Starling Profile will populate these automatically.`);
+  }
+  return flags;
 }
 
 /**

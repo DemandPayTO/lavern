@@ -1478,6 +1478,10 @@ export interface GenerateDocumentResult {
   nodeReport?: Array<{ status: string }>;
   /** The procedure the server actually generated under. */
   procedureType?: string;
+  /** Demand letter: the figure demanded, the docketed response date, and whether it hit the ledger. */
+  demandAmount?: number;
+  responseDueDate?: string;
+  recordedOnLedger?: boolean;
   /** What this draft cost, for the notice line. */
   costUsd?: number;
   /** Non-blocking warnings, e.g. setting down past the Rule 48.14 deadline. */
@@ -1809,6 +1813,9 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
         droppedSources: Array.isArray(json.droppedSources) ? (json.droppedSources as string[]) : undefined,
         nodeReport: Array.isArray(json.nodeReport) ? (json.nodeReport as Array<{ status: string }>) : undefined,
         procedureType: typeof json.procedureType === 'string' ? json.procedureType : undefined,
+        demandAmount: typeof json.demandAmount === 'number' ? json.demandAmount : undefined,
+        responseDueDate: typeof json.responseDueDate === 'string' ? json.responseDueDate : undefined,
+        recordedOnLedger: json.recordedOnLedger === true,
         costUsd: typeof json.costUsd === 'number' ? json.costUsd : undefined,
       };
     } catch (err) {

@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { getExpectedSections } from '../../src/employment/demand-letter-generator.js';
+import { buildDemandDamagesTable } from '../../src/employment/demand-letter-parts.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SECTION SELECTION
@@ -116,5 +117,49 @@ describe('getExpectedSections', () => {
     // No duplicates
     const unique = new Set(sections);
     expect(unique.size).toBe(sections.length);
+  });
+});
+
+
+describe('demand table figure integrity (revamp)', () => {
+  const analysis = {
+    damagesEstimate: {
+      esaNoticeWeeks: 8, esaNoticePay: 1, esaSeverancePay: 1,
+      commonLawLowMonths: 8, commonLawHighMonths: 12,
+      commonLawLowAmount: 80000, commonLawHighAmount: 120000,
+      additionalHeads: [], totalEstimateLow: 80000, totalEstimateHigh: 120000,
+    },
+    bardalFactors: { age: 47, tenureYears: 8 }, timeline: [], gates: [],
+    limitationDeadline: { date: '', daysRemaining: 0, urgent: false }, recommendedProcedure: 'simplified',
+  } as never;
+  const intake = { annual_salary: 120000 } as never;
+
+  it('a $0 head is a quantified nil, not [LAWYER: quantify]', () => {
+    const { html, flags } = buildDemandDamagesTable({
+      intake, analysis, demandAmount: 120000,
+      heads: [{ label: 'Pay in lieu', amount: 120000 }, { label: 'Bonus through notice', amount: 0 }],
+    });
+    expect(html).toContain('Bonus through notice');
+    expect(html).not.toContain('[LAWYER: quantify]');
+    expect(flags.some(f => f.includes('Bonus through notice'))).toBe(false);
+  });
+
+  it('a confirmed zero mitigation is not treated as a forgotten field', () => {
+    const { flags } = buildDemandDamagesTable({
+      intake, analysis, demandAmount: 120000,
+      heads: [{ label: 'Pay in lieu', amount: 120000 }], mitigationEarnings: 0,
+    });
+    expect(flags.some(f => f.includes('no amounts paid and no mitigation'))).toBe(false);
+  });
+
+  it('when deductions exceed the heads the $0 net is flagged and the divergence check uses net', () => {
+    const { html, flags } = buildDemandDamagesTable({
+      intake, analysis, demandAmount: 150000,
+      heads: [{ label: 'Pay in lieu', amount: 100000 }],
+      amountsPaid: [{ label: 'ESA', amount: 130000 }],
+    });
+    expect(html).toContain('Net claim');
+    expect(flags.some(f => f.includes('exceeds the itemised heads'))).toBe(true);
+    expect(flags.some(f => f.includes('differs materially'))).toBe(true);
   });
 });

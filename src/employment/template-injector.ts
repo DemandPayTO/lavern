@@ -127,6 +127,10 @@ export async function injectIntoFirmTemplate(
       stripLeadingFurniture,
     } = await import('./docx-splice.js');
     const { htmlToParagraphs } = await import('./docx-export.js');
+    // Snapshot before any splicing: whether the template EVER had a body
+    // marker. Testing this after the body marker is consumed would make a
+    // marked-up template look markerless and wipe its scalar placeholders.
+    const templateHadBodyMarker = hasBodyMarker(xmlContent);
 
     // Where the firm's template carries its own opening, Starling's would
     // be the second one on the page. The template wins: the firm wrote the
@@ -183,12 +187,18 @@ export async function injectIntoFirmTemplate(
     // {{CLIENT_NAME}} and the rest is marked up for Starling and its
     // paragraphs must survive to be filled. Replacing the body wholesale
     // there wiped the very placeholders it was meant to fill.
-    if (generatedHtml && markersInTemplate.length === 0 && !hasBodyMarker(xmlContent)) {
+    // A template with NO body marker gets the letter as its body, whether
+    // or not it carries other markers (a {{CLIENT_NAME}} letterhead with no
+    // {{LEGAL_ANALYSIS}} once produced a letterhead with a name and no
+    // letter). The non-body markers were already filled above; the letter
+    // now goes where the body belongs. Only a template that HAS a body
+    // marker is left to the marker path.
+    if (generatedHtml && !templateHadBodyMarker) {
       const bodyXml = await renderHtmlAsWordXml(generatedHtml, htmlToParagraphs as never);
       if (bodyXml) {
         xmlContent = replaceBodyContent(xmlContent, bodyXml);
         usedAsLetterhead = true;
-        logger.info('Template had no body marker; used as letterhead', { firmId, documentType });
+        logger.info('Template had no body marker; used as letterhead', { firmId, documentType, otherMarkers: markersInTemplate.length });
       }
     }
 
@@ -207,7 +217,9 @@ export async function injectIntoFirmTemplate(
       if (file) {
         let hfContent = await file.async('string');
         hfContent = cleanSplitPlaceholders(hfContent);
-        hfContent = injectPlaceholders(hfContent, values);
+        // Escaped, exactly as the body is: a firm named "Smith & Jones LLP"
+        // put a bare & into the header and Word refused to open the file.
+        hfContent = injectPlaceholders(hfContent, scalars);
         zip.file(hfFile, hfContent);
       }
     }

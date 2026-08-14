@@ -35,6 +35,8 @@ export interface DocxExportOptions {
   smallClaims?: boolean;
   /** Who the letter is addressed to, for the firm's own [RECIPIENT] markers. */
   recipientName?: string;
+  /** For the firm's own [RESPONSE DEADLINE] bracket notation. */
+  responseDeadlineDays?: number;
   /** Document title (e.g. "Demand Letter — Smith v. Acme Corp"). */
   title: string;
   /** Firm name for the header. */
@@ -492,6 +494,7 @@ export async function htmlToDocx(html: string, options: DocxExportOptions): Prom
             firmName: options.firmName,
             fileNumber: options.matterNumber,
             demandAmount: options.demandAmount ?? undefined,
+            responseDeadlineDays: options.responseDeadlineDays,
           })
         : undefined,
     });
