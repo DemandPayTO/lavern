@@ -77,10 +77,51 @@ import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('SERVER');
 
+/** A loopback bind is safe with auth off; anything else is not. */
+function isLoopbackHost(host: string): boolean {
+  return /^(127\.\d+\.\d+\.\d+|::1|localhost|0?::1)$/.test(host.trim());
+}
+
+/**
+ * The deploy guard, pure and testable: returns the refusal message when
+ * auth is off AND the server would bind a public interface AND the
+ * operator has not explicitly acknowledged it; null when the binding is
+ * safe. LOCAL MODE on loopback returns null; production (auth on) returns
+ * null whatever the host.
+ */
+export function publicNoAuthBindError(args: { authEnabled: boolean; host: string; override: boolean }): string | null {
+  if (args.authEnabled) return null;
+  if (isLoopbackHost(args.host)) return null;
+  if (args.override) return null;
+  return (
+    `REFUSING TO START: auth is disabled (LAVERN_AUTH_ENABLED is not "true") ` +
+    `but the server is bound to a public interface (SHEM_HOST=${args.host}). ` +
+    `Every matter would be served to anyone on the network as the synthetic ` +
+    `local-user. Set LAVERN_AUTH_ENABLED=true for any non-loopback deployment. ` +
+    `If you genuinely intend a public no-auth server (a throwaway demo on a ` +
+    `trusted network), set LAVERN_ALLOW_PUBLIC_NO_AUTH=1 to override.`
+  );
+}
+
 export async function startApiServer(port: number): Promise<void> {
   // Multi-user auth: when LAVERN_AUTH_ENABLED=true, createAuthMiddleware
   // enforces Bearer token and cookie auth on protected routes. When false
   // (LOCAL MODE), every request runs as the synthetic `local-user`.
+
+  // Deploy guard: LOCAL MODE (auth off) is correct only when the server is
+  // bound to the loopback interface. Binding a public interface (0.0.0.0,
+  // a LAN address) with auth disabled exposes every matter to the open
+  // internet as the synthetic local-user — the single worst
+  // misconfiguration this product can ship. Refuse to start in that state
+  // unless the operator has explicitly acknowledged it, so an accidental
+  // deploy without LAVERN_AUTH_ENABLED=true fails loudly instead of
+  // serving confidential legal data to anyone who asks.
+  const guard = publicNoAuthBindError({
+    authEnabled: config.authEnabled,
+    host: config.host ?? '127.0.0.1',
+    override: process.env.LAVERN_ALLOW_PUBLIC_NO_AUTH === '1',
+  });
+  if (guard) throw new Error(guard);
 
   const isProd = config.isProduction;
   const fastify = Fastify({
@@ -123,12 +164,44 @@ export async function startApiServer(port: number): Promise<void> {
 
   // ── Security headers ─────────────────────────────────────────────────
   // Helmet sets a baseline of defensive HTTP headers — frame protection,
-  // content sniffing block, referrer policy, HSTS in production.
-  // CSP is intentionally NOT enforced here yet: the dashboard inlines styles
-  // in many components and a strict CSP would blank-screen them. CSP is
-  // tracked as a follow-up in SECURITY.md.
+  // content sniffing block, referrer policy, HSTS in production, and a
+  // Content-Security-Policy.
+  //
+  // The policy that matters for a product rendering model-generated HTML:
+  // script-src carries NO 'unsafe-inline' and no 'unsafe-eval', so an
+  // injected <script> or inline handler cannot execute even if it survived
+  // the server-side output sanitiser. The built dashboard has no inline
+  // scripts (only same-origin module bundles and the Plausible tag), so
+  // this holds without a nonce. style-src DOES allow 'unsafe-inline':
+  // the React app sets thousands of inline style attributes, which is a
+  // far lower-risk surface than script injection. Fonts, analytics, and
+  // the DiceBear avatar host are the only third parties, allowlisted by
+  // exact origin. Overridable via SHEM_CSP_ENABLED=false for an OSS user
+  // whose fork loads other origins.
+  const cspEnabled = process.env.SHEM_CSP_ENABLED !== 'false';
   await fastify.register(fastifyHelmet, {
-    contentSecurityPolicy: false, // see comment above; enable after CSP audit
+    contentSecurityPolicy: cspEnabled ? {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        // No unsafe-inline / unsafe-eval: injected script never runs.
+        scriptSrc: ["'self'", 'https://plausible.io'],
+        // The React app's inline style attributes require unsafe-inline;
+        // the generated documents are style-stripped by the sanitiser.
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'https://api.dicebear.com'],
+        // 'self' covers same-origin XHR and the same-origin event
+        // WebSocket; Plausible receives its analytics beacons.
+        connectSrc: ["'self'", 'https://plausible.io'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        workerSrc: ["'self'", 'blob:'],
+        ...(config.isProduction ? { upgradeInsecureRequests: [] } : {}),
+      },
+    } : false,
     crossOriginEmbedderPolicy: false, // we serve user-fetched DiceBear avatars
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // dashboard is on a different port in dev
     hsts: config.isProduction ? { maxAge: 15552000, includeSubDomains: true } : false,

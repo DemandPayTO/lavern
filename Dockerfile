@@ -38,6 +38,14 @@ WORKDIR /app
 # Copy package files and install production deps.
 # `.npmrc` carries `legacy-peer-deps=true` so the zod@^4 / openai@^4 peer
 # conflict resolves cleanly inside the container (same setting as local dev).
+#
+# PUPPETEER_SKIP_DOWNLOAD: the runtime image installs no Chromium system
+# libraries, so puppeteer's bundled browser cannot run here and convertToPdf
+# already falls back to a non-PDF format. Downloading Chromium at build time
+# would only bloat the image and run extract-zip on a fetched archive (the
+# path behind the historical extract-zip advisory). Skipping the download
+# removes that code path from the build entirely and shrinks the image.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package*.json .npmrc ./
 RUN npm ci --omit=dev && npm cache clean --force
 
