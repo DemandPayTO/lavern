@@ -3931,17 +3931,13 @@ nodeReport: result.nodeReport,
     }).safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Upload between two and twelve claims.' });
 
-    const mammoth = (await import('mammoth')).default;
+    const { readPrecedentBuffer } = await import('../../employment/precedent-read.js');
     const claims: Array<{ name: string; text: string }> = [];
     for (const p of parsed.data.precedents) {
-      try {
-        const text = p.text?.trim()
-          ? p.text.trim()
-          : ((await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64!, 'base64') })).value ?? '').trim();
-        if (text) claims.push({ name: p.name, text });
-      } catch {
-        return reply.status(400).send({ ok: false, error: `"${p.name}" could not be read as a Word document.` });
-      }
+      if (p.text?.trim()) { claims.push({ name: p.name, text: p.text.trim() }); continue; }
+      const read = await readPrecedentBuffer(p.name, p.docxBase64!);
+      if (!read.ok) return reply.status(400).send({ ok: false, error: read.error });
+      claims.push({ name: p.name, text: read.text });
     }
     if (claims.length < 2) return reply.status(400).send({ ok: false, error: 'At least two readable claims are needed.' });
 
@@ -4279,20 +4275,19 @@ nodeReport: result.nodeReport,
     const parsed = styleBuildSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid style profile request' });
 
-    const mammoth = (await import('mammoth')).default;
+    const { readPrecedentBuffer } = await import('../../employment/precedent-read.js');
     const texts: Array<{ name: string; text: string }> = [];
     for (const p of parsed.data.precedents) {
-      try {
-        const value = p.text?.trim()
-          ? p.text
-          : (await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64!, 'base64') })).value;
-        if (!value || value.trim().length < 150) {
-          return reply.status(400).send({ ok: false, error: `"${p.name}" has too little text to learn from. Is it the right file?` });
-        }
-        texts.push({ name: p.name, text: value });
-      } catch {
-        return reply.status(400).send({ ok: false, error: `"${p.name}" could not be read as a Word document.` });
+      let value = p.text ?? '';
+      if (!value.trim()) {
+        const read = await readPrecedentBuffer(p.name, p.docxBase64!);
+        if (!read.ok) return reply.status(400).send({ ok: false, error: read.error });
+        value = read.text;
       }
+      if (value.trim().length < 150) {
+        return reply.status(400).send({ ok: false, error: `"${p.name}" has too little text to learn from. Is it the right file?` });
+      }
+      texts.push({ name: p.name, text: value });
     }
 
     // Does each precedent look like the document it is being taught for?
@@ -4442,19 +4437,19 @@ nodeReport: result.nodeReport,
       });
     }
 
-    const mammoth = (await import('mammoth')).default;
+    const { readPrecedentBuffer } = await import('../../employment/precedent-read.js');
     const { alignPrecedents } = await import('../../employment/precedent-alignment.js');
 
     const inputs: Array<{ name: string; text: string }> = [];
     const facts: Array<MatterFacts | undefined> = [];
     for (const p of parsed.data.precedents) {
       let text = '';
-      try {
-        text = p.text?.trim()
-          ? p.text
-          : (await mammoth.extractRawText({ buffer: Buffer.from(p.docxBase64!, 'base64') })).value;
-      } catch {
-        return reply.status(400).send({ ok: false, error: `Could not read “${p.name}” as a Word document.` });
+      if (p.text?.trim()) {
+        text = p.text;
+      } else {
+        const read = await readPrecedentBuffer(p.name, p.docxBase64!);
+        if (!read.ok) return reply.status(400).send({ ok: false, error: read.error });
+        text = read.text;
       }
       if (!text.trim()) {
         return reply.status(400).send({ ok: false, error: `“${p.name}” appears to contain no text.` });
