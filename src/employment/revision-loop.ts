@@ -325,10 +325,15 @@ export function buildPlannerUserPrompt(args: {
   source: 'client' | 'partner' | 'lawyer';
   /** Restrict the plan to one section's paragraphs. */
   section?: { heading: string; start: number; end: number };
+  /** Research the lawyer attached to ground the rewrite (Westlaw downloads, case lists). */
+  research?: Array<{ name: string; text: string }>;
 }): string {
   const numbered = args.paragraphs
     .map((p, i) => `[${i}] ${paragraphText(p).slice(0, 600)}`)
     .join('\n');
+  const researchBlock = args.research?.length
+    ? `\n\nRESEARCH THE LAWYER ATTACHED (ground proposals in it; a proposal may quote or cite ONLY what appears here or in the document):\n${args.research.map(r => `--- ${r.name} ---\n${r.text.slice(0, 15_000)}`).join('\n')}`
+    : '';
   const sourceLabel = args.source === 'partner' ? 'REVIEWING LAWYER'
     : args.source === 'lawyer' ? 'DRAFTING LAWYER (their own redraft instructions)'
     : 'CLIENT';
@@ -341,7 +346,7 @@ export function buildPlannerUserPrompt(args: {
   return `DOCUMENT: ${args.documentTitle}
 
 PARAGRAPHS:
-${numbered}
+${numbered}${researchBlock}
 
 FEEDBACK FROM THE ${sourceLabel}:
 ${args.feedback}${sectionRule}
@@ -350,14 +355,14 @@ Map each distinct piece of feedback onto the paragraphs above.${lawyerRule}`;
 }
 
 /** Prompt for the apply step: rewrite ONLY the approved paragraphs. */
-export function buildApplySystemPrompt(): string {
+export function buildApplySystemPrompt(withResearch = false): string {
   return `You revise specific paragraphs of a legal document according to instructions the lawyer has approved.
 
 RULES:
 - Return ONLY the paragraphs you were asked to revise, each under its original index.
 - Preserve the HTML structure of each paragraph (the same tag it arrived in).
 - Change nothing beyond what the instruction requires. Keep the firm's wording, numbering, and citations intact wherever the instruction does not touch them.
-- Never add a new claim, authority, or figure that the instruction does not give you.
+- Never add a new claim, authority, or figure that the instruction does not give you${withResearch ? ' or that the RESEARCH PROVIDED does not contain. Case names, citations, and figures taken from the research must be copied exactly as the research states them; a case the research does not contain does not exist. A table row block may gain rows where the instruction supplies their contents' : ''}.
 - Canadian English. Do not use em dashes.
 
 Return ONLY JSON: {"revised":{"0":"<p>...</p>"}}`;

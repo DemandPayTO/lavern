@@ -71,14 +71,17 @@ export interface RevisionPanelProps {
   initialSection?: string;
   /** Review the draft against this firm style as well as the record. */
   styleProfileId?: string;
+  /** Stored sources on the matter (research, case lists) the rewrite may ground itself in. */
+  briefSources?: Array<{ id: string; name: string; words: number }>;
   onApplied: (revisedHtml?: string) => void;
   onClose: () => void;
 }
 
 export function RevisionPanel({
-  matterId, docType, docTitle, initialFeedback, source = 'client', sections, initialSection, styleProfileId, onApplied, onClose,
+  matterId, docType, docTitle, initialFeedback, source = 'client', sections, initialSection, styleProfileId, briefSources, onApplied, onClose,
 }: RevisionPanelProps) {
   const [feedback, setFeedback] = useState(initialFeedback ?? '');
+  const [researchIds, setResearchIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState(false);
   const [section, setSection] = useState(initialSection ?? '');
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -153,7 +156,7 @@ export function RevisionPanel({
       const res = await fetch(`/api/employment/${matterId}/revision/plan`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docType, feedback, source, ...(section ? { section } : {}) }),
+        body: JSON.stringify({ docType, feedback, source, ...(section ? { section } : {}), ...(researchIds.size ? { sourceIds: [...researchIds] } : {}) }),
       });
       const d = await res.json();
       if (!d.ok) { setError(d.error ?? 'Could not read that feedback.'); return; }
@@ -165,7 +168,7 @@ export function RevisionPanel({
     } catch {
       setError('Could not read that feedback.');
     } finally { setBusy(false); }
-  }, [matterId, docType, feedback, source]);
+  }, [matterId, docType, feedback, source, section, researchIds]);
 
   const apply = useCallback(async () => {
     if (!plan) return;
@@ -184,7 +187,7 @@ export function RevisionPanel({
       const res = await fetch(`/api/employment/${matterId}/revision/apply`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docType, approved: items }),
+        body: JSON.stringify({ docType, approved: items, ...(researchIds.size ? { sourceIds: [...researchIds] } : {}) }),
       });
       const d = await res.json();
       if (!d.ok) { setError(d.error ?? 'Could not apply the revisions.'); return; }
@@ -197,7 +200,7 @@ export function RevisionPanel({
     } catch {
       setError('Could not apply the revisions.');
     } finally { setBusy(false); }
-  }, [plan, approved, confirmedJudgment, matterId, docType, onApplied]);
+  }, [plan, approved, confirmedJudgment, matterId, docType, researchIds, onApplied]);
 
   const box = { background: '#fff', border: `1px solid ${border}`, borderRadius: 2, padding: '18px 20px', marginBottom: 16 };
   const btn = (primary = false) => ({
@@ -296,6 +299,27 @@ export function RevisionPanel({
           style={{ width: '100%', fontSize: 13, padding: 12, border: `1px solid ${border}`, borderRadius: 2, boxSizing: 'border-box', fontFamily: sans }}
           aria-label="Feedback"
         />
+        {(briefSources?.length ?? 0) > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: ink, marginBottom: 4 }}>
+              Ground the rewrite in research on this matter
+            </div>
+            <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>
+              Tick a source and the rewrite may cite and quote from it: a case list here is how the case table populates. Cases not in a ticked source or the document do not exist to the rewrite. Attach more in the brief&rsquo;s Sources panel.
+            </div>
+            {briefSources!.map(src => (
+              <label key={src.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, cursor: 'pointer', padding: '2px 0' }}>
+                <input
+                  type="checkbox"
+                  checked={researchIds.has(src.id)}
+                  onChange={() => setResearchIds(prev => { const next = new Set(prev); if (next.has(src.id)) next.delete(src.id); else next.add(src.id); return next; })}
+                  style={{ accentColor: navy }}
+                />
+                {src.name} <span style={{ color: muted }}>({src.words} words)</span>
+              </label>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <button onClick={() => void buildPlan()} disabled={busy || !feedback.trim()} style={btn(true)}>
             {busy ? 'Reading the feedback…' : 'Review what would change'}

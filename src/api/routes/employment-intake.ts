@@ -5000,7 +5000,16 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     source: z.enum(['client', 'partner', 'lawyer']).default('client'),
     /** Restrict the redraft to one section (its heading text, as rendered). */
     section: z.string().trim().min(1).max(200).optional(),
+    /** Stored brief sources (research, case lists) grounding the rewrite. */
+    sourceIds: z.array(z.string().max(60)).max(6).optional(),
   });
+
+  /** Resolve stored brief sources by id for the revision loop's research block. */
+  function resolveRevisionResearch(matter: Record<string, unknown>, sourceIds: string[] | undefined): Array<{ name: string; text: string }> {
+    if (!sourceIds?.length) return [];
+    const stored = ((matter.briefSources ?? []) as Array<{ id: string; name: string; text: string }>);
+    return stored.filter(s => sourceIds.includes(s.id)).slice(0, 6).map(s => ({ name: s.name, text: s.text }));
+  }
 
   fastify.post('/api/employment/:matterId/revision/plan', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
@@ -5047,6 +5056,7 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
           documentTitle: String(doc.documentTitle ?? parsed.data.docType),
           paragraphs, feedback: parsed.data.feedback, source: parsed.data.source,
           section: sectionRange,
+          research: resolveRevisionResearch(matter as Record<string, unknown>, parsed.data.sourceIds),
         }),
         tier: 'sonnet',
         maxTokens: 4096,
@@ -5133,6 +5143,8 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
       // union rejecting null once failed the pilot's whole apply.
       intakeValue: z.union([z.string().max(2000), z.number(), z.boolean()]).optional().nullable(),
     })).min(1).max(60),
+    /** Stored brief sources (research, case lists) grounding the rewrite. */
+    sourceIds: z.array(z.string().max(60)).max(6).optional(),
   });
 
   fastify.post('/api/employment/:matterId/revision/apply', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -5184,10 +5196,17 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
       // the JSON on long firm-depth briefs and 502'd the whole apply.
       const targetChars = targets.reduce((a, i) => a + (paragraphs[i]?.length ?? 0), 0);
       const applyBudget = Math.min(24_576, Math.max(8_192, Math.ceil(targetChars / 2)));
+      // Research the lawyer attached rides along, so the rewrite can add
+      // the cases and figures it actually contains: a case table populates
+      // from the lawyer's own list without regenerating the brief.
+      const research = resolveRevisionResearch(matter as Record<string, unknown>, parsed.data.sourceIds);
+      const researchBlock = research.length
+        ? `\n\nRESEARCH PROVIDED (cite and quote ONLY from it or the paragraphs):\n${research.map(r => `--- ${r.name} ---\n${r.text.slice(0, 15_000)}`).join('\n')}`
+        : '';
       try {
         const result = await crossProviderChat({
-          system: rl.buildApplySystemPrompt(),
-          user: `PARAGRAPHS TO REVISE:\n${shown}\n\nAPPROVED INSTRUCTIONS:\n${instructions}`,
+          system: rl.buildApplySystemPrompt(research.length > 0),
+          user: `PARAGRAPHS TO REVISE:\n${shown}${researchBlock}\n\nAPPROVED INSTRUCTIONS:\n${instructions}`,
           tier: 'opus',
           maxTokens: applyBudget,
           maxRetries: 2,

@@ -315,6 +315,46 @@ describe('the letter being answered (rebuttal source)', () => {
   });
 });
 
+describe('research grounds the rewrite', () => {
+  it('ticked sources ride into the plan and the apply prompts', async () => {
+    seedMatter();
+    const row = getMatterById(MID, userId)!;
+    const matter = JSON.parse(row.data_json) as Record<string, unknown>;
+    matter.briefSources = [{
+      id: 'src-1', name: 'Westlaw notice cases',
+      text: 'Saikaley v Akman Construction: 24 months awarded to a long-service manager. '.repeat(10),
+      words: 110, addedAt: new Date().toISOString(),
+    }];
+    saveMatter(userId, MID, JSON.stringify(matter));
+
+    const { crossProviderChat } = await import('../../src/providers/cross-provider-chat.js');
+    const mock = crossProviderChat as unknown as { mock: { calls: Array<[{ system: string; user: string }]> }; mockClear: () => void };
+    mock.mockClear();
+
+    modelReply = JSON.stringify({ items: [{ feedback: 'Add the cases to the table.', kind: 'wording', paragraphIndices: [1], proposal: 'Add Saikaley to the comparables.' }] });
+    const plan = await post(`/api/employment/${MID}/revision/plan`, {
+      docType: 'statement_of_claim', feedback: 'Populate the case table from my research.', sourceIds: ['src-1'],
+    });
+    expect(plan.status).toBe(200);
+    const planCall = mock.mock.calls.at(-1)![0];
+    expect(planCall.user).toContain('RESEARCH THE LAWYER ATTACHED');
+    expect(planCall.user).toContain('Saikaley');
+
+    modelReply = JSON.stringify({ revised: { 1: '<p>1. The Plaintiff was hired on March 2, 2017.</p>' } });
+    const apply = await post(`/api/employment/${MID}/revision/apply`, {
+      docType: 'statement_of_claim',
+      approved: [{ id: 'rev-0', feedback: 'Add the cases to the table.', kind: 'wording', paragraphIndices: [1], proposal: 'Add Saikaley.' }],
+      sourceIds: ['src-1'],
+    });
+    expect(apply.status).toBe(200);
+    const applyCall = mock.mock.calls.at(-1)![0];
+    expect(applyCall.user).toContain('RESEARCH PROVIDED');
+    expect(applyCall.user).toContain('Saikaley');
+    // The guardrail travels with the research: nothing outside it exists.
+    expect(applyCall.system).toContain('does not exist');
+  });
+});
+
 describe('the Reply and the forum', () => {
   // The generator's user prompt reads the computed analysis; a real matter
   // always has one by the time a Defence arrives.

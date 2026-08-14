@@ -4747,6 +4747,7 @@ export default function MatterDetailView() {
                           initialFeedback={revising.initial}
                           source={revising.source}
                           styleProfileId={styleProfileId || undefined}
+                          briefSources={employment.briefSources}
                           sections={(generatedHtml?.match(/<h2[^>]*>([^<]{1,120})<\/h2>/gi) ?? [])
                             .map(h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
                             .filter(Boolean)}
