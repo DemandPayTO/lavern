@@ -186,3 +186,31 @@ describe('htmlToDocx — the Form 4C backsheet is a landscape section', () => {
     expect(xml).toContain('Jordan Haworth (LSO# 12345B)');
   });
 });
+
+
+describe('the exported brief matches the preview', () => {
+  async function xmlOf(html: string, opts: Record<string, unknown>): Promise<string> {
+    const buffer = await htmlToDocx(html, { title: 'Brief', ...opts } as never);
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(buffer);
+    return zip.file('word/document.xml')!.async('string');
+  }
+
+  it('the damages table keeps its column spans and its italics in Word', async () => {
+    const html = '<table><tr><th>Head</th><th>Low</th><th>High</th></tr><tr><td>Bonus</td><td colspan="2"><em>[LAWYER: complete]</em></td></tr></table>';
+    const xml = await xmlOf(html, { documentType: 'mediation_brief' });
+    expect(xml).toContain('gridSpan');
+    const cell = xml.slice(xml.indexOf('[LAWYER: complete]') - 400, xml.indexOf('[LAWYER: complete]'));
+    expect(cell).toContain('<w:i/>');
+  });
+
+  it("the brief's cover <hr> is a page break, and the header starts on page 2", async () => {
+    const html = '<h1>MEDIATION BRIEF OF THE PLAINTIFF</h1><hr><p>Narrative.</p>';
+    const buffer = await htmlToDocx(html, { title: 'Brief', documentType: 'mediation_brief', firmName: 'Evans Law Firm' } as never);
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('<w:pageBreakBefore/>');
+    expect(xml).toContain('titlePg');
+  });
+});

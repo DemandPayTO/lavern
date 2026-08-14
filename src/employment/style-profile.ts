@@ -137,6 +137,15 @@ export function clampStyleGuide(raw: unknown): unknown {
       ? { ...(c as Record<string, unknown>), part: str((c as Record<string, unknown>).part, 120), text: str((c as Record<string, unknown>).text, 2000) }
       : c);
   }
+  // The letter blocks were the two fields this clamp forgot, and a firm
+  // whose letterhead runs past twenty lines failed validation twice: the
+  // exact 502 the docstring above says this function exists to prevent.
+  g.openingBlock = strArr(g.openingBlock, 400, 20);
+  g.closingBlock = strArr(g.closingBlock, 400, 20);
+  // The schema is strict; a model that volunteers one extra key must not
+  // fail the whole guide. Only known fields survive.
+  const KNOWN = new Set(['flow', 'voice', 'recurringLanguage', 'factWeaving', 'notes', 'typicalWords', 'profileTableRows', 'documentKind', 'openingBlock', 'closingBlock', 'fixedClauses', 'formStructure']);
+  for (const k of Object.keys(g)) { if (!KNOWN.has(k)) delete g[k]; }
   return g;
 }
 

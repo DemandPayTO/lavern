@@ -89,6 +89,7 @@ export function RevisionPanel({
   const [busy, setBusy] = useState(false);
   const [confirmedJudgment, setConfirmedJudgment] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [cleanNotice, setCleanNotice] = useState<string | null>(null);
   const [result, setResult] = useState<{ changed: number; intakeApplied: string[]; analysisStale: boolean } | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -134,12 +135,12 @@ export function RevisionPanel({
       const res = await fetch(`/api/employment/${matterId}/draft/review`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docType, ...(styleProfileId ? { styleProfileId } : {}) }),
+        body: JSON.stringify({ docType, ...(styleProfileId ? { styleProfileId } : {}), ...(researchIds.size ? { sourceIds: [...researchIds] } : {}) }),
       });
       const d = await res.json();
       if (!d.ok) { setError(d.error ?? 'The review could not be completed.'); return; }
       if ((d.items as RevisionItem[]).length === 0) {
-        setError('Starling found nothing to raise. That is a real answer, not a failure.');
+        setCleanNotice('Starling found nothing to raise. That is a real answer, not a failure.');
         return;
       }
       setPlan({ docType, paragraphs: d.paragraphs ?? [], items: d.items ?? [], warnings: [], costUsd: d.costUsd ?? 0 });
@@ -327,6 +328,7 @@ export function RevisionPanel({
           <button onClick={onClose} style={{ ...btn(), border: 'none', background: 'none', color: muted }}>Cancel</button>
         </div>
         {error && <p role="alert" style={{ fontSize: 12.5, color: red, margin: '8px 0 0' }}>{error}</p>}
+        {cleanNotice && <p role="status" style={{ fontSize: 12.5, color: green, margin: '8px 0 0' }}>{cleanNotice}</p>}
       </div>
     );
   }

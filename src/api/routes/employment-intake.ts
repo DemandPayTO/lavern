@@ -285,7 +285,7 @@ async function loadStyleForGeneration(
   }
   const { styleContextForPrompt, styleGuideSchema, usableFlow } = await import('../../employment/style-profile.js');
   const guide = styleGuideSchema.safeParse(JSON.parse(profile.guide_json));
-  if (!guide.success) return { error: 'The stored style profile is unreadable. Rebuild it.', status: 500 };
+  if (!guide.success) return { error: 'The stored style profile is unreadable. Rebuild it.', status: 409 };
   let identifiers: string[] = [];
   try { identifiers = JSON.parse(profile.identifiers_json) as string[]; } catch { identifiers = []; }
   return {
@@ -2424,7 +2424,7 @@ nodeReport: result.nodeReport,
       text: z.string().trim().min(1).max(60_000),
     })).max(6).optional(),
     /** Stored brief sources to include, by id (attach once, reuse). */
-    briefSourceIds: z.array(z.string().max(60)).max(6).optional(),
+    briefSourceIds: z.array(z.string().max(60)).max(8).optional(),
     /** Affidavit furniture: who swears, in what capacity, on what basis. */
     affidavit: z.object({
       deponentName: z.string().trim().max(200),
@@ -2459,7 +2459,10 @@ nodeReport: result.nodeReport,
 
     const parsed = litigationDocBodySchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ ok: false, error: 'Invalid request' });
+      {
+      const detail = parsed.error.issues.slice(0, 3).map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      return reply.status(400).send({ ok: false, error: `The request was refused. ${detail}.` });
+    }
     }
 
     const row = await getMatterById(matterId, userId);
@@ -2488,6 +2491,7 @@ nodeReport: result.nodeReport,
     let comparables: import('../../employment/case-comparables.js').ComparableCase[] | null = null;
     let comparableRange: import('../../employment/case-comparables.js').CaseBasedRange | null = null;
     let negotiationEntries: import('../../employment/negotiation.js').NegotiationEntry[] | null = null;
+    let negotiationSummary: import('../../employment/negotiation.js').NegotiationSummary | null = null;
     // The brief is built FROM the positions already served: the matter's
     // demand letter and statement of claim ground the story and figures,
     // and double as citation sources so claims attribute to them.
@@ -2513,22 +2517,36 @@ nodeReport: result.nodeReport,
       });
       positionDocuments = assembled.sources;
       droppedSources = assembled.dropped;
-    }
-    if (parsed.data.documentType === 'mediation_brief') {
+
       negotiationEntries = ((matter as Record<string, unknown>).negotiation ?? null) as import('../../employment/negotiation.js').NegotiationEntry[] | null;
+      if (negotiationEntries?.length) {
+        try {
+          const { summarizeNegotiation } = await import('../../employment/negotiation.js');
+          const dmg = employment.analysis?.damagesEstimate;
+          negotiationSummary = summarizeNegotiation(negotiationEntries, {
+            esaTotalCad: dmg ? (dmg.esaNoticePay ?? 0) + (dmg.esaSeverancePay ?? 0) : null,
+            commonLawLowCad: dmg?.totalEstimateLow ?? null,
+            commonLawHighCad: dmg?.totalEstimateHigh ?? null,
+          });
+        } catch (err) {
+          logger.warn('Negotiation summary failed (brief generates without it)', { matterId, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
       try {
         const { computeBardalFactors } = await import('../../employment/timeline-generator.js');
         const { findComparables } = await import('../../employment/case-comparables.js');
         const bardal = computeBardalFactors(employment.intake);
         if (bardal.tenureYears != null) {
-          const found = await findComparables({ years: bardal.tenureYears, age: bardal.age, seniority: null });
+          const found = await findComparables({ years: bardal.tenureYears, age: bardal.age, seniority: bardal.character ?? null });
           if (found) {
             comparables = found.comparables;
             comparableRange = found.range;
           }
         }
-      } catch {
-        // Comparables are additive; the brief generates without them.
+      } catch (err) {
+        // Comparables are additive; the brief generates without them, but
+        // a misconfigured caselaw connection must not fail silently.
+        logger.warn('Comparables lookup failed (brief generates without the table)', { matterId, error: err instanceof Error ? err.message : String(err) });
       }
     }
 
@@ -2691,6 +2709,7 @@ nodeReport: result.nodeReport,
         comparables,
         comparableRange,
         negotiationEntries,
+        negotiationSummary,
         styleTypicalWords,
         styleProfileTableRows,
         styleFlowHeadings,
@@ -2789,8 +2808,11 @@ nodeReport: result.nodeReport,
     // than court deadlines and are replaced (not duplicated) if the document
     // is regenerated with different dates.
     let docketed = 0;
-    if (mediationDateIso || (parsed.data.formFields?.mediator_name)) {
+    if (parsed.data.documentType === 'mediation_brief' && (mediationDateIso || parsed.data.formFields?.mediator_name)) {
+      // MERGE: regenerating with only a mediator named must not erase the
+      // stored date, and no other document type owns these fields.
       (matter as Record<string, unknown>).mediationLogistics = {
+        ...(((matter as Record<string, unknown>).mediationLogistics ?? {}) as Record<string, unknown>),
         ...(mediationDateIso ? { date: mediationDateIso } : {}),
         ...(typeof parsed.data.formFields?.mediator_name === 'string' && parsed.data.formFields.mediator_name
           ? { mediator: parsed.data.formFields.mediator_name } : {}),
@@ -2968,7 +2990,7 @@ nodeReport: result.nodeReport,
   const draftReviewSchema = z.object({
     docType: z.string().regex(/^[a-z0-9_]{1,60}$/),
     /** Stored brief sources to weigh in the review. */
-    briefSourceIds: z.array(z.string().max(60)).max(6).optional(),
+    briefSourceIds: z.array(z.string().max(60)).max(8).optional(),
     /** Review against this firm style as well as the record. */
     styleProfileId: z.string().trim().max(100).optional(),
   });
@@ -4035,7 +4057,7 @@ nodeReport: result.nodeReport,
         negotiationCount: (((matter as Record<string, unknown>).negotiation ?? []) as unknown[]).length,
         caselawConfigured: caselawConfigured(),
         styleProfilesCount: firmId ? getStyleProfiles(firmId, 'mediation_brief').length : 0,
-        sourcesCount: (dl?.html ? 1 : 0) + (soc?.html ? 1 : 0),
+        sourcesCount: (dl?.html ? 1 : 0) + (soc?.html ? 1 : 0) + (((matter as Record<string, unknown>).briefSources ?? []) as unknown[]).length,
         mediationDocketed: (employment.timeline ?? []).some(e => e.label === 'Mediation'),
       }),
     });
@@ -4111,7 +4133,7 @@ nodeReport: result.nodeReport,
       if (!app?.html) return reply.status(404).send({ ok: false, error: 'No application generated yet.' });
       html = app.html as string;
       title = (app.formName as string) ?? 'Application';
-    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet', 'notice-of-action', 'sj-notice-of-motion', 'sj-affidavit', 'sj-factum', 'sp-timetable-motion', 'consent-timetable-order', 'timetable-order', 'undertakings-answers', 'affidavit-of-service', 'rule49-withdrawal', 'rule49-acceptance', 'costs-outline', 'esa-filing-sheet', 'scc-filing-sheet', 'notice-of-arbitration', 'particulars', 'production-request', 'settlement-memorandum', 'ohsa-reprisal-complaint'].includes(docType)) {
+    } else if (['discovery-plan', 'affidavit-of-documents', 'mediation-brief', 'severance-assessment', 'counter-offer', 'rebuttal-letter', 'reply', 'rule49-offer', 'settlement-minutes', 'retainer-agreement', 'mitigation-log', 'settlement-conference-brief', 'hrto-schedule-a', 'grievance-filing', 'referral-to-arbitration', 'arbitration-brief', 'dfr-response', 'merits-assessment', 'decline-letter', 'member-update', 'remedy-worksheet', 'notice-of-action', 'sj-notice-of-motion', 'sj-affidavit', 'sj-factum', 'sp-timetable-motion', 'consent-timetable-order', 'timetable-order', 'undertakings-answers', 'affidavit-of-service', 'rule49-withdrawal', 'rule49-acceptance', 'costs-outline', 'esa-filing-sheet', 'scc-filing-sheet', 'notice-of-arbitration', 'particulars', 'production-request', 'settlement-memorandum', 'ohsa-reprisal-complaint'].includes(docType)) {
       const key = `generated_${docType.replace(/-/g, '_')}`;
       const litDoc = matterData[key] as Record<string, unknown> | undefined;
       if (!litDoc?.html) return reply.status(404).send({ ok: false, error: `No ${docType.replace(/-/g, ' ')} generated yet.` });
@@ -4128,6 +4150,7 @@ nodeReport: result.nodeReport,
       'discovery-plan': 'discovery_plan',
       'affidavit-of-documents': 'affidavit_of_documents',
       'mediation-brief': 'mediation_brief',
+      'rebuttal-letter': 'rebuttal_letter',
       'severance-assessment': 'severance_assessment',
       'counter-offer': 'counter_offer',
       'reply': 'reply',
@@ -4256,15 +4279,15 @@ nodeReport: result.nodeReport,
     documentKind: z.enum(['prose', 'form', 'letter']).optional(),
     /** Proceed even though a precedent looks like a different document. */
     ignoreTypeMismatch: z.boolean().optional(),
-    // Three, not two. The extractor treats a passage as fixed when it
-    // appears in more than one letter, and with exactly two letters from
-    // one scenario nearly everything appears in both, including phrasing
-    // that is actually particular to those files.
+    // Two precedents suffice for prose and form styles, matching the
+    // panel's copy. LETTER styles need three, enforced below: the fixed-
+    // passage extractor treats a passage as boilerplate when it recurs,
+    // and with exactly two letters nearly everything recurs.
     precedents: z.array(z.object({
       name: z.string().trim().min(1).max(300),
       docxBase64: z.string().max(14_000_000).optional(),
       text: z.string().max(2_000_000).optional(),
-    }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(3).max(8),
+    }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(2).max(8),
   });
 
   fastify.post('/api/employment/style-profiles/build', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -4322,6 +4345,9 @@ nodeReport: result.nodeReport,
       ?? (FORM_DOCUMENT_TYPES.has(parsed.data.documentType) ? 'form'
         : LETTER_DOCUMENT_TYPES.has(parsed.data.documentType) ? 'letter'
         : 'prose');
+    if (documentKind === 'letter' && texts.length < 3) {
+      return reply.status(400).send({ ok: false, error: 'Letter styles need at least three example letters: with only two, the boilerplate extractor cannot tell the firm\'s standard passages from wording particular to those files.' });
+    }
     let guide;
     let costUsd = 0;
     try {
@@ -4329,7 +4355,8 @@ nodeReport: result.nodeReport,
       guide = analysed.guide;
       costUsd = analysed.costUsd;
     } catch (err) {
-      return reply.status(502).send({ ok: false, error: err instanceof Error ? err.message : 'Analysis failed.' });
+      logger.error('Style analysis failed', { documentType: parsed.data.documentType, error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'The style could not be learned from those files. Try again; if it keeps failing, try fewer or shorter precedents.' });
     }
 
     const id = `style-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -5015,7 +5042,7 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
     /** Restrict the redraft to one section (its heading text, as rendered). */
     section: z.string().trim().min(1).max(200).optional(),
     /** Stored brief sources (research, case lists) grounding the rewrite. */
-    sourceIds: z.array(z.string().max(60)).max(6).optional(),
+    sourceIds: z.array(z.string().max(60)).max(8).optional(),
   });
 
   /** Resolve stored brief sources by id for the revision loop's research block. */
@@ -5158,7 +5185,7 @@ ${parsed.data.additionalContext ? `\nLAWYER'S NOTES FOR THIS UPDATE:\n${parsed.d
       intakeValue: z.union([z.string().max(2000), z.number(), z.boolean()]).optional().nullable(),
     })).min(1).max(60),
     /** Stored brief sources (research, case lists) grounding the rewrite. */
-    sourceIds: z.array(z.string().max(60)).max(6).optional(),
+    sourceIds: z.array(z.string().max(60)).max(8).optional(),
   });
 
   fastify.post('/api/employment/:matterId/revision/apply', async (req: FastifyRequest, reply: FastifyReply) => {

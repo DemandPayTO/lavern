@@ -494,6 +494,7 @@ const DRAFT_TO_DOWNLOAD: Record<string, string> = {
   mediation: 'mediation-brief',
   severance: 'severance-assessment',
   counter: 'counter-offer',
+  rebuttal: 'rebuttal-letter',
   reply: 'reply',
   rule49: 'rule49-offer',
   minutes: 'settlement-minutes',
@@ -1923,24 +1924,26 @@ export default function MatterDetailView() {
 
   const briefSourceInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Load stored sources whenever the matter data refreshes; new ones
-  // arrive pre-selected.
+  // Load stored sources whenever the matter data refreshes. Only sources
+  // this session has never seen arrive pre-selected: a lawyer who unticks
+  // a source must not have it re-ticked by the next refresh, which is how
+  // an excluded document kept finding its way back into the brief.
+  const seenSourceIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const list = (employment.briefSources ?? []) as Array<{ id: string; name: string; words: number; kind?: string }>;
     setStoredSources(list);
+    const fresh = list.filter(sd => !seenSourceIdsRef.current.has(sd.id));
     setSelectedSourceIds(prev => {
       const next = new Set([...prev].filter(id => list.some(sd => sd.id === id)));
-      for (const sd of list) if (!prev.has(sd.id) && prev.size === 0) next.add(sd.id);
-      // First load with no prior selection: select everything stored.
-      if (prev.size === 0) for (const sd of list) next.add(sd.id);
+      for (const sd of fresh) next.add(sd.id);
       return next;
     });
     setDlSourceIds(prev => {
-      const list2 = (employment.briefSources ?? []) as Array<{ id: string }>;
-      const next = new Set([...prev].filter(id => list2.some(sd => sd.id === id)));
-      for (const sd of list2) next.add(sd.id);
+      const next = new Set([...prev].filter(id => list.some(sd => sd.id === id)));
+      for (const sd of fresh) next.add(sd.id);
       return next;
     });
+    for (const sd of list) seenSourceIdsRef.current.add(sd.id);
   }, [employment.briefSources]);
 
   const attachBriefSource = useCallback(async (file: File, kind?: string) => {
@@ -2210,7 +2213,10 @@ export default function MatterDetailView() {
   const runGeneration = async () => {
     setGenerating(true);
     setGenError(null);
-    const amount = parseInt(genDemandAmount) || 100000;
+    // No invented figures: an amount reaches the server only when the
+    // lawyer typed one (drafts that need one are blocked without it), and
+    // Small Claims is a claim-only procedure the litigation schema refuses.
+    const amount = genDemandAmount ? parseInt(genDemandAmount) : undefined;
     const fieldDefs = COURT_FORM_FIELDS[selectedDraft ?? ''];
     const formFields = fieldDefs
       ? Object.fromEntries(fieldDefs
@@ -2223,7 +2229,7 @@ export default function MatterDetailView() {
         tone: genTone,
         demandAmount: amount,
         claimAmount: amount,
-        procedureType: genProcedure,
+        procedureType: genProcedure === 'small_claims' ? undefined : genProcedure,
         formFields,
         lawyerName: profile.displayName || 'Lawyer Name',
         lawyerBlock: profile.lawyerBlock || undefined,
@@ -2275,6 +2281,9 @@ export default function MatterDetailView() {
       const notes: string[] = [];
       if (typeof result.costUsd === 'number' && result.costUsd > 0) {
         notes.push(`Draft cost $${result.costUsd.toFixed(2)}.`);
+      }
+      if (result.droppedSources?.length) {
+        notes.push(`NOT read (the brief holds six sources at most): ${result.droppedSources.join('; ')}. Untick something and regenerate to include them.`);
       }
       if (result.positionsUsed?.length) {
         notes.push(`Drafted from the positions already served: ${result.positionsUsed.join(' and ')}.`);
@@ -3942,7 +3951,7 @@ export default function MatterDetailView() {
                       accept=".pdf,.docx,.md,.txt"
                       multiple
                       style={{ display: 'none' }}
-                      onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f, dlUploadKind); e.target.value = ''; }}
+                      onChange={e => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void (async () => { for (const f of fs) await attachBriefSource(f, dlUploadKind); })(); }}
                       aria-label="Attach a document for the demand letter"
                     />
                     <button
@@ -4157,7 +4166,7 @@ export default function MatterDetailView() {
                     accept=".pdf,.docx,.md,.txt"
                     multiple
                     style={{ display: 'none' }}
-                    onChange={e => { for (const f of e.target.files ?? []) void attachBriefSource(f); e.target.value = ''; }}
+                    onChange={e => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void (async () => { for (const f of fs) await attachBriefSource(f); })(); }}
                     aria-label="Attach a source document for the brief"
                   />
                   <button
@@ -4685,12 +4694,6 @@ export default function MatterDetailView() {
                     const stale = Boolean(revisedAt && cur?.generatedAt && cur.generatedAt < revisedAt);
                     return (
                       <>
-                      {stale && (
-                        <div style={{ marginBottom: 10, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '10px 14px', fontSize: 13, color: ink }} role="status">
-                          <b style={{ color: amber }}>Facts changed after this draft was generated.</b>{' '}
-                          The intake was revised (document facts applied or edited) since this document was drafted — regenerate it before relying on the figures or dates.
-                        </div>
-                      )}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 12, color: muted }}>Status:</span>
                         {(['reviewed', 'sent', 'filed'] as const).map(next => (
@@ -4764,13 +4767,18 @@ export default function MatterDetailView() {
                           styleProfileId={styleProfileId || undefined}
                           briefSources={employment.briefSources}
                           sections={(generatedHtml?.match(/<h2[^>]*>([^<]{1,120})<\/h2>/gi) ?? [])
+                            .filter(h => !/Profile of the Plaintiff|Damages Calculation|Comparable Cases|Negotiation History/i.test(h))
                             .map(h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
                             .filter(Boolean)}
                           onApplied={(revisedHtml) => {
                             // The apply route returns the revised document;
                             // the preview must show it, not the pre-revision
-                            // draft the lawyer just corrected.
+                            // draft the lawyer just corrected. The old
+                            // draft's review flags and citations go with it:
+                            // they describe paragraphs that no longer exist.
                             if (revisedHtml) setGeneratedHtml(revisedHtml);
+                            setGenReviewFlags([]);
+                            setGenCitations([]);
                             refreshDraftHistory();
                             void employment.refresh();
                           }}
@@ -4822,7 +4830,7 @@ export default function MatterDetailView() {
                     Previous drafts ({draftHistory.length})
                   </summary>
                   <div style={{ padding: '0 16px 12px' }}>
-                    {draftHistory.map((d, i) => (
+                    {draftHistory.filter(d => !selectedDraft || d.docType === DRAFT_TO_DOCTYPE[selectedDraft]).map((d, i) => (
                       <div key={`${d.generatedAt}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i > 0 ? `1px solid ${border}` : 'none' }}>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{d.title}</span>

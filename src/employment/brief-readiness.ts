@@ -93,9 +93,16 @@ export function briefReadiness(args: {
     items.push({ level: 'ok', label: `Negotiation history: ${args.negotiationCount} entr${args.negotiationCount === 1 ? 'y' : 'ies'}.` });
   }
 
-  items.push(args.caselawConfigured
-    ? { level: 'ok', label: 'Comparable cases will be looked up from the case library.' }
-    : { level: 'info', label: 'Case library not configured; the comparables table will be omitted with a flag.' });
+  // The route only runs the lookup when the tenure is computable, so the
+  // promise here has to carry the same condition or the brief arrives
+  // without the table the checklist swore was coming.
+  const tenureKnown = Boolean(args.intake && ((args.intake.hire_date ?? args.intake.first_day_of_work) && args.intake.termination_date
+    || args.intake.years_of_service_estimate != null));
+  items.push(!args.caselawConfigured
+    ? { level: 'info', label: 'Case library not configured; the comparables table will be omitted with a flag.' }
+    : tenureKnown
+      ? { level: 'ok', label: 'Comparable cases will be looked up from the case library.' }
+      : { level: 'info', label: 'Comparables need the length of service: add the hire and termination dates (or the years of service estimate) on the Intake tab.', goTo: 'intake' });
 
   items.push(args.styleProfilesCount > 0
     ? { level: 'ok', label: `${args.styleProfilesCount} firm style${args.styleProfilesCount === 1 ? '' : 's'} available; pick one beside Generate.` }

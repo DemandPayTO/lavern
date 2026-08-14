@@ -114,8 +114,15 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
 
   const openEditor = async (id: string) => {
     setError(null); setEditStatus(null);
-    const res = await fetch(`/api/employment/style-profiles/${encodeURIComponent(id)}`, { credentials: 'include' });
-    const d = await res.json();
+    let res: Response;
+    let d: { ok?: boolean; error?: string; profile?: { label: string; guide: unknown } };
+    try {
+      res = await fetch(`/api/employment/style-profiles/${encodeURIComponent(id)}`, { credentials: 'include' });
+      d = await res.json();
+    } catch {
+      setError('The profile could not be loaded. Check the connection and try again.');
+      return;
+    }
     if (!d.ok || !d.profile?.guide) { setError(d.error ?? 'The profile could not be loaded.'); return; }
     setEditing({ id, label: d.profile.label, guide: d.profile.guide as FullGuide });
   };
@@ -142,6 +149,7 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
   const build = async (ignoreTypeMismatch = false) => {
     setBusy(true);
     setError(null);
+    setBuilt(null);
     if (!ignoreTypeMismatch) setTypeIssues([]);
     try {
       const precedents = await Promise.all(files.map(async f => {
@@ -166,8 +174,12 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
       setFiles([]);
       setLabel('');
       onChanged();
-    } catch {
-      setError('Could not read those files.');
+    } catch (e) {
+      // A file-parse failure carries its own named message; only a genuine
+      // network drop gets the generic one.
+      setError(e instanceof Error && e.message && !/failed to fetch|networkerror/i.test(e.message)
+        ? e.message
+        : 'The connection dropped while learning the style. Nothing was saved; try again.');
     } finally {
       setBusy(false);
     }

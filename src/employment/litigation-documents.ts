@@ -108,6 +108,7 @@ export interface LitigationDocumentRequest {
   comparables?: ComparableCase[] | null;
   comparableRange?: CaseBasedRange | null;
   negotiationEntries?: NegotiationEntry[] | null;
+  negotiationSummary?: import('./negotiation.js').NegotiationSummary | null;
 }
 
 export interface LitigationDocumentResult {
@@ -217,7 +218,7 @@ Output as HTML with <p> for each paragraph, <strong> only where a defined term n
 
     mediation_brief: `You are a senior Ontario employment lawyer preparing a plaintiff's mediation brief for mandatory mediation under Rule 24.1. You are writing a persuasive narrative, not filling out Form 24.1C, and not reciting a pleading. The true audience is the opposing party and its counsel; the mediator is being educated. This design follows the published guidance of Ontario's leading employment mediators (Fisher, Rudner, Rose).
 
-IMPORTANT: The document already begins with deterministic tables prepared from the matter record (plaintiff profile with the Bardal facts, itemized damages calculation, comparable cases, and negotiation history, as available). Do NOT reproduce those tables, do NOT restate their numbers in detail, and do NOT output an h1 title. Refer to them naturally (for example "as set out in the damages table above"). Begin directly with the first h2 section.
+IMPORTANT: The document may begin with deterministic tables prepared from the matter record; the user message names EXACTLY which are present under "TABLES ALREADY IN THE DOCUMENT". Do NOT reproduce those tables, do NOT restate their numbers in detail, and do NOT output an h1 title. Refer only to tables that list names; never refer to a table the list does not contain. Begin directly with the first h2 section.
 
 {{SECTION_INSTRUCTION}}
 
@@ -757,6 +758,7 @@ export async function generateLitigationDocument(
         comparables: req.comparables,
         comparableRange: req.comparableRange,
         negotiationEntries: req.negotiationEntries,
+        negotiationSummary: req.negotiationSummary,
         profileTableRows: req.styleProfileTableRows,
       })
     : null;
@@ -782,9 +784,25 @@ export async function generateLitigationDocument(
   if (frontMatter) {
     userPrompt += `\n\nTABLES ALREADY IN THE DOCUMENT (do not reproduce): ${frontMatter.included.join(', ') || 'none'}.`;
   }
+  // The settlement position must be drafted knowing the state of play: a
+  // range proposed beneath an offer already on the table embarrasses
+  // counsel. Deterministic summary, computed from the ledger.
+  const nsOffer = req.documentType === 'mediation_brief' ? req.negotiationSummary?.latestEmployerOffer : null;
+  if (nsOffer && req.negotiationSummary) {
+    const ns = req.negotiationSummary;
+    const lines = [`- The employer's latest offer: $${nsOffer.amountCad.toLocaleString('en-CA')} (${nsOffer.date})`];
+    if (ns.latestClientPosition) lines.push(`- The plaintiff's latest position: $${ns.latestClientPosition.amountCad.toLocaleString('en-CA')} (${ns.latestClientPosition.kind}, ${ns.latestClientPosition.date})`);
+    if (ns.offerVsRange?.gapToLowCad != null) lines.push(`- Gap between the employer's offer and the low end of the assessed range: $${ns.offerVsRange.gapToLowCad.toLocaleString('en-CA')}`);
+    if (ns.employerMovementCad != null) lines.push(`- Employer movement since its first offer: $${ns.employerMovementCad.toLocaleString('en-CA')}`);
+    userPrompt += `\n\nNEGOTIATION STATE (the settlement position MUST account for this; never propose a range at or beneath the employer's standing offer):\n${lines.join('\n')}`;
+  }
   if (req.documentType === 'mediation_brief' && req.positionDocuments?.length) {
+    // Titles are lawyer-supplied filenames and bodies are parsed uploads;
+    // both are data. Quotes are stripped from the attribute and any
+    // closing-tag lookalike in a body is defanged so an attached file
+    // cannot break out of its frame and read as instructions.
     const positions = req.positionDocuments
-      .map(d => `<position_document title="${d.title}">\n${d.text}\n</position_document>`)
+      .map(d => `<position_document title="${d.title.replace(/["<>]/g, ' ')}">\n${d.text.replace(/<\/?position_document/gi, '[position document tag removed]')}\n</position_document>`)
       .join('\n\n');
     userPrompt += `\n\nTHE POSITIONS AND SUPPORTING MATERIALS FOR THIS MATTER:
 These documents ground the brief. For position documents (a demand letter, a statement of claim): the brief MUST tell the same story and take the same positions — the same characterisation of the dismissal, the same legal issues, the same or updated figures. Reuse their framing where it fits a mediation audience. Never contradict them; where the position has genuinely moved since (for example a later offer), present the current position and note the change for counsel in [LAWYER: ...]. For a list of authorities or case law: rely on it for the legal framing, cite ONLY cases that appear in it or in the comparable-case table above, and never state a holding the material does not give you. For research memos: use their analysis, not their prose.
@@ -970,7 +988,19 @@ export function getDocumentTitle(docType: LitigationDocumentType): string {
   }
 }
 
+/** Codes become sentences at the boundary: "weakness_assessment" is not
+ *  lawyer-facing copy. A flag that already reads as a sentence passes
+ *  through untouched. */
+function humanizeFlag(code: string): string {
+  if (/\s/.test(code)) return code;
+  return `Check ${code.replace(/_/g, ' ')}.`;
+}
+
 function getLawyerReviewFlags(docType: LitigationDocumentType): string[] {
+  return rawReviewFlags(docType).map(humanizeFlag);
+}
+
+function rawReviewFlags(docType: LitigationDocumentType): string[] {
   switch (docType) {
     case 'motion_affidavit':
       return ['deponent_knowledge', 'exhibits_attached', 'swearing_arrangements'];

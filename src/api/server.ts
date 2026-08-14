@@ -808,10 +808,17 @@ export async function startApiServer(port: number): Promise<void> {
     if (statusCode >= 500) {
       captureError(error, { url: request.url, method: request.method });
     }
+    // Every client in this codebase reads json.error as the user-facing
+    // message. error.name here meant a provider outage rendered as the
+    // single word "Error" in a red box. The exception CLASS is telemetry;
+    // the message is what the lawyer sees.
+    const message = statusCode < 500
+      ? (error.message || 'The request was refused.')
+      : 'Something went wrong on the server. Your work is saved; try the action again.';
     reply.status(statusCode).send({
       statusCode,
-      error: error.name,
-      message: statusCode < 500 ? error.message : 'Internal server error',
+      error: message,
+      message,
     });
   });
 

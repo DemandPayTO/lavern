@@ -1472,6 +1472,8 @@ export interface GenerateDocumentResult {
   docketedDates?: number;
   /** Which served position documents grounded this draft (mediation brief). */
   positionsUsed?: string[];
+  /** Ticked sources that did NOT make it into the brief (the six-source room filled). */
+  droppedSources?: string[];
   /** What this draft cost, for the notice line. */
   costUsd?: number;
   /** Non-blocking warnings, e.g. setting down past the Rule 48.14 deadline. */
@@ -1744,7 +1746,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
   const generateDocument = useCallback(async (docType: string, options: Record<string, unknown>) => {
     if (!matterId) return { ok: false, error: 'No matter ID' };
     try {
-      const LITIGATION_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'];
+      const LITIGATION_TYPES = ['discovery_plan', 'affidavit_of_documents', 'mediation_brief', 'severance_assessment', 'counter_offer', 'rebuttal_letter', 'reply', 'rule49_offer', 'settlement_minutes', 'retainer_agreement', 'mitigation_log', 'settlement_conference_brief', 'hrto_schedule_a', 'notice_of_action', 'notice_of_arbitration', 'sj_notice_of_motion', 'sj_affidavit', 'sj_factum', 'sp_timetable_motion', 'consent_timetable_order', 'timetable_order', 'undertakings_answers', 'affidavit_of_service', 'rule49_withdrawal', 'rule49_acceptance', 'costs_outline', 'esa_filing_sheet', 'scc_filing_sheet'];
       const endpoint = docType === 'demand_letter'
         ? `/api/employment/${matterId}/demand-letter`
         : docType === 'statement_of_claim'
@@ -1800,6 +1802,7 @@ export function useEmploymentData(matterId: string | null): UseEmploymentDataRes
         docketedDates: typeof json.docketedDates === 'number' ? json.docketedDates : undefined,
         cautions: Array.isArray(json.cautions) ? (json.cautions as string[]) : undefined,
         positionsUsed: Array.isArray(json.positionsUsed) ? (json.positionsUsed as string[]) : undefined,
+        droppedSources: Array.isArray(json.droppedSources) ? (json.droppedSources as string[]) : undefined,
         costUsd: typeof json.costUsd === 'number' ? json.costUsd : undefined,
       };
     } catch (err) {

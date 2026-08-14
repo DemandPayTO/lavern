@@ -240,9 +240,12 @@ describe('firm-shaped profile table (style profile rowSpec)', () => {
     ]);
     expect(html).toContain('Family Circumstances');
     expect(html).toContain('[LAWYER: complete]');
-    expect(flags).toHaveLength(1);
+    // Two flags now: the row list to complete by hand, and the sparse-
+    // intake warning because fewer than three rows carry real values.
+    expect(flags).toHaveLength(2);
     expect(flags[0]).toContain('Family Circumstances');
     expect(flags[0]).toContain('Professional Designations');
+    expect(flags[1]).toContain('fewer than three');
   });
 
   it('falls back to the standard table when the spec is too thin to be a table', () => {
@@ -347,5 +350,59 @@ describe('scrubNarrative removes echoed furniture', () => {
     const out = scrubNarrative('<p><strong>The employer knew.</strong> It had written notice for three weeks.</p>\n<p>The clause fails under <strong>Waksdale</strong> principles.</p>', parties);
     expect(out).toContain('<p>The employer knew. It had written notice for three weeks.</p>');
     expect(out).toContain('under <strong>Waksdale</strong> principles');
+  });
+});
+
+
+describe('revamp pins: the brief tells the truth', () => {
+  const analysis = {
+    bardalFactors: { age: 47, tenureYears: 6 },
+    damagesEstimate: { esaNoticeWeeks: 6, esaNoticePay: 1, esaSeverancePay: 1, commonLawLowMonths: 8, commonLawHighMonths: 12, commonLawLowAmount: 1, commonLawHighAmount: 2, additionalHeads: [], totalEstimateLow: 1, totalEstimateHigh: 2 },
+    timeline: [], gates: [], limitationDeadline: { date: '', daysRemaining: 0, urgent: false }, recommendedProcedure: 'simplified',
+  } as never;
+
+  it('a row named Severance package never resolves to the age', () => {
+    const intake = { client_first_name: 'A', client_last_name: 'O', annual_salary: 100000, hire_date: '2020-01-01', termination_date: '2026-01-01' } as never;
+    const { html } = buildProfileTable(intake, analysis, ['Age', 'Severance package offered', 'Wage details']);
+    expect(html).toContain('Severance package offered');
+    // Neither non-age row carries the number 47.
+    expect((html.match(/47/g) ?? []).length).toBe(1);
+  });
+
+  it('an unknown ledger party is flagged, never presented as the Plaintiff', () => {
+    const { html } = buildNegotiationTable([
+      { id: 'n1', date: '2026-06-01', party: 'employer' as never, kind: 'offer' as never, amountCad: 50000, recordedAt: '' },
+      { id: 'n2', date: '2026-06-05', party: 'mediator' as never, kind: 'counter' as never, amountCad: 60000, recordedAt: '' },
+    ]);
+    expect(html).toContain('Employer');
+    expect(html).toContain('[LAWYER: confirm party');
+  });
+
+  it('a date-less legacy entry sorts last instead of crashing, and notes render', () => {
+    const { html } = buildNegotiationTable([
+      { id: 'n2', date: undefined as never, party: 'client' as never, kind: 'demand' as never, amountCad: 90000, note: 'conditional on a reference letter', recordedAt: '' },
+      { id: 'n1', date: '2026-06-01', party: 'employer' as never, kind: 'offer' as never, amountCad: 50000, recordedAt: '' },
+    ]);
+    expect(html.indexOf('2026-06-01')).toBeLessThan(html.indexOf('[LAWYER: date]'));
+    expect(html).toContain('conditional on a reference letter');
+  });
+
+  it('the comparables table shows year and court, and the range sentence counts both', () => {
+    const comps = [
+      { id: 'c1', caseName: 'Osei v Acme', citation: '2024 ONSC 1', court: 'ONSC', year: 2024, summary: null, yearsOfService: 6, age: 47, seniorityLevel: 'manager', monthsAwarded: 12, distance: 0.1 },
+    ] as never;
+    const range = { lowMonths: 8, highMonths: 14, midMonths: 11, basedOnCases: 11 } as never;
+    const { html } = buildComparablesTable(comps, range);
+    expect(html).toContain('<th>Year</th>');
+    expect(html).toContain('2024');
+    expect(html).toContain('ONSC');
+    expect(html).toContain('the closest 1 shown above');
+    expect(html).toContain('11 nearest decided cases');
+  });
+
+  it('the cover states the mediation date in words, matching the sign-off register', () => {
+    const cover = buildMediationCover({ intake: { client_first_name: 'A', client_last_name: 'O', employer_legal_name: 'E' } as never, lawyerName: 'J', firmName: 'F', mediationDate: '2026-09-14' });
+    expect(cover).toContain('September 14, 2026');
+    expect(cover).not.toContain('2026-09-14');
   });
 });

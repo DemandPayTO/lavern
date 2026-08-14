@@ -90,7 +90,8 @@ function firmShapedProfileTable(
   const resolvers: Array<[RegExp, () => string | null]> = [
     [/plaintiff|client name|employee(?!r)|grievor/i, () => name || null],
     [/employer|defendant|respondent|company/i, () => employer ?? null],
-    [/age/i, () => b.age != null ? String(b.age) : null],
+    // \b keeps "package", "wage" and "damages" from resolving to the age.
+    [/\bage\b/i, () => b.age != null ? String(b.age) : null],
     [/(length|years) of (service|employment)|tenure|service/i, () =>
       b.tenureYears != null ? `${start ?? ''}${start && intake.termination_date ? ' to ' : ''}${intake.termination_date ?? ''} (${b.tenureYears} years)`.trim() : null],
     [/date of (hire|start)|start date|hired/i, () => start ?? null],
@@ -132,6 +133,17 @@ function firmShapedProfileTable(
   }
   if (unmapped.length > 0) {
     flags.push(`Profile table follows your firm's layout; complete these rows by hand before service: ${unmapped.join('; ')}.`);
+  }
+  // The firm's shape keeps its holes visible by design, but a table with
+  // NOTHING real in it is the sparse-intake case wearing the firm's
+  // clothes and gets the same honest omission; and one that is mostly
+  // holes carries the complete-the-intake flag alongside the row list.
+  const realRows = rows.length - unmapped.length;
+  if (realRows === 0) {
+    return { html: '', flags: ['Profile table omitted: intake is too sparse to present the Bardal profile. Complete the intake before serving this brief.'] };
+  }
+  if (realRows < 3) {
+    flags.push('Profile table: the intake fills fewer than three of your firm\'s rows. Complete the intake before serving this brief.');
   }
   return {
     html: `<h2>Profile of the Plaintiff</h2>\n<table>\n${rows.join('\n')}\n</table>`,
@@ -242,14 +254,17 @@ export function buildComparablesTable(comparables: ComparableCase[] | null | und
   }
 
   const rows = usable.map((c) =>
-    `<tr><td>${esc(c.caseName)}${c.citation ? `, ${esc(c.citation)}` : ''}</td><td>${c.age ?? ''}</td><td>${c.yearsOfService ?? ''}</td><td>${esc(c.seniorityLevel ?? '')}</td><td>${c.monthsAwarded}</td></tr>`);
+    `<tr><td>${esc(c.caseName)}${c.citation ? `, ${esc(c.citation)}` : ''}</td><td>${c.year ?? ''}</td><td>${esc(c.court ?? '')}</td><td>${c.age ?? ''}</td><td>${c.yearsOfService ?? ''}</td><td>${esc(c.seniorityLevel ?? '')}</td><td>${c.monthsAwarded}</td></tr>`);
 
+  // The sentence and the table must agree about what the mediator can see:
+  // the band is computed over the nearest decided cases, of which the
+  // closest are shown.
   const rangeLine = range
-    ? `<p>Across the ${range.basedOnCases} nearest decided cases, notice awarded ranged from ${range.lowMonths} to ${range.highMonths} months (midpoint ${range.midMonths}).</p>`
+    ? `<p>Across the ${range.basedOnCases} nearest decided cases (the closest ${usable.length} shown above), notice awarded ranged from ${range.lowMonths} to ${range.highMonths} months (midpoint ${range.midMonths}).</p>`
     : '';
 
   return {
-    html: `<h2>Comparable Cases</h2>\n<table>\n<tr><th>Case</th><th>Age</th><th>Years of service</th><th>Seniority</th><th>Months awarded</th></tr>\n${rows.join('\n')}\n</table>\n${rangeLine}`,
+    html: `<h2>Comparable Cases</h2>\n<table>\n<tr><th>Case</th><th>Year</th><th>Court</th><th>Age</th><th>Years of service</th><th>Seniority</th><th>Months awarded</th></tr>\n${rows.join('\n')}\n</table>\n${rangeLine}`,
     flags: ['Comparable-case table: verify each case against the source decision before service.'],
   };
 }
@@ -257,7 +272,8 @@ export function buildComparablesTable(comparables: ComparableCase[] | null | und
 // ── 4. Negotiation history table ─────────────────────────────────────────
 
 export function buildNegotiationTable(entries: NegotiationEntry[] | null | undefined): { html: string; flags: string[] } {
-  const list = (entries ?? []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  // A legacy entry without a date sorts last instead of crashing the brief.
+  const list = (entries ?? []).slice().sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999'));
   if (list.length === 0) {
     // Fisher: if there have been no real negotiations, be honest and say so.
     return {
@@ -266,9 +282,13 @@ export function buildNegotiationTable(entries: NegotiationEntry[] | null | undef
     };
   }
 
-  const partyLabel = (p: string) => (p === 'employer' ? 'Employer' : 'Plaintiff');
-  const rows = list.map((e) =>
-    `<tr><td>${esc(e.date)}</td><td>${esc(partyLabel(e.party))}</td><td>${esc(e.kind)}</td><td>${e.amountCad != null ? cad(e.amountCad) : ''}</td><td>${esc(e.terms ?? '')}</td></tr>`);
+  // An unrecognized party is shown for the lawyer to fix, never silently
+  // presented to the mediator as the plaintiff's own offer.
+  const partyLabel = (p: string) => (p === 'employer' ? 'Employer' : p === 'client' ? 'Plaintiff' : `[LAWYER: confirm party "${p}"]`);
+  const rows = list.map((e) => {
+    const terms = [e.terms, e.note ? String(e.note).slice(0, 200) : null].filter(Boolean).join(' — ');
+    return `<tr><td>${esc(e.date ?? '[LAWYER: date]')}</td><td>${esc(partyLabel(e.party))}</td><td>${esc(e.kind)}</td><td>${e.amountCad != null ? cad(e.amountCad) : ''}</td><td>${esc(terms)}</td></tr>`;
+  });
 
   return {
     html: `<h2>Negotiation History</h2>\n<table>\n<tr><th>Date</th><th>Party</th><th>Step</th><th>Amount</th><th>Terms</th></tr>\n${rows.join('\n')}\n</table>`,
@@ -293,8 +313,14 @@ export function buildMediationCover(args: {
 }): string {
   const plaintiff = esc([args.intake.client_first_name, args.intake.client_last_name].filter(Boolean).join(' ') || '[LAWYER: plaintiff name]');
   const defendant = esc(args.intake.employer_legal_name ?? args.intake.employer_operating_name ?? '[LAWYER: defendant name]');
+  // The cover and the sign-off must speak the same date language.
+  const longDate = (d: string): string => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.trim());
+    if (!m) return d;
+    return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+  };
   const logistics = args.mediationDate || args.mediatorName
-    ? `<p class="centered"><strong>Mediation${args.mediationDate ? ` scheduled for ${esc(args.mediationDate)}` : ''}${args.mediatorName ? ` before ${esc(args.mediatorName)}` : ''}</strong></p>`
+    ? `<p class="centered"><strong>Mediation${args.mediationDate ? ` scheduled for ${esc(longDate(args.mediationDate))}` : ''}${args.mediatorName ? ` before ${esc(args.mediatorName)}` : ''}</strong></p>`
     : '';
   return [
     '<p class="centered">BETWEEN:</p>',
@@ -396,6 +422,16 @@ export function buildMediationFrontMatter(input: MediationFrontMatterInput): Med
   const damages = buildDamagesTable(input.intake, input.analysis);
   const comparables = buildComparablesTable(input.comparables, input.comparableRange);
   const negotiation = buildNegotiationTable(input.negotiationEntries);
+  // Where the ledger supports it, the history closes with the state of
+  // play in one deterministic sentence: the mediator should not have to
+  // reconstruct the gap from the rows.
+  const ns = input.negotiationSummary;
+  if (negotiation.html && ns?.latestEmployerOffer) {
+    const bits = [`The employer's latest offer stands at ${cad(ns.latestEmployerOffer.amountCad)}`];
+    if (ns.offerVsRange?.gapToLowCad != null && ns.offerVsRange.gapToLowCad > 0) bits.push(`${cad(ns.offerVsRange.gapToLowCad)} below the low end of the assessed range`);
+    if (ns.employerMovementCad != null && ns.employerMovementCad > 0) bits.push(`the employer has moved ${cad(ns.employerMovementCad)} since its first offer`);
+    negotiation.html += `\n<p>${esc(bits.join('; '))}.</p>`;
+  }
 
   const included: string[] = [];
   if (profile.html) included.push('profile');
