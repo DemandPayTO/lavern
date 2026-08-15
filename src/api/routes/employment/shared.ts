@@ -570,3 +570,18 @@ export function ensureAnalysisFresh(employment: EmploymentMatterData): boolean {
   }
   return false;
 }
+
+
+// ── Lifted from the route handlers (shared across domains) ──────────────
+export const extractBodySchema = z.object({
+  matterId: z.string().min(1).max(200),
+  documentContent: z.string().min(1).max(100_000),
+  documentName: z.string().trim().min(1).max(500),
+  documentKind: z.enum(UPLOADABLE_DOCUMENT_TYPES),
+  /** Optional party names for anonymisation (e.g. employer name, client name). */
+  definedTerms: z.array(z.string().max(200)).max(20).optional(),
+});
+
+export function logAuditForm1(userId: string, matterId: string): void {
+  logger.info('Form 1 data file generated', { userId, matterId });
+}

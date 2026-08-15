@@ -78,39 +78,41 @@ generator files write only narrative prose around them.
 
 ## 3. `src/api/routes/` — the route modules
 
-35 route modules. Most are single-purpose and easy to navigate. The one
-exception is `employment-intake.ts` (5,629 lines, 85 handlers), which is being
-split by domain into `routes/employment/` (in progress — see §5). Until that
-completes, use this index into the current file:
+Most are single-purpose and easy to navigate. The employment surface (85 route
+handlers) used to be one 5,629-line `employment-intake.ts`; it is now a thin
+**barrel** that composes 13 per-domain modules under `routes/employment/`.
+`employment-intake.ts` keeps its name and public exports so every importer
+(`registerEmploymentIntakeRoutes`, `sanitiseHtml`, and the other re-exported
+helpers) is unchanged.
 
-| Domain | Routes | Lines (approx) |
-|--------|--------|-----------|
-| Intake & analysis | `/intake`, `/analyze`, `/:m` (GET), `/file-number`, `/issues`, `/timeline`, `/questionnaire` | 580–1370 |
-| Negotiation & settlement | `/:m/negotiation` (×3), `/net-settlement` (×3), `/comparables` | 757–1205 |
-| Debrief | `/:m/debrief`, `/debrief/analyze`, `/debrief/:item/status` | 842–1113 |
-| Case review & doc analysis | `/case-review`, `/case-synthesis`, `/doc-analysis` (×3) | 1389–1646 |
-| Extraction | `/classify`, `/extract`, `/apply-extraction` | 1648–1935 |
-| Demand letter | `/:m/demand-letter`, `/demand-readiness` | 1936, 4068 |
-| Statement of Claim | `/:m/statement-of-claim`, `/soc-nodes` (×2), `/soc-node-library/*` (×5) | 2247, 3851–4067 |
-| Applications & litigation | `/application`, `/litigation-document` | 2391–2962 |
-| Mediation brief | `/brief-readiness`, `/brief-sources/*` | 3394–3446, 4111 |
-| Draft lifecycle | `/draft/replace`, `/draft/review`, `/drafts`, `/document-status`, `/client-update` | 2963–3210, 4880–5082 |
-| Source slots | `/rebuttal-source`, `/rebuttal-feedback`, `/soc-source`, `/defence-source`, `/claim-source`, `/reply-comparison` | 3447–3694 |
-| Direction | `/direction` (×2), `/direction/extract` | 3695–3850 |
-| Revision loop | `/revision/upload`, `/revision/plan`, `/revision/apply` | 5083–5444 |
-| Style & templates | `/style-profiles/*` (×5), `/templates/*` (×6) | 4383–4839 |
-| Timetable | `/timetable-package` | 3211 |
-| Forms | `/form/hrto-form1-data` | 4840 |
-| Canon & citations | `/canon-texts` (×2), `/verify-citations` | 5445–5524 |
-| Outcome & notes | `/:m/outcome` (×2), `/notes` | 5525–5620 |
-| Download | `/:m/download/:docType` | 4142 |
+| Module (`routes/employment/`) | `register…Routes` | Routes | Lines |
+|--------|--------|--------|-------|
+| `intake.ts` | `registerIntakeRoutes` | `/intake`, `/analyze`, `/deadlines`(+`.ics`), `/:m` (GET), `/file-number`, `/issues`, `/timeline`, `/questionnaire` | 406 |
+| `negotiation.ts` | `registerNegotiationRoutes` | `/:m/negotiation` (×3), `/net-settlement` (×3), `/comparables` | 252 |
+| `debrief.ts` | `registerDebriefRoutes` | `/:m/debrief`, `/debrief/analyze`, `/debrief/:item/status` | 346 |
+| `case-analysis.ts` | `registerCaseAnalysisRoutes` | `/case-review` (×2), `/case-synthesis`, `/doc-analysis` (×3) | 327 |
+| `extraction.ts` | `registerExtractionRoutes` | `/classify`, `/extract`, `/apply-extraction` | 438 |
+| `generators.ts` | `registerGeneratorRoutes` | `/demand-letter`, `/statement-of-claim`, `/application`, `/litigation-document` | 1115 |
+| `drafts.ts` | `registerDraftRoutes` | `/draft/replace`, `/draft/review`, `/drafts`, `/client-update`, `/document-status`, `/timetable-package` | 694 |
+| `sources.ts` | `registerSourceRoutes` | `/brief-sources` (×2), `/rebuttal-*` (×4), `/soc-source` (×2), `/defence-source` (×2), `/claim-source` (×2), `/reply-comparison`, `/direction` (×3) | 441 |
+| `soc-nodes.ts` | `registerSocNodeRoutes` | `/soc-nodes` (×2), `/soc-node-library/*` (×5) | 286 |
+| `readiness.ts` | `registerReadinessRoutes` | `/demand-readiness`, `/brief-readiness`, `/download/:docType` | 343 |
+| `style-templates.ts` | `registerStyleTemplateRoutes` | `/style-profiles/*` (×5), `/templates/*` (×6) | 568 |
+| `revision.ts` | `registerRevisionRoutes` | `/revision/upload`, `/revision/plan`, `/revision/apply` | 442 |
+| `misc.ts` | `registerMiscRoutes` | `/form/hrto-form1-data`, `/canon-texts` (×2), `/verify-citations`, `/:m/outcome` (×2), `/notes` | 303 |
 
-**Shared helpers** used across handlers (lines 47–578, being extracted to
-`routes/employment/shared.ts`): `resolveFirmId`, `sanitiseHtml`,
-`loadEmploymentData`, `saveEmploymentData`, `backfillIntakeIdentity`,
-`recordDraftHistory`, `findGeneratedDocKey`, `collectGeneratedDocuments`,
-`loadStyleForGeneration`, `directionForGeneration`, `applyDirectionAftermath`,
-`recomputeAnalysis`, `buildAdditionalHeads`, `ensureAnalysisFresh`.
+**Shared helpers** live in `routes/employment/shared.ts` (587 lines):
+`resolveFirmId`, `sanitiseHtml`, `loadEmploymentData`, `saveEmploymentData`,
+`backfillIntakeIdentity`, `recordDraftHistory`, `findGeneratedDocKey`,
+`titleForDoc`, `collectGeneratedDocuments`, `loadStyleForGeneration`,
+`directionForGeneration`, `applyDirectionAftermath`, `directionDepartureFlags`,
+`styleReviewFlags`, `diffUnlockedCauses`, `buildAdditionalHeads`,
+`recomputeAnalysis`, `ensureAnalysisFresh`, `fromParagraphsSafe`,
+`extractBodySchema`, `logAuditForm1`, plus `DOCUMENT_STATUSES` /
+`REVISION_KIND_VALUES` / `LEGACY_DOC_KEYS` and the `logger`. Each domain module
+imports what it needs from `./shared.js`; the barrel re-exports the public
+subset. **Route registration order does not affect Fastify routing** (paths are
+matched, not ordered), so grouping handlers by domain is behaviour-preserving.
 
 Other notable route modules: `sessions.ts` (Lavern engine, 1,805 lines),
 `matters.ts`, `labour.ts`, `auth-routes.ts` (gated), `well-known.ts`,
@@ -138,15 +140,11 @@ Other notable route modules: `sessions.ts` (Lavern engine, 1,805 lines),
 
 ## 5. Structure work in progress
 
-Two files concentrate most of the review friction and are being restructured:
-
-1. **`routes/employment-intake.ts` → `routes/employment/` folder.** Split by
-   the domains in §3, each a `register<Domain>Routes(fastify)` importing from
-   `routes/employment/shared.ts`; `employment-intake.ts` becomes a thin barrel
-   that composes them and re-exports the helpers (so no importer breaks). Done
-   incrementally, full suite green after each domain.
+1. **`routes/employment-intake.ts` → `routes/employment/` folder.** **Done.**
+   The 5,629-line monolith is now a 58-line barrel composing 13 per-domain
+   modules plus `shared.ts` (see §3). `registerEmploymentIntakeRoutes` and the
+   re-exported helpers are unchanged, so no importer broke.
 2. **`viz/src/starling/MatterDetailView.tsx` → `viz/src/starling/matter/`.**
    Extract each draft workspace and the pleading picker into their own
-   components, shared state lifted to a hook. Larger; scheduled after #1.
-
-Update this map as each domain moves.
+   components, shared state lifted to a hook. Larger; **not yet started** —
+   the next structure task. Update this map as it moves.
