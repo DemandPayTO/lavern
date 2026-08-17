@@ -35,7 +35,10 @@ import type { ApplicationType } from '../../../employment/application-generator.
 import { htmlToDocx } from '../../../employment/docx-export.js';
 import { generateLitigationDocument } from '../../../employment/litigation-documents.js';
 import type { DocxExportOptions } from '../../../employment/docx-export.js';
-import type { LitigationDocumentType } from '../../../employment/litigation-documents.js';
+import type { LitigationDocumentType, LitigationDocumentResult } from '../../../employment/litigation-documents.js';
+import { buildFactumOutline, factumDraftReadiness } from '../../../employment/factum-outline.js';
+import type { FactumDraftState } from '../../../employment/factum-outline.js';
+import { assembleFactum } from '../../../employment/factum-assemble.js';
 import { detectPlaceholders, templateUploadSchema } from '../../../employment/firm-templates.js';
 import type { FirmTemplate } from '../../../employment/firm-templates.js';
 import {
@@ -928,6 +931,7 @@ nodeReport: result.nodeReport,
     // sections the matter's approved issues argue (plus any the lawyer forced
     // on), so the factum argues in the firm's settled way.
     let factumArgumentGuidance: string | undefined;
+    let result: LitigationDocumentResult | undefined;
     if (parsed.data.documentType === 'sj_factum') {
       const factumOverrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
       const selected = loadSelectedFactumNodes({
@@ -936,11 +940,35 @@ nodeReport: result.nodeReport,
         approvedIssues: employment.approvedIssues ?? [],
         overrides: factumOverrides,
       });
-      factumArgumentGuidance = buildFactumArgumentGuidance(selected) || undefined;
+      // Section-by-section path: when the lawyer has drafted sections, the
+      // factum is assembled from their approved text, not generated whole.
+      const draft = ((matter as Record<string, unknown>).factumDraft ?? undefined) as FactumDraftState | undefined;
+      const outline = buildFactumOutline(selected, draft);
+      const readiness = factumDraftReadiness(outline);
+      if (readiness.drafted > 0) {
+        if (!readiness.allApproved) {
+          const remaining = readiness.total - readiness.approved;
+          return reply.status(400).send({ ok: false, error: `You are drafting this factum section by section. Approve the remaining ${remaining} section${remaining === 1 ? '' : 's'} in the outline, then generate to assemble them. To generate the whole factum in one pass instead, discard the section drafts.` });
+        }
+        const assembled = assembleFactum({
+          sections: outline.map(s => ({ kind: s.kind, header: s.header, html: s.html ?? '', authorities: s.authorities })),
+          intake: employment.intake,
+          claimAmount: parsed.data.claimAmount,
+        });
+        result = {
+          html: assembled.html,
+          documentType: 'sj_factum',
+          documentTitle: assembled.documentTitle,
+          lawyerReviewFlags: assembled.lawyerReviewFlags,
+          citations: [],
+          costUsd: 0,
+        };
+      } else {
+        factumArgumentGuidance = buildFactumArgumentGuidance(selected) || undefined;
+      }
     }
 
-    let result;
-    try {
+    if (!result) try {
       result = await generateLitigationDocument({
         intake: employment.intake,
         approvedIssues: employment.approvedIssues,
