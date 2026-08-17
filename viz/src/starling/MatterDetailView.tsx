@@ -47,6 +47,11 @@ import { ReplyOptions } from './matter/workspaces/ReplyOptions.js';
 import { SocPleadingOptions } from './matter/workspaces/SocPleadingOptions.js';
 import { DemandSourcesOptions } from './matter/workspaces/DemandSourcesOptions.js';
 import { MediationSourcesOptions } from './matter/workspaces/MediationSourcesOptions.js';
+import { SocPleadingLanguageOptions } from './matter/workspaces/SocPleadingLanguageOptions.js';
+import { CourtFormOptions } from './matter/workspaces/CourtFormOptions.js';
+import { ReadinessNotice } from './matter/workspaces/ReadinessNotice.js';
+import { GenerationOptions } from './matter/workspaces/GenerationOptions.js';
+import { ScheduleAOptions } from './matter/workspaces/ScheduleAOptions.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -2182,34 +2187,7 @@ export default function MatterDetailView() {
 
               {/* HRTO Form 1 data file — populates the official SmartForm */}
               {selectedDraft === 'schedulea' && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>
-                    Form 1 itself: download the pre-filled data file
-                  </div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                    The HRTO SmartForm cannot be filled directly (it is a locked dynamic form), but Starling
-                    generates a data file from this matter (applicant, respondent, grounds, date of last
-                    incident, representative). Open the official Form 1 in Acrobat, then{' '}
-                    <strong>Prepare Form → More → Import Data</strong> and select this file. Review every
-                    field; Starling deliberately leaves narrative questions for Schedule "A".
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <a
-                      href={`/api/employment/${sessionId}/form/hrto-form1-data`}
-                      download
-                      style={{ background: navy, color: '#fff', fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, textDecoration: 'none', fontFamily: sans }}
-                    >
-                      Download Form 1 data file (.xml)
-                    </a>
-                    <a
-                      href="https://tribunalsontario.ca/documents/hrto/SmartForms/Form%201%20-%20apply.pdf"
-                      target="_blank" rel="noopener noreferrer"
-                      style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, textDecoration: 'none', fontFamily: sans }}
-                    >
-                      Get the official Form 1 ↗
-                    </a>
-                  </div>
-                </div>
+                <ScheduleAOptions sessionId={sessionId} />
               )}
 
               {!selectedDraft && (<>
@@ -2315,41 +2293,7 @@ export default function MatterDetailView() {
               {/* Court-form inputs: the deterministic forms are data, and
                   these fields are that data */}
               {selectedDraft && COURT_FORM_FIELDS[selectedDraft] && showOptions && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
-                  {COURT_FORM_FIELDS[selectedDraft].map(f => (
-                    <div key={f.key} style={f.type === 'textarea' ? { gridColumn: '1 / -1' } : undefined}>
-                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>
-                        {f.label}{f.required ? ' *' : ''}
-                      </div>
-                      {f.type === 'select' ? (
-                        <select
-                          value={courtFields[f.key] ?? ''}
-                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
-                        >
-                          <option value="">Select</option>
-                          {(f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                      ) : f.type === 'textarea' ? (
-                        <textarea
-                          value={courtFields[f.key] ?? ''}
-                          placeholder={f.placeholder}
-                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          rows={3}
-                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box', resize: 'vertical' }}
-                        />
-                      ) : (
-                        <input
-                          type={f.type ?? 'text'}
-                          value={courtFields[f.key] ?? ''}
-                          placeholder={f.placeholder}
-                          onChange={e => setCourtFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <CourtFormOptions selectedDraft={selectedDraft} courtFields={courtFields} setCourtFields={setCourtFields} />
               )}
               {/* Pronouns live on the client file, but they change every line
                   of the letter, so the choice belongs where the letter is
@@ -2379,35 +2323,7 @@ export default function MatterDetailView() {
               )}
 
               {(selectedDraft === 'mediation' || selectedDraft === 'demand') && showOptions && readiness.length > 0 && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                    Before you generate
-                    {readiness.some(r => r.level === 'warn') && (
-                      <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: amber, background: '#fdf0dd', padding: '2px 7px', borderRadius: 2 }}>
-                        {readiness.filter(r => r.level === 'warn').length} TO FIX
-                      </span>
-                    )}
-                  </div>
-                  {readiness.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', fontSize: 12.5 }}>
-                      <span aria-hidden="true" style={{ color: r.level === 'ok' ? green : r.level === 'warn' ? amber : muted, fontWeight: 700, minWidth: 14 }}>
-                        {r.level === 'ok' ? '✓' : r.level === 'warn' ? '!' : '·'}
-                      </span>
-                      <span style={{ color: r.level === 'warn' ? ink : muted, flex: 1 }}>
-                        <span style={{ fontWeight: r.level === 'warn' ? 600 : 400 }}>{r.label}</span>
-                        {r.hint && <span> {r.hint}</span>}
-                        {r.goTo && r.level !== 'ok' && (
-                          <button
-                            onClick={() => setActiveTab(r.goTo as TabKey)}
-                            style={{ marginLeft: 6, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
-                          >
-                            fix it
-                          </button>
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <ReadinessNotice readiness={readiness} setActiveTab={setActiveTab} />
               )}
 
               {selectedDraft === 'soc' && showOptions && (
@@ -2466,56 +2382,15 @@ export default function MatterDetailView() {
 
               {/* Generation options */}
               {selectedDraft && !COURT_FORM_FIELDS[selectedDraft] && showOptions && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, marginTop: 8 }}>
-                  {(selectedDraft === 'demand') && (
-                    <>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Tone</div>
-                        <select value={genTone} onChange={e => setGenTone(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
-                          <option value="professional">Professional</option>
-                          <option value="firm">Firm</option>
-                          <option value="aggressive">Aggressive</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label htmlFor="dl-amount" style={{ display: 'block', fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Demand Amount (CAD)</label>
-                        <input id="dl-amount" type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => setGenDemandAmount(e.target.value.replace(/[^\d]/g, ''))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
-                      </div>
-                      <div>
-                        <label htmlFor="dl-deadline" style={{ display: 'block', fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Response deadline (days)</label>
-                        <input id="dl-deadline" type="number" min={1} max={90} value={dlDeadlineDays} onChange={e => setDlDeadlineDays(Math.min(90, Math.max(1, Number(e.target.value) || 14)))} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
-                        <div style={{ fontSize: 11.5, color: muted, marginTop: 3 }}>The letter states the calendar date, and it goes on your docket.</div>
-                      </div>
-                    </>
-                  )}
-                  {(selectedDraft === 'soc') && (
-                    <>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Procedure Type</div>
-                        <select value={genProcedure} onChange={e => setGenProcedure(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
-                          <option value="small_claims">Small Claims (≤$50K)</option>
-                          <option value="simplified">Simplified ($50K–$200K)</option>
-                          <option value="ordinary">Ordinary (&gt;$200K)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Court Location</div>
-                        <input type="text" placeholder="e.g., Toronto" value={genCourtLocation} onChange={e => setGenCourtLocation(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
-                      </div>
-                    </>
-                  )}
-                  {selectedDraft !== 'demand' && (
-                    <div>
-                      <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Claim Amount (CAD)</div>
-                      <input type="text" placeholder="e.g., 150000" value={genDemandAmount} onChange={e => { setGenDemandAmount(e.target.value.replace(/[^\d]/g, '')); setAmountPrefilled(false); }} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }} />
-                      {amountPrefilled && selectedDraft === 'soc' && (
-                        <div style={{ fontSize: 12, color: muted, marginTop: 4 }}>
-                          Prefilled from the high end of the damages estimate, rounded up to the nearest $5,000. Your judgment governs; change it freely.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <GenerationOptions
+                  selectedDraft={selectedDraft}
+                  genTone={genTone} setGenTone={setGenTone}
+                  genDemandAmount={genDemandAmount} setGenDemandAmount={setGenDemandAmount}
+                  dlDeadlineDays={dlDeadlineDays} setDlDeadlineDays={setDlDeadlineDays}
+                  genProcedure={genProcedure} setGenProcedure={setGenProcedure}
+                  genCourtLocation={genCourtLocation} setGenCourtLocation={setGenCourtLocation}
+                  amountPrefilled={amountPrefilled} setAmountPrefilled={setAmountPrefilled}
+                />
               )}
 
 
@@ -2564,94 +2439,18 @@ export default function MatterDetailView() {
                 </div>
               )}
               {selectedDraft === 'soc' && showOptions && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The firm's pleading language</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-                    Each cause is pleaded in settled language. Upload two or more of the firm's own claims and Starling proposes each node rewritten in your wording, structure intact. Nothing changes until you approve it, node by node. Names, dates and figures from the claims never enter the templates.
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input
-                      ref={socTeachInputRef}
-                      type="file" accept={TEXT_UPLOAD_ACCEPT} multiple style={{ display: 'none' }}
-                      onChange={e => { const fs = [...(e.target.files ?? [])]; if (fs.length) void teachSocNodes(fs); e.target.value = ''; }}
-                      aria-label="Upload the firm's statements of claim"
-                    />
-                    <button
-                      onClick={() => socTeachInputRef.current?.click()}
-                      disabled={socTeachBusy}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: socTeachBusy ? '#b0b0b0' : navy, color: '#fff', border: 'none', cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
-                    >
-                      {socTeachBusy ? 'Reading…' : 'Read your claims'}
-                    </button>
-                    <input
-                      ref={socImportInputRef}
-                      type="file" accept=".xlsx" style={{ display: 'none' }}
-                      onChange={e => { const f = e.target.files?.[0]; if (f) void importSocNodes(f); e.target.value = ''; }}
-                      aria-label="Import the node spreadsheet"
-                    />
-                    <button
-                      onClick={() => socImportInputRef.current?.click()}
-                      disabled={socTeachBusy}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: socTeachBusy ? 'not-allowed' : 'pointer' }}
-                    >
-                      Import the language spreadsheet
-                    </button>
-                    <span style={{ fontSize: 11.5, color: muted }}>
-                      {socLib.filter(n => n.provenance !== 'default').length > 0
-                        ? `${socLib.filter(n => n.provenance === 'learned').length} learned, ${socLib.filter(n => n.provenance === 'edited').length} edited, rest on defaults.`
-                        : 'All nodes on the ported defaults.'}
-                    </span>
-                  </div>
-                  {socTeachMsg && <div style={{ fontSize: 12.5, color: ink, marginTop: 8 }}>{socTeachMsg}</div>}
-
-                  {socProposals && socProposals.filter(p => p.proposed || p.skipped).map(p => (
-                    <div key={p.blockId} style={{ borderTop: `1px solid #f0ede8`, marginTop: 10, paddingTop: 10 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: ink }}>
-                        {p.sectionHeader || p.blockId}
-                        <span style={{ fontWeight: 400, color: muted }}> · from {p.sources.join(', ') || 'no matching claims'}</span>
-                      </div>
-                      {p.skipped && <div style={{ fontSize: 12, color: muted, marginTop: 3 }}>{p.skipped}</div>}
-                      {p.proposed && (
-                        <>
-                          {(p.validation?.warnings ?? []).map((w, i) => (
-                            <div key={i} style={{ fontSize: 11.5, color: amber, marginTop: 3 }}>{w}</div>
-                          ))}
-                          {p.notes.map((note, i) => (
-                            <div key={i} style={{ fontSize: 11.5, color: muted, marginTop: 3 }}>{note}</div>
-                          ))}
-                          <details style={{ marginTop: 6 }}>
-                            <summary style={{ fontSize: 12, color: navy, cursor: 'pointer' }}>Read it as it would plead</summary>
-                            <div style={{ fontSize: 12, color: ink, background: '#fbfaf8', border: `1px solid ${border}`, padding: '8px 10px', marginTop: 5, lineHeight: 1.55 }}
-                              dangerouslySetInnerHTML={{ __html: p.validation?.renderAllOn ?? '' }} />
-                          </details>
-                          {p.additions.length > 0 && (
-                            <div style={{ fontSize: 11.5, color: muted, marginTop: 5 }}>
-                              Your claims also plead, and this node does not: {p.additions.map(a => a.summary).join('; ')}. Approve the node first, then add these by editing it.
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                            <button
-                              onClick={() => void approveSocProposal(p.blockId, p.proposed!, 'learned')}
-                              disabled={!p.validation?.ok}
-                              style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: p.validation?.ok ? orange : '#b0b0b0', color: '#fff', border: 'none', cursor: p.validation?.ok ? 'pointer' : 'not-allowed' }}
-                            >
-                              Approve
-                            </button>
-                            <span style={{ fontSize: 11.5, color: muted, alignSelf: 'center' }}>
-                              Approving pleads this cause in these words on every future claim.
-                            </span>
-                            <button
-                              onClick={() => setSocProposals(prev => prev ? prev.filter(x => x.blockId !== p.blockId) : prev)}
-                              style={{ fontSize: 12, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                            >
-                              Discard
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <SocPleadingLanguageOptions
+                  socTeachInputRef={socTeachInputRef}
+                  socImportInputRef={socImportInputRef}
+                  teachSocNodes={teachSocNodes}
+                  importSocNodes={importSocNodes}
+                  socTeachBusy={socTeachBusy}
+                  socTeachMsg={socTeachMsg}
+                  socLib={socLib}
+                  socProposals={socProposals}
+                  setSocProposals={setSocProposals}
+                  approveSocProposal={approveSocProposal}
+                />
               )}
 
               {/* Firm template for the selected document type. The package
