@@ -35,6 +35,10 @@ import { navy, orange, cream, frame, green, amber, red, border, ink, muted, seri
 import type { Issue, DocItem, DraftType, TimelineEvent } from './matter/types.js';
 import { triageFlag, TriagedFlags, StatusDot, SourceTag, MatterDetailTopBar, FactItem, DocRow, ActionButton, renderBoldText } from './matter/presentational.js';
 import { ReviewLaneControls } from './matter/review-lane.js';
+import { TimelineTab } from './matter/tabs/TimelineTab.js';
+import { IntakeTab } from './matter/tabs/IntakeTab.js';
+import { NotesTab } from './matter/tabs/NotesTab.js';
+import { IssuesTab } from './matter/tabs/IssuesTab.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -539,82 +543,6 @@ const DEMAND_SOURCE_KIND_LABELS: Record<string, string> = {
 
 const DRAFTS_NEEDING_AMOUNT = new Set(['demand', 'soc', 'counter', 'rule49']);
 
-// ── Intake editor fields ────────────────────────────────────────────────
-// The core analysis-driving fields. The editor merges into the existing
-// intake, so fields it does not show are preserved.
-
-const EMPLOYMENT_INTAKE_FIELDS: IntakeFieldDef[] = [
-  { key: 'client_first_name', label: 'Client first name' },
-  { key: 'client_last_name', label: 'Client last name' },
-  { key: 'client_age', label: 'Client age', type: 'number' },
-  // The mediation brief's readiness hint points here for the profile
-  // table's age row; the field has to exist to be pointed at.
-  { key: 'client_date_of_birth', label: 'Client date of birth', type: 'date' },
-  // Set by the lawyer, never inferred from the name. Every generated
-  // document reads it; before this each one was picking for itself.
-  {
-    key: 'client_pronouns',
-    label: 'How documents refer to the client',
-    type: 'select',
-    options: [
-      ['', 'Not recorded (uses the name)'],
-      ['she', 'she / her'],
-      ['he', 'he / him'],
-      ['they', 'they / them'],
-      ['name', 'Name only, no pronouns'],
-    ],
-  },
-  // Addresses only: the HRTO Form 1 and the court forms print them.
-  // Email and phone stay off this grid on the pilot's direction: Starling
-  // is a drafting and matter app, not a contact list. The court forms
-  // print those lines blank when unset, for the lawyer to fill.
-  { key: 'client_address', label: 'Client street address' },
-  { key: 'client_city', label: 'Client city' },
-  { key: 'client_postal_code', label: 'Client postal code' },
-  { key: 'employer_legal_name', label: 'Employer legal name' },
-  { key: 'employer_address', label: 'Employer address (service address on forms)' },
-  { key: 'job_title', label: 'Job title' },
-  { key: 'annual_salary', label: 'Annual salary (CAD)', type: 'number' },
-  // The income breakdown: the brief's profile table and the damages story
-  // read these, and until now only the questionnaire could set them.
-  { key: 'bonus_amount', label: 'Annual bonus (CAD)', type: 'number' },
-  { key: 'commission_amount', label: 'Annual commissions (CAD)', type: 'number' },
-  { key: 'allowances_amount', label: 'Allowances per year (CAD)', type: 'number' },
-  { key: 'allowances_details', label: 'Allowances, described (car, phone, housing)' },
-  { key: 'hire_date', label: 'Hire date', type: 'date' },
-  { key: 'years_of_service_estimate', label: 'Years of service (estimate, when the start date is unknown)', type: 'number' },
-  { key: 'termination_date', label: 'Termination date', type: 'date' },
-  { key: 'termination_reasons', label: 'Stated reason for termination' },
-  { key: 'was_terminated', label: 'Terminated by the employer', type: 'checkbox' },
-  { key: 'is_constructive_dismissal', label: 'Constructive dismissal', type: 'checkbox' },
-  { key: 'employer_alleged_just_cause', label: 'Employer alleged just cause', type: 'checkbox' },
-  { key: 'believes_discriminatory_termination', label: 'Discrimination dimension (starts the HRTO clock)', type: 'checkbox' },
-  { key: 'received_severance_offer', label: 'Severance offer received', type: 'checkbox' },
-  { key: 'severance_weeks_offered', label: 'Severance weeks offered', type: 'number' },
-  { key: 'severance_deadline', label: 'Severance offer deadline', type: 'date' },
-  // The smaller ESA wage claims. Ticking one makes it pleadable in the
-  // Statement of Claim, so each label names the claim in plain words.
-  { key: 'vacation_unpaid', label: 'Vacation pay unpaid at termination', type: 'checkbox' },
-  { key: 'vacation_underpaid_rate', label: 'Vacation pay below the ESA 4% / 6% minimum', type: 'checkbox' },
-  { key: 'vacation_excluded_variable_comp', label: 'Vacation pay not paid on commissions or bonuses', type: 'checkbox' },
-  { key: 'holiday_pay_unpaid', label: 'Public holiday pay unpaid', type: 'checkbox' },
-  { key: 'unpaid_overtime', label: 'Overtime unpaid', type: 'checkbox' },
-  { key: 'unpaid_commission', label: 'Commission or bonus earned but unpaid', type: 'checkbox' },
-  { key: 'unauthorized_deductions', label: 'Unauthorized deductions from wages', type: 'checkbox' },
-  { key: 'expenses_unreimbursed', label: 'Business expenses unreimbursed', type: 'checkbox' },
-  { key: 'esa_term_shortfall', label: 'ESA termination pay shortfall', type: 'checkbox' },
-  { key: 'esa_sev_shortfall', label: 'ESA severance pay shortfall', type: 'checkbox' },
-  { key: 'benefits_not_continued', label: 'Benefits not continued through the statutory notice period', type: 'checkbox' },
-  // The fields that arm the claim's main attack sections. Without these
-  // in the editor, a lawyer whose documents did not supply them had no
-  // way to plead the clause attack or bad faith at all.
-  { key: 'termination_clause_text', label: 'Termination clause, quoted from the contract (arms the clause attack)', type: 'textarea' },
-  { key: 'clause_cause_broader', label: 'Clause attack: for-cause standard below wilful misconduct', type: 'checkbox' },
-  { key: 'clause_no_benefits', label: 'Clause attack: benefits not continued through notice', type: 'checkbox' },
-  { key: 'clause_limits_below_esa', label: 'Clause attack: purports to limit below ESA minimums', type: 'checkbox' },
-  { key: 'bad_faith_details', label: 'Bad faith in the manner of dismissal (describe the conduct; arms the bad faith section)', type: 'textarea' },
-];
-
 // ── Tab definitions ─────────────────────────────────────────────────────
 
 const TABS: { key: TabKey; label: string; badge?: number }[] = [
@@ -745,8 +673,6 @@ export default function MatterDetailView() {
   const [extractError, setExtractError] = useState<string | null>(null);
   const [lastExtraction, setLastExtraction] = useState<DocumentExtraction | null>(null);
   // Analysis empty state
-  const [analysing, setAnalysing] = useState(false);
-  const [analyseError, setAnalyseError] = useState<string | null>(null);
   // Firm templates
   const firmTemplates = useFirmTemplates();
   const [templateStatus, setTemplateStatus] = useState<string | null>(null);
@@ -830,26 +756,6 @@ export default function MatterDetailView() {
   // the approved list. Toggling recomputes both lists and syncs to the server.
   // Gates with no issue codes (e.g. G16 "closing block") are structural
   // directives, not lawyer decisions — no approve/dismiss for those.
-  const triggeredGates = employment.data?.gates?.filter(g => g.triggered && g.issueCodes.length > 0) ?? [];
-  const structuralGates = employment.data?.gates?.filter(g => g.triggered && g.issueCodes.length === 0) ?? [];
-  const gateDecision = useCallback((gate: { issueCodes: string[] }): 'approved' | 'dismissed' | 'pending' => {
-    if (!employment.data) return 'pending';
-    if (gate.issueCodes.some(c => employment.data!.approvedIssues.includes(c))) return 'approved';
-    if (gate.issueCodes.some(c => employment.data!.dismissedIssues.includes(c))) return 'dismissed';
-    return 'pending';
-  }, [employment.data]);
-
-  const setGateDecision = useCallback((gate: { issueCodes: string[] }, decision: 'approve' | 'dismiss') => {
-    if (!employment.data) return;
-    const approved = new Set(employment.data.approvedIssues);
-    const dismissed = new Set(employment.data.dismissedIssues);
-    for (const code of gate.issueCodes) {
-      if (decision === 'approve') { approved.add(code); dismissed.delete(code); }
-      else { dismissed.add(code); approved.delete(code); }
-    }
-    employment.approveIssues([...approved], [...dismissed]);
-  }, [employment]);
-
 
   // Draft a plain-language client status update (lawyer reviews + sends)
   const handleClientUpdate = useCallback(async () => {
@@ -2383,119 +2289,7 @@ export default function MatterDetailView() {
 
           {/* Issues Found */}
           {activeTab === 'issues' && (
-            <div id="panel-issues" role="tabpanel" style={{ paddingTop: 22 }}>
-              {/* Comparable decisions — internal research from the shared case library */}
-              {employment.data?.analysis != null && <ComparablesPanel matterId={sessionId!} />}
-              {/* Run Analysis empty state — employment data exists but analysis hasn't run */}
-              {employment.data && !employment.data.analysis && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '22px 24px', marginBottom: 16, textAlign: 'center' }}>
-                  <div style={{ fontFamily: serif, fontSize: 16, fontWeight: 600, color: navy, marginBottom: 6 }}>
-                    Analysis not run yet
-                  </div>
-                  <div style={{ fontSize: 13.5, color: muted, marginBottom: 14 }}>
-                    Run the 16-gate legal issue analysis to identify claims, calculate ESA and common law entitlements, and check limitation deadlines.
-                  </div>
-                  <button
-                    onClick={async () => {
-                      setAnalysing(true);
-                      setAnalyseError(null);
-                      const result = await employment.runAnalysis();
-                      setAnalysing(false);
-                      if (!result.ok) setAnalyseError(result.error ?? 'Analysis failed.');
-                    }}
-                    disabled={analysing}
-                    style={{
-                      background: analysing ? '#b0b0b0' : orange, color: '#fff', fontSize: 13.5, fontWeight: 600,
-                      padding: '11px 22px', borderRadius: 2, border: 'none', cursor: analysing ? 'not-allowed' : 'pointer', fontFamily: sans,
-                    }}
-                  >
-                    {analysing ? 'Analysing...' : 'Run Analysis'}
-                  </button>
-                  {analyseError && (
-                    <div style={{ marginTop: 10, color: '#dc2626', fontSize: 13 }}>{analyseError}</div>
-                  )}
-                </div>
-              )}
-
-              {/* Lawyer decisions on triggered gates — controls which issues
-                  are included in generated documents (shared with the labour view) */}
-              {(() => {
-                const pending = triggeredGates.filter(g => gateDecision(g) === 'pending');
-                if (pending.length === 0) return null;
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '10px 14px', marginBottom: 12, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, color: ink }}>
-                      <b>{pending.length} issue{pending.length === 1 ? '' : 's'} await{pending.length === 1 ? 's' : ''} your decision.</b>{' '}
-                      Documents argue only approved issues.
-                    </span>
-                    <button
-                      onClick={() => {
-                        const approvedSet = new Set(employment.data?.approvedIssues ?? []);
-                        for (const g of pending) for (const c of g.issueCodes) approvedSet.add(c);
-                        void employment.approveIssues([...approvedSet], employment.data?.dismissedIssues ?? []);
-                      }}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: navy, color: '#fff', border: 'none', cursor: 'pointer' }}
-                    >
-                      Approve all {pending.length}
-                    </button>
-                  </div>
-                );
-              })()}
-              <GateApprovalPanel
-                gates={triggeredGates}
-                structuralGates={structuralGates}
-                decisionFor={gateDecision}
-                onDecision={setGateDecision}
-                subheading="Only approved issues are included in demand letters, pleadings, and applications. Starling drafts nothing you have not approved."
-              />
-
-              {matter!.issues.length === 0 && triggeredGates.length === 0 && (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No issues found yet.</div>
-              )}
-              {matter!.issues.map(issue => (
-                <div
-                  key={issue.id}
-                  style={{
-                    background: '#fff',
-                    border: `1px solid ${border}`,
-                    borderLeft: `4px solid ${issue.strength === 'strong' ? green : amber}`,
-                    padding: '16px 20px',
-                    marginBottom: 12,
-                  }}
-                >
-                  {/* Issue header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                    <StatusDot colour={issue.strength === 'strong' ? green : amber} size={10} />
-                    <span style={{ fontFamily: serif, fontSize: 16, fontWeight: 600, color: navy }}>
-                      {issue.title}
-                    </span>
-                    <span
-                      style={{
-                        marginLeft: 'auto',
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                        padding: '3px 9px',
-                        borderRadius: 2,
-                        background: issue.strength === 'strong' ? '#e7f6ec' : '#fdf0dd',
-                        color: issue.strength === 'strong' ? green : amber,
-                      }}
-                    >
-                      {issue.strength === 'strong' ? 'Strong' : 'Moderate'}
-                    </span>
-                  </div>
-                  {/* Description */}
-                  <div style={{ fontSize: 13.5, color: muted, marginBottom: 10 }}>
-                    {renderBoldText(issue.description, issue.descriptionBold)}
-                  </div>
-                  {/* Sources */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {issue.sources.map((src, i) => (
-                      <SourceTag key={i} label={src.label} type={src.type} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <IssuesTab employment={employment} issues={matter!.issues} sessionId={sessionId} />
           )}
 
           {/* Documents */}
@@ -4679,203 +4473,28 @@ export default function MatterDetailView() {
 
           {/* Timeline */}
           {activeTab === 'timeline' && (
-            <div id="panel-timeline" role="tabpanel" style={{ paddingTop: 22 }}>
-              {/* Add a key date. Court/statutory deadlines drive the red band. */}
-              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: 16, marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: navy, letterSpacing: 0.3, marginBottom: 10 }}>ADD A KEY DATE</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <input type="date" value={keyDate.date} onChange={e => setKeyDate(k => ({ ...k, date: e.target.value }))}
-                    style={{ fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans }} />
-                  <input value={keyDate.label} onChange={e => setKeyDate(k => ({ ...k, label: e.target.value }))}
-                    placeholder="e.g. Settlement conference, trial date, motion return"
-                    style={{ flex: 1, minWidth: 220, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, fontFamily: sans }} />
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: ink, whiteSpace: 'nowrap' }}>
-                    <input type="checkbox" checked={keyDate.courtDeadline} onChange={e => setKeyDate(k => ({ ...k, courtDeadline: e.target.checked }))} />
-                    Court / statutory deadline
-                  </label>
-                  <button
-                    disabled={keyDateSaving || !keyDate.date || keyDate.label.trim().length === 0}
-                    onClick={async () => {
-                      setKeyDateSaving(true);
-                      try {
-                        await fetch(`/api/employment/${sessionId}/timeline`, {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-                          body: JSON.stringify({ date: keyDate.date, label: keyDate.label.trim(), category: keyDate.category, courtDeadline: keyDate.courtDeadline }),
-                        });
-                        setKeyDate({ date: '', label: '', category: 'legal', courtDeadline: true });
-                        await refreshMatter();
-                        void employment.refresh();
-                      } catch { /* transient */ }
-                      setKeyDateSaving(false);
-                    }}
-                    style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', background: navy, color: '#fff', cursor: 'pointer', opacity: (!keyDate.date || !keyDate.label.trim()) ? 0.5 : 1 }}
-                  >
-                    {keyDateSaving ? 'Adding...' : 'Add'}
-                  </button>
-                </div>
-                <div style={{ fontSize: 11.5, color: muted, marginTop: 8 }}>
-                  Court and statutory deadlines show in red on the docket when they are overdue or within a business week. Untick for a non-court date (a reminder, a call).
-                </div>
-              </div>
-              {matter!.timeline.length === 0 && (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No timeline events yet.</div>
-              )}
-              {matter!.timeline.length > 0 && (
-              <div style={{ position: 'relative', paddingLeft: 24 }}>
-                {/* Vertical line */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 6,
-                    top: 4,
-                    bottom: 4,
-                    width: 2,
-                    background: border,
-                  }}
-                  aria-hidden="true"
-                />
-                {matter!.timeline.map(ev => (
-                  <div key={ev.id} style={{ position: 'relative', marginBottom: 18 }}>
-                    {/* Dot */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: -22,
-                        top: 4,
-                        width: 10,
-                        height: 10,
-                        borderRadius: '50%',
-                        background: ev.isCurrent ? orange : navy,
-                        border: '2px solid #fff',
-                        boxShadow: `0 0 0 1px ${border}`,
-                      }}
-                      aria-hidden="true"
-                    />
-                    <div style={{ fontSize: 12, color: muted, marginBottom: 2 }}>{ev.date}</div>
-                    <div style={{ fontSize: 14, color: ink, fontWeight: 600 }}>
-                      {ev.title}
-                      {ev.courtDeadline && (
-                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#fce8e6', padding: '2px 7px', borderRadius: 2, verticalAlign: 'middle' }}>COURT DEADLINE</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 13, color: muted }}>{ev.subtitle}</div>
-                  </div>
-                ))}
-              </div>
-              )}
-            </div>
+            <TimelineTab
+              timeline={matter!.timeline}
+              keyDate={keyDate} setKeyDate={setKeyDate}
+              keyDateSaving={keyDateSaving} setKeyDateSaving={setKeyDateSaving}
+              sessionId={sessionId}
+              refreshMatter={refreshMatter}
+              refreshEmployment={() => void employment.refresh()}
+            />
           )}
 
           {/* Intake editor */}
           {activeTab === 'intake' && (
-            <div id="panel-intake" role="tabpanel" style={{ paddingTop: 22 }}>
-              {/* The lawyer's own record comes first. The client portal
-                  used to sit on top of it, which made the intake look as
-                  though it could only be filled by sending the client a
-                  link. */}
-
-              <QuestionnairePanel
-                intake={(employment.data?.intake ?? {}) as Record<string, unknown>}
-                onSave={employment.saveIntake}
-              />
-              <IntakeEditorPanel
-                heading="Quick edit"
-                subheading="The core fields in one grid, for fast corrections. The full intake above covers everything; both save to the same file."
-                fields={EMPLOYMENT_INTAKE_FIELDS}
-                values={(employment.data?.intake ?? {}) as Record<string, unknown>}
-                onSave={async (edited) => {
-                  const merged: Record<string, unknown> = { ...((employment.data?.intake ?? {}) as Record<string, unknown>) };
-                  for (const [k, v] of Object.entries(edited)) {
-                    if (v === undefined) delete merged[k];
-                    else merged[k] = v;
-                  }
-                  return employment.saveIntake(merged);
-                }}
-              />
-
-              {/* Client intake portal */}
-              <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '16px 20px', marginBottom: 16 }}>
-                <div style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: navy, marginBottom: 4 }}>
-                  Client intake link
-                </div>
-                <div style={{ fontSize: 12.5, color: muted, marginBottom: 12 }}>
-                  Send the client a link to answer the intake questions themselves. Their answers arrive
-                  here for your review; nothing changes on the matter until you apply them, and your own
-                  entries are never overwritten.
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    onClick={async () => {
-                      setPortalMessage(null);
-                      try {
-                        const res = await fetch(`/api/employment/${sessionId}/intake-link`, { method: 'POST', credentials: 'include' });
-                        const json = await res.json();
-                        if (!res.ok) { setPortalMessage(json.error ?? 'The link could not be generated.'); return; }
-                        const url = `${window.location.origin}${json.path}`;
-                        setIntakeLink(url);
-                        try { await navigator.clipboard.writeText(url); setIntakeLinkCopied(true); setTimeout(() => setIntakeLinkCopied(false), 2500); } catch { /* clipboard optional */ }
-                      } catch {
-                        setPortalMessage('The link could not be generated.');
-                      }
-                    }}
-                    style={{ background: navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 2, border: 'none', cursor: 'pointer', fontFamily: sans }}
-                  >
-                    Generate client link
-                  </button>
-                  {intakeLink && (
-                    <span style={{ fontSize: 12.5, color: ink, wordBreak: 'break-all' as const }}>
-                      {intakeLink} {intakeLinkCopied && <b style={{ color: green }}>Copied</b>}
-                    </span>
-                  )}
-                  {portalMessage && <span style={{ fontSize: 12.5, color: red }} role="alert">{portalMessage}</span>}
-                </div>
-                {pendingClient?.data && !pendingClient.appliedAt && (
-                  <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                      Client submission received{pendingClient.submittedAt ? ` ${new Date(pendingClient.submittedAt).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
-                    </div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                      {Object.entries(pendingClient.data).filter(([k, v]) => k !== 'client_narrative' && v !== '' && v != null).map(([k, v]) => (
-                        <div key={k} style={{ padding: '2px 0' }}>
-                          <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}:</span> <span style={{ color: ink }}>{String(v)}</span>
-                        </div>
-                      ))}
-                      {typeof pendingClient.data.client_narrative === 'string' && pendingClient.data.client_narrative && (
-                        <div style={{ marginTop: 6 }}>
-                          <span style={{ fontWeight: 600 }}>In their words:</span>{' '}
-                          <span style={{ color: ink }}>{String(pendingClient.data.client_narrative)}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={async () => {
-                          const res = await fetch(`/api/employment/${sessionId}/apply-client-intake`, { method: 'POST', credentials: 'include' });
-                          const json = await res.json().catch(() => ({}));
-                          setPortalMessage(res.ok
-                            ? `Applied ${(json.appliedFields ?? []).length} field(s); blank fields only. Review the intake below and re-run the analysis.`
-                            : json.error ?? 'The submission could not be applied.');
-                          refreshPendingClient();
-                          employment.refresh();
-                        }}
-                        style={{ background: orange, color: '#fff', fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, border: 'none', cursor: 'pointer', fontFamily: sans }}
-                      >
-                        Apply to the intake
-                      </button>
-                      <button
-                        onClick={async () => {
-                          await fetch(`/api/employment/${sessionId}/client-intake`, { method: 'DELETE', credentials: 'include' });
-                          refreshPendingClient();
-                        }}
-                        style={{ background: '#fff', color: muted, border: `1px solid ${border}`, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
-                      >
-                        Discard
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <IntakeTab
+              intake={(employment.data?.intake ?? {}) as Record<string, unknown>}
+              saveIntake={employment.saveIntake}
+              refreshEmployment={() => employment.refresh()}
+              sessionId={sessionId}
+              intakeLink={intakeLink} setIntakeLink={setIntakeLink}
+              intakeLinkCopied={intakeLinkCopied} setIntakeLinkCopied={setIntakeLinkCopied}
+              portalMessage={portalMessage} setPortalMessage={setPortalMessage}
+              pendingClient={pendingClient} refreshPendingClient={refreshPendingClient}
+            />
           )}
 
           {/* Notes */}
@@ -4902,73 +4521,12 @@ export default function MatterDetailView() {
           )}
 
           {activeTab === 'notes' && (
-            <div id="panel-notes" role="tabpanel" style={{ paddingTop: 22 }}>
-              {renderDirection('matter')}
-              <div
-                style={{
-                  fontSize: 12.5,
-                  color: muted,
-                  marginBottom: 10,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                }}
-              >
-                {/* Lock icon */}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0110 0v4" />
-                </svg>
-                Private to you. Not processed by AI and not included in any deliverable.
-              </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                style={{
-                  width: '100%',
-                  minHeight: 220,
-                  fontFamily: sans,
-                  fontSize: 14,
-                  border: `1px solid ${border}`,
-                  borderRadius: 2,
-                  padding: 16,
-                  lineHeight: 1.6,
-                  resize: 'vertical',
-                  color: ink,
-                  boxSizing: 'border-box',
-                }}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
-                <button
-                  onClick={async () => {
-                    setNotesStatus('saving');
-                    const result = await employment.saveNotes(notes);
-                    setNotesStatus(result.ok ? 'saved' : 'error');
-                    if (result.ok) setTimeout(() => setNotesStatus('idle'), 2500);
-                  }}
-                  disabled={notesStatus === 'saving'}
-                  style={{
-                    background: notesStatus === 'saving' ? '#b0b0b0' : orange,
-                    color: '#fff',
-                    fontSize: 13.5,
-                    fontWeight: 600,
-                    padding: '11px 18px',
-                    borderRadius: 2,
-                    border: 'none',
-                    cursor: notesStatus === 'saving' ? 'not-allowed' : 'pointer',
-                    fontFamily: sans,
-                  }}
-                >
-                  {notesStatus === 'saving' ? 'Saving...' : 'Save Notes'}
-                </button>
-                {notesStatus === 'saved' && (
-                  <span style={{ fontSize: 13, color: green, fontWeight: 600 }} role="status">Saved</span>
-                )}
-                {notesStatus === 'error' && (
-                  <span style={{ fontSize: 13, color: '#dc2626' }} role="alert">The notes could not be saved. Please try again.</span>
-                )}
-              </div>
-            </div>
+            <NotesTab
+              directionEditor={renderDirection('matter')}
+              notes={notes} setNotes={setNotes}
+              notesStatus={notesStatus} setNotesStatus={setNotesStatus}
+              saveNotes={employment.saveNotes}
+            />
           )}
         </div>
 
