@@ -50,6 +50,8 @@ import { MediationSourcesOptions } from './matter/workspaces/MediationSourcesOpt
 import { SocPleadingLanguageOptions } from './matter/workspaces/SocPleadingLanguageOptions.js';
 import { FactumArgumentOptions } from './matter/workspaces/FactumArgumentOptions.js';
 import { FactumArgumentLanguageOptions } from './matter/workspaces/FactumArgumentLanguageOptions.js';
+import { FactumOutlinePanel } from './matter/workspaces/FactumOutlinePanel.js';
+import type { FactumOutlineSectionUI } from './matter/workspaces/FactumOutlinePanel.js';
 import { CourtFormOptions } from './matter/workspaces/CourtFormOptions.js';
 import { ReadinessNotice } from './matter/workspaces/ReadinessNotice.js';
 import { GenerationOptions } from './matter/workspaces/GenerationOptions.js';
@@ -1005,6 +1007,73 @@ export default function MatterDetailView() {
     } catch { /* advisory; the picker refresh will show the truth */ }
     refreshFactumSections();
   }, [sessionId, refreshFactumSections]);
+
+  // ── Factum outline: draft the factum section by section ──────────────────
+  const [factumOutline, setFactumOutline] = useState<FactumOutlineSectionUI[]>([]);
+  const refreshFactumOutline = useCallback(() => {
+    if (!sessionId) return;
+    fetch(`/api/employment/${sessionId}/factum-outline`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setFactumOutline(d.sections ?? []); })
+      .catch(() => { /* the outline is advisory until a section is drafted */ });
+  }, [sessionId]);
+  useEffect(() => {
+    if (selectedDraft === 'sjfactum') refreshFactumOutline();
+  }, [selectedDraft, refreshFactumOutline, employment.data]);
+
+  const [factumDraftBusyId, setFactumDraftBusyId] = useState<string | null>(null);
+  const [factumDraftingAll, setFactumDraftingAll] = useState(false);
+
+  const draftFactumSection = useCallback(async (sectionId: string) => {
+    if (!sessionId) return;
+    setFactumDraftBusyId(sectionId);
+    try {
+      const amount = genDemandAmount ? parseInt(genDemandAmount) : undefined;
+      const res = await fetch(`/api/employment/${sessionId}/factum-section/draft`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sectionId,
+          claimAmount: amount && Number.isFinite(amount) ? amount : undefined,
+          lawyerName: profile.displayName || undefined,
+          firmName: profile.firmName || undefined,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) { setGenError((d as { error?: string }).error ?? 'This section could not be drafted.'); return; }
+    } catch {
+      setGenError('This section could not be drafted. Check the connection and try again.');
+      return;
+    } finally { setFactumDraftBusyId(null); }
+    refreshFactumOutline();
+  }, [sessionId, genDemandAmount, profile, refreshFactumOutline]);
+
+  const draftAllFactumSections = useCallback(async () => {
+    if (!sessionId) return;
+    setFactumDraftingAll(true);
+    try {
+      // Draft only the sections not yet drafted, in outline order, so a
+      // redraft of one does not cost a fresh draft of the whole factum.
+      const toDraft = factumOutline.filter(s => !s.hasDraft).map(s => s.id);
+      const amount = genDemandAmount ? parseInt(genDemandAmount) : undefined;
+      for (const sectionId of toDraft) {
+        const res = await fetch(`/api/employment/${sessionId}/factum-section/draft`, {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sectionId,
+            claimAmount: amount && Number.isFinite(amount) ? amount : undefined,
+            lawyerName: profile.displayName || undefined,
+            firmName: profile.firmName || undefined,
+          }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!d.ok) { setGenError((d as { error?: string }).error ?? 'A section could not be drafted.'); break; }
+        refreshFactumOutline();
+      }
+    } finally { setFactumDraftingAll(false); }
+    refreshFactumOutline();
+  }, [sessionId, factumOutline, genDemandAmount, profile, refreshFactumOutline]);
 
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
@@ -2485,6 +2554,16 @@ export default function MatterDetailView() {
                   setFactumOverride={setFactumOverride}
                   addCustomSection={addCustomSection}
                   removeCustomSection={removeCustomSection}
+                />
+              )}
+
+              {selectedDraft === 'sjfactum' && showOptions && (
+                <FactumOutlinePanel
+                  sections={factumOutline}
+                  draftSection={draftFactumSection}
+                  draftAll={draftAllFactumSections}
+                  busyId={factumDraftBusyId}
+                  draftingAll={factumDraftingAll}
                 />
               )}
 

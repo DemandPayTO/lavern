@@ -28,8 +28,8 @@ import { extractEmploymentDocument } from '../../briefing/employment-extractor.j
 import { UPLOADABLE_DOCUMENT_TYPES, TONE_OPTIONS, PROCEDURE_TYPES } from '../../../types/employment-intake.js';
 import { generateDemandLetter } from '../../../employment/demand-letter-generator.js';
 import { generateStatementOfClaim } from '../../../employment/soc-generator.js';
-import { loadFactumNodes, mergeFirmFactumNodes, buildFactumGateState, factumNodeStatuses, selectedFactumNodes, buildFactumArgumentGuidance, firmCustomSectionsToNodes } from '../../../employment/factum-nodes.js';
-import { getFirmFactumNodes, getFirmFactumCustomSections } from '../../../db/database.js';
+import { buildFactumArgumentGuidance } from '../../../employment/factum-nodes.js';
+import { loadSelectedFactumNodes } from './factum-selection.js';
 import { generateApplication } from '../../../employment/application-generator.js';
 import type { ApplicationType } from '../../../employment/application-generator.js';
 import { htmlToDocx } from '../../../employment/docx-export.js';
@@ -929,15 +929,13 @@ nodeReport: result.nodeReport,
     // on), so the factum argues in the firm's settled way.
     let factumArgumentGuidance: string | undefined;
     if (parsed.data.documentType === 'sj_factum') {
-      const factumFirmId = resolveFirmId(req);
-      const factumBase = factumFirmId
-        ? mergeFirmFactumNodes(loadFactumNodes(), getFirmFactumNodes(factumFirmId))
-        : loadFactumNodes();
-      const factumCustom = factumFirmId ? firmCustomSectionsToNodes(getFirmFactumCustomSections(factumFirmId)) : [];
-      const factumNodes = [...factumBase, ...factumCustom];
-      const factumState = buildFactumGateState({ gates: employment.gates ?? [], approvedIssues: employment.approvedIssues ?? [] });
       const factumOverrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
-      const selected = selectedFactumNodes(factumNodeStatuses(factumNodes, factumState, factumOverrides));
+      const selected = loadSelectedFactumNodes({
+        firmId: resolveFirmId(req),
+        gates: employment.gates ?? [],
+        approvedIssues: employment.approvedIssues ?? [],
+        overrides: factumOverrides,
+      });
       factumArgumentGuidance = buildFactumArgumentGuidance(selected) || undefined;
     }
 

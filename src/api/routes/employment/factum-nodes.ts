@@ -16,6 +16,11 @@ import { getFirmFactumCustomSections, saveFirmFactumCustomSection, deleteFirmFac
 import {
   loadFactumNodes, mergeFirmFactumNodes, buildFactumGateState, factumNodeStatuses, firmCustomSectionsToNodes,
 } from '../../../employment/factum-nodes.js';
+import { buildFactumOutline, isStructuralSectionId, structuralSectionKind } from '../../../employment/factum-outline.js';
+import type { FactumDraftState } from '../../../employment/factum-outline.js';
+import { generateFactumSection } from '../../../employment/factum-section-generator.js';
+import type { FactumSectionRequest } from '../../../employment/factum-section-generator.js';
+import { loadSelectedFactumNodes } from './factum-selection.js';
 import { loadEmploymentData, saveEmploymentData, resolveFirmId, logger } from './shared.js';
 
 function customBlockId(): string {
@@ -62,6 +67,110 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
     (matter as Record<string, unknown>).factumNodeOverrides = overrides;
     await saveEmploymentData(userId, matterId, matter, employment);
     return reply.send({ ok: true, overrides });
+  });
+
+  // ── The factum outline: draft and approve the factum section by section ──
+  // The outline is every part of the factum as a section the lawyer drafts,
+  // reads, and approves: Overview, the Facts, each Part III argument, and the
+  // Order. The approved sections assemble into the numbered factum.
+
+  fastify.get('/api/employment/:matterId/factum-outline', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+
+    const overrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    const selected = loadSelectedFactumNodes({
+      firmId: resolveFirmId(req),
+      gates: employment.gates ?? [],
+      approvedIssues: employment.approvedIssues ?? [],
+      overrides,
+    });
+    const draft = ((matter as Record<string, unknown>).factumDraft ?? undefined) as FactumDraftState | undefined;
+    return reply.send({ ok: true, sections: buildFactumOutline(selected, draft) });
+  });
+
+  fastify.post('/api/employment/:matterId/factum-section/draft', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = z.object({
+      sectionId: z.string().trim().min(1).max(60),
+      claimAmount: z.number().positive().max(99_999_999).optional(),
+      lawyerName: z.string().trim().max(200).optional(),
+      firmName: z.string().trim().max(200).optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Name the section to draft.' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!employment.intake || !employment.analysis) {
+      return reply.status(400).send({ ok: false, error: 'Complete intake and run analysis before drafting factum sections.' });
+    }
+
+    // Resolve the section: a structural part, or one of the currently selected
+    // Part III arguments (so its guidance reflects any library edit or override).
+    const overrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    const selected = loadSelectedFactumNodes({
+      firmId: resolveFirmId(req),
+      gates: employment.gates ?? [],
+      approvedIssues: employment.approvedIssues ?? [],
+      overrides,
+    });
+    const { sectionId } = parsed.data;
+
+    let sectionReq: FactumSectionRequest;
+    const structuralKind = structuralSectionKind(sectionId);
+    if (structuralKind) {
+      sectionReq = {
+        kind: structuralKind,
+        sectionHeader: sectionId === 'OVERVIEW' ? 'Overview' : sectionId === 'FACTS' ? 'The Facts' : 'The Order Requested',
+        intake: employment.intake,
+        analysis: employment.analysis,
+        approvedIssues: employment.approvedIssues ?? [],
+        claimAmount: parsed.data.claimAmount,
+        lawyerName: parsed.data.lawyerName,
+        firmName: parsed.data.firmName,
+      };
+    } else {
+      const node = selected.find(s => s.blockId === sectionId);
+      if (!node) {
+        return reply.status(400).send({ ok: false, error: 'That section is not in the factum outline. Turn it on in the outline first.' });
+      }
+      sectionReq = {
+        kind: 'argument',
+        sectionHeader: node.sectionHeader,
+        guidance: node.guidance,
+        authorities: node.authorities,
+        intake: employment.intake,
+        analysis: employment.analysis,
+        approvedIssues: employment.approvedIssues ?? [],
+        claimAmount: parsed.data.claimAmount,
+        lawyerName: parsed.data.lawyerName,
+        firmName: parsed.data.firmName,
+      };
+    }
+
+    let result;
+    try {
+      result = await generateFactumSection(sectionReq);
+    } catch (err) {
+      logger.error('Factum section draft failed', { matterId, sectionId, error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'This section could not be drafted. Please try again.' });
+    }
+
+    // Persist the section's draft on the matter. Redrafting replaces the draft
+    // and clears its approval, so the lawyer re-reads what changed.
+    const draft = ((matter as Record<string, unknown>).factumDraft ?? { sections: {} }) as FactumDraftState;
+    if (!draft.sections) draft.sections = {};
+    draft.sections[sectionId] = { html: result.html, approved: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
+    (matter as Record<string, unknown>).factumDraft = draft;
+    await saveEmploymentData(userId, matterId, matter, employment);
+
+    logger.info('Factum section drafted', { matterId, sectionId, costUsd: result.costUsd.toFixed(4) });
+    return reply.send({ ok: true, sectionId, html: result.html, reviewFlags: result.reviewFlags, costUsd: result.costUsd });
   });
 
   // ── The argument library: the firm's settled argument language ─────────
