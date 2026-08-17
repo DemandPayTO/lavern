@@ -14,6 +14,8 @@ import {
   selectedFactumNodes, firmCustomSectionsToNodes,
 } from '../../../employment/factum-nodes.js';
 import type { FactumNodeReport } from '../../../employment/factum-nodes.js';
+import { SJ_ONLY_ARGUMENT_BLOCK } from '../../../employment/factum-outline.js';
+import type { FactumForum } from '../../../employment/factum-outline.js';
 import { getFirmFactumNodes, getFirmFactumCustomSections } from '../../../db/database.js';
 
 export function loadSelectedFactumNodes(input: {
@@ -21,12 +23,19 @@ export function loadSelectedFactumNodes(input: {
   gates: GateResult[];
   approvedIssues: string[];
   overrides: Record<string, 'on' | 'off'>;
+  /** Small Claims factums drop the summary-judgment appropriateness argument. */
+  forum?: FactumForum;
 }): FactumNodeReport[] {
   const base = input.firmId
     ? mergeFirmFactumNodes(loadFactumNodes(), getFirmFactumNodes(input.firmId))
     : loadFactumNodes();
   const custom = input.firmId ? firmCustomSectionsToNodes(getFirmFactumCustomSections(input.firmId)) : [];
-  const nodes = [...base, ...custom];
+  let nodes = [...base, ...custom];
+  // A Small Claims trial has no summary-judgment motion, so the argument that
+  // summary judgment is appropriate does not belong in its written argument.
+  if (input.forum === 'small_claims') {
+    nodes = nodes.filter(n => n.blockId !== SJ_ONLY_ARGUMENT_BLOCK);
+  }
   const state = buildFactumGateState({ gates: input.gates, approvedIssues: input.approvedIssues });
   return selectedFactumNodes(factumNodeStatuses(nodes, state, input.overrides));
 }

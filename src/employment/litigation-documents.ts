@@ -107,6 +107,10 @@ export interface LitigationDocumentRequest {
    *  section-by-section drafts. When present the model is not called; this
    *  narrative is wrapped in the deterministic cover, tables, and sign-off. */
   mediationNarrativeOverride?: string;
+  /** sj_factum only: the court the factum is for. Small Claims produces a
+   *  written argument for trial (no summary judgment, Rules of the Small
+   *  Claims Court) rather than a Rule 20 factum. Defaults to Superior. */
+  factumForum?: import('./factum-outline.js').FactumForum;
   /** Structured inputs for the deterministic court forms (service details,
    *  offer dates, costs figures). Each builder validates its own fields. */
   formFields?: CourtFormFields;
@@ -130,7 +134,32 @@ export interface LitigationDocumentResult {
 
 // ── Prompts ──────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(docType: LitigationDocumentType): string {
+/** Small Claims variant of the factum: the plaintiff's written argument for a
+ *  trial, with no summary-judgment framing and the Rules of the Small Claims
+ *  Court where a procedural rule arises. Used when the matter is in Small
+ *  Claims Court (factumForum === 'small_claims'). */
+const SC_FACTUM_BODY = `You are a senior Ontario employment litigation lawyer drafting the PLAINTIFF'S WRITTEN ARGUMENT (closing submissions) for a trial in the Small Claims Court of Ontario in a wrongful dismissal action.
+
+Never mention summary judgment, Rule 20, Hryniak v Mauldin, or the Rules of Civil Procedure. Where a procedural rule arises, the Rules of the Small Claims Court (O Reg 258/98) govern; the Small Claims Court is a court of the Superior Court of Justice under the Courts of Justice Act, and its monetary limit is $50,000 (the plaintiff abandons any excess).
+
+STRUCTURE (numbered paragraphs throughout):
+OVERVIEW. Two or three paragraphs: what the plaintiff claims and why the evidence establishes the claim.
+THE FACTS. Concise statement of the material facts, referring to the evidence given at trial. Use a [LAWYER: witness or exhibit reference] placeholder where the record does not supply support.
+THE ARGUMENT. Organised by issue, drawn from the APPROVED ISSUES ONLY:
+1. Reasonable notice: the Bardal factors (Bardal v Globe & Mail) applied to this plaintiff's age, tenure, character of employment, and the availability of comparable employment.
+2. Where the termination clause issue is approved: the clause is unenforceable (Waksdale v Swegon North America Inc, 2020 ONCA 391; Machtinger v HOJ Industries Ltd, [1992] 1 SCR 986), so common law reasonable notice applies.
+3. Where a cause allegation is approved: the employer bears the onus and McKinley v BC Tel, 2001 SCC 38 requires a contextual and proportionate analysis.
+4. Where moral or Code damages are approved: Honda Canada Inc v Keays, 2008 SCC 39 for the manner-of-dismissal framework; the Code analysis where discrimination is approved.
+5. Mitigation: the plaintiff's efforts were reasonable; the employer bears the onus of proving failure to mitigate.
+THE JUDGMENT REQUESTED. Numbered: judgment for damages for wrongful dismissal in the amount claimed; any Human Rights Code or moral damages the approved issues support; prejudgment and postjudgment interest under the Courts of Justice Act; and costs under the Rules of the Small Claims Court.
+SCHEDULE A: LIST OF AUTHORITIES (only the cases actually cited).
+
+RULES:
+- Cite ONLY the authorities named above plus authorities the intake or approved issues specifically raise; never invent additional citations.
+- Where a factual reference is needed, use a [LAWYER: witness or exhibit reference] placeholder for counsel to complete.
+- Plain, practical, and short: Small Claims practice rewards a focused written argument.`;
+
+function buildSystemPrompt(docType: LitigationDocumentType, factumForum?: import('./factum-outline.js').FactumForum): string {
   const prompts: Record<LitigationDocumentType, string> = {
     discovery_plan: `You are a senior Ontario litigation lawyer preparing a discovery plan for a wrongful dismissal action.
 
@@ -631,7 +660,8 @@ Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
     scc_filing_sheet: 'DETERMINISTIC; never sent to the model.',
   };
 
-  return prompts[docType] + `
+  const body = (docType === 'sj_factum' && factumForum === 'small_claims') ? SC_FACTUM_BODY : prompts[docType];
+  return body + `
 
 CRITICAL:
 0. Where the STRUCTURE above names sections, emit each as an <h2> heading using that exact wording. Firm templates place documents section by section, and a missing or renamed heading sends a section to the wrong place.
@@ -775,7 +805,7 @@ export async function generateLitigationDocument(
       })
     : null;
 
-  let systemPrompt = buildSystemPrompt(req.documentType);
+  let systemPrompt = buildSystemPrompt(req.documentType, req.factumForum);
   if (req.documentType === 'sp_timetable_motion') {
     systemPrompt = systemPrompt.replace('{{FORM_MARKER}}', req.procedureType === 'ordinary'
       ? '[LAWYER: confirm the motion form and whether the motion may proceed in writing or requires an appearance in the region.]'
@@ -960,10 +990,13 @@ ${positions}`;
     costUsd: totalCost.toFixed(4),
   });
 
+  const documentTitle = (req.documentType === 'sj_factum' && req.factumForum === 'small_claims')
+    ? "Plaintiff's Written Argument (Small Claims)"
+    : getDocumentTitle(req.documentType);
   return {
     html,
     documentType: req.documentType,
-    documentTitle: getDocumentTitle(req.documentType),
+    documentTitle,
     lawyerReviewFlags,
     citations,
     costUsd: totalCost,

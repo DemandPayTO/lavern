@@ -17,6 +17,23 @@
 
 import type { FactumNodeReport } from './factum-nodes.js';
 
+/** Which court the factum is for. A Superior Court factum is a Rule 20 summary
+ *  judgment factum; a Small Claims factum is the plaintiff's written argument
+ *  (closing submissions) for a trial in the Small Claims Court, with no
+ *  summary-judgment framing and the Rules of the Small Claims Court where a
+ *  procedural rule arises. */
+export type FactumForum = 'superior' | 'small_claims';
+
+/** The forum for a matter, from the recommended procedure. Small Claims when
+ *  the action belongs in the Small Claims Court; Superior Court otherwise. */
+export function factumForumFromProcedure(recommendedProcedure?: string | null): FactumForum {
+  return recommendedProcedure === 'small_claims' ? 'small_claims' : 'superior';
+}
+
+/** The section that only a Superior Court (Rule 20) factum carries: the
+ *  argument that summary judgment is appropriate. Excluded for Small Claims. */
+export const SJ_ONLY_ARGUMENT_BLOCK = 'FACTUM_SJ_APPROPRIATE_01';
+
 export type FactumSectionKind = 'overview' | 'facts' | 'argument' | 'order';
 export type FactumSectionDraftStatus = 'not_drafted' | 'drafted' | 'approved';
 
@@ -78,7 +95,11 @@ const ORDER_SECTION: { id: string; kind: FactumSectionKind; partLabel: string; h
 export function buildFactumOutline(
   selectedArguments: FactumNodeReport[],
   draft: FactumDraftState | undefined,
+  forum: FactumForum = 'superior',
 ): FactumOutlineSection[] {
+  // The closing section is "The Order Requested" on a motion; a Small Claims
+  // trial asks for judgment.
+  const orderHeader = forum === 'small_claims' ? 'The Judgment Requested' : ORDER_SECTION.header;
   const stamp = (
     base: Omit<FactumOutlineSection, 'draftStatus' | 'hasDraft' | 'approved' | 'generatedAt' | 'html' | 'reviewFlags'>,
   ): FactumOutlineSection => {
@@ -107,7 +128,7 @@ export function buildFactumOutline(
       custom: a.custom,
     }));
   }
-  out.push(stamp({ ...ORDER_SECTION, custom: false }));
+  out.push(stamp({ ...ORDER_SECTION, header: orderHeader, custom: false }));
   return out;
 }
 

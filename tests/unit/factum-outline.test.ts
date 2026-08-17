@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFactumOutline, factumDraftReadiness, isStructuralSectionId, structuralSectionKind } from '../../src/employment/factum-outline.js';
+import { buildFactumOutline, factumDraftReadiness, isStructuralSectionId, structuralSectionKind, factumForumFromProcedure, SJ_ONLY_ARGUMENT_BLOCK } from '../../src/employment/factum-outline.js';
 import type { FactumDraftState } from '../../src/employment/factum-outline.js';
 import type { FactumNodeReport } from '../../src/employment/factum-nodes.js';
 
@@ -77,5 +77,15 @@ describe('factum outline', () => {
     expect(structuralSectionKind('FACTS')).toBe('facts');
     expect(structuralSectionKind('ORDER')).toBe('order');
     expect(structuralSectionKind('FACTUM_CLAUSE_01')).toBe(null);
+  });
+
+  it('derives the forum: Small Claims only when the procedure says so', () => {
+    expect(factumForumFromProcedure('small_claims')).toBe('small_claims');
+    expect(factumForumFromProcedure('simplified')).toBe('superior');
+    expect(factumForumFromProcedure('ordinary')).toBe('superior');
+    expect(factumForumFromProcedure(null)).toBe('superior');
+    expect(factumForumFromProcedure(undefined)).toBe('superior');
+    // The summary-judgment-only argument is named for exclusion in Small Claims.
+    expect(SJ_ONLY_ARGUMENT_BLOCK).toBe('FACTUM_SJ_APPROPRIATE_01');
   });
 });

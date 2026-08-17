@@ -72,6 +72,36 @@ describe('factum assembly', () => {
   it('handles a factum with no legislation cited', () => {
     const r = assembleFactum({ sections: sections.filter(s => s.header !== 'Statutory Entitlements'), intake });
     expect(r.html).toContain('SCHEDULE "B"');
-    expect(r.html).toMatch(/attach the text of any statutory provisions/);
+    expect(r.html).toMatch(/attach the text of the provisions relied on, per Rule 4\.06\.1/);
+  });
+
+  it('Small Claims: no Parts, no summary judgment, no Rule 4.06.1', () => {
+    const scSections = [
+      { kind: 'overview' as const, header: 'Overview', html: '<p>The Plaintiff claims damages for wrongful dismissal.</p>' },
+      { kind: 'facts' as const, header: 'The Facts', html: '<p>She was employed from 2019.</p>' },
+      { kind: 'argument' as const, header: 'Reasonable Notice', html: '<p>Bardal governs.</p>', authorities: 'Bardal v Globe & Mail Ltd (1960), 24 DLR (2d) 140 (Ont HC)' },
+      { kind: 'order' as const, header: 'The Judgment Requested', html: '<p>Judgment for the amount claimed.</p>' },
+    ];
+    const r = assembleFactum({ sections: scSections, intake, forum: 'small_claims' });
+    // Plain section headings, not numbered Parts.
+    expect(r.html).toContain('<h2>OVERVIEW</h2>');
+    expect(r.html).toContain('<h2>THE FACTS</h2>');
+    expect(r.html).toContain('<h2>THE ARGUMENT</h2>');
+    expect(r.html).toContain('<h2>THE JUDGMENT REQUESTED</h2>');
+    expect(r.html).not.toContain('PART I');
+    expect(r.html).not.toContain('PART III');
+    // Title and document title are the written-argument forms.
+    expect(r.html).toContain('Written Argument of the Plaintiff, Aisha Osei');
+    expect(r.html).not.toContain('Factum of the Plaintiff');
+    expect(r.documentTitle).toBe("Plaintiff's Written Argument (Small Claims)");
+    // The assembly furniture adds no Rule 4.06.1 and no summary-judgment framing.
+    expect(r.html).not.toMatch(/Rule 4\.06\.1/);
+    expect(r.html.toLowerCase()).not.toContain('summary judgment');
+    // Numbering still consecutive across the sections.
+    expect(r.html).toContain('1.&nbsp;&nbsp;The Plaintiff claims');
+    expect(r.html).toContain('4.&nbsp;&nbsp;Judgment for the amount claimed');
+    // The length flag reflects the $50,000 Small Claims limit, not twenty pages.
+    expect(r.lawyerReviewFlags.some(f => /50,000/.test(f))).toBe(true);
+    expect(r.lawyerReviewFlags.some(f => /twenty pages/.test(f))).toBe(false);
   });
 });

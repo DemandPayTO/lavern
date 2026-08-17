@@ -352,6 +352,17 @@ export default function MatterDetailView() {
     ?? ((employment.data?.analysis as { recommendedProcedure?: string } | null)?.recommendedProcedure ?? null);
   const isSmallClaimsMatter = matterProcedure === 'small_claims';
 
+  // The factum adapts to the matter's forum: a Small Claims matter gets a
+  // written argument for trial, not a Rule 20 summary judgment factum.
+  const draftDisplayTitle = (id: string | null | undefined): string =>
+    (id === 'sjfactum' && isSmallClaimsMatter)
+      ? 'Small Claims Factum'
+      : (DEMO_DRAFT_TYPES.find(d => d.id === id)?.title ?? 'Document');
+  const draftDisplayDescription = (dt: { id: string; description?: string }): string | undefined =>
+    (dt.id === 'sjfactum' && isSmallClaimsMatter)
+      ? 'The written closing argument for the Small Claims trial: Bardal, Waksdale, and the issue-specific authorities, from the approved issues only.'
+      : dt.description;
+
   const blockedReason: string | null = (() => {
     if (!selectedDraft) return null;
     if (selectedDraft === 'reply' && isSmallClaimsMatter) {
@@ -2497,9 +2508,9 @@ export default function MatterDetailView() {
                           tabIndex={0}
                           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDraftCard(dt.id); } }}
                         >
-                          <div style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, marginBottom: 4 }}>{dt.title}</div>
+                          <div style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, marginBottom: 4 }}>{draftDisplayTitle(dt.id)}</div>
                           <div style={{ fontSize: 12.5, color: muted, lineHeight: 1.5 }}>
-                            {inFlight.includes(dt.id) ? 'A draft is already on file: open it, revise it, or regenerate.' : dt.description}
+                            {inFlight.includes(dt.id) ? 'A draft is already on file: open it, revise it, or regenerate.' : draftDisplayDescription(dt)}
                           </div>
                         </div>
                       ))}
@@ -2516,7 +2527,7 @@ export default function MatterDetailView() {
                     ← All documents
                   </button>
                   <h2 style={{ fontFamily: serif, fontSize: 22, margin: 0, color: navy }}>
-                    {DEMO_DRAFT_TYPES.find(d => d.id === selectedDraft)?.title ?? 'Document'}
+                    {draftDisplayTitle(selectedDraft)}
                   </h2>
                   {generatedHtml && (
                     <div role="tablist" aria-label="Draft or options" style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
@@ -2612,7 +2623,7 @@ export default function MatterDetailView() {
                           </span>
                         )}
                         <h4 style={{ fontFamily: serif, fontSize: 15.5, fontWeight: 600, color: navy, margin: dt.recommended ? '10px 0 5px' : '0 0 5px' }}>
-                          {dt.title}
+                          {draftDisplayTitle(dt.id)}
                         </h4>
                         <p style={{ fontSize: 12.5, color: dt.alreadyDrafted ? green : muted, margin: 0 }}>
                           {dt.alreadyDrafted && (
@@ -2621,7 +2632,7 @@ export default function MatterDetailView() {
                               <b style={{ color: green }}>Drafted · </b>
                             </>
                           )}
-                          {dt.description}
+                          {draftDisplayDescription(dt)}
                         </p>
                         <div style={{ fontSize: 12, color: muted, marginTop: 10 }}>{dt.cost}</div>
                       </div>

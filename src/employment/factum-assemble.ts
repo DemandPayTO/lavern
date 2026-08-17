@@ -12,7 +12,7 @@
 import { enforceHouseStyle } from '../utils/house-style.js';
 import { numberNarrativeParagraphs, esc } from './mediation-brief-tables.js';
 import type { EmploymentIntakeData } from '../types/employment-intake.js';
-import type { FactumSectionKind } from './factum-outline.js';
+import type { FactumSectionKind, FactumForum } from './factum-outline.js';
 
 export interface FactumAssemblySection {
   kind: FactumSectionKind;
@@ -55,7 +55,9 @@ export function assembleFactum(input: {
   sections: FactumAssemblySection[];
   intake: EmploymentIntakeData;
   claimAmount?: number;
+  forum?: FactumForum;
 }): FactumAssemblyResult {
+  const smallClaims = input.forum === 'small_claims';
   const plaintiff = [input.intake.client_first_name, input.intake.client_last_name].filter(Boolean).join(' ') || 'the Plaintiff';
 
   const overview = input.sections.find(s => s.kind === 'overview');
@@ -63,23 +65,26 @@ export function assembleFactum(input: {
   const args = input.sections.filter(s => s.kind === 'argument');
   const order = input.sections.find(s => s.kind === 'order');
 
-  // Parts I, II: heading + the lawyer's approved paragraphs.
-  const parts: string[] = [];
-  if (overview) parts.push(`<h2>PART ${ROMAN.overview} - ${PART_TITLE.overview}</h2>\n${overview.html}`);
-  if (facts) parts.push(`<h2>PART ${ROMAN.facts} - ${PART_TITLE.facts}</h2>\n${facts.html}`);
+  // A Superior Court factum is laid out in numbered Parts; a Small Claims
+  // written argument uses plain section headings, with no summary-judgment or
+  // Rule 4.06.1 furniture.
+  const overviewHeading = smallClaims ? 'OVERVIEW' : `PART ${ROMAN.overview} - ${PART_TITLE.overview}`;
+  const factsHeading = smallClaims ? 'THE FACTS' : `PART ${ROMAN.facts} - ${PART_TITLE.facts}`;
+  const argHeading = smallClaims ? 'THE ARGUMENT' : 'PART III - THE ISSUES AND THE LAW';
+  const orderHeading = smallClaims ? 'THE JUDGMENT REQUESTED' : `PART ${ROMAN.order} - ${PART_TITLE.order}`;
 
-  // Part III: one sub-heading per argument, in outline order.
+  const parts: string[] = [];
+  if (overview) parts.push(`<h2>${overviewHeading}</h2>\n${overview.html}`);
+  if (facts) parts.push(`<h2>${factsHeading}</h2>\n${facts.html}`);
   if (args.length > 0) {
     const body = args.map((a, i) => `<h3>${argLetter(i)}. ${esc(a.header)}</h3>\n${a.html}`).join('\n\n');
-    parts.push(`<h2>PART III - THE ISSUES AND THE LAW</h2>\n${body}`);
+    parts.push(`<h2>${argHeading}</h2>\n${body}`);
   }
+  if (order) parts.push(`<h2>${orderHeading}</h2>\n${order.html}`);
 
-  // Part IV.
-  if (order) parts.push(`<h2>PART ${ROMAN.order} - ${PART_TITLE.order}</h2>\n${order.html}`);
-
-  // Number the argument and narrative paragraphs consecutively across Parts I
-  // to IV. Headings are not <p>, so they are untouched; the schedules are
-  // appended after numbering so their entries stay unnumbered.
+  // Number the argument and narrative paragraphs consecutively. Headings are
+  // not <p>, so they are untouched; the schedules are appended after numbering
+  // so their entries stay unnumbered.
   const numberedBody = numberNarrativeParagraphs(parts.join('\n\n'));
 
   // Schedules from the authorities the kept arguments cite, deduped in order.
@@ -93,24 +98,35 @@ export function assembleFactum(input: {
       ? `<ol>\n${cases.map(c => `<li>${esc(c)}</li>`).join('\n')}\n</ol>`
       : '<p>[LAWYER: no case authorities were cited in the kept arguments. Confirm the list.]</p>'
   }`;
+  // Schedule B carries the Rule 4.06.1 requirement only for a Superior Court
+  // factum; a Small Claims written argument simply attaches the provisions.
+  const scheduleBNote = smallClaims ? '[LAWYER: attach the text of any statutory provisions relied on.]' : '[LAWYER: attach the text of the provisions relied on, per Rule 4.06.1.]';
   const scheduleB = `<h2>SCHEDULE "B" - TEXT OF STATUTES, REGULATIONS AND BY-LAWS RELIED ON</h2>\n${
     statutes.length > 0
-      ? `<ol>\n${statutes.map(c => `<li>${esc(c)}</li>`).join('\n')}\n</ol>\n<p>[LAWYER: attach the text of the provisions relied on, per Rule 4.06.1.]</p>`
-      : '<p>[LAWYER: attach the text of any statutory provisions relied on, per Rule 4.06.1.]</p>'
+      ? `<ol>\n${statutes.map(c => `<li>${esc(c)}</li>`).join('\n')}\n</ol>\n<p>${scheduleBNote}</p>`
+      : `<p>${scheduleBNote}</p>`
   }`;
 
+  const title = smallClaims ? `Written Argument of the Plaintiff, ${esc(plaintiff)}` : `Factum of the Plaintiff, ${esc(plaintiff)}`;
   const html = enforceHouseStyle([
-    `<h1>Factum of the Plaintiff, ${esc(plaintiff)}</h1>`,
+    `<h1>${title}</h1>`,
     numberedBody,
     scheduleA,
     scheduleB,
   ].filter(Boolean).join('\n\n'));
 
+  const evidenceFlag = smallClaims
+    ? 'Complete each [LAWYER: ...] evidence reference against the trial record before filing.'
+    : 'Complete each [Affidavit, para X] reference against the sworn record before filing.';
+  const lengthFlag = smallClaims
+    ? 'Confirm the quantum matches the damages analysis and that any claim above $50,000 abandons the excess.'
+    : 'Confirm the quantum matches the damages analysis, and check the length against the court requirement (motion factums run to twenty pages).';
   const lawyerReviewFlags = [
     `Assembled from your approved sections. The Schedule of Authorities lists ${cases.length} case authorit${cases.length === 1 ? 'y' : 'ies'} and ${statutes.length} statutory provision${statutes.length === 1 ? '' : 's'} from the arguments you kept; confirm the lists and attach the text for Schedule B.`,
-    'Complete each [Affidavit, para X] reference against the sworn record before filing.',
-    'Confirm the quantum matches the damages analysis, and check the length against the court requirement (motion factums run to twenty pages).',
+    evidenceFlag,
+    lengthFlag,
   ];
 
-  return { html, documentTitle: "Plaintiff's Factum (Summary Judgment)", lawyerReviewFlags, authorities: seen };
+  const documentTitle = smallClaims ? "Plaintiff's Written Argument (Small Claims)" : "Plaintiff's Factum (Summary Judgment)";
+  return { html, documentTitle, lawyerReviewFlags, authorities: seen };
 }

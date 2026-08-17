@@ -21,12 +21,15 @@ import { computeBardalFactors } from './timeline-generator.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 import { checkCanonTextIntegrity } from './canon-verifier.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult } from '../types/employment-intake.js';
-import type { FactumSectionKind } from './factum-outline.js';
+import type { FactumSectionKind, FactumForum } from './factum-outline.js';
 
 const logger = createLogger('FACTUM-SECTION');
 
 export interface FactumSectionRequest {
   kind: FactumSectionKind;
+  /** Superior Court (Rule 20 summary judgment) or Small Claims (written
+   *  argument at trial). Defaults to Superior. */
+  forum?: FactumForum;
   /** The section heading (an argument section's, or the structural header). */
   sectionHeader: string;
   /** Argument sections: the firm's settled argument for this issue. */
@@ -102,6 +105,8 @@ OUTPUT RULES (identical for every section, so the sections assemble cleanly):
 - Canadian English spelling throughout. Do not use em dashes anywhere; use commas, colons, semicolons, or parentheses instead.`;
 
 function systemPromptFor(req: FactumSectionRequest): string {
+  if (req.forum === 'small_claims') return smallClaimsSectionPrompt(req);
+
   const role = 'You are a senior Ontario employment litigation lawyer drafting one section of the PLAINTIFF\'S FACTUM for a motion for summary judgment under Rule 20 in a wrongful dismissal action.';
 
   if (req.kind === 'overview') {
@@ -134,6 +139,48 @@ ${COMMON_RULES}`;
 Draft this PART III (Issues and the Law) argument section, headed "${req.sectionHeader}". Argue it in the firm's settled way, applying the matter facts above to the firm's argument. The firm's settled argument for this issue:
 
 ${(req.guidance ?? '').trim() || '(no firm guidance recorded; argue this issue in the standard Ontario way for a plaintiff on this motion.)'}
+
+${cites}
+${COMMON_RULES}`;
+}
+
+/** Small Claims: the plaintiff's written argument (closing submissions) for a
+ *  trial in the Small Claims Court. No summary judgment, no Rule 20 or Hryniak,
+ *  no Rules of Civil Procedure; the Rules of the Small Claims Court (O Reg
+ *  258/98) govern procedure where a rule arises. */
+function smallClaimsSectionPrompt(req: FactumSectionRequest): string {
+  const role = 'You are a senior Ontario employment litigation lawyer drafting one section of the PLAINTIFF\'S WRITTEN ARGUMENT (closing submissions) for a trial in the Small Claims Court of Ontario in a wrongful dismissal action. Never mention summary judgment, Rule 20, Hryniak v Mauldin, or the Rules of Civil Procedure. Where a procedural rule arises, the Rules of the Small Claims Court (O Reg 258/98) govern, and the Small Claims Court is a court of the Superior Court of Justice under the Courts of Justice Act. Keep the register plain and practical, as Small Claims practice expects.';
+
+  if (req.kind === 'overview') {
+    return `${role}
+
+Draft the OVERVIEW. Two or three paragraphs stating what the plaintiff claims and why the evidence establishes the claim. This opens the argument the deputy judge reads first: it frames the case and the relief sought. State the theory of the case plainly; do not argue the issues in detail here (the argument section does that).
+${COMMON_RULES}`;
+  }
+
+  if (req.kind === 'facts') {
+    return `${role}
+
+Draft THE FACTS. A concise, chronological statement of the material facts: the employment, the compensation, the dismissal, and the post-termination events that matter to the claim. State facts, not argument, and not legal conclusions. Refer to the evidence given at trial where a fact needs support; use a [LAWYER: witness or exhibit reference] placeholder where the record does not supply it.
+${COMMON_RULES}`;
+  }
+
+  if (req.kind === 'order') {
+    return `${role}
+
+Draft THE JUDGMENT REQUESTED. State the relief the plaintiff seeks, one item per paragraph: judgment for damages for wrongful dismissal in the amount claimed; any Human Rights Code or moral damages the approved issues support; prejudgment and postjudgment interest under the Courts of Justice Act; and costs under the Rules of the Small Claims Court. Note that the Small Claims Court monetary limit is $50,000 and the plaintiff abandons any excess. Claim only relief the approved issues above support. Do not argue; state the judgment sought.
+${COMMON_RULES}`;
+  }
+
+  // argument
+  const cites = req.authorities?.trim()
+    ? `Cite ONLY these authorities, and no others: ${req.authorities.trim()}. Do not add authorities beyond this list.`
+    : 'Cite only authorities the approved issues and facts clearly raise. Never invent a citation.';
+  return `${role}
+
+Draft this ARGUMENT section, headed "${req.sectionHeader}". Argue it in the firm's settled way, applying the matter facts above to the firm's argument as the evidence establishes them at trial. The firm's settled argument for this issue:
+
+${(req.guidance ?? '').trim() || '(no firm guidance recorded; argue this issue in the standard Ontario way for a plaintiff at a Small Claims trial.)'}
 
 ${cites}
 ${COMMON_RULES}`;

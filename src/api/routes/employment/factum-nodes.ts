@@ -16,7 +16,7 @@ import { getFirmFactumCustomSections, saveFirmFactumCustomSection, deleteFirmFac
 import {
   loadFactumNodes, mergeFirmFactumNodes, buildFactumGateState, factumNodeStatuses, firmCustomSectionsToNodes,
 } from '../../../employment/factum-nodes.js';
-import { buildFactumOutline, isStructuralSectionId, structuralSectionKind } from '../../../employment/factum-outline.js';
+import { buildFactumOutline, isStructuralSectionId, structuralSectionKind, factumForumFromProcedure } from '../../../employment/factum-outline.js';
 import type { FactumDraftState } from '../../../employment/factum-outline.js';
 import { generateFactumSection, factumSectionReviewFlags } from '../../../employment/factum-section-generator.js';
 import type { FactumSectionRequest } from '../../../employment/factum-section-generator.js';
@@ -83,14 +83,16 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
     const { matter, employment } = loadEmploymentData(row.data_json);
 
     const overrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    const forum = factumForumFromProcedure(employment.selectedProcedure ?? (employment.analysis as { recommendedProcedure?: string } | null)?.recommendedProcedure);
     const selected = loadSelectedFactumNodes({
       firmId: resolveFirmId(req),
       gates: employment.gates ?? [],
       approvedIssues: employment.approvedIssues ?? [],
       overrides,
+      forum,
     });
     const draft = ((matter as Record<string, unknown>).factumDraft ?? undefined) as FactumDraftState | undefined;
-    return reply.send({ ok: true, sections: buildFactumOutline(selected, draft) });
+    return reply.send({ ok: true, sections: buildFactumOutline(selected, draft, forum) });
   });
 
   fastify.post('/api/employment/:matterId/factum-section/draft', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -114,11 +116,13 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
     // Resolve the section: a structural part, or one of the currently selected
     // Part III arguments (so its guidance reflects any library edit or override).
     const overrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    const forum = factumForumFromProcedure(employment.selectedProcedure ?? (employment.analysis as { recommendedProcedure?: string } | null)?.recommendedProcedure);
     const selected = loadSelectedFactumNodes({
       firmId: resolveFirmId(req),
       gates: employment.gates ?? [],
       approvedIssues: employment.approvedIssues ?? [],
       overrides,
+      forum,
     });
     const { sectionId } = parsed.data;
 
@@ -127,7 +131,8 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
     if (structuralKind) {
       sectionReq = {
         kind: structuralKind,
-        sectionHeader: sectionId === 'OVERVIEW' ? 'Overview' : sectionId === 'FACTS' ? 'The Facts' : 'The Order Requested',
+        forum,
+        sectionHeader: sectionId === 'OVERVIEW' ? 'Overview' : sectionId === 'FACTS' ? 'The Facts' : (forum === 'small_claims' ? 'The Judgment Requested' : 'The Order Requested'),
         intake: employment.intake,
         analysis: employment.analysis,
         approvedIssues: employment.approvedIssues ?? [],
@@ -142,6 +147,7 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
       }
       sectionReq = {
         kind: 'argument',
+        forum,
         sectionHeader: node.sectionHeader,
         guidance: node.guidance,
         authorities: node.authorities,
