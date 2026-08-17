@@ -29,50 +29,16 @@ import type { IntakeFieldDef } from './shared.js';
 import { parseFileToText, isDocxFile, TEXT_UPLOAD_ACCEPT } from './shared.js';
 // stepMapping.js exports (SOURCE_TAGS, SEVERITY_CONFIG) available for future use with live API data
 
-// ── Design Tokens ───────────────────────────────────────────────────────
-const navy = '#0f1a2e';
-const orange = '#ea580c';
-const cream = '#faf8f5';
-const frame = '#e8e5e0';
-const green = '#16a34a';
-const amber = '#d97706';
-const red = '#dc2626';
-const border = 'rgba(15,26,46,0.12)';
-const ink = '#0f1a2e';
-const muted = '#5a6472';
-const serif = "Georgia, 'Palatino Linotype', serif";
-const sans = "system-ui, -apple-system, sans-serif";
+// Design tokens, shared shapes, and the pure presentational pieces now live in
+// ./matter/ so this file can focus on the workspace behaviour.
+import { navy, orange, cream, frame, green, amber, red, border, ink, muted, serif, sans } from './matter/tokens.js';
+import type { Issue, DocItem, DraftType, TimelineEvent } from './matter/types.js';
+import { triageFlag, TriagedFlags, StatusDot, SourceTag, MatterDetailTopBar, FactItem, DocRow, ActionButton, renderBoldText } from './matter/presentational.js';
+import { ReviewLaneControls } from './matter/review-lane.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
 type TabKey = 'issues' | 'docs' | 'draft' | 'timeline' | 'intake' | 'client' | 'negotiation' | 'debrief' | 'notes';
-
-interface Issue {
-  id: string;
-  title: string;
-  strength: 'strong' | 'moderate';
-  description: string;
-  descriptionBold: string[];
-  sources: { label: string; type: 'verified' | 'statute' | 'web' | 'ai' }[];
-}
-
-interface DocItem {
-  id: string;
-  name: string;
-  meta: string;
-  group: 'uploaded' | 'generated';
-  actions: { label: string; variant: 'default' | 'gen' }[];
-}
-
-interface DraftType {
-  id: string;
-  title: string;
-  description: string;
-  cost: string;
-  section: string;
-  recommended?: boolean;
-  alreadyDrafted?: boolean;
-}
 
 /** Draft tab section order. */
 const DRAFT_SECTIONS = [
@@ -82,14 +48,6 @@ const DRAFT_SECTIONS = [
   'Offers and settlement',
   'Court forms and service (no AI cost)',
 ] as const;
-
-interface TimelineEvent {
-  id: string;
-  date: string;
-  title: string;
-  subtitle: string;
-  isCurrent?: boolean;
-}
 
 // ── Demo Data ───────────────────────────────────────────────────────────
 
@@ -570,39 +528,6 @@ interface DirectionProposal {
  * something wrong on the page; CHECK is something to verify against the
  * file; FYI is standing ritual.
  */
-function triageFlag(flag: string): 'fix' | 'check' | 'fyi' {
-  if (/departs from your direction|has no amount|differs materially|\[LAWYER:|needs:|could not|no closing|left standing|is not a field|would break/i.test(flag)) return 'fix';
-  if (/read it against a recent example|style profiles guide|verify all facts|itemises the heads from your direction|drafted in the firm style/i.test(flag)) return 'fyi';
-  return 'check';
-}
-
-const FLAG_GROUPS: Array<{ key: 'fix' | 'check' | 'fyi'; label: string; colour: string; bg: string }> = [
-  { key: 'fix', label: 'Fix before sending', colour: '#b3372f', bg: '#fbeae8' },
-  { key: 'check', label: 'Check against the file', colour: '#b8860b', bg: '#fdf0dd' },
-  { key: 'fyi', label: 'For the record', colour: '#5b6472', bg: '#f4f1ec' },
-];
-
-function TriagedFlags({ flags }: { flags: string[] }) {
-  if (flags.length === 0) return null;
-  const grouped = FLAG_GROUPS
-    .map(g => ({ ...g, items: flags.filter(f => triageFlag(f) === g.key) }))
-    .filter(g => g.items.length > 0);
-  return (
-    <div style={{ marginTop: 12 }}>
-      {grouped.map(g => (
-        <div key={g.key} style={{ background: g.bg, border: `1px solid ${g.colour}33`, borderRadius: 2, padding: '10px 16px', marginBottom: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: g.colour, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            {g.label} ({g.items.length})
-          </div>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: ink, lineHeight: 1.65 }}>
-            {g.items.map((flag, i) => <li key={i}>{flag}</li>)}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const DEMAND_SOURCE_KIND_LABELS: Record<string, string> = {
   employment_agreement: 'Employment agreement',
   termination_letter: 'Termination letter',
@@ -613,112 +538,6 @@ const DEMAND_SOURCE_KIND_LABELS: Record<string, string> = {
 };
 
 const DRAFTS_NEEDING_AMOUNT = new Set(['demand', 'soc', 'counter', 'rule49']);
-
-// ── Review lane controls ────────────────────────────────────────────────
-// The submitter's side of the firm approval queue, shown under the draft's
-// status row: send for approval, see feedback, resubmit, withdraw.
-
-const OPEN_REVIEW_STATUSES = ['pending', 'in_review', 'changes_requested', 'resubmitted'];
-
-interface ReviewRowLite {
-  id: string;
-  matterId: string;
-  docType: string;
-  status: string;
-  changesDescription: string | null;
-  dueDate: string;
-}
-
-function ReviewLaneControls({ matterId, docType, onApplyFeedback }: { matterId: string; docType: string; onApplyFeedback?: (feedback: string) => void }) {
-  const [review, setReview] = useState<ReviewRowLite | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    fetch('/api/reviews', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => {
-        if (!d.ok) return;
-        const rows = (d.mine ?? []) as ReviewRowLite[];
-        const forDoc = rows.filter(r => r.matterId === matterId && r.docType === docType);
-        setReview(forDoc.find(r => OPEN_REVIEW_STATUSES.includes(r.status)) ?? forDoc.find(r => r.status === 'approved') ?? null);
-      })
-      .catch(() => { /* the panel is optional chrome; the queue view is authoritative */ });
-  }, [matterId, docType]);
-  useEffect(() => { load(); }, [load]);
-
-  const run = async (method: 'POST' | 'DELETE', path: string) => {
-    setBusy(true); setError(null);
-    try {
-      const res = await fetch(path, { method, credentials: 'include', headers: { 'content-type': 'application/json' }, body: method === 'POST' ? JSON.stringify({ docType }) : undefined });
-      const d = await res.json();
-      if (!d.ok) setError(d.error ?? 'The action failed.');
-      load();
-    } catch { setError('The action failed.'); } finally { setBusy(false); }
-  };
-
-  const chipStyle = (colour: string) => ({
-    fontSize: 11.5, fontWeight: 700, color: colour, border: `1px solid ${colour}`,
-    borderRadius: 2, padding: '2px 8px', textTransform: 'uppercase' as const, letterSpacing: 0.4,
-  });
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 12, color: muted }}>Approval:</span>
-      {!review && (
-        <button
-          onClick={() => void run('POST', `/api/employment/${matterId}/reviews`)}
-          disabled={busy}
-          style={{ fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: busy ? 'wait' : 'pointer' }}
-        >
-          Send for approval
-        </button>
-      )}
-      {review?.status === 'approved' && <span style={chipStyle(green)}>Approved</span>}
-      {review && review.status !== 'approved' && (
-        <>
-          <span style={chipStyle(review.status === 'changes_requested' ? red : amber)}>
-            {review.status === 'changes_requested' ? 'Changes requested' : review.status === 'in_review' ? 'In review' : 'Awaiting review'}
-          </span>
-          {review.status === 'changes_requested' && (
-            <button
-              onClick={() => void run('POST', `/api/reviews/${review.id}/resubmit`)}
-              disabled={busy}
-              style={{ fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans, background: navy, color: '#fff', border: `1px solid ${navy}`, cursor: busy ? 'wait' : 'pointer' }}
-            >
-              Resubmit
-            </button>
-          )}
-          <button
-            onClick={() => void run('DELETE', `/api/reviews/${review.id}`)}
-            disabled={busy}
-            style={{ fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans, background: '#fff', color: red, border: `1px solid ${red}`, cursor: busy ? 'wait' : 'pointer' }}
-          >
-            Withdraw
-          </button>
-          <a href="#/approvals" style={{ fontSize: 12, color: navy }}>Open queue</a>
-        </>
-      )}
-      {review?.status === 'changes_requested' && review.changesDescription && (
-        <span style={{ flexBasis: '100%', fontSize: 12.5, color: ink, background: '#fdf0dd', border: `1px solid ${amber}`, borderRadius: 2, padding: '8px 12px' }}>
-          <b>Reviewer feedback:</b> {review.changesDescription}
-          {onApplyFeedback && (
-            <button
-              onClick={() => onApplyFeedback(review.changesDescription ?? '')}
-              style={{
-                marginLeft: 10, fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 2,
-                fontFamily: sans, background: navy, color: '#fff', border: `1px solid ${navy}`, cursor: 'pointer',
-              }}
-            >
-              Apply this feedback
-            </button>
-          )}
-        </span>
-      )}
-      {error && <span role="alert" style={{ flexBasis: '100%', fontSize: 12.5, color: red }}>{error}</span>}
-    </div>
-  );
-}
 
 // ── Intake editor fields ────────────────────────────────────────────────
 // The core analysis-driving fields. The editor merges into the existing
@@ -805,75 +624,6 @@ const TABS: { key: TabKey; label: string; badge?: number }[] = [
   { key: 'timeline', label: 'Timeline' },
   { key: 'notes', label: 'Notes' },
 ];
-
-// ── Source tag styles ───────────────────────────────────────────────────
-
-function getSourceStyle(type: 'verified' | 'statute' | 'web' | 'ai'): React.CSSProperties {
-  switch (type) {
-    case 'verified':
-      return { background: '#e7f6ec', color: green };
-    case 'statute':
-      return { background: '#eef1f6', color: navy };
-    case 'web':
-      return { background: '#fdf0dd', color: amber };
-    case 'ai':
-      return { background: '#f4f1ec', color: muted };
-  }
-}
-
-function getSourcePrefix(type: 'verified' | 'statute' | 'web' | 'ai'): string {
-  switch (type) {
-    case 'verified': return '';
-    case 'statute': return '';
-    case 'web': return '';
-    case 'ai': return '';
-  }
-}
-
-// ── Colour-coded dot component ──────────────────────────────────────────
-
-function StatusDot({ colour, size = 8 }: { colour: string; size?: number }) {
-  return (
-    <span
-      style={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        background: colour,
-        display: 'inline-block',
-        flexShrink: 0,
-      }}
-      aria-hidden="true"
-    />
-  );
-}
-
-// ── Source tag with coloured dot ─────────────────────────────────────────
-
-function SourceTag({ label, type }: { label: string; type: 'verified' | 'statute' | 'web' | 'ai' }) {
-  const style = getSourceStyle(type);
-  const dotColour = type === 'verified' ? green : type === 'web' ? amber : type === 'statute' ? navy : muted;
-  const prefix = type === 'verified' ? 'verified' : type === 'web' ? 'web source' : type === 'statute' ? 'statute' : '';
-
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        fontSize: 11.5,
-        fontWeight: 600,
-        padding: '2px 8px',
-        borderRadius: 2,
-        whiteSpace: 'nowrap',
-        ...style,
-      }}
-    >
-      <StatusDot colour={dotColour} size={6} />
-      {label}
-    </span>
-  );
-}
 
 // ── Component ───────────────────────────────────────────────────────────
 
@@ -5349,179 +5099,3 @@ export default function MatterDetailView() {
   );
 }
 
-// ── Sub-components ──────────────────────────────────────────────────────
-
-/** Top bar extracted for reuse in loading/error states. */
-function MatterDetailTopBar() {
-  return (
-    <header
-      style={{
-        background: navy,
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 28px',
-        height: 64,
-      }}
-      role="banner"
-    >
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <a
-          href="#/"
-          style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }}
-          aria-label="DemandPay Starling home"
-        >
-          <span style={{ display: 'flex', gap: 4 }} aria-hidden="true">
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: orange, display: 'block' }} />
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f26a3d', display: 'block' }} />
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff8a5c', display: 'block' }} />
-          </span>
-          <span style={{ fontFamily: serif, lineHeight: 1, letterSpacing: 1 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', display: 'block' }}>DEMAND</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', display: 'block' }}>PAY</span>
-          </span>
-        </a>
-        <span
-          style={{
-            marginLeft: 14,
-            paddingLeft: 16,
-            borderLeft: '1px solid rgba(255,255,255,0.18)',
-            fontFamily: serif,
-            fontSize: 15,
-            color: '#cfd6e0',
-          }}
-        >
-          <b style={{ color: '#fff' }}>Starling</b> &middot; Employment Law
-        </span>
-      </div>
-    </header>
-  );
-}
-
-function FactItem({ label, value, isLast, valueColour }: { label: string; value: string; isLast?: boolean; valueColour?: string }) {
-  return (
-    <div
-      style={{
-        paddingRight: isLast ? 0 : 28,
-        marginRight: isLast ? 0 : 28,
-        borderRight: isLast ? 'none' : `1px solid ${border}`,
-      }}
-    >
-      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: muted, marginBottom: 3 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 14.5, fontWeight: 600, color: valueColour ?? ink }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function DocRow({ doc }: { doc: DocItem }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        background: '#fff',
-        border: `1px solid ${border}`,
-        padding: '14px 18px',
-        marginBottom: 10,
-      }}
-    >
-      {/* Icon */}
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 2,
-          background: cream,
-          border: `1px solid ${border}`,
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
-        {doc.group === 'generated' ? (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-        )}
-      </div>
-      {/* Info */}
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: navy }}>{doc.name}</div>
-        <div style={{ fontSize: 12.5, color: muted }}>{doc.meta}</div>
-      </div>
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        {doc.actions.map((action, i) => (
-          <button
-            key={i}
-            style={{
-              fontSize: 12.5,
-              color: action.variant === 'gen' ? green : navy,
-              background: action.variant === 'gen' ? '#e7f6ec' : '#fff',
-              border: `1px solid ${action.variant === 'gen' ? '#bfe3cb' : border}`,
-              padding: '6px 12px',
-              borderRadius: 2,
-              cursor: 'pointer',
-              fontFamily: sans,
-            }}
-          >
-            {action.variant === 'gen' && (
-              <>
-                <StatusDot colour={green} size={5} />{' '}
-              </>
-            )}
-            {action.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ActionButton({ label, onClick }: { label: string; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: '#fff',
-        color: navy,
-        border: `1px solid ${border}`,
-        fontSize: 13.5,
-        fontWeight: 600,
-        padding: '11px 18px',
-        borderRadius: 2,
-        cursor: 'pointer',
-        fontFamily: sans,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-/** Render text with specified substrings bolded. */
-function renderBoldText(text: string, boldParts: string[]): React.ReactNode {
-  if (!boldParts.length) return text;
-
-  // Build a regex that matches any of the bold parts
-  const escaped = boldParts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const regex = new RegExp(`(${escaped.join('|')})`, 'g');
-  const parts = text.split(regex);
-
-  return parts.map((part, i) => {
-    if (boldParts.includes(part)) {
-      return <b key={i} style={{ color: ink }}>{part}</b>;
-    }
-    return <span key={i}>{part}</span>;
-  });
-}
