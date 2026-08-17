@@ -871,7 +871,7 @@ export default function MatterDetailView() {
   const [factumSections, setFactumSections] = useState<Array<{
     blockId: string; sectionHeader: string; issueLabel: string; authorities: string;
     status: 'firing' | 'eligible_unapproved' | 'off' | 'forced_on' | 'forced_off';
-    reason: string; forceable: boolean; lawyerReview: boolean;
+    reason: string; forceable: boolean; lawyerReview: boolean; custom: boolean;
   }>>([]);
   const refreshFactumSections = useCallback(() => {
     if (!sessionId) return;
@@ -963,6 +963,46 @@ export default function MatterDetailView() {
       setGenError('The change was not saved. Check the connection and try again.');
       return;
     }
+    refreshFactumSections();
+  }, [sessionId, refreshFactumSections]);
+
+  const addCustomSection = useCallback(async (sectionHeader: string, guidance: string, authorities: string) => {
+    if (!sessionId) return;
+    try {
+      const res = await fetch('/api/employment/factum-node-library/custom', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionHeader, guidance, authorities }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setGenError(d.error ?? 'The section could not be added.'); return; }
+      // Force the new section on for this factum, then refresh the picker.
+      await fetch(`/api/employment/${sessionId}/factum-nodes`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockId: d.blockId, override: 'on' }),
+      });
+    } catch {
+      setGenError('The section could not be added. Check the connection and try again.');
+      return;
+    }
+    refreshFactumSections();
+  }, [sessionId, refreshFactumSections]);
+
+  const removeCustomSection = useCallback(async (blockId: string) => {
+    try {
+      await fetch(`/api/employment/factum-node-library/custom/${encodeURIComponent(blockId)}`, {
+        method: 'DELETE', credentials: 'include',
+      });
+      if (sessionId) {
+        // Clear any matter override so the removed section leaves cleanly.
+        await fetch(`/api/employment/${sessionId}/factum-nodes`, {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blockId, override: null }),
+        });
+      }
+    } catch { /* advisory; the picker refresh will show the truth */ }
     refreshFactumSections();
   }, [sessionId, refreshFactumSections]);
 
@@ -2440,7 +2480,12 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'sjfactum' && showOptions && (
-                <FactumArgumentOptions sections={factumSections} setFactumOverride={setFactumOverride} />
+                <FactumArgumentOptions
+                  sections={factumSections}
+                  setFactumOverride={setFactumOverride}
+                  addCustomSection={addCustomSection}
+                  removeCustomSection={removeCustomSection}
+                />
               )}
 
               {selectedDraft === 'reply' && showOptions && (

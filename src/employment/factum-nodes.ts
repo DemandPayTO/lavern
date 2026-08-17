@@ -38,6 +38,38 @@ export interface FactumNode {
   /** The firm's settled argument for this issue; injected as guidance. */
   guidance: string;
   notes?: string;
+  /** A custom section the firm added (not one of the ported defaults). */
+  custom?: boolean;
+  /** Manual sections never fire on their own; they are off until forced on.
+   *  Custom sections are manual, so a firm's custom argument only appears in a
+   *  factum when the lawyer chooses it. */
+  manual?: boolean;
+}
+
+/** A firm's custom argument section, stored in the firm library. */
+export interface FirmCustomSectionRow {
+  block_id: string;
+  section_header: string;
+  authorities: string;
+  guidance: string;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+/** Turn the firm's saved custom sections into nodes for the picker + selection. */
+export function firmCustomSectionsToNodes(rows: FirmCustomSectionRow[]): FactumNode[] {
+  return rows.map((r, i) => ({
+    blockId: r.block_id,
+    issueLabel: r.section_header,
+    sectionHeader: r.section_header,
+    triggerGates: [],
+    assemblyOrder: 100 + i, // after the ported defaults
+    authorities: r.authorities ?? '',
+    lawyerReview: true,
+    guidance: r.guidance,
+    custom: true,
+    manual: true,
+  }));
 }
 
 interface RawFactumNode {
@@ -119,6 +151,8 @@ export interface FactumNodeReport {
   forceable: boolean;
   lawyerReview: boolean;
   guidance: string;
+  /** A custom section the firm added; the picker offers to remove it. */
+  custom: boolean;
 }
 
 function gateNames(gates: string[]): string {
@@ -143,6 +177,7 @@ export function factumNodeStatuses(
       forceable: true,
       lawyerReview: node.lawyerReview,
       guidance: node.guidance,
+      custom: node.custom === true,
     };
     const override = overrides[node.blockId];
     if (override === 'off') {
@@ -150,6 +185,10 @@ export function factumNodeStatuses(
     }
     if (override === 'on') {
       return { ...base, status: 'forced_on' as const, reason: 'You turned this argument on for this factum.' };
+    }
+    // A custom (manual) section never fires on its own; it waits to be chosen.
+    if (node.manual) {
+      return { ...base, status: 'off' as const, reason: 'Your firm\'s custom argument. Force it on to include it in this factum.' };
     }
     // ALWAYS sections are the core of the argument and fire unless forced off.
     if (node.triggerGates.length === 0) {

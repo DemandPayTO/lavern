@@ -164,6 +164,17 @@ function runMigrations(db: Database.Database): void {
       PRIMARY KEY (firm_id, block_id, version)
     );
 
+    CREATE TABLE IF NOT EXISTS firm_factum_custom_sections (
+      firm_id        TEXT NOT NULL,
+      block_id       TEXT NOT NULL,
+      section_header TEXT NOT NULL,
+      authorities    TEXT NOT NULL DEFAULT '',
+      guidance       TEXT NOT NULL,
+      updated_at     TEXT NOT NULL,
+      updated_by     TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (firm_id, block_id)
+    );
+
     CREATE TABLE IF NOT EXISTS firm_style_profiles (
       id             TEXT PRIMARY KEY,
       firm_id        TEXT NOT NULL,
@@ -1670,6 +1681,28 @@ export function deleteFirmFactumNode(firmId: string, blockId: string): boolean {
       .run(firmId, blockId, existing.version, existing.content, existing.provenance, existing.updated_at, existing.updated_by);
   }
   return getDb().prepare('DELETE FROM firm_factum_nodes WHERE firm_id = ? AND block_id = ?').run(firmId, blockId).changes > 0;
+}
+
+// ── Firm custom factum sections (the lawyer's own argument sections) ────────
+
+export interface FirmFactumCustomSectionRow {
+  firm_id: string; block_id: string; section_header: string;
+  authorities: string; guidance: string; updated_at: string; updated_by: string;
+}
+
+export function getFirmFactumCustomSections(firmId: string): FirmFactumCustomSectionRow[] {
+  return getDb().prepare('SELECT * FROM firm_factum_custom_sections WHERE firm_id = ? ORDER BY updated_at').all(firmId) as FirmFactumCustomSectionRow[];
+}
+
+export function saveFirmFactumCustomSection(
+  firmId: string, blockId: string, sectionHeader: string, authorities: string, guidance: string, updatedBy: string,
+): void {
+  getDb().prepare('INSERT OR REPLACE INTO firm_factum_custom_sections (firm_id, block_id, section_header, authorities, guidance, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(firmId, blockId, sectionHeader, authorities, guidance, new Date().toISOString(), updatedBy);
+}
+
+export function deleteFirmFactumCustomSection(firmId: string, blockId: string): boolean {
+  return getDb().prepare('DELETE FROM firm_factum_custom_sections WHERE firm_id = ? AND block_id = ?').run(firmId, blockId).changes > 0;
 }
 
 export function saveStyleProfile(row: Omit<FirmStyleProfileRow, 'created_at'>): void {

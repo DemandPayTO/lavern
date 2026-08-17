@@ -12,10 +12,15 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { getMatterById } from '../../../db/database.js';
 import { getFirmFactumNodes, saveFirmFactumNode, deleteFirmFactumNode, getUserById } from '../../../db/database.js';
+import { getFirmFactumCustomSections, saveFirmFactumCustomSection, deleteFirmFactumCustomSection } from '../../../db/database.js';
 import {
-  loadFactumNodes, mergeFirmFactumNodes, buildFactumGateState, factumNodeStatuses,
+  loadFactumNodes, mergeFirmFactumNodes, buildFactumGateState, factumNodeStatuses, firmCustomSectionsToNodes,
 } from '../../../employment/factum-nodes.js';
 import { loadEmploymentData, saveEmploymentData, resolveFirmId, logger } from './shared.js';
+
+function customBlockId(): string {
+  return 'FACTUM_CUSTOM_' + Math.random().toString(36).slice(2, 10);
+}
 
 export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
 
@@ -31,7 +36,9 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
     const { matter, employment } = loadEmploymentData(row.data_json);
 
     const firmId = resolveFirmId(req);
-    const nodes = firmId ? mergeFirmFactumNodes(loadFactumNodes(), getFirmFactumNodes(firmId)) : loadFactumNodes();
+    const base = firmId ? mergeFirmFactumNodes(loadFactumNodes(), getFirmFactumNodes(firmId)) : loadFactumNodes();
+    const custom = firmId ? firmCustomSectionsToNodes(getFirmFactumCustomSections(firmId)) : [];
+    const nodes = [...base, ...custom];
     const state = buildFactumGateState({ gates: employment.gates ?? [], approvedIssues: employment.approvedIssues ?? [] });
     const overrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
     return reply.send({ ok: true, nodes: factumNodeStatuses(nodes, state, overrides) });
@@ -115,6 +122,41 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
     const { blockId } = req.params as { blockId: string };
     const removed = deleteFirmFactumNode(firmId, blockId);
     if (!removed) return reply.status(404).send({ ok: false, error: 'No firm version of that argument.' });
+    return reply.send({ ok: true });
+  });
+
+  // ── Custom argument sections (the lawyer's own outline additions) ───────
+  // Adding a section creates a reusable firm section; the caller forces it on
+  // for the current matter through the override route above. It appears on
+  // future matters as an off section the lawyer can force on.
+
+  fastify.post('/api/employment/factum-node-library/custom', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const parsed = z.object({
+      sectionHeader: z.string().trim().min(2).max(200),
+      guidance: z.string().trim().min(10).max(20_000),
+      authorities: z.string().trim().max(2_000).optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      const detail = parsed.error.issues.slice(0, 2).map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      return reply.status(400).send({ ok: false, error: `The section was not added. ${detail}. A heading and a note on what it argues are required.` });
+    }
+    const blockId = customBlockId();
+    let updatedBy = '';
+    try { updatedBy = getUserById(userId)?.display_name ?? ''; } catch { /* attribution is best-effort */ }
+    saveFirmFactumCustomSection(firmId, blockId, parsed.data.sectionHeader, parsed.data.authorities ?? '', parsed.data.guidance, updatedBy);
+    logger.info('Factum custom section added', { firmId, blockId });
+    return reply.send({ ok: true, blockId, sectionHeader: parsed.data.sectionHeader });
+  });
+
+  fastify.delete('/api/employment/factum-node-library/custom/:blockId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { blockId } = req.params as { blockId: string };
+    const removed = deleteFirmFactumCustomSection(firmId, blockId);
+    if (!removed) return reply.status(404).send({ ok: false, error: 'No such custom section.' });
     return reply.send({ ok: true });
   });
 

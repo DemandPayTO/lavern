@@ -2,7 +2,8 @@
 // factum will argue, driven by the matter's approved issues, with force on/off.
 // Mirrors the SOC pleading picker. State stays in the parent (Option A).
 
-import { navy, green, amber, border, ink, muted, sans } from '../tokens.js';
+import { useState } from 'react';
+import { navy, orange, green, amber, red, border, ink, muted, sans } from '../tokens.js';
 
 export type FactumSection = {
   blockId: string;
@@ -13,19 +14,38 @@ export type FactumSection = {
   reason: string;
   forceable: boolean;
   lawyerReview: boolean;
+  custom: boolean;
 };
 
 export function FactumArgumentOptions({
-  sections, setFactumOverride,
+  sections, setFactumOverride, addCustomSection, removeCustomSection,
 }: {
   sections: FactumSection[];
   setFactumOverride: (blockId: string, override: 'on' | 'off' | null) => void;
+  addCustomSection: (sectionHeader: string, guidance: string, authorities: string) => Promise<void>;
+  removeCustomSection: (blockId: string) => void;
 }) {
+  const [adding, setAdding] = useState(false);
+  const [newHeader, setNewHeader] = useState('');
+  const [newGuidance, setNewGuidance] = useState('');
+  const [newAuthorities, setNewAuthorities] = useState('');
+  const [busy, setBusy] = useState(false);
+  const canAdd = newHeader.trim().length >= 2 && newGuidance.trim().length >= 10;
+
+  const submit = async () => {
+    if (!canAdd || busy) return;
+    setBusy(true);
+    try {
+      await addCustomSection(newHeader.trim(), newGuidance.trim(), newAuthorities.trim());
+      setNewHeader(''); setNewGuidance(''); setNewAuthorities(''); setAdding(false);
+    } finally { setBusy(false); }
+  };
+
   return (
     <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
       <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>What this factum argues (Part III)</div>
       <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-        Each legal issue is argued in the firm's settled way, selected by the facts on file and your approved issues. Turning one on that the intake never raised gives you the argument structure to complete, never invented facts. The firm's argument language for each is under Teach the argument below.
+        This is the factum's outline. Each legal issue is argued in the firm's settled way, selected by the facts on file and your approved issues. Turn one on that the intake never raised to include it, or add your own section below. The firm's argument language for each is under Teach the argument.
       </div>
       {sections.map(s => {
         const on = s.status === 'firing' || s.status === 'forced_on';
@@ -68,9 +88,78 @@ export function FactumArgumentOptions({
                 turn back on
               </button>
             )}
+            {s.custom && (
+              <button
+                onClick={() => removeCustomSection(s.blockId)}
+                aria-label={`Remove ${s.sectionHeader} from the firm library`}
+                title="Remove this custom section from the firm library"
+                style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: red, cursor: 'pointer', padding: '3px 4px' }}
+              >
+                remove
+              </button>
+            )}
           </div>
         );
       })}
+
+      {/* Add your own section to the outline. It is saved to the firm library
+          and reusable on future factums. */}
+      <div style={{ borderTop: `1px solid ${border}`, marginTop: 10, paddingTop: 10 }}>
+        {!adding ? (
+          <button
+            onClick={() => setAdding(true)}
+            style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+          >
+            Add a section
+          </button>
+        ) : (
+          <div>
+            <div style={{ fontSize: 12.5, color: muted, marginBottom: 8, lineHeight: 1.5 }}>
+              State a section the factum must address and what it should argue. Starling writes it into Part III with the others, and saves it to the firm library so it is one click on the next factum.
+            </div>
+            <input
+              value={newHeader}
+              onChange={e => setNewHeader(e.target.value)}
+              placeholder="Section heading, e.g. Fixed-term contract: no duty to mitigate"
+              aria-label="Section heading"
+              style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, color: ink, marginBottom: 8 }}
+            />
+            <textarea
+              value={newGuidance}
+              onChange={e => setNewGuidance(e.target.value)}
+              rows={4}
+              placeholder="What this section should argue: the test, the key authorities, and how it applies to this plaintiff."
+              aria-label="What the section argues"
+              style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical', marginBottom: 8 }}
+            />
+            <input
+              value={newAuthorities}
+              onChange={e => setNewAuthorities(e.target.value)}
+              placeholder="Authorities to cite (optional), e.g. Howard v Benson Group Inc, 2016 ONCA 256"
+              aria-label="Authorities"
+              style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 12.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, color: ink, marginBottom: 8 }}
+            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={() => void submit()}
+                disabled={!canAdd || busy}
+                style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 16px', borderRadius: 2, fontFamily: sans, background: canAdd && !busy ? orange : '#b0b0b0', color: '#fff', border: 'none', cursor: canAdd && !busy ? 'pointer' : 'not-allowed' }}
+              >
+                {busy ? 'Adding…' : 'Add to the factum'}
+              </button>
+              <button
+                onClick={() => { setAdding(false); setNewHeader(''); setNewGuidance(''); setNewAuthorities(''); }}
+                style={{ fontSize: 12.5, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              {!canAdd && (newHeader || newGuidance) && (
+                <span style={{ fontSize: 11.5, color: muted }}>A heading and a note on what it argues are both needed.</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

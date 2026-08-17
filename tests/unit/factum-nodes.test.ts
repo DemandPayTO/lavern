@@ -7,6 +7,7 @@ import {
   buildFactumArgumentGuidance,
   selectedFactumAuthorities,
   mergeFirmFactumNodes,
+  firmCustomSectionsToNodes,
 } from '../../src/employment/factum-nodes.js';
 import type { GateResult } from '../../src/types/employment-intake.js';
 
@@ -91,6 +92,33 @@ describe('factum argument library', () => {
     expect(authorities.some(a => /Bardal/.test(a))).toBe(true);
     // deduped
     expect(new Set(authorities).size).toBe(authorities.length);
+  });
+
+  it('custom (manual) sections are off until forced on, and carry the custom flag', () => {
+    const custom = firmCustomSectionsToNodes([
+      { block_id: 'FACTUM_CUSTOM_abc', section_header: 'Fixed-term: no mitigation', authorities: 'Howard v Benson Group Inc, 2016 ONCA 256', guidance: 'Argue no duty to mitigate on a fixed term.' },
+    ]);
+    expect(custom[0].manual).toBe(true);
+    expect(custom[0].custom).toBe(true);
+
+    const nodes = [...loadFactumNodes(), ...custom];
+    const state = buildFactumGateState({ gates: [], approvedIssues: [] });
+
+    // Default: the custom section is off (does not fire on its own).
+    let reports = factumNodeStatuses(nodes, state, {});
+    let cust = reports.find(r => r.blockId === 'FACTUM_CUSTOM_abc')!;
+    expect(cust.status).toBe('off');
+    expect(cust.custom).toBe(true);
+    expect(selectedFactumNodes(reports).some(s => s.blockId === 'FACTUM_CUSTOM_abc')).toBe(false);
+
+    // Forced on: it is selected and its guidance is injected.
+    reports = factumNodeStatuses(nodes, state, { FACTUM_CUSTOM_abc: 'on' });
+    cust = reports.find(r => r.blockId === 'FACTUM_CUSTOM_abc')!;
+    expect(cust.status).toBe('forced_on');
+    const selected = selectedFactumNodes(reports);
+    expect(selected.some(s => s.blockId === 'FACTUM_CUSTOM_abc')).toBe(true);
+    expect(buildFactumArgumentGuidance(selected)).toContain('Fixed-term: no mitigation');
+    expect(selectedFactumAuthorities(selected).some(a => /Howard v Benson/.test(a))).toBe(true);
   });
 
   it('a firm guidance override replaces content only, not the trigger', () => {
