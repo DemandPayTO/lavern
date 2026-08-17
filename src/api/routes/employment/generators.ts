@@ -971,6 +971,28 @@ nodeReport: result.nodeReport,
       }
     }
 
+    // Mediation brief: when the lawyer drafts section by section, the narrative
+    // is assembled from their approved sections and wrapped in the standard
+    // cover, tables, and sign-off, with no model call.
+    let mediationNarrativeOverride: string | undefined;
+    if (parsed.data.documentType === 'mediation_brief') {
+      const { mediationSections, buildMediationOutline, mediationDraftReadiness, assembleMediationNarrative } = await import('../../../employment/mediation-outline.js');
+      // Section-by-section uses the standard section set, so the outline,
+      // draft, and assemble paths all key off the same section ids. The firm's
+      // own flow headings still shape the whole-document generation below.
+      const secDefs = mediationSections();
+      const mDraft = ((matter as Record<string, unknown>).mediationDraft ?? undefined) as import('../../../employment/mediation-outline.js').MediationDraftState | undefined;
+      const outline = buildMediationOutline(secDefs, mDraft);
+      const readiness = mediationDraftReadiness(outline);
+      if (readiness.drafted > 0) {
+        if (!readiness.allApproved) {
+          const remaining = readiness.total - readiness.approved;
+          return reply.status(400).send({ ok: false, error: `You are drafting this mediation brief section by section. Approve the remaining ${remaining} section${remaining === 1 ? '' : 's'} in the outline, then generate to assemble them. To generate the whole brief in one pass instead, discard the section drafts.` });
+        }
+        mediationNarrativeOverride = assembleMediationNarrative(outline);
+      }
+    }
+
     if (!result) try {
       result = await generateLitigationDocument({
         intake: employment.intake,
@@ -978,6 +1000,7 @@ nodeReport: result.nodeReport,
         analysis: employment.analysis,
         documentType: parsed.data.documentType as LitigationDocumentType,
         factumArgumentGuidance,
+        mediationNarrativeOverride,
         claimAmount: parsed.data.claimAmount,
         lawyerName: parsed.data.lawyerName,
         firmName: parsed.data.firmName,

@@ -54,6 +54,8 @@ import { FactumArgumentOptions } from './matter/workspaces/FactumArgumentOptions
 import { FactumArgumentLanguageOptions } from './matter/workspaces/FactumArgumentLanguageOptions.js';
 import { FactumOutlinePanel } from './matter/workspaces/FactumOutlinePanel.js';
 import type { FactumOutlineSectionUI } from './matter/workspaces/FactumOutlinePanel.js';
+import { MediationOutlinePanel } from './matter/workspaces/MediationOutlinePanel.js';
+import type { MediationOutlineSectionUI } from './matter/workspaces/MediationOutlinePanel.js';
 import { CourtFormOptions } from './matter/workspaces/CourtFormOptions.js';
 import { ReadinessNotice } from './matter/workspaces/ReadinessNotice.js';
 import { GenerationOptions } from './matter/workspaces/GenerationOptions.js';
@@ -1149,6 +1151,76 @@ export default function MatterDetailView() {
     putFactumSection({ sectionId, action: 'save', html }), [putFactumSection]);
   const clearFactumSection = useCallback((sectionId: string) =>
     putFactumSection({ sectionId, action: 'clear' }), [putFactumSection]);
+
+  // ── Mediation brief outline: draft the brief section by section ──────────
+  const [mediationOutline, setMediationOutline] = useState<MediationOutlineSectionUI[]>([]);
+  const refreshMediationOutline = useCallback(() => {
+    if (!sessionId) return;
+    fetch(`/api/employment/${sessionId}/mediation-outline`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setMediationOutline(d.sections ?? []); })
+      .catch(() => { /* advisory until a section is drafted */ });
+  }, [sessionId]);
+  useEffect(() => { if (selectedDraft === 'mediation') refreshMediationOutline(); }, [selectedDraft, refreshMediationOutline, employment.data]);
+
+  const [mediationDraftBusyId, setMediationDraftBusyId] = useState<string | null>(null);
+  const [mediationDraftingAll, setMediationDraftingAll] = useState(false);
+  const draftMediationSection = useCallback(async (sectionId: string) => {
+    if (!sessionId) return;
+    setMediationDraftBusyId(sectionId);
+    try {
+      const amount = genDemandAmount ? parseInt(genDemandAmount) : undefined;
+      const res = await fetch(`/api/employment/${sessionId}/mediation-section/draft`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionId, claimAmount: amount && Number.isFinite(amount) ? amount : undefined }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) { setGenError((d as { error?: string }).error ?? 'This section could not be drafted.'); return; }
+    } catch { setGenError('This section could not be drafted. Check the connection and try again.'); return; }
+    finally { setMediationDraftBusyId(null); }
+    refreshMediationOutline();
+  }, [sessionId, genDemandAmount, refreshMediationOutline]);
+
+  const draftAllMediationSections = useCallback(async () => {
+    if (!sessionId) return;
+    setMediationDraftingAll(true);
+    try {
+      const toDraft = mediationOutline.filter(s => !s.hasDraft).map(s => s.id);
+      const amount = genDemandAmount ? parseInt(genDemandAmount) : undefined;
+      for (const sectionId of toDraft) {
+        const res = await fetch(`/api/employment/${sessionId}/mediation-section/draft`, {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sectionId, claimAmount: amount && Number.isFinite(amount) ? amount : undefined }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!d.ok) { setGenError((d as { error?: string }).error ?? 'A section could not be drafted.'); break; }
+        refreshMediationOutline();
+      }
+    } finally { setMediationDraftingAll(false); }
+    refreshMediationOutline();
+  }, [sessionId, mediationOutline, genDemandAmount, refreshMediationOutline]);
+
+  const putMediationSection = useCallback(async (body: { sectionId: string; action: 'approve' | 'unapprove' | 'save' | 'clear'; html?: string }) => {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/mediation-section`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) { setGenError((d as { error?: string }).error ?? 'The change was not saved.'); return; }
+    } catch { setGenError('The change was not saved. Check the connection and try again.'); return; }
+    refreshMediationOutline();
+  }, [sessionId, refreshMediationOutline]);
+  const approveMediationSection = useCallback((sectionId: string, approved: boolean) =>
+    putMediationSection({ sectionId, action: approved ? 'approve' : 'unapprove' }), [putMediationSection]);
+  const saveMediationSection = useCallback((sectionId: string, html: string) =>
+    putMediationSection({ sectionId, action: 'save', html }), [putMediationSection]);
+  const clearMediationSection = useCallback((sectionId: string) =>
+    putMediationSection({ sectionId, action: 'clear' }), [putMediationSection]);
 
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
@@ -2748,6 +2820,19 @@ export default function MatterDetailView() {
                   briefSourceInputRef={briefSourceInputRef}
                   attachBriefSource={attachBriefSource}
                   sourceParsing={sourceParsing} sourceError={sourceError}
+                />
+              )}
+
+              {selectedDraft === 'mediation' && showOptions && mediationOutline.length > 0 && (
+                <MediationOutlinePanel
+                  sections={mediationOutline}
+                  draftSection={draftMediationSection}
+                  draftAll={draftAllMediationSections}
+                  approveSection={approveMediationSection}
+                  saveSection={saveMediationSection}
+                  clearSection={clearMediationSection}
+                  busyId={mediationDraftBusyId}
+                  draftingAll={mediationDraftingAll}
                 />
               )}
 

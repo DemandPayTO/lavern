@@ -24,6 +24,7 @@ import { registerDraftRoutes } from './employment/drafts.js';
 import { registerSourceRoutes } from './employment/sources.js';
 import { registerSocNodeRoutes } from './employment/soc-nodes.js';
 import { registerFactumNodeRoutes } from './employment/factum-nodes.js';
+import { registerMediationSectionRoutes } from './employment/mediation-sections.js';
 import { registerReadinessRoutes } from './employment/readiness.js';
 import { registerStyleTemplateRoutes } from './employment/style-templates.js';
 import { registerRevisionRoutes } from './employment/revision.js';
@@ -55,6 +56,7 @@ export function registerEmploymentIntakeRoutes(fastify: FastifyInstance): void {
   registerSourceRoutes(fastify);
   registerSocNodeRoutes(fastify);
   registerFactumNodeRoutes(fastify);
+  registerMediationSectionRoutes(fastify);
   registerReadinessRoutes(fastify);
   registerStyleTemplateRoutes(fastify);
   registerRevisionRoutes(fastify);

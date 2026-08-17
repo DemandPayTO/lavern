@@ -103,6 +103,10 @@ export interface LitigationDocumentRequest {
    *  the factum argument library by the matter's approved issues. The model
    *  writes Part III following these; it does not invent argument outside them. */
   factumArgumentGuidance?: string;
+  /** mediation_brief only: the narrative assembled from the lawyer's approved
+   *  section-by-section drafts. When present the model is not called; this
+   *  narrative is wrapped in the deterministic cover, tables, and sign-off. */
+  mediationNarrativeOverride?: string;
   /** Structured inputs for the deterministic court forms (service details,
    *  offer dates, costs figures). Each builder validates its own fields. */
   formFields?: CourtFormFields;
@@ -826,7 +830,13 @@ ${positions}`;
   let text: string;
   let cost: number;
   let outputTruncated = false;
-  try {
+  // Section-by-section mediation brief: the narrative is the lawyer's approved
+  // sections, so no model call is made; the deterministic furniture below
+  // still wraps it (cover, tables, numbering, sign-off).
+  if (req.documentType === 'mediation_brief' && req.mediationNarrativeOverride) {
+    text = req.mediationNarrativeOverride;
+    cost = 0;
+  } else try {
     const result = await crossProviderChat({
       system: systemPrompt,
       user: userPrompt,
