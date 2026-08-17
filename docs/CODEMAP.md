@@ -124,12 +124,13 @@ Other notable route modules: `sessions.ts` (Lavern engine, 1,805 lines),
 
 | File | Role |
 |------|------|
-| `MatterDetailView.tsx` (~4,170 lines) | The matter workspace shell: setup/state, header, tab bar, the draft tab, the action bar. **Being decomposed** into `matter/` (see §5). |
+| `MatterDetailView.tsx` (~3,750 lines) | The matter workspace shell: setup/state, header, tab bar, the draft tab, the action bar. **Being decomposed** into `matter/` (see §5). |
 | `matter/tokens.ts` · `matter/types.ts` | Design tokens; shared row/data shapes |
 | `matter/presentational.tsx` | Pure pieces: MatterDetailTopBar, FactItem, DocRow, ActionButton, StatusDot, SourceTag, TriagedFlags, renderBoldText |
 | `matter/review-lane.tsx` | ReviewLaneControls (the submitter's approval-queue side) |
 | `matter/constants.ts` | Draft catalogue (DEMO_DRAFT_TYPES), the draft-id↔docType↔download maps, court-form field defs, direction shapes |
 | `matter/tabs/` | IssuesTab (owns gate decisions + analysis-run state), TimelineTab, IntakeTab (owns EMPLOYMENT_INTAKE_FIELDS), NotesTab |
+| `matter/workspaces/` | The three biggest draft-tab option panels, prop-fed (state stays in the parent): RebuttalOptions, DemandFiguresOptions, TimetablePackageOptions |
 | `hooks/useStarlingApi.ts` (2,213) | The API client hook for the workspace |
 | `shared.tsx` (1,767) | Shared components incl. IntakeEditorPanel, GateApprovalPanel, NextStepsPanel |
 | `RevisionPanel.tsx` | Feedback loop + "Ask Starling to review it" |
@@ -155,10 +156,14 @@ Other notable route modules: `sessions.ts` (Lavern engine, 1,805 lines),
    ReviewLaneControls (`matter/tokens.ts`, `types.ts`, `presentational.tsx`,
    `review-lane.tsx`); the Issues/Timeline/Intake/Notes tab panels
    (`matter/tabs/`); and the draft-tab data maps (`matter/constants.ts`), which
-   also let four dead constants be dropped. The view is down from 5,527 to
-   ~4,170 lines. **Remaining:** the Docs tab and the 1,880-line draft tab (the
-   per-document option bodies), which hang off `runGeneration` — that function
-   reads ~18 pieces of per-document state, so a clean split either threads all
-   of it as props or refactors the generation flow, and the latter wants
-   generation-flow test coverage first. The three thin wrapper tabs
-   (Client/Negotiation/Debrief) stay inline by design.
+   also let four dead constants be dropped; and the three biggest draft-tab
+   option panels (`matter/workspaces/`), extracted Option-A style — verbatim
+   JSX, state and `runGeneration` untouched in the parent, passed down as props,
+   so document generation is provably unchanged. The view is down from 5,527 to
+   ~3,750 lines. **Remaining:** the Docs tab and the rest of the draft tab's
+   option panels still live in the parent. The draft tab is coupled to ~169
+   parent identifiers (~85 state atoms + setters), so the *clean* finish is the
+   generation-hook refactor (consolidate that state), which wants
+   generation-flow test coverage first — the current per-panel Option-A route
+   keeps threading props. The three thin wrapper tabs (Client/Negotiation/
+   Debrief) stay inline by design.
