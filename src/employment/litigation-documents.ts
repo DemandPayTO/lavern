@@ -99,6 +99,10 @@ export interface LitigationDocumentRequest {
   sourceDocuments?: Array<{ name: string; content: string }>;
   /** Additional context specific to the document type. */
   additionalContext?: string;
+  /** sj_factum only: the firm's argument sections for Part III, selected from
+   *  the factum argument library by the matter's approved issues. The model
+   *  writes Part III following these; it does not invent argument outside them. */
+  factumArgumentGuidance?: string;
   /** Structured inputs for the deterministic court forms (service details,
    *  offer dates, costs figures). Each builder validates its own fields. */
   formFields?: CourtFormFields;
@@ -685,7 +689,11 @@ ${intake.employer_alleged_just_cause ? '- Just cause alleged' : ''}
 
 APPROVED LEGAL ISSUES:
 ${req.approvedIssues.map((code, i) => `${i + 1}. ${code}`).join('\n')}
-
+${req.documentType === 'sj_factum' && req.factumArgumentGuidance ? `
+FIRM ARGUMENT SECTIONS FOR PART III:
+Organise Part III (Issues and the Law) using these argument sections, in this order, as the firm's settled way of arguing each issue. Argue each one in the firm's voice, applying the facts above to it. Cite the authorities listed for each section and do not add other authorities. Do not argue an issue that is not listed here.
+${req.factumArgumentGuidance}
+` : ''}
 DAMAGES:
 - ESA: ${damages.esaNoticeWeeks} weeks notice ($${damages.esaNoticePay.toLocaleString('en-CA')}) + $${damages.esaSeverancePay.toLocaleString('en-CA')} severance
 - Common law: ${damages.commonLawLowMonths}–${damages.commonLawHighMonths} months ($${damages.commonLawLowAmount.toLocaleString('en-CA')}–$${damages.commonLawHighAmount.toLocaleString('en-CA')})

@@ -28,6 +28,8 @@ import { extractEmploymentDocument } from '../../briefing/employment-extractor.j
 import { UPLOADABLE_DOCUMENT_TYPES, TONE_OPTIONS, PROCEDURE_TYPES } from '../../../types/employment-intake.js';
 import { generateDemandLetter } from '../../../employment/demand-letter-generator.js';
 import { generateStatementOfClaim } from '../../../employment/soc-generator.js';
+import { loadFactumNodes, mergeFirmFactumNodes, buildFactumGateState, factumNodeStatuses, selectedFactumNodes, buildFactumArgumentGuidance } from '../../../employment/factum-nodes.js';
+import { getFirmFactumNodes } from '../../../db/database.js';
 import { generateApplication } from '../../../employment/application-generator.js';
 import type { ApplicationType } from '../../../employment/application-generator.js';
 import { htmlToDocx } from '../../../employment/docx-export.js';
@@ -922,6 +924,21 @@ nodeReport: result.nodeReport,
 
     const litDirection = directionForGeneration(matter, parsed.data.documentType);
 
+    // Factum: assemble Part III from the firm's argument library, selecting the
+    // sections the matter's approved issues argue (plus any the lawyer forced
+    // on), so the factum argues in the firm's settled way.
+    let factumArgumentGuidance: string | undefined;
+    if (parsed.data.documentType === 'sj_factum') {
+      const factumFirmId = resolveFirmId(req);
+      const factumNodes = factumFirmId
+        ? mergeFirmFactumNodes(loadFactumNodes(), getFirmFactumNodes(factumFirmId))
+        : loadFactumNodes();
+      const factumState = buildFactumGateState({ gates: employment.gates ?? [], approvedIssues: employment.approvedIssues ?? [] });
+      const factumOverrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+      const selected = selectedFactumNodes(factumNodeStatuses(factumNodes, factumState, factumOverrides));
+      factumArgumentGuidance = buildFactumArgumentGuidance(selected) || undefined;
+    }
+
     let result;
     try {
       result = await generateLitigationDocument({
@@ -929,6 +946,7 @@ nodeReport: result.nodeReport,
         approvedIssues: employment.approvedIssues,
         analysis: employment.analysis,
         documentType: parsed.data.documentType as LitigationDocumentType,
+        factumArgumentGuidance,
         claimAmount: parsed.data.claimAmount,
         lawyerName: parsed.data.lawyerName,
         firmName: parsed.data.firmName,

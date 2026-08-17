@@ -1,0 +1,116 @@
+{
+  "_comment": "Factum argument library — the firm's reusable Part III (Issues and the Law) argument sections for a plaintiff-side wrongful-dismissal factum. Each node is one legal issue's argument, keyed to a gate (or ALWAYS). Selection is by the matter's approved issues; the node's guidance is passed to the factum generator as the firm's settled argument for that issue, and the model applies the matter's facts to it (nodes guide the model). These are the ported defaults; a firm edits or teaches its own wording through the factum argument library. Canadian English, no em-dashes, no contractions.",
+  "nodes": [
+    {
+      "blockId": "FACTUM_SJ_APPROPRIATE_01",
+      "issueLabel": "Summary judgment is appropriate",
+      "sectionHeader": "Summary Judgment is Appropriate",
+      "triggerGates": "ALWAYS",
+      "assemblyOrder": "10",
+      "authorities": "Hryniak v Mauldin, 2014 SCC 7; Rule 20.04(2.1)",
+      "lawyerReview": "YES",
+      "guidance": "Open Part III by establishing that there is no genuine issue requiring a trial. Rely on Hryniak v Mauldin for the culture shift: summary judgment is appropriate where the motion record allows the judge to reach a fair and just determination on the merits, and it will be a more proportionate, expeditious and affordable means to that end than a trial. Note the enhanced fact-finding powers under Rule 20.04(2.1) (weighing evidence, evaluating credibility, drawing inferences) and, where the facts allow, submit that they are not needed because the material facts are not in dispute. State that wrongful dismissal actions turning on the length of the notice period are routinely resolved on summary judgment.",
+      "notes": "Summary-judgment specific. This section is the threshold argument for a Rule 20 factum and does not belong in a trial factum."
+    },
+    {
+      "blockId": "FACTUM_CLAUSE_01",
+      "issueLabel": "The termination clause is unenforceable",
+      "sectionHeader": "The Termination Provision is Unenforceable",
+      "triggerGates": "G3",
+      "assemblyOrder": "20",
+      "authorities": "Waksdale v Swegon North America Inc, 2020 ONCA 391; Machtinger v HOJ Industries Ltd, [1992] 1 SCR 986; Dufault v Ignace (Township), 2024 ONCA 915",
+      "lawyerReview": "YES",
+      "guidance": "Where a termination provision is in play, argue that it is unenforceable and that common law reasonable notice therefore applies. Rely on Waksdale v Swegon: an unenforceable for-cause provision voids the entire termination scheme, even where the without-cause provision, read alone, would comply. Rely on Machtinger v HOJ Industries: a clause that purports to provide less than the Employment Standards Act minimums is void, and the common law presumption of reasonable notice revives. Where the language is engaged, add Dufault on clauses that reserve termination at the employer's sole discretion or at any time. Apply the specific words of this clause to the governing test and conclude that the plaintiff is entitled to common law reasonable notice."
+    },
+    {
+      "blockId": "FACTUM_NOTICE_01",
+      "issueLabel": "Reasonable notice (the Bardal factors)",
+      "sectionHeader": "Reasonable Notice",
+      "triggerGates": "ALWAYS",
+      "assemblyOrder": "30",
+      "authorities": "Bardal v Globe & Mail Ltd (1960), 24 DLR (2d) 140 (Ont HC)",
+      "lawyerReview": "NO",
+      "guidance": "Argue the reasonable notice period by applying the Bardal factors to this plaintiff: the character of the employment, the length of service, the age of the plaintiff, and the availability of similar employment having regard to experience, training and qualifications. There is no cap and no formula; the assessment is individual. Apply each factor to the plaintiff's actual circumstances and conclude that the factors support the notice range in the damages analysis. Where the plaintiff is older or long-serving, emphasise those factors; where re-employment prospects are poor, emphasise availability."
+    },
+    {
+      "blockId": "FACTUM_CAUSE_01",
+      "issueLabel": "The employer cannot establish just cause",
+      "sectionHeader": "The Employer Cannot Establish Just Cause",
+      "triggerGates": "G4",
+      "assemblyOrder": "40",
+      "authorities": "McKinley v BC Tel, 2001 SCC 38",
+      "lawyerReview": "YES",
+      "guidance": "Where the employer has alleged cause, argue that it cannot meet the standard. Rely on McKinley v BC Tel: just cause requires a contextual and proportionate analysis, asking whether the misconduct alleged is so serious that it gives rise to a breakdown in the employment relationship, and the employer bears the onus. Set out the conduct alleged, apply the proportionality analysis, and submit that dismissal was a disproportionate response. Where cause is asserted only to resist the notice claim, note that the allegation is unproven and does not defeat the entitlement to reasonable notice."
+    },
+    {
+      "blockId": "FACTUM_CONSTRUCTIVE_01",
+      "issueLabel": "Constructive dismissal",
+      "sectionHeader": "The Plaintiff Was Constructively Dismissed",
+      "triggerGates": "G5",
+      "assemblyOrder": "45",
+      "authorities": "Potter v New Brunswick Legal Aid Services Commission, 2015 SCC 10",
+      "lawyerReview": "YES",
+      "guidance": "Where the separation is a constructive dismissal, argue it under Potter v New Brunswick Legal Aid. Establish either branch: a single unilateral act by the employer that breaches an essential term of the contract, or a course of conduct that, viewed objectively, shows the employer no longer intended to be bound by the contract. Identify the specific change (compensation, duties, reporting, location) and submit that a reasonable person in the plaintiff's position would have felt the essential terms were substantially altered. Confirm the plaintiff did not consent to the change and left within a reasonable time."
+    },
+    {
+      "blockId": "FACTUM_INDUCEMENT_01",
+      "issueLabel": "Inducement from secure employment",
+      "sectionHeader": "The Plaintiff Was Induced From Secure Employment",
+      "triggerGates": "G7",
+      "assemblyOrder": "50",
+      "authorities": "Wallace v United Grain Growers Ltd, [1997] 3 SCR 701",
+      "lawyerReview": "YES",
+      "guidance": "Where the plaintiff was recruited away from secure employment, argue inducement as a factor lengthening reasonable notice. Set out the recruitment: the approach by the employer, any assurances of security or advancement, and the secure position the plaintiff gave up. Submit that inducement is a recognised factor that lengthens the notice period, and apply it to the plaintiff's short service so that the notice reflects the position given up rather than the brief tenure with this employer."
+    },
+    {
+      "blockId": "FACTUM_COMP_01",
+      "issueLabel": "Bonus, commission and equity through the notice period",
+      "sectionHeader": "Compensation Through the Notice Period",
+      "triggerGates": "G12",
+      "assemblyOrder": "55",
+      "authorities": "Matthews v Ocean Nutrition Canada Ltd, 2020 SCC 26",
+      "lawyerReview": "YES",
+      "guidance": "Where variable compensation is claimed, argue entitlement through the notice period under Matthews v Ocean Nutrition. Apply the two-part inquiry: would the plaintiff, but for the dismissal, have been entitled to the bonus, commission or equity during the reasonable notice period; and if so, does the plan language unambiguously and enforceably remove or limit that common law right. Submit that the plan language does not meet the high bar to oust the entitlement, so the amounts are recoverable as damages through the notice period."
+    },
+    {
+      "blockId": "FACTUM_MORAL_01",
+      "issueLabel": "Moral and punitive damages",
+      "sectionHeader": "Moral and Punitive Damages",
+      "triggerGates": "G11",
+      "assemblyOrder": "60",
+      "authorities": "Honda Canada Inc v Keays, 2008 SCC 39; Whiten v Pilot Insurance Co, 2002 SCC 18",
+      "lawyerReview": "YES",
+      "guidance": "Where bad faith in the manner of dismissal is approved, argue moral damages under Honda Canada v Keays: an employer must be candid, reasonable, honest and forthright, and conduct that is untruthful, misleading or unduly insensitive, and that causes the plaintiff provable harm, grounds compensatory moral damages. Identify the specific conduct and the harm it caused. Where the conduct is high-handed, malicious or a marked departure from ordinary standards of decency, add a claim for punitive damages under Whiten v Pilot Insurance, which are awarded to punish and deter and require an independent actionable wrong."
+    },
+    {
+      "blockId": "FACTUM_HRC_01",
+      "issueLabel": "Human Rights Code damages",
+      "sectionHeader": "Damages Under the Human Rights Code",
+      "triggerGates": "G10",
+      "assemblyOrder": "65",
+      "authorities": "Human Rights Code, RSO 1990, c H.19, ss 5, 46.1",
+      "lawyerReview": "YES",
+      "guidance": "Where discrimination is an approved issue, argue for damages under the Human Rights Code. Establish a prima facie case: the plaintiff has a protected characteristic, experienced adverse treatment, and the characteristic was a factor in the treatment. Submit that the court may award monetary compensation for injury to dignity, feelings and self-respect under section 46.1, in an amount consistent with comparable awards, in addition to the wrongful dismissal damages. Tie the discrimination to the termination or the conditions of employment on the facts pleaded."
+    },
+    {
+      "blockId": "FACTUM_ESA_01",
+      "issueLabel": "Employment Standards Act minimums",
+      "sectionHeader": "Statutory Entitlements Under the Employment Standards Act",
+      "triggerGates": "G9",
+      "assemblyOrder": "70",
+      "authorities": "Employment Standards Act, 2000, SO 2000, c 41",
+      "lawyerReview": "NO",
+      "guidance": "Where statutory entitlements are claimed, set out the floor beneath the common law claim under the Employment Standards Act, 2000: termination pay, severance pay where the qualifying thresholds are met, accrued and unpaid vacation pay, and continuation of benefits through the statutory notice period. State the statutory amounts from the damages analysis. Frame these as the minimum the plaintiff is owed in any event, over which the common law reasonable notice claim sits."
+    },
+    {
+      "blockId": "FACTUM_MITIGATION_01",
+      "issueLabel": "Mitigation (the employer's onus)",
+      "sectionHeader": "Mitigation",
+      "triggerGates": "ALWAYS",
+      "assemblyOrder": "80",
+      "authorities": "Red Deer College v Michaels, [1976] 2 SCR 324",
+      "lawyerReview": "NO",
+      "guidance": "Close the argument by addressing mitigation before the defence raises it. State that the plaintiff has taken reasonable steps to find comparable employment. Submit that the onus of proving a failure to mitigate rests on the employer, which must show both that the plaintiff did not take reasonable steps and that, had reasonable steps been taken, comparable employment could have been found (Red Deer College v Michaels). Where mitigation earnings exist, confirm they have been credited in the damages calculation."
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+/**
+ * Employment routes — the factum argument library.
+ *
+ * The per-firm Part III argument sections for a wrongful-dismissal factum: the
+ * matter picker (which arguments fire, force on/off), and the library (edit the
+ * firm's argument language, teach it from the firm's own factums). Mirrors the
+ * SOC node routes; a factum argument is prose guidance, so there is no
+ * conditional-validation gate, only a length bound.
+ */
+
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
+import { getMatterById } from '../../../db/database.js';
+import { getFirmFactumNodes, saveFirmFactumNode, deleteFirmFactumNode, getUserById } from '../../../db/database.js';
+import {
+  loadFactumNodes, mergeFirmFactumNodes, buildFactumGateState, factumNodeStatuses,
+} from '../../../employment/factum-nodes.js';
+import { loadEmploymentData, saveEmploymentData, resolveFirmId, logger } from './shared.js';
+
+export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
+
+  // ── The argument sections: what the factum will argue, and why ─────────
+  // The picker's data source and the lawyer's override switch. Overrides
+  // persist on the matter so a regeneration keeps the lawyer's choices.
+
+  fastify.get('/api/employment/:matterId/factum-nodes', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+
+    const firmId = resolveFirmId(req);
+    const nodes = firmId ? mergeFirmFactumNodes(loadFactumNodes(), getFirmFactumNodes(firmId)) : loadFactumNodes();
+    const state = buildFactumGateState({ gates: employment.gates ?? [], approvedIssues: employment.approvedIssues ?? [] });
+    const overrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    return reply.send({ ok: true, nodes: factumNodeStatuses(nodes, state, overrides) });
+  });
+
+  fastify.put('/api/employment/:matterId/factum-nodes', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = z.object({
+      blockId: z.string().trim().min(1).max(60),
+      override: z.enum(['on', 'off']).nullable(),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid override' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const overrides = ((matter as Record<string, unknown>).factumNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    if (parsed.data.override === null) delete overrides[parsed.data.blockId];
+    else overrides[parsed.data.blockId] = parsed.data.override;
+    (matter as Record<string, unknown>).factumNodeOverrides = overrides;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, overrides });
+  });
+
+  // ── The argument library: the firm's settled argument language ─────────
+  // Guidance only: triggers, order, headers and authorities stay in code, so
+  // a language edit can never change which issue argues what. Prior versions
+  // are kept.
+
+  fastify.get('/api/employment/factum-node-library', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const overrides = new Map(getFirmFactumNodes(firmId).map(r => [r.block_id, r]));
+    return reply.send({
+      ok: true,
+      nodes: loadFactumNodes().map(n => {
+        const o = overrides.get(n.blockId);
+        return {
+          blockId: n.blockId,
+          sectionHeader: n.sectionHeader,
+          issueLabel: n.issueLabel,
+          authorities: n.authorities,
+          triggerGates: n.triggerGates.join(', ') || 'ALWAYS',
+          lawyerReview: n.lawyerReview,
+          content: o?.content ?? n.guidance,
+          provenance: o ? o.provenance : 'default',
+          version: o?.version ?? 0,
+          updatedAt: o?.updated_at,
+          updatedByName: o?.updated_by || undefined,
+        };
+      }),
+    });
+  });
+
+  fastify.put('/api/employment/factum-node-library/:blockId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { blockId } = req.params as { blockId: string };
+    const parsed = z.object({
+      content: z.string().min(1).max(20_000),
+      provenance: z.enum(['edited', 'learned']).default('edited'),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid argument guidance' });
+
+    if (!loadFactumNodes().some(n => n.blockId === blockId)) {
+      return reply.status(404).send({ ok: false, error: 'Unknown argument section.' });
+    }
+
+    let updatedBy = '';
+    try { updatedBy = getUserById(userId)?.display_name ?? ''; } catch { /* attribution is best-effort */ }
+    const version = saveFirmFactumNode(firmId, blockId, parsed.data.content, parsed.data.provenance, updatedBy);
+    logger.info('Factum argument updated', { firmId, blockId, version, provenance: parsed.data.provenance });
+    return reply.send({ ok: true, version });
+  });
+
+  fastify.delete('/api/employment/factum-node-library/:blockId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const { blockId } = req.params as { blockId: string };
+    const removed = deleteFirmFactumNode(firmId, blockId);
+    if (!removed) return reply.status(404).send({ ok: false, error: 'No firm version of that argument.' });
+    return reply.send({ ok: true });
+  });
+
+  // ── POST /api/employment/factum-node-library/teach ─────────────────────
+  // Upload the firm's own factums; get back a proposed argument guidance per
+  // section in the firm's approach, for approval. Nothing binds here.
+
+  fastify.post('/api/employment/factum-node-library/teach', async (req: FastifyRequest, reply: FastifyReply) => {
+    const firmId = resolveFirmId(req);
+    if (!firmId) return reply.status(403).send({ ok: false, error: 'No firm is associated with this account.' });
+    const parsed = z.object({
+      precedents: z.array(z.object({
+        name: z.string().trim().min(1).max(300),
+        docxBase64: z.string().max(14_000_000).optional(),
+        text: z.string().max(2_000_000).optional(),
+      }).refine(pr => Boolean(pr.docxBase64 || pr.text), { message: 'Provide the file or its text' })).min(1).max(8),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Upload between one and eight of the firm\'s factums.' });
+
+    const { readPrecedentBuffer } = await import('../../../employment/precedent-read.js');
+    const factums: Array<{ name: string; text: string }> = [];
+    for (const p of parsed.data.precedents) {
+      if (p.text?.trim()) { factums.push({ name: p.name, text: p.text.trim() }); continue; }
+      const read = await readPrecedentBuffer(p.name, p.docxBase64!);
+      if (!read.ok) return reply.status(400).send({ ok: false, error: read.error });
+      factums.push({ name: p.name, text: read.text });
+    }
+    if (factums.length < 1) return reply.status(400).send({ ok: false, error: 'At least one readable factum is needed.' });
+
+    const { proposeFactumArgumentUpdates } = await import('../../../employment/factum-teach.js');
+    const nodes = mergeFirmFactumNodes(loadFactumNodes(), getFirmFactumNodes(firmId));
+    try {
+      const result = await proposeFactumArgumentUpdates(factums, nodes);
+      logger.info('Factum teaching complete', {
+        firmId, factums: factums.length,
+        proposals: result.proposals.filter(p => p.proposed).length,
+        costUsd: result.totalCostUsd.toFixed(4),
+      });
+      return reply.send({ ok: true, proposals: result.proposals, costUsd: result.totalCostUsd });
+    } catch (err) {
+      logger.error('Factum teaching failed', { error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'The factums could not be analysed. Please try again.' });
+    }
+  });
+}

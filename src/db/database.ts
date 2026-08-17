@@ -142,6 +142,28 @@ function runMigrations(db: Database.Database): void {
       PRIMARY KEY (firm_id, block_id, version)
     );
 
+    CREATE TABLE IF NOT EXISTS firm_factum_nodes (
+      firm_id     TEXT NOT NULL,
+      block_id    TEXT NOT NULL,
+      content     TEXT NOT NULL,
+      provenance  TEXT NOT NULL DEFAULT 'edited',
+      version     INTEGER NOT NULL DEFAULT 1,
+      updated_at  TEXT NOT NULL,
+      updated_by  TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (firm_id, block_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS firm_factum_node_versions (
+      firm_id     TEXT NOT NULL,
+      block_id    TEXT NOT NULL,
+      version     INTEGER NOT NULL,
+      content     TEXT NOT NULL,
+      provenance  TEXT NOT NULL,
+      saved_at    TEXT NOT NULL,
+      saved_by    TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (firm_id, block_id, version)
+    );
+
     CREATE TABLE IF NOT EXISTS firm_style_profiles (
       id             TEXT PRIMARY KEY,
       firm_id        TEXT NOT NULL,
@@ -1604,6 +1626,50 @@ export function deleteFirmSocNode(firmId: string, blockId: string): boolean {
       .run(firmId, blockId, existing.version, existing.content, existing.provenance, existing.updated_at, existing.updated_by);
   }
   return getDb().prepare('DELETE FROM firm_soc_nodes WHERE firm_id = ? AND block_id = ?').run(firmId, blockId).changes > 0;
+}
+
+// ── Firm factum argument nodes (the factum argument library) ───────────────
+// Same store as the SOC nodes, for the per-firm Part III argument sections.
+
+export interface FirmFactumNodeRow {
+  firm_id: string; block_id: string; content: string;
+  provenance: 'edited' | 'learned'; version: number;
+  updated_at: string; updated_by: string;
+}
+
+export function getFirmFactumNodes(firmId: string): FirmFactumNodeRow[] {
+  return getDb().prepare('SELECT * FROM firm_factum_nodes WHERE firm_id = ?').all(firmId) as FirmFactumNodeRow[];
+}
+
+export function saveFirmFactumNode(
+  firmId: string, blockId: string, content: string,
+  provenance: 'edited' | 'learned', updatedBy: string,
+): number {
+  const existing = getDb().prepare('SELECT version, content, provenance, updated_at, updated_by FROM firm_factum_nodes WHERE firm_id = ? AND block_id = ?')
+    .get(firmId, blockId) as { version: number; content: string; provenance: string; updated_at: string; updated_by: string } | undefined;
+  const now = new Date().toISOString();
+  if (existing) {
+    getDb().prepare('INSERT OR REPLACE INTO firm_factum_node_versions (firm_id, block_id, version, content, provenance, saved_at, saved_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(firmId, blockId, existing.version, existing.content, existing.provenance, existing.updated_at, existing.updated_by);
+    const version = existing.version + 1;
+    getDb().prepare('UPDATE firm_factum_nodes SET content = ?, provenance = ?, version = ?, updated_at = ?, updated_by = ? WHERE firm_id = ? AND block_id = ?')
+      .run(content, provenance, version, now, updatedBy, firmId, blockId);
+    return version;
+  }
+  getDb().prepare('INSERT INTO firm_factum_nodes (firm_id, block_id, content, provenance, version, updated_at, updated_by) VALUES (?, ?, ?, ?, 1, ?, ?)')
+    .run(firmId, blockId, content, provenance, now, updatedBy);
+  return 1;
+}
+
+/** Back to the ported default. The history keeps what the firm had. */
+export function deleteFirmFactumNode(firmId: string, blockId: string): boolean {
+  const existing = getDb().prepare('SELECT version, content, provenance, updated_at, updated_by FROM firm_factum_nodes WHERE firm_id = ? AND block_id = ?')
+    .get(firmId, blockId) as { version: number; content: string; provenance: string; updated_at: string; updated_by: string } | undefined;
+  if (existing) {
+    getDb().prepare('INSERT OR REPLACE INTO firm_factum_node_versions (firm_id, block_id, version, content, provenance, saved_at, saved_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(firmId, blockId, existing.version, existing.content, existing.provenance, existing.updated_at, existing.updated_by);
+  }
+  return getDb().prepare('DELETE FROM firm_factum_nodes WHERE firm_id = ? AND block_id = ?').run(firmId, blockId).changes > 0;
 }
 
 export function saveStyleProfile(row: Omit<FirmStyleProfileRow, 'created_at'>): void {
