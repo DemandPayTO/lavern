@@ -39,6 +39,9 @@ import { TimelineTab } from './matter/tabs/TimelineTab.js';
 import { IntakeTab } from './matter/tabs/IntakeTab.js';
 import { NotesTab } from './matter/tabs/NotesTab.js';
 import { IssuesTab } from './matter/tabs/IssuesTab.js';
+import { RebuttalOptions } from './matter/workspaces/RebuttalOptions.js';
+import { DemandFiguresOptions } from './matter/workspaces/DemandFiguresOptions.js';
+import { TimetablePackageOptions } from './matter/workspaces/TimetablePackageOptions.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -2289,162 +2292,19 @@ export default function MatterDetailView() {
               </>)}
 
               {selectedDraft === 'timetable' && showOptions && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The timetable</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                    Write each step in your own words, in the order the schedule should read. Starling
-                    reproduces them exactly, checks the dates are readable, future, and consistent with
-                    the order you listed, and puts them on your docket.
-                  </div>
-                  {ttRows.map((row, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, color: muted, width: 18, textAlign: 'right' }}>{i + 1}.</span>
-                      <input
-                        type="date"
-                        value={row.date}
-                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
-                        aria-label={`Date for step ${i + 1}`}
-                        style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2 }}
-                      />
-                      <input
-                        type="text"
-                        value={row.label}
-                        onChange={e => setTtRows(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
-                        placeholder="e.g. Defendants to deliver Affidavit of Documents"
-                        aria-label={`Step ${i + 1}`}
-                        style={{ flex: 1, minWidth: 260, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
-                      />
-                      <button
-                        onClick={() => setTtRows(rows => rows.length > 1 ? rows.filter((_, j) => j !== i) : rows)}
-                        aria-label={`Remove step ${i + 1}`}
-                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                      >
-                        remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setTtRows(rows => [...rows, { label: '', date: '' }])}
-                    style={{ marginTop: 4, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                  >
-                    Add a step
-                  </button>
-
-                  <div style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>Procedure</div>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                      {([['simplified', 'Simplified Procedure (Rule 76)'], ['ordinary', 'Ordinary Procedure']] as const).map(([val, lbl]) => (
-                        <button
-                          key={val}
-                          onClick={() => setPkgProcedure(val)}
-                          role="radio"
-                          aria-checked={pkgProcedure === val}
-                          style={{
-                            fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans,
-                            background: pkgProcedure === val ? navy : '#fff',
-                            color: pkgProcedure === val ? '#fff' : navy,
-                            border: `1px solid ${pkgProcedure === val ? navy : border}`, cursor: 'pointer',
-                          }}
-                        >
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Your firm's wording</div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 8 }}>
-                      Each document has its own precedents and its own style. Teach them one at a time.
-                    </div>
-                    {PACKAGE_DOCS.map(doc => {
-                      const profilesFor = pkgProfiles[doc.type] ?? [];
-                      return (
-                        <div key={doc.type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 13, color: ink, minWidth: 210 }}>{doc.label}</span>
-                          <select
-                            value={pkgStyleIds[doc.type] ?? ''}
-                            onChange={e => setPkgStyleIds(prev => ({ ...prev, [doc.type]: e.target.value }))}
-                            aria-label={`Style for ${doc.label}`}
-                            style={{ fontFamily: sans, fontSize: 12.5, padding: '6px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', minWidth: 190 }}
-                          >
-                            <option value="">Starling's default form</option>
-                            {profilesFor.map(pr => <option key={pr.id} value={pr.id}>{pr.label}</option>)}
-                          </select>
-                          <button
-                            onClick={() => setTeachingDocType(teachingDocType === doc.type ? null : doc.type)}
-                            style={{ fontSize: 12, fontWeight: 600, padding: '5px 11px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                          >
-                            {teachingDocType === doc.type ? 'Close' : profilesFor.length ? 'Teach another' : 'Teach from precedents'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {teachingDocType && (
-                      <div style={{ marginTop: 10 }}>
-                        <StyleProfilePanel
-                          documentType={teachingDocType}
-                          documentLabel={PACKAGE_DOCS.find(d => d.type === teachingDocType)?.label ?? 'document'}
-                          profiles={pkgProfiles[teachingDocType] ?? []}
-                          onChanged={() => refreshPkgProfiles()}
-                          onClose={() => setTeachingDocType(null)}
-                        />
-                      </div>
-                    )}
-
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, margin: '14px 0 4px' }}>Draft the whole package</div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                      The motion, the consent order and the draft order from this one schedule, so their
-                      terms cannot disagree. Each arrives as its own document on the Documents tab.
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 8, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={pkgAffidavit} onChange={() => setPkgAffidavit(v => !v)} style={{ accentColor: navy }} />
-                      Include the supporting affidavit for the motion
-                    </label>
-                    {pkgAffidavit && (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                        <input
-                          value={pkgDeponent}
-                          onChange={e => setPkgDeponent(e.target.value)}
-                          placeholder={`Deponent (default: ${profile.displayName || 'you'})`}
-                          aria-label="Deponent name"
-                          style={{ flex: 1, minWidth: 190, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
-                        />
-                        <select value={pkgCapacity} onChange={e => setPkgCapacity(e.target.value as typeof pkgCapacity)} aria-label="Deponent capacity"
-                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
-                          <option value="lawyer">Lawyer with carriage</option>
-                          <option value="law_clerk">Law clerk</option>
-                          <option value="plaintiff">The plaintiff</option>
-                        </select>
-                        <select value={pkgBasis} onChange={e => setPkgBasis(e.target.value as typeof pkgBasis)} aria-label="Knowledge basis"
-                          style={{ fontFamily: sans, fontSize: 13, padding: '7px 9px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff' }}>
-                          <option value="information_and_belief">Information and belief (Rule 39.01(4))</option>
-                          <option value="personal">Personal knowledge</option>
-                          <option value="mixed">Mixed</option>
-                        </select>
-                        {pkgBasis === 'information_and_belief' && (
-                          <input
-                            value={pkgSource}
-                            onChange={e => setPkgSource(e.target.value)}
-                            placeholder="Source of the information (named, as the rule requires)"
-                            aria-label="Source of information"
-                            style={{ flex: 1, minWidth: 240, fontFamily: sans, fontSize: 13, padding: '7px 10px', border: `1px solid ${border}`, borderRadius: 2 }}
-                          />
-                        )}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => { void generatePackage(); }}
-                      disabled={pkgBusy || ttRows.filter(r => r.label.trim() && r.date.trim()).length === 0}
-                      style={{
-                        fontSize: 13.5, fontWeight: 600, padding: '10px 18px', borderRadius: 2, fontFamily: sans,
-                        background: pkgBusy ? muted : orange, color: '#fff', border: 'none',
-                        cursor: pkgBusy ? 'wait' : 'pointer',
-                      }}
-                    >
-                      {pkgBusy ? 'Drafting the package…' : `Generate the timetable package${pkgAffidavit ? ' (4 documents)' : ' (3 documents)'}`}
-                    </button>
-                    {pkgResult && <div role="status" style={{ fontSize: 12.5, color: green, marginTop: 8 }}>{pkgResult}</div>}
-                  </div>
-                </div>
+                <TimetablePackageOptions
+                  ttRows={ttRows} setTtRows={setTtRows}
+                  pkgProcedure={pkgProcedure} setPkgProcedure={setPkgProcedure}
+                  pkgProfiles={pkgProfiles} pkgStyleIds={pkgStyleIds} setPkgStyleIds={setPkgStyleIds}
+                  teachingDocType={teachingDocType} setTeachingDocType={setTeachingDocType}
+                  refreshPkgProfiles={refreshPkgProfiles}
+                  pkgAffidavit={pkgAffidavit} setPkgAffidavit={setPkgAffidavit}
+                  pkgDeponent={pkgDeponent} setPkgDeponent={setPkgDeponent}
+                  pkgCapacity={pkgCapacity} setPkgCapacity={setPkgCapacity}
+                  pkgBasis={pkgBasis} setPkgBasis={setPkgBasis} pkgSource={pkgSource} setPkgSource={setPkgSource}
+                  pkgBusy={pkgBusy} pkgResult={pkgResult} generatePackage={generatePackage}
+                  profileDisplayName={profile.displayName ?? ''}
+                />
               )}
 
               {/* Court-form inputs: the deterministic forms are data, and
@@ -2810,137 +2670,26 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'rebuttal' && showOptions && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The letter you are responding to</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
-                    Upload or paste opposing counsel&rsquo;s letter. The reply is drafted against its actual words, so this is required.
-                    Your client&rsquo;s corrections go in the direction box below; they override everything else.
-                  </div>
-                  {employment.rebuttalSource ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
-                      <span><b>{employment.rebuttalSource.name}</b> · {employment.rebuttalSource.words} words · attached {new Date(employment.rebuttalSource.savedAt).toLocaleDateString()}</span>
-                      <button
-                        onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/rebuttal-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
-                        style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
-                      >
-                        Discard
-                      </button>
-                      <span style={{ fontSize: 12, color: muted }}>Discarding removes the attachment only. Attach another to replace it.</span>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <input
-                          ref={rebuttalInputRef}
-                          type="file"
-                          accept=".pdf,.docx,.doc,.txt,.md,.rtf"
-                          style={{ display: 'none' }}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f); e.target.value = ''; }}
-                          aria-label="Upload the letter from opposing counsel"
-                        />
-                        <button
-                          onClick={() => rebuttalInputRef.current?.click()}
-                          disabled={rebuttalSaving}
-                          style={{ background: '#fff', color: navy, border: `1px solid ${navy}`, fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
-                        >
-                          {rebuttalSaving ? 'Reading…' : 'Upload their letter'}
-                        </button>
-                        <button
-                          onClick={() => setRebuttalPasting(v => !v)}
-                          style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
-                        >
-                          Paste the text
-                        </button>
-                      </div>
-                      {rebuttalPasting && (
-                        <div style={{ marginTop: 10 }}>
-                          <textarea
-                            value={rebuttalText}
-                            onChange={e => setRebuttalText(e.target.value)}
-                            rows={5}
-                            placeholder="Paste opposing counsel's letter here."
-                            aria-label="Paste the letter from opposing counsel"
-                            style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
-                          />
-                          <button
-                            onClick={() => { if (rebuttalText.trim().length >= 50) void attachRebuttalText('Letter from opposing counsel (pasted)', rebuttalText); }}
-                            disabled={rebuttalSaving || rebuttalText.trim().length < 50}
-                            style={{ marginTop: 8, background: rebuttalSaving || rebuttalText.trim().length < 50 ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, border: 'none', cursor: rebuttalSaving || rebuttalText.trim().length < 50 ? 'not-allowed' : 'pointer', fontFamily: sans }}
-                          >
-                            {rebuttalSaving ? 'Saving…' : 'Attach their letter'}
-                          </button>
-                          {rebuttalText.trim().length < 50 && !rebuttalSaving && (
-                            <span style={{ fontSize: 12.5, color: muted, marginLeft: 10 }}>Paste the letter first.</span>
-                          )}
-                        </div>
-                      )}
-                      {rebuttalError && <div role="alert" style={{ marginTop: 8, fontSize: 12.5, color: red }}>{rebuttalError}</div>}
-                    </div>
-                  )}
-
-                  <div style={{ borderTop: `1px solid ${border}`, marginTop: 14, paddingTop: 12 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The client&rsquo;s feedback (optional)</div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
-                      Upload or paste the client&rsquo;s reply as it arrived. Starling reads it directly while drafting: instructions are followed, facts correct the record, and anything said in confidence is kept out of the letter and flagged for your check.
-                    </div>
-                    {employment.rebuttalFeedback ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
-                        <span><b>{employment.rebuttalFeedback.name}</b> · {employment.rebuttalFeedback.words} words · attached {new Date(employment.rebuttalFeedback.savedAt).toLocaleDateString()}</span>
-                        <button
-                          onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/rebuttal-feedback`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
-                          style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
-                        >
-                          Discard
-                        </button>
-                      </div>
-                    ) : (
-                      <div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <input
-                            ref={feedbackInputRef}
-                            type="file"
-                            accept=".pdf,.docx,.doc,.txt,.md,.rtf"
-                            style={{ display: 'none' }}
-                            onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f, 'rebuttal-feedback'); e.target.value = ''; }}
-                            aria-label="Upload the client's feedback"
-                          />
-                          <button
-                            onClick={() => feedbackInputRef.current?.click()}
-                            disabled={rebuttalSaving}
-                            style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
-                          >
-                            Upload the client&rsquo;s feedback
-                          </button>
-                          <button
-                            onClick={() => setFeedbackPasting(v => !v)}
-                            style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: sans }}
-                          >
-                            Paste it
-                          </button>
-                        </div>
-                        {feedbackPasting && (
-                          <div style={{ marginTop: 10 }}>
-                            <textarea
-                              value={feedbackText}
-                              onChange={e => setFeedbackText(e.target.value)}
-                              rows={5}
-                              placeholder="Paste the client's feedback here, as it arrived."
-                              aria-label="Paste the client's feedback"
-                              style={{ width: '100%', boxSizing: 'border-box', fontFamily: sans, fontSize: 13, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
-                            />
-                            <button
-                              onClick={() => { if (feedbackText.trim().length >= 50) { void attachRebuttalText('Client feedback (pasted)', feedbackText, 'rebuttal-feedback'); setFeedbackText(''); setFeedbackPasting(false); } }}
-                              disabled={rebuttalSaving || feedbackText.trim().length < 50}
-                              style={{ marginTop: 8, background: rebuttalSaving || feedbackText.trim().length < 50 ? '#b0b0b0' : navy, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 16px', borderRadius: 2, border: 'none', cursor: rebuttalSaving || feedbackText.trim().length < 50 ? 'not-allowed' : 'pointer', fontFamily: sans }}
-                            >
-                              {rebuttalSaving ? 'Saving…' : 'Attach the feedback'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <RebuttalOptions
+                  sessionId={sessionId}
+                  rebuttalSource={employment.rebuttalSource}
+                  rebuttalFeedback={employment.rebuttalFeedback}
+                  refreshEmployment={() => { void employment.refresh(); }}
+                  rebuttalInputRef={rebuttalInputRef}
+                  feedbackInputRef={feedbackInputRef}
+                  rebuttalSaving={rebuttalSaving}
+                  rebuttalPasting={rebuttalPasting}
+                  setRebuttalPasting={setRebuttalPasting}
+                  rebuttalText={rebuttalText}
+                  setRebuttalText={setRebuttalText}
+                  rebuttalError={rebuttalError}
+                  feedbackPasting={feedbackPasting}
+                  setFeedbackPasting={setFeedbackPasting}
+                  feedbackText={feedbackText}
+                  setFeedbackText={setFeedbackText}
+                  attachRebuttalFile={attachRebuttalFile}
+                  attachRebuttalText={attachRebuttalText}
+                />
               )}
               {selectedDraft && selectedDraft !== 'timetable' && showOptions && renderDirection('document')}
 
@@ -3074,165 +2823,15 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'demand' && showOptions && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>The figures in the letter</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 12, lineHeight: 1.5 }}>
-                    Starling builds the itemised damages table from the analysis rather than writing the numbers into prose. Enter what the employer has already paid and what your client has earned since, and the table nets them off.
-                  </div>
-
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Addressed to</div>
-                    <input
-                      type="text"
-                      placeholder="Opposing counsel, or the employer where counsel is unknown"
-                      value={dlRecipient}
-                      onChange={e => setDlRecipient(e.target.value)}
-                      aria-label="Recipient of the demand letter"
-                      style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                    />
-                    <div style={{ fontSize: 11.5, color: muted, marginTop: 4 }}>Left blank, the letter is marked for you to complete rather than addressed to a guess.</div>
-                  </div>
-
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 5 }}>
-                      <div style={{ fontSize: 12.5, color: muted, fontWeight: 600 }}>Heads of damage claimed</div>
-                      {dlHeadsTouched && (
-                        <button
-                          onClick={() => { setDlHeadsTouched(false); void employment.refresh(); }}
-                          style={{ fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
-                        >
-                          reset to the analysis
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: muted, marginBottom: 7, lineHeight: 1.5 }}>
-                      Prefilled from the analysis. Edit the wording, the basis or the figure and the table says what you wrote. A head left without an amount is shown as one for you to quantify, not dropped.
-                    </div>
-                    {dlHeads.map((row, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <input
-                            type="text"
-                            placeholder="Head, e.g. Pay in lieu of reasonable notice"
-                            value={row.label}
-                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r)); }}
-                            aria-label={`Head of damage ${i + 1}`}
-                            style={{ fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                          />
-                          <input
-                            type="text"
-                            placeholder="Basis, e.g. eight to twelve months at the plaintiff's compensation"
-                            value={row.basis}
-                            onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, basis: e.target.value } : r)); }}
-                            aria-label={`Basis for head ${i + 1}`}
-                            style={{ fontFamily: sans, fontSize: 12.5, padding: '8px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: muted, boxSizing: 'border-box' }}
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="Amount"
-                          value={row.amount}
-                          onChange={e => { setDlHeadsTouched(true); setDlHeads(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r)); }}
-                          aria-label={`Amount for head ${i + 1}`}
-                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                        <button
-                          onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => rows.filter((_, j) => j !== i)); }}
-                          aria-label={`Remove head ${i + 1}`}
-                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '9px 4px 0' }}
-                        >
-                          remove
-                        </button>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 2 }}>
-                      <button
-                        onClick={() => { setDlHeadsTouched(true); setDlHeads(rows => [...rows, { label: '', basis: '', amount: '' }]); }}
-                        style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                      >
-                        Add a head
-                      </button>
-                      {dlHeads.length > 0 && (() => {
-                        const gross = dlHeads.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-                        // The shortcut and the label reflect the NET the
-                        // letter's table actually claims: gross less what has
-                        // been paid and earned in mitigation. Filling the
-                        // demand with the gross while the table nets those
-                        // off made the letterhead figure argue with its body.
-                        const paidTotal = dlPaid.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-                        const mitig = Number(dlMitigation) || 0;
-                        const net = Math.max(0, gross - paidTotal - mitig);
-                        const deducted = paidTotal + mitig > 0;
-                        const asCad = net.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
-                        return (
-                          <span style={{ fontSize: 12, color: muted }}>
-                            {deducted ? 'Net claim' : 'Subtotal'} {asCad}
-                            {/* The demand is a judgment call, so it is never
-                                filled in silently. Offered, once, when the
-                                figures are on screen and the field is empty. */}
-                            {net > 0 && !genDemandAmount && (
-                              <button
-                                onClick={() => setGenDemandAmount(String(Math.round(net)))}
-                                style={{ marginLeft: 8, fontSize: 12, color: orange, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: sans }}
-                              >
-                                demand this amount
-                              </button>
-                            )}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Already paid by the employer</div>
-                    {dlPaid.map((row, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-                        <input
-                          type="text"
-                          placeholder="e.g., ESA notice and severance"
-                          value={row.label}
-                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
-                          aria-label={`Payment ${i + 1} description`}
-                          style={{ flex: 1, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Amount"
-                          value={row.amount}
-                          onChange={e => setDlPaid(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value.replace(/[^\d]/g, '') } : r))}
-                          aria-label={`Payment ${i + 1} amount`}
-                          style={{ width: 120, fontFamily: sans, fontSize: 13.5, padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                        />
-                        <button
-                          onClick={() => setDlPaid(rows => rows.filter((_, j) => j !== i))}
-                          aria-label={`Remove payment ${i + 1}`}
-                          style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
-                        >
-                          remove
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => setDlPaid(rows => [...rows, { label: '', amount: '' }])}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                    >
-                      Add a payment
-                    </button>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Mitigation earnings to date (CAD)</div>
-                    <input
-                      type="text"
-                      placeholder="Leave blank if none"
-                      value={dlMitigation}
-                      onChange={e => setDlMitigation(e.target.value.replace(/[^\d]/g, ''))}
-                      aria-label="Mitigation earnings to date"
-                      style={{ width: 200, fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink, boxSizing: 'border-box' }}
-                    />
-                  </div>
-                </div>
+                <DemandFiguresOptions
+                  dlRecipient={dlRecipient} setDlRecipient={setDlRecipient}
+                  dlHeads={dlHeads} setDlHeads={setDlHeads}
+                  dlHeadsTouched={dlHeadsTouched} setDlHeadsTouched={setDlHeadsTouched}
+                  dlPaid={dlPaid} setDlPaid={setDlPaid}
+                  dlMitigation={dlMitigation} setDlMitigation={setDlMitigation}
+                  genDemandAmount={genDemandAmount} setGenDemandAmount={setGenDemandAmount}
+                  refreshEmployment={() => { void employment.refresh(); }}
+                />
               )}
 
               {selectedDraft === 'mediation' && showOptions && (
