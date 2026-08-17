@@ -18,8 +18,9 @@ import {
 } from '../../../employment/factum-nodes.js';
 import { buildFactumOutline, isStructuralSectionId, structuralSectionKind } from '../../../employment/factum-outline.js';
 import type { FactumDraftState } from '../../../employment/factum-outline.js';
-import { generateFactumSection } from '../../../employment/factum-section-generator.js';
+import { generateFactumSection, factumSectionReviewFlags } from '../../../employment/factum-section-generator.js';
 import type { FactumSectionRequest } from '../../../employment/factum-section-generator.js';
+import { sanitiseReviewHtml } from '../../../employment/document-reviews.js';
 import { loadSelectedFactumNodes } from './factum-selection.js';
 import { loadEmploymentData, saveEmploymentData, resolveFirmId, logger } from './shared.js';
 
@@ -171,6 +172,59 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
 
     logger.info('Factum section drafted', { matterId, sectionId, costUsd: result.costUsd.toFixed(4) });
     return reply.send({ ok: true, sectionId, html: result.html, reviewFlags: result.reviewFlags, costUsd: result.costUsd });
+  });
+
+  // Approve a drafted section, edit it by hand, un-approve it, or discard it.
+  // Approve binds the section into the assembled factum; editing a section
+  // un-approves it so the lawyer re-reads the changed text before approving.
+  fastify.put('/api/employment/:matterId/factum-section', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = z.object({
+      sectionId: z.string().trim().min(1).max(60),
+      action: z.enum(['approve', 'unapprove', 'save', 'clear']),
+      html: z.string().max(200_000).optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid section change.' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const { sectionId, action } = parsed.data;
+
+    const draft = ((matter as Record<string, unknown>).factumDraft ?? { sections: {} }) as FactumDraftState;
+    if (!draft.sections) draft.sections = {};
+
+    if (action === 'clear') {
+      delete draft.sections[sectionId];
+      (matter as Record<string, unknown>).factumDraft = draft;
+      await saveEmploymentData(userId, matterId, matter, employment);
+      return reply.send({ ok: true, sectionId, cleared: true });
+    }
+
+    const sec = draft.sections[sectionId];
+    if (!sec) return reply.status(400).send({ ok: false, error: 'Draft this section before approving it.' });
+
+    if (action === 'approve') {
+      sec.approved = true;
+    } else if (action === 'unapprove') {
+      sec.approved = false;
+    } else if (action === 'save') {
+      if (!parsed.data.html || !parsed.data.html.trim()) {
+        return reply.status(400).send({ ok: false, error: 'The edited section is empty. Add text or discard it.' });
+      }
+      // The lawyer's edit is arbitrary HTML rendered in the dashboard, so it
+      // passes the same allowlist as an adopted review version.
+      const clean = sanitiseReviewHtml(parsed.data.html.trim());
+      sec.html = clean;
+      sec.reviewFlags = factumSectionReviewFlags(clean);
+      sec.approved = false; // an edit needs a fresh read before it binds.
+      sec.generatedAt = new Date().toISOString();
+    }
+
+    (matter as Record<string, unknown>).factumDraft = draft;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, sectionId, approved: sec.approved, html: sec.html, reviewFlags: sec.reviewFlags ?? [] });
   });
 
   // ── The argument library: the firm's settled argument language ─────────

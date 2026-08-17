@@ -1075,6 +1075,30 @@ export default function MatterDetailView() {
     refreshFactumOutline();
   }, [sessionId, factumOutline, genDemandAmount, profile, refreshFactumOutline]);
 
+  const putFactumSection = useCallback(async (body: { sectionId: string; action: 'approve' | 'unapprove' | 'save' | 'clear'; html?: string }) => {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/factum-section`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) { setGenError((d as { error?: string }).error ?? 'The change was not saved.'); return; }
+    } catch {
+      setGenError('The change was not saved. Check the connection and try again.');
+      return;
+    }
+    refreshFactumOutline();
+  }, [sessionId, refreshFactumOutline]);
+
+  const approveFactumSection = useCallback((sectionId: string, approved: boolean) =>
+    putFactumSection({ sectionId, action: approved ? 'approve' : 'unapprove' }), [putFactumSection]);
+  const saveFactumSection = useCallback((sectionId: string, html: string) =>
+    putFactumSection({ sectionId, action: 'save', html }), [putFactumSection]);
+  const clearFactumSection = useCallback((sectionId: string) =>
+    putFactumSection({ sectionId, action: 'clear' }), [putFactumSection]);
+
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
   // rather than retypes.
@@ -2562,6 +2586,9 @@ export default function MatterDetailView() {
                   sections={factumOutline}
                   draftSection={draftFactumSection}
                   draftAll={draftAllFactumSections}
+                  approveSection={approveFactumSection}
+                  saveSection={saveFactumSection}
+                  clearSection={clearFactumSection}
                   busyId={factumDraftBusyId}
                   draftingAll={factumDraftingAll}
                 />

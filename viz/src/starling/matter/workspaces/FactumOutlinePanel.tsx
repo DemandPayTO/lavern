@@ -1,10 +1,11 @@
 // Factum outline: the section-by-section drafting surface. Each part of the
 // factum (Overview, Facts, each Part III argument, the Order) is a section the
-// lawyer drafts, reads, and (in the next slice) approves. Draft one or draft
-// them all, then read each below. State stays in the parent (Option A).
+// lawyer drafts, reads, edits, and approves. Draft one or draft them all, read
+// each below, adjust the text by hand where needed, then Approve it. Approved
+// sections assemble into the numbered factum. State stays in the parent.
 
 import { useState } from 'react';
-import { navy, orange, green, amber, muted, border, ink, sans } from '../tokens.js';
+import { navy, orange, green, amber, red, muted, border, ink, sans } from '../tokens.js';
 
 export type FactumOutlineSectionUI = {
   id: string;
@@ -23,24 +24,43 @@ export type FactumOutlineSectionUI = {
 };
 
 export function FactumOutlinePanel({
-  sections, draftSection, draftAll, busyId, draftingAll,
+  sections, draftSection, draftAll, approveSection, saveSection, clearSection, busyId, draftingAll,
 }: {
   sections: FactumOutlineSectionUI[];
   draftSection: (sectionId: string) => Promise<void>;
   draftAll: () => Promise<void>;
+  approveSection: (sectionId: string, approved: boolean) => Promise<void>;
+  saveSection: (sectionId: string, html: string) => Promise<void>;
+  clearSection: (sectionId: string) => Promise<void>;
   busyId: string | null;
   draftingAll: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const drafted = sections.filter(s => s.hasDraft).length;
+  const approved = sections.filter(s => s.approved).length;
   const anyBusy = busyId !== null || draftingAll;
+
+  const startEdit = (s: FactumOutlineSectionUI) => {
+    setEditId(s.id);
+    setEditText(s.html ?? '');
+    setOpenId(s.id);
+  };
+  const saveEdit = async (id: string) => {
+    if (!editText.trim() || saving) return;
+    setSaving(true);
+    try { await saveSection(id, editText.trim()); setEditId(null); }
+    finally { setSaving(false); }
+  };
 
   return (
     <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
       <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Draft the factum section by section</div>
       <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-        Each part of the factum is a section you draft, read, and approve: the Overview, the Facts, each argument, and the Order. Draft one to read it on its own, or draft them all, then read each below and adjust before you approve it. The Schedule of Authorities is built from the arguments you keep.
+        Each part of the factum is a section you draft, read, and approve: the Overview, the Facts, each argument, and the Order. Draft one to read it on its own, or draft them all, then read each below and edit it by hand where you want to. Approve locks the section into the factum; Discard removes the draft. The Schedule of Authorities is built from the arguments you keep.
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
@@ -51,7 +71,7 @@ export function FactumOutlinePanel({
         >
           {draftingAll ? 'Drafting every section…' : drafted === 0 ? 'Draft all sections' : 'Draft any not yet drafted'}
         </button>
-        <span style={{ fontSize: 11.5, color: muted }}>{drafted} of {sections.length} drafted</span>
+        <span style={{ fontSize: 11.5, color: muted }}>{drafted} of {sections.length} drafted · {approved} approved</span>
       </div>
 
       {sections.map(s => {
@@ -60,6 +80,7 @@ export function FactumOutlinePanel({
             : { label: 'NOT DRAFTED', bg: '#f3f3f3', fg: muted };
         const isBusy = busyId === s.id || draftingAll;
         const isOpen = openId === s.id;
+        const isEditing = editId === s.id;
         const flags = s.reviewFlags ?? [];
         return (
           <div key={s.id} style={{ padding: '7px 0', borderTop: `1px solid #f0ede8` }}>
@@ -83,10 +104,29 @@ export function FactumOutlinePanel({
                   {isOpen ? 'hide' : 'read'}
                 </button>
               )}
+              {s.hasDraft && !s.approved && (
+                <button
+                  onClick={() => void approveSection(s.id, true)}
+                  disabled={anyBusy}
+                  style={{ fontSize: 11.5, fontWeight: 600, fontFamily: sans, background: green, border: 'none', color: '#fff', cursor: anyBusy ? 'not-allowed' : 'pointer', padding: '3px 11px', borderRadius: 2 }}
+                >
+                  Approve
+                </button>
+              )}
+              {s.approved && (
+                <button
+                  onClick={() => void approveSection(s.id, false)}
+                  aria-label={`Reopen ${s.header}`}
+                  title="Reopen this section to change it"
+                  style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '3px 4px' }}
+                >
+                  reopen
+                </button>
+              )}
               <button
                 onClick={() => void draftSection(s.id)}
                 disabled={anyBusy}
-                style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: anyBusy ? muted : navy, cursor: anyBusy ? 'not-allowed' : 'pointer', padding: '3px 9px', borderRadius: 2, minWidth: 74 }}
+                style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: anyBusy ? muted : navy, cursor: anyBusy ? 'not-allowed' : 'pointer', padding: '3px 9px', borderRadius: 2, minWidth: 66 }}
               >
                 {isBusy ? 'drafting…' : s.hasDraft ? 'redraft' : 'draft'}
               </button>
@@ -99,11 +139,55 @@ export function FactumOutlinePanel({
                     {flags.map((f, i) => <li key={i}>{f}</li>)}
                   </ul>
                 )}
-                <div
-                  style={{ fontSize: 12.5, color: ink, lineHeight: 1.55, background: '#fbfaf7', border: `1px solid ${border}`, borderRadius: 2, padding: '10px 12px', maxHeight: 320, overflowY: 'auto' }}
-                  dangerouslySetInnerHTML={{ __html: s.html ?? '' }}
-                />
-                {s.generatedAt && <div style={{ fontSize: 10.5, color: muted, marginTop: 4 }}>Drafted {new Date(s.generatedAt).toLocaleString('en-CA')}</div>}
+                {isEditing ? (
+                  <div>
+                    <textarea
+                      value={editText}
+                      onChange={e => setEditText(e.target.value)}
+                      rows={12}
+                      aria-label={`Edit ${s.header}`}
+                      style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12, lineHeight: 1.5, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, color: ink, resize: 'vertical' }}
+                    />
+                    <div style={{ fontSize: 11, color: muted, margin: '4px 0 8px' }}>Paragraphs are &lt;p&gt;…&lt;/p&gt;. Saving re-checks the section and reopens it for a final read before you approve it.</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        onClick={() => void saveEdit(s.id)}
+                        disabled={!editText.trim() || saving}
+                        style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 2, fontFamily: sans, background: editText.trim() && !saving ? orange : '#b0b0b0', color: '#fff', border: 'none', cursor: editText.trim() && !saving ? 'pointer' : 'not-allowed' }}
+                      >
+                        {saving ? 'Saving…' : 'Save changes'}
+                      </button>
+                      <button
+                        onClick={() => setEditId(null)}
+                        style={{ fontSize: 12, padding: '6px 12px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{ fontSize: 12.5, color: ink, lineHeight: 1.55, background: '#fbfaf7', border: `1px solid ${border}`, borderRadius: 2, padding: '10px 12px', maxHeight: 320, overflowY: 'auto' }}
+                      dangerouslySetInnerHTML={{ __html: s.html ?? '' }}
+                    />
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 6 }}>
+                      <button
+                        onClick={() => startEdit(s)}
+                        style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: navy, cursor: 'pointer', padding: '2px 0' }}
+                      >
+                        edit by hand
+                      </button>
+                      <button
+                        onClick={() => void clearSection(s.id)}
+                        style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: red, cursor: 'pointer', padding: '2px 0' }}
+                      >
+                        Discard
+                      </button>
+                      {s.generatedAt && <span style={{ fontSize: 10.5, color: muted }}>Drafted {new Date(s.generatedAt).toLocaleString('en-CA')}</span>}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

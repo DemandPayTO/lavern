@@ -150,6 +150,17 @@ Draft the section now, following the output rules exactly.`;
 
 // ── Generation ──────────────────────────────────────────────────────────────
 
+/** The review flags for a section's HTML. Used both after drafting and after
+ *  a lawyer edits a section by hand, so an edit that breaks a citation or
+ *  leaves a fill-in is caught the same way a fresh draft is. */
+export function factumSectionReviewFlags(html: string, definedTerms?: string[]): string[] {
+  return [
+    ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkCanonTextIntegrity(html),
+    ...checkFillInPlaceholders(html),
+  ];
+}
+
 export async function generateFactumSection(
   req: FactumSectionRequest,
   definedTerms?: string[],
