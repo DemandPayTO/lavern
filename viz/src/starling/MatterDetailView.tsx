@@ -44,6 +44,9 @@ import { DemandFiguresOptions } from './matter/workspaces/DemandFiguresOptions.j
 import { TimetablePackageOptions } from './matter/workspaces/TimetablePackageOptions.js';
 import { TemplateStyleOptions } from './matter/workspaces/TemplateStyleOptions.js';
 import { ReplyOptions } from './matter/workspaces/ReplyOptions.js';
+import { SocPleadingOptions } from './matter/workspaces/SocPleadingOptions.js';
+import { DemandSourcesOptions } from './matter/workspaces/DemandSourcesOptions.js';
+import { MediationSourcesOptions } from './matter/workspaces/MediationSourcesOptions.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -2408,98 +2411,15 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'soc' && showOptions && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>What the claim reads before it drafts</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.55 }}>
-                    Blanks the intake cannot fill are looked up in these documents; every fill carries the quote it came from as a review flag, and anything no document answers stays marked [LAWYER: ...] rather than guessed.
-                  </div>
-                  <div style={{ fontSize: 13, color: ink, marginBottom: 8 }}>
-                    {employment.demandLetterOnFile
-                      ? '\u2713 The demand letter on this matter is included automatically.'
-                      : 'No demand letter is on this matter yet. Generate one, or adopt yours in the Demand Letter workspace, and the claim will read it.'}
-                  </div>
-                  {employment.socSource ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
-                      <span>{"\u2713"} <b>{employment.socSource.name}</b> {"\u00b7"} {employment.socSource.words} words {"\u00b7"} attached {new Date(employment.socSource.savedAt).toLocaleDateString()}</span>
-                      <button
-                        onClick={() => { void (async () => { await fetch(`/api/employment/${sessionId}/soc-source`, { method: 'DELETE', credentials: 'include' }); void employment.refresh(); })(); }}
-                        style={{ background: 'none', border: `1px solid ${border}`, color: muted, cursor: 'pointer', fontSize: 12.5, fontFamily: sans, padding: '4px 10px', borderRadius: 2 }}
-                      >
-                        Discard
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <input
-                        ref={socSourceInputRef}
-                        type="file"
-                        accept=".pdf,.docx,.doc,.txt,.md,.rtf"
-                        style={{ display: 'none' }}
-                        onChange={e => { const f = e.target.files?.[0]; if (f) void attachRebuttalFile(f, 'soc-source'); e.target.value = ''; }}
-                        aria-label="Attach a document for the claim to read"
-                      />
-                      <button
-                        onClick={() => socSourceInputRef.current?.click()}
-                        disabled={rebuttalSaving}
-                        style={{ background: '#fff', color: navy, border: `1px solid ${border}`, fontSize: 13, padding: '8px 14px', borderRadius: 2, cursor: rebuttalSaving ? 'not-allowed' : 'pointer', fontFamily: sans }}
-                      >
-                        {rebuttalSaving ? 'Reading\u2026' : (employment.socSource ? 'Replace the attached document' : 'Attach a document (optional)')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selectedDraft === 'soc' && showOptions && socNodes.length > 0 && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>What this claim pleads</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-                    Each cause of action is a section in the firm's settled language, selected by the facts on file and your approved issues. Turning one on that the intake never asked about gives you the structure with [LAWYER: ...] markers, never invented facts.
-                  </div>
-                  {socNodes.map(n => {
-                    const on = n.status === 'firing' || n.status === 'forced_on';
-                    const chip = n.status === 'firing' ? { label: 'PLEADED', bg: '#e8f2e8', fg: green }
-                      : n.status === 'forced_on' ? { label: 'FORCED ON', bg: '#e8f2e8', fg: green }
-                      : n.status === 'eligible_unapproved' ? { label: 'FACTS SUPPORT IT', bg: '#fdf0dd', fg: amber }
-                      : n.status === 'forced_off' ? { label: 'FORCED OFF', bg: '#f3f3f3', fg: muted }
-                      : { label: 'OFF', bg: '#f3f3f3', fg: muted };
-                    return (
-                      <div key={n.blockId} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '5px 0', borderTop: `1px solid #f0ede8` }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: chip.fg, background: chip.bg, padding: '2px 7px', borderRadius: 2, minWidth: 86, textAlign: 'center', marginTop: 2 }}>{chip.label}</span>
-                        <span style={{ flex: 1, fontSize: 12.5, color: on ? ink : muted }}>
-                          <span style={{ fontWeight: 600 }}>{n.sectionHeader}</span>
-                          <span style={{ display: 'block', fontSize: 11.5, color: muted, lineHeight: 1.45 }}>{n.reason}</span>
-                        </span>
-                        {n.status !== 'firing' && (n.forceable ?? n.tier === 2) && (
-                          <button
-                            onClick={() => void setSocOverride(n.blockId, n.status === 'forced_on' || n.status === 'forced_off' ? null : 'on')}
-                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: navy, cursor: 'pointer', padding: '3px 9px', borderRadius: 2 }}
-                          >
-                            {n.status === 'forced_on' || n.status === 'forced_off' ? 'reset' : 'force on'}
-                          </button>
-                        )}
-                        {(n.status === 'firing' || n.status === 'eligible_unapproved') && (n.forceable ?? n.tier === 2) && (
-                          <button
-                            onClick={() => void setSocOverride(n.blockId, 'off')}
-                            aria-label={`Turn off ${n.sectionHeader}`}
-                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '3px 4px' }}
-                          >
-                            turn off
-                          </button>
-                        )}
-                        {n.status === 'forced_off' && !((n.forceable ?? n.tier === 2)) && (
-                          <button
-                            onClick={() => void setSocOverride(n.blockId, null)}
-                            aria-label={`Turn ${n.sectionHeader} back on`}
-                            style={{ fontSize: 11.5, fontFamily: sans, background: 'none', border: `1px solid ${border}`, color: navy, cursor: 'pointer', padding: '3px 9px', borderRadius: 2 }}
-                          >
-                            turn back on
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <SocPleadingOptions
+                  employment={employment}
+                  sessionId={sessionId}
+                  socSourceInputRef={socSourceInputRef}
+                  rebuttalSaving={rebuttalSaving}
+                  attachRebuttalFile={attachRebuttalFile}
+                  socNodes={socNodes}
+                  setSocOverride={setSocOverride}
+                />
               )}
 
               {selectedDraft === 'reply' && showOptions && (
@@ -2600,77 +2520,16 @@ export default function MatterDetailView() {
 
 
               {selectedDraft === 'demand' && showOptions && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Documents this letter argues from</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
-                    A demand letter turns on specific words: the clause the parties signed, the reason the employer put in writing. Attach those documents and the letter quotes them instead of paraphrasing. Say what each one is, because the letter reads the employment agreement differently from a policy manual.
-                  </div>
-
-                  {storedSources.length === 0 && (
-                    <div style={{ fontSize: 12.5, color: muted, marginBottom: 10, fontStyle: 'italic' }}>
-                      Nothing attached. The letter will argue from the intake alone.
-                    </div>
-                  )}
-                  {storedSources.map(sd => (
-                    <label key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={dlSourceIds.has(sd.id)}
-                        onChange={() => setDlSourceIds(prev => {
-                          const next = new Set(prev);
-                          if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id);
-                          return next;
-                        })}
-                        style={{ accentColor: navy }}
-                      />
-                      <span style={{ flex: 1 }}>
-                        {sd.name}
-                        <span style={{ color: muted, fontSize: 12 }}> · {DEMAND_SOURCE_KIND_LABELS[sd.kind ?? 'other'] ?? 'Other'} · {sd.words.toLocaleString('en-CA')} words</span>
-                      </span>
-                      <button
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          if (!sessionId) return;
-                          await fetch(`/api/employment/${sessionId}/brief-sources/${sd.id}`, { method: 'DELETE', credentials: 'include' });
-                          void employment.refresh();
-                        }}
-                        style={{ fontSize: 12, fontFamily: sans, background: 'none', border: 'none', color: muted, cursor: 'pointer', padding: '0 4px' }}
-                      >
-                        remove
-                      </button>
-                    </label>
-                  ))}
-
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
-                    <select
-                      value={dlUploadKind}
-                      onChange={e => setDlUploadKind(e.target.value)}
-                      aria-label="What kind of document you are attaching"
-                      style={{ fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}
-                    >
-                      {Object.entries(DEMAND_SOURCE_KIND_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                    <input
-                      ref={dlSourceInputRef}
-                      type="file"
-                      accept=".pdf,.docx,.md,.txt"
-                      multiple
-                      style={{ display: 'none' }}
-                      onChange={e => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void (async () => { for (const f of fs) await attachBriefSource(f, dlUploadKind); })(); }}
-                      aria-label="Attach a document for the demand letter"
-                    />
-                    <button
-                      onClick={() => dlSourceInputRef.current?.click()}
-                      disabled={sourceParsing}
-                      style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                    >
-                      {sourceParsing ? 'Reading…' : 'Attach a document'}
-                    </button>
-                  </div>
-                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
-                </div>
+                <DemandSourcesOptions
+                  storedSources={storedSources}
+                  dlSourceIds={dlSourceIds} setDlSourceIds={setDlSourceIds}
+                  dlUploadKind={dlUploadKind} setDlUploadKind={setDlUploadKind}
+                  dlSourceInputRef={dlSourceInputRef}
+                  attachBriefSource={attachBriefSource}
+                  sourceParsing={sourceParsing} sourceError={sourceError}
+                  sessionId={sessionId}
+                  refreshEmployment={() => { void employment.refresh(); }}
+                />
               )}
 
               {selectedDraft === 'demand' && showOptions && (
@@ -2686,64 +2545,17 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'mediation' && showOptions && (
-                <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Sources for this brief</div>
-                  <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-                    The brief argues the positions in these documents and cites back to them. Attach what was
-                    drafted outside Starling: the statement of claim, the demand letter, a list of cases. Up to roughly 40 pages per document is read in full.
-                  </div>
-                  {employment.generatedDocuments.some(d => d.docType === 'demand_letter') && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={includeGenDemand} onChange={() => setIncludeGenDemand(v => !v)} style={{ accentColor: navy }} />
-                      Demand Letter (generated in Starling)
-                    </label>
-                  )}
-                  {employment.generatedDocuments.some(d => d.docType === 'statement_of_claim') && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={includeGenSoc} onChange={() => setIncludeGenSoc(v => !v)} style={{ accentColor: navy }} />
-                      Statement of Claim (generated in Starling)
-                    </label>
-                  )}
-                  {storedSources.map(sd => (
-                    <div key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, padding: '3px 0' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedSourceIds.has(sd.id)}
-                        onChange={() => setSelectedSourceIds(prev => { const next = new Set(prev); if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id); return next; })}
-                        aria-label={`Use ${sd.name} for this draft`}
-                        style={{ accentColor: navy }}
-                      />
-                      <span style={{ flex: 1 }}>{sd.name} <span style={{ color: muted, fontSize: 12 }}>({Number(sd.words).toLocaleString('en-CA')} words)</span></span>
-                      <button
-                        onClick={() => void removeBriefSource(sd.id)}
-                        aria-label={`Remove ${sd.name} from the matter`}
-                        style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                      >
-                        remove
-                      </button>
-                    </div>
-                  ))}
-                  {storedSources.length > 0 && (
-                    <div style={{ fontSize: 11.5, color: muted, marginTop: 2 }}>Attached sources stay on the matter for every regeneration.</div>
-                  )}
-                  <input
-                    ref={briefSourceInputRef}
-                    type="file"
-                    accept=".pdf,.docx,.md,.txt"
-                    multiple
-                    style={{ display: 'none' }}
-                    onChange={e => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void (async () => { for (const f of fs) await attachBriefSource(f); })(); }}
-                    aria-label="Attach a source document for the brief"
-                  />
-                  <button
-                    onClick={() => briefSourceInputRef.current?.click()}
-                    disabled={sourceParsing}
-                    style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: 'pointer' }}
-                  >
-                    {sourceParsing ? 'Reading…' : 'Attach a document'}
-                  </button>
-                  {sourceError && <div role="alert" style={{ fontSize: 12.5, color: red, marginTop: 6 }}>{sourceError}</div>}
-                </div>
+                <MediationSourcesOptions
+                  generatedDocuments={employment.generatedDocuments}
+                  includeGenDemand={includeGenDemand} setIncludeGenDemand={setIncludeGenDemand}
+                  includeGenSoc={includeGenSoc} setIncludeGenSoc={setIncludeGenSoc}
+                  storedSources={storedSources}
+                  selectedSourceIds={selectedSourceIds} setSelectedSourceIds={setSelectedSourceIds}
+                  removeBriefSource={removeBriefSource}
+                  briefSourceInputRef={briefSourceInputRef}
+                  attachBriefSource={attachBriefSource}
+                  sourceParsing={sourceParsing} sourceError={sourceError}
+                />
               )}
 
               {selectedDraft && selectedDraft !== 'timetable' && showOptions && (
