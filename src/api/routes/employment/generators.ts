@@ -502,6 +502,9 @@ export function registerGeneratorRoutes(fastify: FastifyInstance): void {
       courtFileNumber: ((matter as Record<string, unknown>).courtFileNumber as string) || undefined,
       lsoNumber: socLso || undefined,
       sourceDocuments: socSources.length > 0 ? socSources : undefined,
+      // Section-by-section: the lawyer's approved or edited pleading sections
+      // (and Background Facts) override the standard render at assembly.
+      socDraft: (matter as Record<string, unknown>).socDraft as import('../../../employment/soc-outline.js').SocDraftState | undefined,
     }, definedTerms);
     await applyDirectionAftermath(result, socDirection);
     if (socStyle) {

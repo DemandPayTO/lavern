@@ -123,6 +123,169 @@ export function registerSocNodeRoutes(fastify: FastifyInstance): void {
     return reply.send({ ok: true, overrides });
   });
 
+  // ── The SOC outline: read, edit, approve the claim section by section ───
+  // Every active pleading section (the firm's nodes, rendered) plus the
+  // Background Facts. Reading and editing strip the {{para}} markers; a saved
+  // edit re-inserts them so the document-wide numbering stays correct.
+
+  const socOutlineCtx = async (req: FastifyRequest, matter: Record<string, unknown>, employment: { intake?: EmploymentIntakeData; analysis?: unknown; gates?: unknown; approvedIssues?: string[]; demandAmount?: number | null }) => {
+    const { loadSocNodes, buildSocEvalContext, mergeFirmNodes } = await import('../../../employment/soc-nodes.js');
+    const firmId = resolveFirmId(req);
+    const { getFirmSocNodes } = await import('../../../db/database.js');
+    const nodes = firmId ? mergeFirmNodes(loadSocNodes(), getFirmSocNodes(firmId)) : loadSocNodes();
+    const genSoc = matter.generatedSOC as { claimAmount?: number } | undefined;
+    const ctx = buildSocEvalContext({
+      intake: employment.intake!,
+      analysis: (employment.analysis as import('../../../types/employment-intake.js').IntakeAnalysisResult | undefined) ?? null,
+      gates: (employment.gates as import('../../../types/employment-intake.js').GateResult[] | undefined) ?? [],
+      approvedIssues: employment.approvedIssues ?? [],
+      claimAmount: genSoc?.claimAmount ?? employment.demandAmount ?? 0,
+    });
+    return { nodes, ctx };
+  };
+
+  fastify.get('/api/employment/:matterId/soc-outline', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!employment.intake) return reply.send({ ok: true, sections: [] });
+
+    const { buildSocOutline } = await import('../../../employment/soc-outline.js');
+    const { nodes, ctx } = await socOutlineCtx(req, matter as Record<string, unknown>, employment);
+    const overrides = ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>;
+    const draft = ((matter as Record<string, unknown>).socDraft ?? undefined) as import('../../../employment/soc-outline.js').SocDraftState | undefined;
+    return reply.send({ ok: true, sections: buildSocOutline({ nodes, ctx, approvedIssues: employment.approvedIssues ?? [], overrides, draft }) });
+  });
+
+  // Draft the Background Facts (the SOC's one model-written section).
+  fastify.post('/api/employment/:matterId/soc-section/draft', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = z.object({ sectionId: z.string().trim().min(1).max(60) }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Name the section to draft.' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    if (!employment.intake || !employment.analysis) {
+      return reply.status(400).send({ ok: false, error: 'Complete intake and run analysis before drafting the claim.' });
+    }
+    const { isSocFactsSection } = await import('../../../employment/soc-outline.js');
+    if (!isSocFactsSection(parsed.data.sectionId)) {
+      return reply.status(400).send({ ok: false, error: 'Only the Background Facts are drafted by Starling. The other sections plead in the firm\'s settled language; read and edit them in place.' });
+    }
+
+    const { generateSocBackgroundFacts } = await import('../../../employment/soc-generator.js');
+    const { loadSocNodes, mergeFirmNodes } = await import('../../../employment/soc-nodes.js');
+    const firmId = resolveFirmId(req);
+    const { getFirmSocNodes } = await import('../../../db/database.js');
+    const customNodes = firmId ? mergeFirmNodes(loadSocNodes(), getFirmSocNodes(firmId)) : undefined;
+    const genSoc = (matter as Record<string, unknown>).generatedSOC as { claimAmount?: number } | undefined;
+
+    let result;
+    try {
+      result = await generateSocBackgroundFacts({
+        intake: employment.intake,
+        approvedIssues: employment.approvedIssues ?? [],
+        analysis: employment.analysis,
+        procedureType: (employment.analysis as { recommendedProcedure?: 'simplified' | 'ordinary' } | null)?.recommendedProcedure ?? 'ordinary',
+        claimAmount: genSoc?.claimAmount ?? employment.demandAmount ?? 0,
+        lawyerName: '', firmName: '', courtLocation: '',
+        gates: employment.gates,
+        timeline: (employment.timeline ?? []).map(e => ({ date: e.date, label: e.label, description: e.description })),
+        nodeOverrides: ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>,
+        customNodes,
+      });
+    } catch (err) {
+      logger.error('SOC facts draft failed', { matterId, error: err instanceof Error ? err.message : String(err) });
+      return reply.status(502).send({ ok: false, error: 'The Background Facts could not be drafted. Please try again.' });
+    }
+
+    const draft = ((matter as Record<string, unknown>).socDraft ?? { sections: {} }) as import('../../../employment/soc-outline.js').SocDraftState;
+    if (!draft.sections) draft.sections = {};
+    draft.sections[parsed.data.sectionId] = { html: result.html, approved: false, edited: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
+    (matter as Record<string, unknown>).socDraft = draft;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    const { stripParaMarkers } = await import('../../../employment/soc-outline.js');
+    return reply.send({ ok: true, sectionId: parsed.data.sectionId, html: stripParaMarkers(result.html), reviewFlags: result.reviewFlags, costUsd: result.costUsd });
+  });
+
+  // Approve, edit by hand, or discard a section.
+  fastify.put('/api/employment/:matterId/soc-section', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = (req as { userId?: string }).userId ?? 'local-user';
+    const { matterId } = req.params as { matterId: string };
+    const parsed = z.object({
+      sectionId: z.string().trim().min(1).max(60),
+      action: z.enum(['approve', 'unapprove', 'save', 'clear']),
+      html: z.string().max(200_000).optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Invalid section change.' });
+
+    const row = await getMatterById(matterId, userId);
+    if (!row) return reply.status(404).send({ ok: false, error: 'Matter not found' });
+    const { matter, employment } = loadEmploymentData(row.data_json);
+    const { sectionId, action } = parsed.data;
+    const { ensureParaMarkers, stripParaMarkers, isSocFactsSection } = await import('../../../employment/soc-outline.js');
+
+    const draft = ((matter as Record<string, unknown>).socDraft ?? { sections: {} }) as import('../../../employment/soc-outline.js').SocDraftState;
+    if (!draft.sections) draft.sections = {};
+
+    if (action === 'clear') {
+      delete draft.sections[sectionId];
+      (matter as Record<string, unknown>).socDraft = draft;
+      await saveEmploymentData(userId, matterId, matter, employment);
+      return reply.send({ ok: true, sectionId, cleared: true });
+    }
+
+    if (action === 'save') {
+      if (!parsed.data.html || !parsed.data.html.trim()) {
+        return reply.status(400).send({ ok: false, error: 'The edited section is empty. Add text or discard it.' });
+      }
+      // The lawyer's edit is arbitrary HTML rendered in the dashboard, so it
+      // passes the review-version allowlist; markers are re-inserted so the
+      // document-wide numbering stays correct.
+      const { sanitiseReviewHtml } = await import('../../../employment/document-reviews.js');
+      const { checkFillInPlaceholders } = await import('../../../employment/citation-canon.js');
+      const withMarkers = ensureParaMarkers(sanitiseReviewHtml(parsed.data.html.trim()));
+      draft.sections[sectionId] = {
+        html: withMarkers,
+        approved: false,
+        edited: true,
+        generatedAt: new Date().toISOString(),
+        reviewFlags: checkFillInPlaceholders(withMarkers),
+      };
+      (matter as Record<string, unknown>).socDraft = draft;
+      await saveEmploymentData(userId, matterId, matter, employment);
+      return reply.send({ ok: true, sectionId, approved: false, edited: true, html: stripParaMarkers(withMarkers) });
+    }
+
+    // unapprove with no draft is a no-op.
+    let sec = draft.sections[sectionId];
+    if (!sec && action === 'unapprove') {
+      return reply.send({ ok: true, sectionId, approved: false });
+    }
+    // approve a section never edited: seed its draft from the node's render
+    // (with {{para}} markers intact) so approval locks exactly what was read.
+    if (!sec && action === 'approve') {
+      if (isSocFactsSection(sectionId)) {
+        return reply.status(400).send({ ok: false, error: 'Draft the Background Facts before approving them.' });
+      }
+      const { renderNode } = await import('../../../employment/soc-nodes.js');
+      const { nodes, ctx } = await socOutlineCtx(req, matter as Record<string, unknown>, employment);
+      const node = nodes.find(n => n.blockId === sectionId);
+      if (!node) return reply.status(400).send({ ok: false, error: 'That section is not in the claim.' });
+      sec = { html: renderNode(node, ctx).html, approved: false, edited: false, generatedAt: new Date().toISOString() };
+      draft.sections[sectionId] = sec;
+    }
+    if (!sec) return reply.status(400).send({ ok: false, error: 'Draft this section before approving it.' });
+    sec.approved = action === 'approve';
+    (matter as Record<string, unknown>).socDraft = draft;
+    await saveEmploymentData(userId, matterId, matter, employment);
+    return reply.send({ ok: true, sectionId, approved: sec.approved });
+  });
+
   // ── The node library: the firm's pleading language ─────────────────────
   // Content only: triggers, order and headers stay in code, which is what
   // keeps a language edit from changing which claims plead what. Every

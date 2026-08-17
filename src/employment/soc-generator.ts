@@ -67,6 +67,11 @@ export interface SOCRequest {
   lsoNumber?: string;
   /** The firm's node set where it has one; the ported defaults otherwise. */
   customNodes?: import('./soc-nodes.js').SocNode[];
+  /** Section-by-section drafts: the lawyer's approved or edited text per
+   *  section (node blockId or the Background Facts block). Where a section is
+   *  approved or edited here, assembly uses this text instead of the standard
+   *  rendered node or a fresh Background Facts draft. */
+  socDraft?: import('./soc-outline.js').SocDraftState;
 }
 
 export interface SOCResult {
@@ -445,6 +450,59 @@ ${req.timeline.slice(0, 40).map(e => `- ${e.date}: ${e.label}${e.description ? `
 ${causes.map((c, i) => `${i + 1}. ${c}`).join('\n')}`;
 }
 
+/**
+ * Draft the Background Facts on their own (the SOC's one model-written
+ * section), for the section-by-section outline. Returns the narrative with
+ * {{para}} markers in place, so it stores and assembles like the inline draft.
+ */
+export async function generateSocBackgroundFacts(
+  req: SOCRequest,
+  definedTerms?: string[],
+): Promise<{ html: string; reviewFlags: string[]; costUsd: number }> {
+  const nodes = req.customNodes ?? loadSocNodes();
+  const ctx = buildSocEvalContext({
+    intake: req.intake,
+    analysis: req.analysis,
+    gates: req.gates ?? [],
+    approvedIssues: req.approvedIssues,
+    claimAmount: req.claimAmount,
+  });
+  const report = nodeStatuses(nodes, ctx, req.approvedIssues, req.nodeOverrides ?? {});
+  const activeIds = new Set(report.filter(r => r.status === 'firing' || r.status === 'forced_on').map(r => r.blockId));
+  const causes = nodes
+    .filter(n => activeIds.has(n.blockId) && n.blockId !== AI_NARRATIVE_BLOCK && n.sectionHeader)
+    .map(n => n.sectionHeader);
+
+  const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 4)
+    .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n"""\n${d.content.slice(0, 20_000)}\n"""`)
+    .join('\n\n');
+  const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]
+    .filter(Boolean).join('\n\n');
+
+  const result = await crossProviderChat({
+    system: NARRATIVE_SYSTEM,
+    user: userPrompt,
+    tier: 'opus',
+    maxTokens: 6144,
+    extendOnTruncation: true,
+    maxRetries: 2,
+    definedTerms: definedTerms ?? undefined,
+  });
+
+  let html = enforceHouseStyle(result.text.trim());
+  const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
+  if (fenced) html = fenced[1].trim();
+  // Numbering is mechanical: strip any number the model wrote, then mark every
+  // paragraph for the document-wide pass at assembly.
+  html = html.replace(/<p([^>]*)>\s*(?:\d+[.)]\s*)?/gi, '<p$1>{{para}}. ');
+
+  const reviewFlags = [
+    ...checkCitationIntegrity(html, definedTerms ?? []),
+    ...checkFillInPlaceholders(html),
+  ];
+  return { html, reviewFlags, costUsd: result.cost };
+}
+
 /** The Superior Court path: nodes plead, the model narrates the facts. */
 async function generateNodeAssembledSoc(
   req: SOCRequest,
@@ -468,41 +526,49 @@ async function generateNodeAssembledSoc(
     forced: report.filter(r => r.status.startsWith('forced')).length,
   });
 
-  // The one model call: the Background Facts.
+  // The one model call: the Background Facts. When the lawyer has drafted and
+  // approved (or edited) the Background Facts section by section, that text is
+  // used and no model call is made.
   const causes = active
     .filter(n => n.blockId !== AI_NARRATIVE_BLOCK && n.sectionHeader)
     .map(n => n.sectionHeader);
-  const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 4)
-    .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n\"\"\"\n${d.content.slice(0, 20_000)}\n\"\"\"`)
-    .join('\n\n');
-  const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]
-    .filter(Boolean).join('\n\n');
+  const factsDraft = req.socDraft?.sections?.[AI_NARRATIVE_BLOCK];
+  const useFactsDraft = Boolean(factsDraft && (factsDraft.approved || factsDraft.edited) && factsDraft.html.trim());
 
-  let narrative = '';
+  let narrativeHtml = '';
   let cost = 0;
-  try {
-    const result = await crossProviderChat({
-      system: NARRATIVE_SYSTEM,
-      user: userPrompt,
-      tier: 'opus',
-      maxTokens: 6144,
-      extendOnTruncation: true,
-      maxRetries: 2,
-      definedTerms: definedTerms ?? undefined,
-    });
-    narrative = result.text;
-    cost = result.cost;
-  } catch (err) {
-    logger.error('SOC narrative generation failed', { error: err instanceof Error ? err.message : String(err) });
-    throw new Error('Document generation failed. Please try again.');
+  if (useFactsDraft) {
+    narrativeHtml = factsDraft!.html;
+  } else {
+    const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 4)
+      .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n\"\"\"\n${d.content.slice(0, 20_000)}\n\"\"\"`)
+      .join('\n\n');
+    const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]
+      .filter(Boolean).join('\n\n');
+    let narrative = '';
+    try {
+      const result = await crossProviderChat({
+        system: NARRATIVE_SYSTEM,
+        user: userPrompt,
+        tier: 'opus',
+        maxTokens: 6144,
+        extendOnTruncation: true,
+        maxRetries: 2,
+        definedTerms: definedTerms ?? undefined,
+      });
+      narrative = result.text;
+      cost = result.cost;
+    } catch (err) {
+      logger.error('SOC narrative generation failed', { error: err instanceof Error ? err.message : String(err) });
+      throw new Error('Document generation failed. Please try again.');
+    }
+    narrativeHtml = enforceHouseStyle(narrative.trim());
+    const fenced = narrativeHtml.match(/```(?:html)?\s*([\s\S]*?)```/);
+    if (fenced) narrativeHtml = fenced[1].trim();
+    // Mechanical numbering owns the numbers: strip any the model wrote, then
+    // mark every paragraph for the document-wide pass.
+    narrativeHtml = narrativeHtml.replace(/<p([^>]*)>\s*(?:\d+[.)]\s*)?/gi, '<p$1>{{para}}. ');
   }
-
-  let narrativeHtml = enforceHouseStyle(narrative.trim());
-  const fenced = narrativeHtml.match(/```(?:html)?\s*([\s\S]*?)```/);
-  if (fenced) narrativeHtml = fenced[1].trim();
-  // Mechanical numbering owns the numbers: strip any the model wrote, then
-  // mark every paragraph for the document-wide pass.
-  narrativeHtml = narrativeHtml.replace(/<p([^>]*)>\s*(?:\d+[.)]\s*)?/gi, '<p$1>{{para}}. ');
 
   // First pass: what is BLANK, and what intake prose deserves pleading
   // register instead of verbatim insertion.
@@ -552,6 +618,14 @@ async function generateNodeAssembledSoc(
   for (const node of active) {
     if (node.blockId === AI_NARRATIVE_BLOCK) {
       sections.push(`<h2>${node.sectionHeader || 'BACKGROUND FACTS'}</h2>\n${narrativeHtml}`);
+      continue;
+    }
+    // The lawyer's approved or hand-edited text for this section wins over the
+    // standard render; it already carries {{para}} markers for numbering.
+    const nodeDraft = req.socDraft?.sections?.[node.blockId];
+    if (nodeDraft && (nodeDraft.approved || nodeDraft.edited) && nodeDraft.html.trim()) {
+      const rendered = renderNode(node, ctx2);
+      sections.push(rendered.header ? `<h2>${rendered.header}</h2>\n${nodeDraft.html}` : nodeDraft.html);
       continue;
     }
     const rendered = renderNode(node, ctx2);

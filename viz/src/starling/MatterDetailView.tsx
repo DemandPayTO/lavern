@@ -45,6 +45,8 @@ import { TimetablePackageOptions } from './matter/workspaces/TimetablePackageOpt
 import { TemplateStyleOptions } from './matter/workspaces/TemplateStyleOptions.js';
 import { ReplyOptions } from './matter/workspaces/ReplyOptions.js';
 import { SocPleadingOptions } from './matter/workspaces/SocPleadingOptions.js';
+import { SocOutlinePanel } from './matter/workspaces/SocOutlinePanel.js';
+import type { SocOutlineSectionUI } from './matter/workspaces/SocOutlinePanel.js';
 import { DemandSourcesOptions } from './matter/workspaces/DemandSourcesOptions.js';
 import { MediationSourcesOptions } from './matter/workspaces/MediationSourcesOptions.js';
 import { SocPleadingLanguageOptions } from './matter/workspaces/SocPleadingLanguageOptions.js';
@@ -868,6 +870,55 @@ export default function MatterDetailView() {
     }
     refreshSocNodes();
   }, [sessionId, refreshSocNodes]);
+
+  // ── SOC outline: read, edit, approve the claim section by section ────────
+  const [socOutline, setSocOutline] = useState<SocOutlineSectionUI[]>([]);
+  const refreshSocOutline = useCallback(() => {
+    if (!sessionId) return;
+    fetch(`/api/employment/${sessionId}/soc-outline`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setSocOutline(d.sections ?? []); })
+      .catch(() => { /* the outline is advisory until a section is drafted */ });
+  }, [sessionId]);
+  useEffect(() => { if (selectedDraft === 'soc') refreshSocOutline(); }, [selectedDraft, refreshSocOutline, employment.data]);
+
+  const [socSectionBusyId, setSocSectionBusyId] = useState<string | null>(null);
+  const draftSocFacts = useCallback(async (sectionId: string) => {
+    if (!sessionId) return;
+    setSocSectionBusyId(sectionId);
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/soc-section/draft`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) { setGenError((d as { error?: string }).error ?? 'This section could not be drafted.'); return; }
+    } catch { setGenError('This section could not be drafted. Check the connection and try again.'); return; }
+    finally { setSocSectionBusyId(null); }
+    refreshSocOutline();
+  }, [sessionId, refreshSocOutline]);
+
+  const putSocSection = useCallback(async (body: { sectionId: string; action: 'approve' | 'unapprove' | 'save' | 'clear'; html?: string }) => {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/soc-section`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) { setGenError((d as { error?: string }).error ?? 'The change was not saved.'); return; }
+    } catch { setGenError('The change was not saved. Check the connection and try again.'); return; }
+    refreshSocOutline();
+  }, [sessionId, refreshSocOutline]);
+
+  const approveSocSection = useCallback((sectionId: string, approved: boolean) =>
+    putSocSection({ sectionId, action: approved ? 'approve' : 'unapprove' }), [putSocSection]);
+  const saveSocSection = useCallback((sectionId: string, html: string) =>
+    putSocSection({ sectionId, action: 'save', html }), [putSocSection]);
+  const clearSocSection = useCallback((sectionId: string) =>
+    putSocSection({ sectionId, action: 'clear' }), [putSocSection]);
 
   // ── Factum argument library (the firm's Part III argument sections) ──────
   const [factumSections, setFactumSections] = useState<Array<{
@@ -2569,6 +2620,17 @@ export default function MatterDetailView() {
                   attachRebuttalFile={attachRebuttalFile}
                   socNodes={socNodes}
                   setSocOverride={setSocOverride}
+                />
+              )}
+
+              {selectedDraft === 'soc' && showOptions && socOutline.length > 0 && (
+                <SocOutlinePanel
+                  sections={socOutline}
+                  draftFacts={draftSocFacts}
+                  approveSection={approveSocSection}
+                  saveSection={saveSocSection}
+                  clearSection={clearSocSection}
+                  busyId={socSectionBusyId}
                 />
               )}
 
