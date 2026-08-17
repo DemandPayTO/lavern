@@ -380,3 +380,8 @@ export function getGateInfo(gate: string): { name: string; description: string }
 export function getGateForIssue(issueCode: string): string | undefined {
   return ISSUE_TO_GATE[issueCode];
 }
+
+/** The lawyer-facing name of a gate (for the issues catalogue). */
+export function gateName(gate: string): string {
+  return GATE_INFO[gate]?.name ?? gate;
+}

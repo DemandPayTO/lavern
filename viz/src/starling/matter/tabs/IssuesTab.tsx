@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import { navy, orange, green, amber, red, border, ink, muted, serif, sans } from '../tokens.js';
 import { ComparablesPanel, GateApprovalPanel } from '../../shared.js';
+import { ApprovedIssuesEditor } from './ApprovedIssuesEditor.js';
 import { StatusDot, SourceTag, renderBoldText } from '../presentational.js';
 import type { Issue } from '../types.js';
 import { useEmploymentData } from '../../hooks/useStarlingApi.js';
@@ -106,6 +107,17 @@ export function IssuesTab({ employment, issues, sessionId }: {
         onDecision={setGateDecision}
         subheading="Only approved issues are included in demand letters, pleadings, and applications. Starling drafts nothing you have not approved."
       />
+
+      {/* The editable list of issues on the file: correct the approved
+          issues, remove a wrong one, add one the analysis did not raise. */}
+      {employment.data?.analysis != null && (
+        <ApprovedIssuesEditor
+          approvedIssues={employment.data.approvedIssues}
+          dismissedIssues={employment.data.dismissedIssues}
+          raisedCodes={triggeredGates.flatMap(g => g.issueCodes)}
+          setIssues={(approved, dismissed) => { void employment.approveIssues(approved, dismissed); }}
+        />
+      )}
 
       {issues.length === 0 && triggeredGates.length === 0 && (
         <div style={{ padding: '24px 0', textAlign: 'center', color: muted, fontSize: 14 }}>No issues found yet.</div>

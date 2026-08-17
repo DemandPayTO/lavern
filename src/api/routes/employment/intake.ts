@@ -318,6 +318,16 @@ export function registerIntakeRoutes(fastify: FastifyInstance): void {
     return reply.send({ ok: true, firmFileNumber: parsed.data.firmFileNumber });
   });
 
+  // ── GET /api/employment/issue-catalog ──────────────────────────────────
+  // The full catalogue of legal issues the gates can raise, grouped by gate,
+  // so the lawyer can add an issue the analysis did not surface. Static and
+  // firm-agnostic.
+
+  fastify.get('/api/employment/issue-catalog', async (_req: FastifyRequest, reply: FastifyReply) => {
+    const { buildIssueCatalog } = await import('../../../employment/issue-catalog.js');
+    return reply.send({ ok: true, catalog: buildIssueCatalog() });
+  });
+
   // ── POST /api/employment/:matterId/issues ──────────────────────────────
   // Approve or dismiss legal issues. The lawyer decides which issues to
   // include in generated documents.
