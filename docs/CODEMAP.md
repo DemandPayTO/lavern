@@ -124,9 +124,14 @@ Other notable route modules: `sessions.ts` (Lavern engine, 1,805 lines),
 
 | File | Role |
 |------|------|
-| `MatterDetailView.tsx` (5,527 lines) | The matter workspace: every tab and every draft workspace. **Being decomposed** (see §5). |
+| `MatterDetailView.tsx` (~4,170 lines) | The matter workspace shell: setup/state, header, tab bar, the draft tab, the action bar. **Being decomposed** into `matter/` (see §5). |
+| `matter/tokens.ts` · `matter/types.ts` | Design tokens; shared row/data shapes |
+| `matter/presentational.tsx` | Pure pieces: MatterDetailTopBar, FactItem, DocRow, ActionButton, StatusDot, SourceTag, TriagedFlags, renderBoldText |
+| `matter/review-lane.tsx` | ReviewLaneControls (the submitter's approval-queue side) |
+| `matter/constants.ts` | Draft catalogue (DEMO_DRAFT_TYPES), the draft-id↔docType↔download maps, court-form field defs, direction shapes |
+| `matter/tabs/` | IssuesTab (owns gate decisions + analysis-run state), TimelineTab, IntakeTab (owns EMPLOYMENT_INTAKE_FIELDS), NotesTab |
 | `hooks/useStarlingApi.ts` (2,213) | The API client hook for the workspace |
-| `shared.tsx` (1,767) | Shared components incl. IntakeEditorPanel, DocRow, TriagedFlags |
+| `shared.tsx` (1,767) | Shared components incl. IntakeEditorPanel, GateApprovalPanel, NextStepsPanel |
 | `RevisionPanel.tsx` | Feedback loop + "Ask Starling to review it" |
 | `ExtractionReviewPanel.tsx` | Approve extracted facts |
 | `DocAnalysisPanel.tsx` | Saved deep reads |
@@ -145,6 +150,15 @@ Other notable route modules: `sessions.ts` (Lavern engine, 1,805 lines),
    modules plus `shared.ts` (see §3). `registerEmploymentIntakeRoutes` and the
    re-exported helpers are unchanged, so no importer broke.
 2. **`viz/src/starling/MatterDetailView.tsx` → `viz/src/starling/matter/`.**
-   Extract each draft workspace and the pleading picker into their own
-   components, shared state lifted to a hook. Larger; **not yet started** —
-   the next structure task. Update this map as it moves.
+   **In progress.** Done so far (each verified with tsc, the viz suite, and a
+   live browser pass): tokens, types, the pure presentational components, and
+   ReviewLaneControls (`matter/tokens.ts`, `types.ts`, `presentational.tsx`,
+   `review-lane.tsx`); the Issues/Timeline/Intake/Notes tab panels
+   (`matter/tabs/`); and the draft-tab data maps (`matter/constants.ts`), which
+   also let four dead constants be dropped. The view is down from 5,527 to
+   ~4,170 lines. **Remaining:** the Docs tab and the 1,880-line draft tab (the
+   per-document option bodies), which hang off `runGeneration` — that function
+   reads ~18 pieces of per-document state, so a clean split either threads all
+   of it as props or refactors the generation flow, and the latter wants
+   generation-flow test coverage first. The three thin wrapper tabs
+   (Client/Negotiation/Debrief) stay inline by design.
