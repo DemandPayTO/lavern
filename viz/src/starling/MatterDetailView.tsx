@@ -48,6 +48,8 @@ import { SocPleadingOptions } from './matter/workspaces/SocPleadingOptions.js';
 import { DemandSourcesOptions } from './matter/workspaces/DemandSourcesOptions.js';
 import { MediationSourcesOptions } from './matter/workspaces/MediationSourcesOptions.js';
 import { SocPleadingLanguageOptions } from './matter/workspaces/SocPleadingLanguageOptions.js';
+import { FactumArgumentOptions } from './matter/workspaces/FactumArgumentOptions.js';
+import { FactumArgumentLanguageOptions } from './matter/workspaces/FactumArgumentLanguageOptions.js';
 import { CourtFormOptions } from './matter/workspaces/CourtFormOptions.js';
 import { ReadinessNotice } from './matter/workspaces/ReadinessNotice.js';
 import { GenerationOptions } from './matter/workspaces/GenerationOptions.js';
@@ -864,6 +866,105 @@ export default function MatterDetailView() {
     }
     refreshSocNodes();
   }, [sessionId, refreshSocNodes]);
+
+  // ── Factum argument library (the firm's Part III argument sections) ──────
+  const [factumSections, setFactumSections] = useState<Array<{
+    blockId: string; sectionHeader: string; issueLabel: string; authorities: string;
+    status: 'firing' | 'eligible_unapproved' | 'off' | 'forced_on' | 'forced_off';
+    reason: string; forceable: boolean; lawyerReview: boolean;
+  }>>([]);
+  const refreshFactumSections = useCallback(() => {
+    if (!sessionId) return;
+    fetch(`/api/employment/${sessionId}/factum-nodes`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setFactumSections(d.nodes ?? []); })
+      .catch(() => { /* the picker is advisory until generation */ });
+  }, [sessionId]);
+  useEffect(() => {
+    if (selectedDraft === 'sjfactum') refreshFactumSections();
+  }, [selectedDraft, refreshFactumSections, employment.data]);
+
+  const [factumLib, setFactumLib] = useState<Array<{
+    blockId: string; sectionHeader: string; content: string;
+    provenance: 'default' | 'edited' | 'learned'; version: number;
+  }>>([]);
+  const [factumProposals, setFactumProposals] = useState<Array<{
+    blockId: string; sectionHeader: string; issueLabel: string; sources: string[];
+    current: string; proposed: string | null; notes: string[]; skipped?: string;
+  }> | null>(null);
+  const [factumTeachBusy, setFactumTeachBusy] = useState(false);
+  const [factumTeachMsg, setFactumTeachMsg] = useState<string | null>(null);
+  const factumTeachInputRef = useRef<HTMLInputElement | null>(null);
+  const refreshFactumLib = useCallback(() => {
+    fetch('/api/employment/factum-node-library', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setFactumLib(d.nodes ?? []); })
+      .catch(() => { /* advisory */ });
+  }, []);
+  useEffect(() => { if (selectedDraft === 'sjfactum') refreshFactumLib(); }, [selectedDraft, refreshFactumLib]);
+
+  const teachFactumSections = useCallback(async (files: File[]) => {
+    setFactumTeachBusy(true); setFactumTeachMsg(null); setFactumProposals(null);
+    try {
+      const precedents = [];
+      for (const f of files) {
+        if (isDocxFile(f)) {
+          const bytes = new Uint8Array(await f.arrayBuffer());
+          let binary = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          precedents.push({ name: f.name, docxBase64: btoa(binary) });
+        } else {
+          const parsed = await parseFileToText(f);
+          if (!parsed.ok) { setFactumTeachMsg(parsed.error); return; }
+          precedents.push({ name: f.name, text: parsed.text });
+        }
+      }
+      const res = await fetch('/api/employment/factum-node-library/teach', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ precedents }),
+      });
+      const d = await res.json();
+      if (!d.ok) { setFactumTeachMsg(d.error ?? 'The factums could not be analysed.'); return; }
+      setFactumProposals(d.proposals ?? []);
+      const proposed = (d.proposals ?? []).filter((p: { proposed: string | null }) => p.proposed).length;
+      setFactumTeachMsg(`Read ${files.length} factum${files.length === 1 ? '' : 's'} ($${(d.costUsd ?? 0).toFixed(2)}). ${proposed} section${proposed === 1 ? '' : 's'} of your argument proposed. Nothing changes until you approve it.`);
+    } catch {
+      setFactumTeachMsg('The factums could not be analysed.');
+    } finally { setFactumTeachBusy(false); }
+  }, []);
+
+  const approveFactumProposal = useCallback(async (blockId: string, content: string) => {
+    const res = await fetch(`/api/employment/factum-node-library/${encodeURIComponent(blockId)}`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, provenance: 'learned' }),
+    });
+    const d = await res.json();
+    if (!d.ok) { setFactumTeachMsg(d.error ?? 'That argument could not be saved.'); return; }
+    setFactumProposals(prev => prev ? prev.filter(p => p.blockId !== blockId) : prev);
+    refreshFactumLib();
+  }, [refreshFactumLib]);
+
+  const setFactumOverride = useCallback(async (blockId: string, override: 'on' | 'off' | null) => {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`/api/employment/${sessionId}/factum-nodes`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockId, override }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setGenError((d as { error?: string }).error ?? 'The change was not saved. Try again.');
+        return;
+      }
+    } catch {
+      setGenError('The change was not saved. Check the connection and try again.');
+      return;
+    }
+    refreshFactumSections();
+  }, [sessionId, refreshFactumSections]);
 
   const [readiness, setReadiness] = useState<Array<{ level: 'ok' | 'warn' | 'info'; label: string; hint?: string; goTo?: string }>>([]);
   // The last generation's logistics prefill the fields; the lawyer edits
@@ -2338,6 +2439,10 @@ export default function MatterDetailView() {
                 />
               )}
 
+              {selectedDraft === 'sjfactum' && showOptions && (
+                <FactumArgumentOptions sections={factumSections} setFactumOverride={setFactumOverride} />
+              )}
+
               {selectedDraft === 'reply' && showOptions && (
                 <ReplyOptions
                   employment={employment}
@@ -2450,6 +2555,18 @@ export default function MatterDetailView() {
                   socProposals={socProposals}
                   setSocProposals={setSocProposals}
                   approveSocProposal={approveSocProposal}
+                />
+              )}
+              {selectedDraft === 'sjfactum' && showOptions && (
+                <FactumArgumentLanguageOptions
+                  factumTeachInputRef={factumTeachInputRef}
+                  teachFactumSections={teachFactumSections}
+                  factumTeachBusy={factumTeachBusy}
+                  factumTeachMsg={factumTeachMsg}
+                  factumLib={factumLib}
+                  factumProposals={factumProposals}
+                  setFactumProposals={setFactumProposals}
+                  approveFactumProposal={approveFactumProposal}
                 />
               )}
 
