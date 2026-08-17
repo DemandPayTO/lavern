@@ -161,9 +161,14 @@ describe('document lifecycle', () => {
   });
 
   it('exports the docket as an iCalendar file', async () => {
+    // The docket only carries deadlines inside its window (30 days overdue to
+    // 180 ahead), so the fixture date must be relative to today, not a literal
+    // that eventually falls out of the window.
+    const deadlineIso = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const deadlineBasic = deadlineIso.replace(/-/g, '');
     makeMatter('m-ics', {
       employmentData: {
-        intake: { client_first_name: 'Cal', client_last_name: 'Ito', employer_legal_name: 'Ito Employer Ltd', received_severance_offer: true, severance_deadline: '2026-07-15' },
+        intake: { client_first_name: 'Cal', client_last_name: 'Ito', employer_legal_name: 'Ito Employer Ltd', received_severance_offer: true, severance_deadline: deadlineIso },
         gates: [], approvedIssues: [], dismissedIssues: [], documentExtractions: [],
         timeline: [], analysis: null,
         selectedTone: 'professional', selectedProcedure: null, selectedDocumentType: null, demandAmount: null,
@@ -174,7 +179,7 @@ describe('document lifecycle', () => {
     expect(res.headers['content-type']).toContain('text/calendar');
     expect(res.body).toContain('BEGIN:VCALENDAR');
     expect(res.body).toContain('Cal Ito v Ito Employer Ltd');
-    expect(res.body).toContain('DTSTART;VALUE=DATE:20260715');
+    expect(res.body).toContain(`DTSTART;VALUE=DATE:${deadlineBasic}`);
   });
 
   it('records an outcome with a calibration snapshot, resolves the stage, and reopens cleanly', async () => {
