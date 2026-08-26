@@ -1,7 +1,12 @@
 // Statement of Claim workspace options: what the claim reads before it drafts
-// (the demand letter on file plus an optional attached source), and the
-// pleading picker showing each cause of action's status with force-on/off.
-// Extracted verbatim from MatterDetailView.tsx's draft tab (Option A).
+// (the demand letter on file, the matter's attached documents, and a legacy
+// single attachment), and the pleading picker showing each cause of action's
+// status with force-on/off.
+//
+// The claim reads the matter's shared source store, the same one the mediation
+// brief and Schedule "A" read, because the Background Facts are only as
+// particular as the documents they are drafted from and a claim that reads one
+// document pleads in generalities.
 
 import { navy, green, amber, border, ink, muted, sans } from '../tokens.js';
 import { useEmploymentData } from '../../hooks/useStarlingApi.js';
@@ -17,6 +22,8 @@ type SocNode = {
 export function SocPleadingOptions({
   employment, sessionId, socSourceInputRef, rebuttalSaving, attachRebuttalFile,
   socNodes, setSocOverride,
+  storedSources, selectedSourceIds, setSelectedSourceIds, removeBriefSource,
+  briefSourceInputRef, attachBriefSource, sourceParsing, sourceError,
 }: {
   employment: Employment;
   sessionId: string | null;
@@ -25,6 +32,14 @@ export function SocPleadingOptions({
   attachRebuttalFile: (file: File, slot?: SourceSlot) => void;
   socNodes: SocNode[];
   setSocOverride: (blockId: string, override: 'on' | 'off' | null) => void;
+  storedSources: Array<{ id: string; name: string; words: number; kind?: string }>;
+  selectedSourceIds: Set<string>;
+  setSelectedSourceIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  removeBriefSource: (id: string) => void;
+  briefSourceInputRef: React.RefObject<HTMLInputElement | null>;
+  attachBriefSource: (file: File, kind?: string) => void;
+  sourceParsing: boolean;
+  sourceError: string | null;
 }) {
   return (
     <>
@@ -38,6 +53,48 @@ export function SocPleadingOptions({
             ? '✓ The demand letter on this matter is included automatically.'
             : 'No demand letter is on this matter yet. Generate one, or adopt yours in the Demand Letter workspace, and the claim will read it.'}
         </div>
+        {storedSources.map(sd => (
+          <div key={sd.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink, padding: '3px 0' }}>
+            <input
+              type="checkbox"
+              checked={selectedSourceIds.has(sd.id)}
+              onChange={() => setSelectedSourceIds(prev => { const next = new Set(prev); if (next.has(sd.id)) next.delete(sd.id); else next.add(sd.id); return next; })}
+              aria-label={`Have the claim read ${sd.name}`}
+              style={{ accentColor: navy }}
+            />
+            <span style={{ flex: 1 }}>{sd.name} <span style={{ color: muted, fontSize: 12 }}>({Number(sd.words).toLocaleString('en-CA')} words)</span></span>
+            <button
+              onClick={() => void removeBriefSource(sd.id)}
+              aria-label={`Remove ${sd.name} from the matter`}
+              style={{ fontSize: 11.5, color: muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+            >
+              remove
+            </button>
+          </div>
+        ))}
+        <input
+          ref={briefSourceInputRef}
+          type="file"
+          accept=".pdf,.docx,.md,.txt"
+          multiple
+          style={{ display: 'none' }}
+          onChange={e => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void (async () => { for (const f of fs) await attachBriefSource(f); })(); }}
+          aria-label="Attach a document for the claim to read"
+        />
+        <button
+          onClick={() => briefSourceInputRef.current?.click()}
+          disabled={sourceParsing}
+          style={{ marginTop: 6, marginBottom: 4, fontSize: 12.5, fontWeight: 600, padding: '7px 13px', borderRadius: 2, fontFamily: sans, background: '#fff', color: navy, border: `1px solid ${border}`, cursor: sourceParsing ? 'not-allowed' : 'pointer' }}
+        >
+          {sourceParsing ? 'Reading…' : 'Attach a document'}
+        </button>
+        {sourceError && <div role="alert" style={{ fontSize: 12.5, color: '#b3261e', marginTop: 6 }}>{sourceError}</div>}
+        {storedSources.length > 0 && (
+          <div style={{ fontSize: 11.5, color: muted, marginTop: 2, marginBottom: 6 }}>
+            Attached documents stay on the matter and are shared with the brief and Schedule "A". Tick the ones this claim should read.
+          </div>
+        )}
+
         {employment.socSource ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: ink }}>
             <span>{"✓"} <b>{employment.socSource.name}</b> {"·"} {employment.socSource.words} words {"·"} attached {new Date(employment.socSource.savedAt).toLocaleDateString()}</span>

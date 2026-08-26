@@ -57,6 +57,7 @@ import {
   directionForGeneration,
   ensureAnalysisFresh,
   findGeneratedDocKey,
+  buildSocSources,
   fromParagraphsSafe,
   loadEmploymentData,
   loadStyleForGeneration,
@@ -415,6 +416,12 @@ export function registerGeneratorRoutes(fastify: FastifyInstance): void {
     courtLocation: z.string().trim().min(1).max(200),
     /** Draft in the firm's style, learned from its precedents. */
     styleProfileId: z.string().trim().max(100).optional(),
+    /**
+     * Documents from the matter's attached-source store for the claim to read.
+     * The Background Facts are only as particular as what they are drafted
+     * from, and a claim that reads one document pleads in generalities.
+     */
+    briefSourceIds: z.array(z.string().max(60)).max(8).optional(),
   });
 
   fastify.post('/api/employment/:matterId/statement-of-claim', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -472,15 +479,7 @@ export function registerGeneratorRoutes(fastify: FastifyInstance): void {
     // matter (generated or adopted) rides along automatically, plus any
     // document the lawyer attached to the claim workspace. Blanks fill
     // from them with verified quotes; every fill is flagged on the draft.
-    const socSources: Array<{ name: string; content: string }> = [];
-    const dlKey = findGeneratedDocKey(matter, 'demand_letter');
-    if (dlKey) {
-      const dlHtml = String(((matter as Record<string, unknown>)[dlKey] as Record<string, unknown>)?.html ?? '');
-      const dlText = dlHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      if (dlText.length > 200) socSources.push({ name: 'the demand letter on this matter', content: dlText.slice(0, 60_000) });
-    }
-    const attached = (matter as Record<string, unknown>).socSource as { name?: string; text?: string } | undefined;
-    if (attached?.text) socSources.push({ name: String(attached.name ?? 'attached document'), content: attached.text.slice(0, 80_000) });
+    const socSources = buildSocSources(matter as Record<string, unknown>, parsed.data.briefSourceIds);
 
     const result = await generateStatementOfClaim({
       intake: employment.intake,

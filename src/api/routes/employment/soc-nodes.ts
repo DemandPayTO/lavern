@@ -52,6 +52,7 @@ import {
   directionForGeneration,
   ensureAnalysisFresh,
   findGeneratedDocKey,
+  buildSocSources,
   fromParagraphsSafe,
   loadEmploymentData,
   loadStyleForGeneration,
@@ -163,7 +164,11 @@ export function registerSocNodeRoutes(fastify: FastifyInstance): void {
   fastify.post('/api/employment/:matterId/soc-section/draft', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req as { userId?: string }).userId ?? 'local-user';
     const { matterId } = req.params as { matterId: string };
-    const parsed = z.object({ sectionId: z.string().trim().min(1).max(60) }).safeParse(req.body);
+    const parsed = z.object({
+      sectionId: z.string().trim().min(1).max(60),
+      /** Documents from the matter's store for the facts to be drafted from. */
+      briefSourceIds: z.array(z.string().max(60)).max(8).optional(),
+    }).safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Name the section to draft.' });
 
     const row = await getMatterById(matterId, userId);
@@ -197,6 +202,13 @@ export function registerSocNodeRoutes(fastify: FastifyInstance): void {
         timeline: (employment.timeline ?? []).map(e => ({ date: e.date, label: e.label, description: e.description })),
         nodeOverrides: ((matter as Record<string, unknown>).socNodeOverrides ?? {}) as Record<string, 'on' | 'off'>,
         customNodes,
+        // Drafted section by section, the facts read the same documents the
+        // whole claim reads. This route passed nothing before, so the
+        // section-by-section facts were written from intake fields alone.
+        sourceDocuments: (() => {
+          const docs = buildSocSources(matter as Record<string, unknown>, parsed.data.briefSourceIds);
+          return docs.length > 0 ? docs : undefined;
+        })(),
       });
     } catch (err) {
       logger.error('SOC facts draft failed', { matterId, error: err instanceof Error ? err.message : String(err) });

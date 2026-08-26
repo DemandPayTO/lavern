@@ -400,8 +400,17 @@ THE DISCIPLINE ON MISSING FACTS: plead what the file supports and stop. Do NOT w
 
 Everything else in the claim is already written. The causes of action are pleaded in the firm's settled language; the relief is itemised; the court forms are assembled. Your section tells the story the rest of the claim rests on.
 
+HOW A PLAINTIFF'S FACTS SECTION PERSUADES. It never argues. The reader is a judge who has read a thousand claims and discounts every adjective on sight. The work is done by what you choose to plead, the order you plead it in, and how particular you are.
+
+- SELECTION. Plead the facts that matter and stop. Do not plead the defendant's explanation as though it were true, and never volunteer a fact that serves only the defence. What you leave out is a choice you are making.
+- SEQUENCE. Chronology is the frame, not the master. Where two facts sit in tension, plead them next to each other and let the reader draw the inference: the employer's stated reason in one paragraph, the fact that cannot be reconciled with it in the next, and nothing in between. The juxtaposition carries the argument without making one.
+- PARTICULARITY. The words actually spoken or written, the document and its date, the figure, the name and title of the person. A quoted phrase does work no adjective can do, and a quoted phrase is a material fact. "On January 19, 2026 the board minuted that it sought a fresh perspective in its senior leadership" pleads no conclusion and establishes everything.
+- ECONOMY. One fact to a paragraph. Vary the length, because a short paragraph after a long one lands. No adverbs, no throat clearing, no scene setting.
+
+NEVER WRITE THE CONCLUSION. Callously, egregiously, in bad faith, deliberately, without regard, unconscionable: these are conclusions, not facts. The causes of action plead them elsewhere in this claim in the firm's own settled language, so writing them here duplicates that pleading and invites a motion to strike. Test every adjective and adverb: if the sentence reads the same without it, it was ornament and comes out; if it reads weaker, it was doing argumentative work and must come out.
+
 Rules:
-- Material facts in chronological order, in the voice of a pleading: "the Plaintiff", "the Defendant". Rule 25.06 governs: plead the material facts, not the evidence by which they are proved.
+- Material facts in the voice of a pleading: "the Plaintiff", "the Defendant". Rule 25.06 governs: plead the material facts, not the evidence by which they are proved.
 - NO legal argument, NO case citations, NO statutory references. The law is pleaded elsewhere in the claim; a fact section that argues collides with it.
 - Include the events leading to the end of the employment, named individuals where they matter, dates, any complaints raised internally, and the facts that substantiate each cause the claim pleads.
 - Every paragraph is one <p> element. No headings. No numbering: paragraph numbers are added mechanically afterwards.
@@ -446,7 +455,7 @@ ${intake.additional_information ? `- Additional context: ${intake.additional_inf
 ${req.timeline && req.timeline.length > 0 ? `THE CHRONOLOGY ON THE FILE. These dates are the record; plead from them and do not invent others:
 ${req.timeline.slice(0, 40).map(e => `- ${e.date}: ${e.label}${e.description ? ` (${e.description})` : ''}`).join('\n')}
 
-` : ''}THE CAUSES THIS CLAIM PLEADS. Write the facts that substantiate each; do not argue them:
+` : ''}WHAT THE FACTS MUST REACH. The claim pleads these causes in its own sections, in settled language. Each rests on facts that have to be present in your narrative. Do NOT organise your section around this list, do not head or group by it, and do not walk it cause by cause: that produces a checklist rather than an account. Write one continuous narrative in which every fact these causes need appears in its natural place:
 ${causes.map((c, i) => `${i + 1}. ${c}`).join('\n')}`;
 }
 
@@ -473,7 +482,7 @@ export async function generateSocBackgroundFacts(
     .filter(n => activeIds.has(n.blockId) && n.blockId !== AI_NARRATIVE_BLOCK && n.sectionHeader)
     .map(n => n.sectionHeader);
 
-  const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 4)
+  const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 6)
     .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n"""\n${d.content.slice(0, 20_000)}\n"""`)
     .join('\n\n');
   const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]
@@ -540,7 +549,7 @@ async function generateNodeAssembledSoc(
   if (useFactsDraft) {
     narrativeHtml = factsDraft!.html;
   } else {
-    const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 4)
+    const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 6)
       .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n\"\"\"\n${d.content.slice(0, 20_000)}\n\"\"\"`)
       .join('\n\n');
     const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]

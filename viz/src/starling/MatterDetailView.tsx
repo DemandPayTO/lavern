@@ -904,14 +904,16 @@ export default function MatterDetailView() {
       const res = await fetch(`/api/employment/${sessionId}/soc-section/draft`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sectionId }),
+        // The facts read the documents ticked in "What the claim reads
+        // before it drafts", the same ones the whole claim reads.
+        body: JSON.stringify({ sectionId, briefSourceIds: [...selectedSourceIds] }),
       });
       const d = await res.json().catch(() => ({}));
       if (!d.ok) { setGenError((d as { error?: string }).error ?? 'This section could not be drafted.'); return; }
     } catch { setGenError('This section could not be drafted. Check the connection and try again.'); return; }
     finally { setSocSectionBusyId(null); }
     refreshSocOutline();
-  }, [sessionId, refreshSocOutline]);
+  }, [sessionId, refreshSocOutline, selectedSourceIds]);
 
   const putSocSection = useCallback(async (body: { sectionId: string; action: 'approve' | 'unapprove' | 'save' | 'clear'; html?: string }) => {
     if (!sessionId) return;
@@ -1840,6 +1842,10 @@ export default function MatterDetailView() {
           includeGeneratedDemand: includeGenDemand,
           includeGeneratedSoc: includeGenSoc,
         } : {}),
+        // The claim reads the same store, but never the generated demand
+        // letter toggles: the demand letter on the matter rides along on its
+        // own, and the claim is never a source for itself.
+        ...(selectedDraft === 'soc' ? { briefSourceIds: [...selectedSourceIds] } : {}),
       },
     );
     setGenerating(false);
@@ -2723,6 +2729,12 @@ export default function MatterDetailView() {
                   attachRebuttalFile={attachRebuttalFile}
                   socNodes={socNodes}
                   setSocOverride={setSocOverride}
+                  storedSources={storedSources}
+                  selectedSourceIds={selectedSourceIds} setSelectedSourceIds={setSelectedSourceIds}
+                  removeBriefSource={removeBriefSource}
+                  briefSourceInputRef={briefSourceInputRef}
+                  attachBriefSource={attachBriefSource}
+                  sourceParsing={sourceParsing} sourceError={sourceError}
                 />
               )}
 
