@@ -194,3 +194,63 @@ export function checkCitationIntegrity(html: string, excludeParties: string[] = 
 
   return flags;
 }
+
+/**
+ * Schedule "A" pleads the Code and nothing else. Its facts are now drawn from
+ * the civil pleading in the same matter, which raises a specific and
+ * consequential drafting risk: carrying that pleading's causes of action and
+ * relief across with the facts. Common law reasonable notice and Employment
+ * Standards Act entitlements belong to the civil proceeding, and asking the
+ * Tribunal for them invites the section 34(11) election problem the split
+ * between the two proceedings exists to avoid.
+ *
+ * Deterministic: a text scan, no model call. Reported for the lawyer to
+ * confirm rather than stripped, because a passing mention ("the civil
+ * proceeding advances claims for wrongful dismissal") is legitimate and only
+ * counsel can tell the two apart.
+ */
+export function checkScheduleACivilRelief(html: string): string[] {
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const hits = new Set<string>();
+  const patterns: Array<[RegExp, string]> = [
+    [/\breasonable notice\b/i, 'reasonable notice'],
+    [/\bpay in lieu of notice\b/i, 'pay in lieu of notice'],
+    [/\bwrongful dismissal\b/i, 'wrongful dismissal'],
+    [/\bEmployment Standards Act\b/i, 'the Employment Standards Act'],
+    [/\bseverance pay\b/i, 'severance pay'],
+    [/\bcommon law\b/i, 'common law'],
+    [/\bBardal\b/i, 'Bardal'],
+  ];
+  for (const [re, label] of patterns) if (re.test(text)) hits.add(label);
+  if (hits.size === 0) return [];
+  return [`Check against the file: the narrative refers to ${[...hits].join(', ')}. Schedule "A" pleads the Code and the remedies under section 45.2 only. Where this is a carry-over from the civil pleading the facts were taken from, remove it; a deliberate reference to the parallel proceeding is fine.`];
+}
+
+/**
+ * Dates the attached pleading gives that the drafted narrative does not use.
+ *
+ * Schedule "A" is drawn from a pleading that has already particularised the
+ * discrimination. The drafting model sometimes generalises a sourced
+ * particular back into vagueness ("the board minute of January 19, 2026"
+ * becoming "the respondent's records"), and has been observed adding a
+ * [LAWYER: ...] marker asking counsel to identify a document the pleading
+ * already identifies. A dated, sourced particular is evidence; the
+ * generalisation is not, so the loss is reported rather than left to be
+ * noticed on a read-through.
+ *
+ * Deterministic: a date comparison, no model call. Reported for counsel to
+ * weigh, since a pleading carries dates that Schedule "A" has no reason to
+ * repeat.
+ */
+export function checkSourceDateFidelity(sourceText: string, html: string): string[] {
+  const narrative = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const MONTH = '(?:January|February|March|April|May|June|July|August|September|October|November|December)';
+  const longDate = new RegExp(`\\b${MONTH}\\s+\\d{1,2},\\s+\\d{4}\\b`, 'g');
+
+  const inSource = new Set((sourceText.match(longDate) ?? []).map(d => d.replace(/\s+/g, ' ')));
+  const inNarrative = new Set((narrative.match(longDate) ?? []).map(d => d.replace(/\s+/g, ' ')));
+
+  const missing = [...inSource].filter(d => !inNarrative.has(d));
+  if (missing.length === 0) return [];
+  return [`Check against the file: the attached pleading gives ${missing.length === 1 ? 'a date' : 'dates'} the narrative does not use (${missing.slice(0, 6).join('; ')}). Where a dated document grounds an allegation, plead the date: a particular carries weight that a generalisation does not.`];
+}

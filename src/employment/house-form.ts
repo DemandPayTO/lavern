@@ -116,16 +116,28 @@ const PRONOUNS: Record<string, Record<string, string>> = {
  * "were" where "she" takes "was", and a slot fill cannot do that. So the
  * body is instructed rather than substituted.
  */
-export function pronounInstruction(pronouns?: string | null): string {
+export function pronounInstruction(pronouns?: string | null, partyTerm?: string): string {
+  // "our client" is correspondence register: right in a letter to opposing
+  // counsel, wrong in a document filed with a court or tribunal, where the
+  // person is the applicant or the plaintiff. Callers drafting a filed
+  // document pass their party designation and it replaces "our client" in
+  // the two branches that avoid pronouns.
+  const noPronounTerm = partyTerm ? `"${partyTerm}"` : '"our client"';
+  // A filed document needs the prohibition, not just the alternative. Offering
+  // the party designation alongside the client's name still left the model
+  // reaching for "our client", which it has seen in every letter precedent.
+  const filedRegister = partyTerm
+    ? ` This document is filed with a court or tribunal: refer to the client as ${noPronounTerm} throughout. Never write "our client" or "the client" anywhere in it; that is correspondence register and is wrong in a filed document.`
+    : '';
   switch (pronouns) {
-    case 'she': return 'Refer to the client as she, her, hers.';
-    case 'he': return 'Refer to the client as he, him, his.';
+    case 'she': return `Refer to the client as she, her, hers.${filedRegister}`;
+    case 'he': return `Refer to the client as he, him, his.${filedRegister}`;
     case 'they':
-      return 'Refer to the client as they, them, their. Match the verbs: "they were advised", not "they was advised". Singular they is correct here and is not to be avoided.';
+      return `Refer to the client as they, them, their. Match the verbs: "they were advised", not "they was advised". Singular they is correct here and is not to be avoided.${filedRegister}`;
     case 'name':
-      return 'Do not use pronouns for the client at all. Use the client\'s name, or "our client", throughout.';
+      return `Do not use pronouns for the client at all. Use the client's name, or ${noPronounTerm}, throughout.${filedRegister}`;
     default:
-      return 'The client\'s pronouns are not recorded on this file. Use the client\'s name or "our client" rather than guessing, and never infer pronouns from a name.';
+      return `The client's pronouns are not recorded on this file. Use the client's name or ${noPronounTerm} rather than guessing, and never infer pronouns from a name.${filedRegister}`;
   }
 }
 
@@ -329,4 +341,25 @@ export function houseFormContext(args: {
   parts.push('');
   parts.push('Use ONLY this matter\'s facts, parties and figures. The precedents are other clients\' files and none of their names, dates or amounts may appear.');
   return parts.join('\n');
+}
+
+/**
+ * How a filed document names the party: defined once in full, then carried by
+ * a short form, the way a pleading does it. The Tribunal and the respondent
+ * read the narrative straight through, and a document that says "the
+ * Applicant" in every sentence reads as a form rather than as an account of
+ * what happened to a person.
+ *
+ * Returns undefined where the file has no first name, so the caller keeps the
+ * plain party designation rather than defining a party it cannot name.
+ */
+export function filedNameInstruction(args: {
+  firstName?: string | null;
+  lastName?: string | null;
+  partyLabel: string;
+}): string | undefined {
+  const first = (args.firstName ?? '').trim();
+  if (!first) return undefined;
+  const full = [args.firstName, args.lastName].map(n => (n ?? '').trim()).filter(Boolean).join(' ');
+  return `NAMING THE PARTY: on first mention write exactly this form, and only once: ${args.partyLabel}, ${full} ("${first}"). Everywhere after that first mention, call the party ${first}. Do not fall back to "${args.partyLabel}" as the referent once the short form is defined, and never write "our client" or "the client".`;
 }

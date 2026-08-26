@@ -17,10 +17,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
-import { pronounInstruction } from './house-form.js';
+import { pronounInstruction, filedNameInstruction } from './house-form.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { extractCitations } from './citation-extractor.js';
-import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
+import { checkCitationIntegrity, checkFillInPlaceholders, checkScheduleACivilRelief, checkSourceDateFidelity } from './citation-canon.js';
 import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
@@ -479,7 +479,7 @@ Output as HTML with h1, h2, p, ol, li, strong, tables for the damages summary. N
 
     hrto_schedule_a: `You are a senior Ontario human rights lawyer drafting SCHEDULE "A" to an HRTO Application (Form 1), the detailed narrative of allegations that accompanies the form, on behalf of the applicant employee.
 
-STRUCTURE (numbered paragraphs throughout):
+STRUCTURE. These are the sections available to you, in this order. Include a section ONLY where you have facts to put in it; omit any section you would have to pad. The Tribunal reads a narrative of allegations, not a civil pleading, and its own guidance favours a plain and economical account.
 1. OVERVIEW: the applicant, the respondent(s), the Code grounds engaged (s. 5 employment), and the discrimination alleged, in three or four paragraphs.
 2. THE PARTIES: the applicant's employment history with the respondent; each personal respondent's role (name individuals only where their conduct grounds liability).
 3. THE FACTS: strict chronology, one event per paragraph, dates first. Draw the connection between the protected ground and each adverse treatment explicitly ("Two weeks after disclosing her disability, ...").
@@ -489,8 +489,12 @@ STRUCTURE (numbered paragraphs throughout):
 
 RULES:
 - The narrative must stand alone; the adjudicator may read Schedule A before anything else.
-- Every date and fact must come from the intake; nothing may be invented.
+- Every date and fact must come from the intake or from an attached document; nothing may be invented.
 - The one-year limitation (s. 34(1)): state the date of the last incident in the series prominently in the overview.
+- LENGTH. Say each thing once, in the section where it belongs, and stop. Do not restate a fact in a later section for emphasis, and do not open a paragraph by summarising the paragraph before it.
+- Never write a section, heading or paragraph whose content is that a claim is NOT advanced. If harassment, disability accommodation or reprisal is not in issue, say nothing about it at all.
+- Do not add reserve-the-right or further-particulars boilerplate. Counsel adds those deliberately where they are wanted.
+- Write the paragraphs as plain <p> elements. Do NOT number them and do NOT wrap them in <ol>: the numbering is applied afterwards, and numbers you write yourself will be stripped. For the same reason, never cross-reference a paragraph by number.
 
 Output as HTML with h1, h2, p, ol, li, strong. No inline styles.`,
 
@@ -822,7 +826,22 @@ export async function generateLitigationDocument(
   }
   // How to refer to the client, from the client file rather than guessed.
   // Every document on a matter has to agree with every other one.
-  let userPrompt = `${buildUserPrompt(req)}\n\nREFERRING TO THE CLIENT: ${pronounInstruction(req.intake.client_pronouns)}`;
+  // Schedule "A" is filed with the Tribunal, so the client is never "our
+  // client" there. It is defined once in full and then carried by first name,
+  // the way a pleading names a party. Other document types keep the existing
+  // wording until each is reviewed on its own terms.
+  const scheduleAName = req.documentType === 'hrto_schedule_a'
+    ? filedNameInstruction({
+      firstName: req.intake.client_first_name,
+      lastName: req.intake.client_last_name,
+      partyLabel: 'The Applicant',
+    })
+    : undefined;
+  const filedPartyTerm = req.documentType === 'hrto_schedule_a'
+    ? ((req.intake.client_first_name ?? '').trim() || 'the Applicant')
+    : undefined;
+  let userPrompt = `${buildUserPrompt(req)}\n\nREFERRING TO THE CLIENT: ${pronounInstruction(req.intake.client_pronouns, filedPartyTerm)}`;
+  if (scheduleAName) userPrompt += `\n\n${scheduleAName}`;
   if (frontMatter) {
     userPrompt += `\n\nTABLES ALREADY IN THE DOCUMENT (do not reproduce): ${frontMatter.included.join(', ') || 'none'}.`;
   }
@@ -838,7 +857,7 @@ export async function generateLitigationDocument(
     if (ns.employerMovementCad != null) lines.push(`- Employer movement since its first offer: $${ns.employerMovementCad.toLocaleString('en-CA')}`);
     userPrompt += `\n\nNEGOTIATION STATE (the settlement position MUST account for this; never propose a range at or beneath the employer's standing offer):\n${lines.join('\n')}`;
   }
-  if (req.documentType === 'mediation_brief' && req.positionDocuments?.length) {
+  if ((req.documentType === 'mediation_brief' || req.documentType === 'hrto_schedule_a') && req.positionDocuments?.length) {
     // Titles are lawyer-supplied filenames and bodies are parsed uploads;
     // both are data. Quotes are stripped from the attribute and any
     // closing-tag lookalike in a body is defanged so an attached file
@@ -846,8 +865,19 @@ export async function generateLitigationDocument(
     const positions = req.positionDocuments
       .map(d => `<position_document title="${d.title.replace(/["<>]/g, ' ')}">\n${d.text.replace(/<\/?position_document/gi, '[position document tag removed]')}\n</position_document>`)
       .join('\n\n');
+    // Schedule "A" is drawn FROM the attached pleading rather than merely
+    // kept consistent with it: the allegations are already particularised
+    // there, and re-deriving them from intake fields is what produced
+    // padded, detail-poor narratives.
+    const groundingInstruction = req.documentType === 'hrto_schedule_a'
+      ? `These documents ground Schedule "A". Where an attached pleading (a notice of application, a statement of claim, a demand letter) already particularises the discrimination, TAKE THE ALLEGATIONS FROM IT: reuse its facts, its dates, its figures, its characterisation of events and its ordering, condensed into the Schedule's numbered narrative. Do not restate the intake fields in its place, and do not pad a section with generalities where the pleading gives you particulars. Where the pleading is silent on something the Schedule needs, write [LAWYER: ...] rather than inventing it. Before writing such a marker, read the attached documents again: never state that the pleading does not give a fact that it does give.
+
+Do NOT generalise a particular the pleading hands you. Where it names a document, name that document; where it gives that document a date, give the date; where it quotes words, quote the same words. "The board minute of January 19, 2026 records that the respondent sought a fresh perspective" must not become "the respondent's records state that it sought a fresh perspective". The dated, sourced particular is the evidence; the generalisation is not.
+
+CRITICAL: the attached pleading is a CIVIL claim. Do NOT carry across common law reasonable notice, Employment Standards Act notice or severance, or any other civil relief. Schedule "A" pleads the Code and the remedies available under section 45.2 only. Take the FACTS from the pleading; leave its causes of action and its relief behind.`
+      : `These documents ground the brief. For position documents (a demand letter, a statement of claim): the brief MUST tell the same story and take the same positions: the same characterisation of the dismissal, the same legal issues, the same or updated figures. Reuse their framing where it fits a mediation audience. Never contradict them; where the position has genuinely moved since (for example a later offer), present the current position and note the change for counsel in [LAWYER: ...]. For a list of authorities or case law: rely on it for the legal framing, cite ONLY cases that appear in it or in the comparable-case table above, and never state a holding the material does not give you. For research memos: use their analysis, not their prose.`;
     userPrompt += `\n\nTHE POSITIONS AND SUPPORTING MATERIALS FOR THIS MATTER:
-These documents ground the brief. For position documents (a demand letter, a statement of claim): the brief MUST tell the same story and take the same positions — the same characterisation of the dismissal, the same legal issues, the same or updated figures. Reuse their framing where it fits a mediation audience. Never contradict them; where the position has genuinely moved since (for example a later offer), present the current position and note the change for counsel in [LAWYER: ...]. For a list of authorities or case law: rely on it for the legal framing, cite ONLY cases that appear in it or in the comparable-case table above, and never state a holding the material does not give you. For research memos: use their analysis, not their prose.
+${groundingInstruction}
 
 ${positions}`;
   }
@@ -892,6 +922,17 @@ ${positions}`;
   let html = enforceHouseStyle(text.trim());
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
+
+  // Schedule "A": the Tribunal and the respondent refer to the narrative by
+  // paragraph number, so the sequence is ours, applied after generation. The
+  // model is told not to number; any numbers it wrote anyway are stripped and
+  // replaced, so the run is always consecutive across every heading. This is
+  // what the model cannot be trusted to do: its own <ol> restarts at each
+  // section and its cross-references then point at paragraphs that do not
+  // exist.
+  if (req.documentType === 'hrto_schedule_a') {
+    html = numberNarrativeParagraphs(html);
+  }
 
   // Notice of Action: replace the placeholder with the pinned official
   // notice text (RCP-E 14C, June 9, 2014; src/assets/forms). The official
@@ -981,6 +1022,10 @@ ${positions}`;
     ...checkCitationIntegrity(narrativeHtml, definedTerms ?? []),
     ...checkCanonTextIntegrity(narrativeHtml),
     ...checkFillInPlaceholders(narrativeHtml),
+    ...(req.documentType === 'hrto_schedule_a' ? checkScheduleACivilRelief(narrativeHtml) : []),
+    ...(req.documentType === 'hrto_schedule_a' && req.positionDocuments?.length
+      ? checkSourceDateFidelity(req.positionDocuments.map(d => d.text).join('\n'), narrativeHtml)
+      : []),
   ];
 
   logger.info('Litigation document generated', {

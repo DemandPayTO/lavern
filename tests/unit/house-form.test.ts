@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   resolveSlots, fillSlots, renderHouseOpening, renderHouseClosing,
-  checkHouseFormFit, houseFormContext, pronounInstruction,
+  checkHouseFormFit, houseFormContext, pronounInstruction, filedNameInstruction,
 } from '../../src/employment/house-form.js';
 
 const intake = {
@@ -311,5 +311,52 @@ describe('the reproduction rule', () => {
   it('carries the pronouns and the firm’s own length', () => {
     expect(context).toContain('he, him, his');
     expect(context).toContain('900 words');
+  });
+});
+
+describe('pronounInstruction in a filed document', () => {
+  it('keeps the correspondence register when no party term is given', () => {
+    expect(pronounInstruction(undefined)).toContain('"our client"');
+    expect(pronounInstruction(undefined)).not.toContain('filed with a court');
+  });
+
+  it('forbids the correspondence register once a party term is given', () => {
+    const out = pronounInstruction(undefined, 'Margaret');
+    expect(out).toContain('"Margaret"');
+    expect(out).toContain('Never write "our client" or "the client"');
+  });
+
+  it('carries the prohibition on every pronoun branch, not just the fallback', () => {
+    for (const p of ['she', 'he', 'they', 'name', undefined]) {
+      expect(pronounInstruction(p, 'Margaret')).toContain('Never write "our client"');
+    }
+  });
+
+  it('leaves recorded pronouns intact', () => {
+    expect(pronounInstruction('they', 'Margaret')).toContain('they, them, their');
+  });
+});
+
+describe('filedNameInstruction', () => {
+  it('defines the party once in full, then carries the first name', () => {
+    const out = filedNameInstruction({ firstName: 'Margaret', lastName: 'Okonjo', partyLabel: 'The Applicant' });
+    expect(out).toContain('The Applicant, Margaret Okonjo ("Margaret")');
+    expect(out).toContain('call the party Margaret');
+    expect(out).toContain('only once');
+  });
+
+  it('tells the model not to fall back to the party label', () => {
+    const out = filedNameInstruction({ firstName: 'Margaret', lastName: 'Okonjo', partyLabel: 'The Applicant' });
+    expect(out).toContain('Do not fall back to "The Applicant"');
+  });
+
+  it('returns undefined when the file has no first name, rather than defining a nameless party', () => {
+    expect(filedNameInstruction({ firstName: '', lastName: 'Okonjo', partyLabel: 'The Applicant' })).toBeUndefined();
+    expect(filedNameInstruction({ firstName: null, lastName: null, partyLabel: 'The Applicant' })).toBeUndefined();
+  });
+
+  it('works from a first name alone', () => {
+    const out = filedNameInstruction({ firstName: 'Margaret', lastName: null, partyLabel: 'The Applicant' });
+    expect(out).toContain('The Applicant, Margaret ("Margaret")');
   });
 });

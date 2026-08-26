@@ -1835,7 +1835,7 @@ export default function MatterDetailView() {
           mitigationEarnings: dlMitigation ? Number(dlMitigation) : undefined,
         } : {}),
 
-        ...(selectedDraft === 'mediation' ? {
+        ...(selectedDraft === 'mediation' || selectedDraft === 'schedulea' ? {
           briefSourceIds: [...selectedSourceIds],
           includeGeneratedDemand: includeGenDemand,
           includeGeneratedSoc: includeGenSoc,
@@ -2449,7 +2449,7 @@ export default function MatterDetailView() {
                   .map(({ ext, key }) => (
                     <div key={key} style={{ marginTop: 14, borderTop: `1px solid ${border}`, paddingTop: 12 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                        Extracted earlier from {ext.filename} — not yet applied
+                        Extracted earlier from {ext.filename}, not yet applied
                       </div>
                       <ExtractionReviewPanel
                         extraction={{ ...ext, id: key }}

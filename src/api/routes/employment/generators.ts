@@ -739,7 +739,12 @@ nodeReport: result.nodeReport,
     // and double as citation sources so claims attribute to them.
     let positionDocuments: Array<{ title: string; text: string }> = [];
     let droppedSources: string[] = [];
-    if (parsed.data.documentType === 'mediation_brief') {
+    // Schedule "A" is grounded the same way: the allegations it pleads were
+    // already stated in the civil pleading, so the lawyer attaches that
+    // pleading and the narrative is drawn from it rather than re-derived
+    // from the intake fields.
+    const SOURCE_GROUNDED_TYPES = ['mediation_brief', 'hrto_schedule_a'];
+    if (SOURCE_GROUNDED_TYPES.includes(parsed.data.documentType)) {
       const { assembleBriefSources } = await import('../../../employment/brief-sources.js');
       const dl = (matter as Record<string, unknown>).generatedDemandLetter as Record<string, unknown> | undefined;
       const soc = (matter as Record<string, unknown>).generatedSOC as Record<string, unknown> | undefined;
@@ -759,7 +764,8 @@ nodeReport: result.nodeReport,
       });
       positionDocuments = assembled.sources;
       droppedSources = assembled.dropped;
-
+    }
+    if (parsed.data.documentType === 'mediation_brief') {
       negotiationEntries = ((matter as Record<string, unknown>).negotiation ?? null) as import('../../../employment/negotiation.js').NegotiationEntry[] | null;
       if (negotiationEntries?.length) {
         try {

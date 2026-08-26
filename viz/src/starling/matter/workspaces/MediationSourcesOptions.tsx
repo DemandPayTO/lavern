@@ -1,6 +1,11 @@
-// Mediation-brief "sources for this brief" options: the generated
-// demand/claim toggles, the attached sources with checkboxes, and the attach
-// control. Extracted verbatim from MatterDetailView.tsx's draft tab (Option A).
+// "Sources for this document" options: the generated demand/claim toggles,
+// the attached sources with checkboxes, and the attach control. Extracted
+// verbatim from MatterDetailView.tsx's draft tab (Option A).
+//
+// Shared by the mediation brief and Schedule "A": both are drawn from the
+// positions already taken in the matter, so both attach the same documents
+// from the same store. Only the wording differs, since the brief argues the
+// positions while Schedule "A" takes its allegations from them.
 
 import { navy, red, border, ink, muted, sans } from '../tokens.js';
 import { useEmploymentData } from '../../hooks/useStarlingApi.js';
@@ -12,6 +17,8 @@ export function MediationSourcesOptions({
   generatedDocuments, includeGenDemand, setIncludeGenDemand, includeGenSoc, setIncludeGenSoc,
   storedSources, selectedSourceIds, setSelectedSourceIds, removeBriefSource,
   briefSourceInputRef, attachBriefSource, sourceParsing, sourceError,
+  heading = 'Sources for this brief',
+  description = 'The brief argues the positions in these documents and cites back to them. Attach what was drafted outside Starling: the statement of claim, the demand letter, a list of cases. Up to roughly 40 pages per document is read in full.',
 }: {
   generatedDocuments: Employment['generatedDocuments'];
   includeGenDemand: boolean;
@@ -26,14 +33,13 @@ export function MediationSourcesOptions({
   attachBriefSource: (file: File, kind?: string) => void;
   sourceParsing: boolean;
   sourceError: string | null;
+  heading?: string;
+  description?: string;
 }) {
   return (
     <div style={{ background: '#fff', border: `1px solid ${border}`, padding: '14px 18px', marginBottom: 16 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>Sources for this brief</div>
-      <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>
-        The brief argues the positions in these documents and cites back to them. Attach what was
-        drafted outside Starling: the statement of claim, the demand letter, a list of cases. Up to roughly 40 pages per document is read in full.
-      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, marginBottom: 4 }}>{heading}</div>
+      <div style={{ fontSize: 12.5, color: muted, marginBottom: 10 }}>{description}</div>
       {generatedDocuments.some(d => d.docType === 'demand_letter') && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: ink, marginBottom: 5, cursor: 'pointer' }}>
           <input type="checkbox" checked={includeGenDemand} onChange={() => setIncludeGenDemand(v => !v)} style={{ accentColor: navy }} />

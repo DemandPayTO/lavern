@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { checkCitationIntegrity, checkFillInPlaceholders } from '../../src/employment/citation-canon.js';
+import { checkCitationIntegrity, checkFillInPlaceholders, checkScheduleACivilRelief, checkSourceDateFidelity } from '../../src/employment/citation-canon.js';
 
 describe('checkCitationIntegrity — known canon', () => {
   it('accepts canon cases with correct citations', () => {
@@ -108,5 +108,66 @@ describe('checkFillInPlaceholders catches [LAWYER: ...] markers', () => {
   });
   it('is silent on a clean document', () => {
     expect(checkFillInPlaceholders('<p>Dear Counsel:</p><p>Yours truly</p>')).toEqual([]);
+  });
+});
+
+describe('checkScheduleACivilRelief', () => {
+  it('says nothing when the narrative pleads the Code alone', () => {
+    const html = '<p>The applicant was 64 years of age. Her age was a factor in the decision to eliminate her position, contrary to section 5(1) of the Code. She seeks compensation for injury to dignity, feelings and self-respect under section 45.2.</p>';
+    expect(checkScheduleACivilRelief(html)).toEqual([]);
+  });
+
+  it('flags common law notice carried over from the civil pleading', () => {
+    const html = '<p>The applicant claims damages in lieu of reasonable notice at common law, having regard to the Bardal factors.</p>';
+    const flags = checkScheduleACivilRelief(html);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toContain('reasonable notice');
+    expect(flags[0]).toContain('common law');
+    expect(flags[0]).toContain('Bardal');
+  });
+
+  it('flags statutory entitlements that belong to the civil proceeding', () => {
+    const flags = checkScheduleACivilRelief('<p>The applicant seeks severance pay under the Employment Standards Act, 2000.</p>');
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toContain('severance pay');
+    expect(flags[0]).toContain('the Employment Standards Act');
+  });
+
+  it('reports one flag naming every carry-over, not one flag each', () => {
+    const html = '<p>Wrongful dismissal. Reasonable notice. Severance pay.</p>';
+    expect(checkScheduleACivilRelief(html)).toHaveLength(1);
+  });
+
+  it('reads the text, not the markup', () => {
+    expect(checkScheduleACivilRelief('<p class="reasonable notice">The respondent discriminated.</p>')).toEqual([]);
+  });
+});
+
+describe('checkSourceDateFidelity', () => {
+  const source = 'The board minute of January 19, 2026 records the request. Employment ended February 12, 2026.';
+
+  it('says nothing when every sourced date is pleaded', () => {
+    const html = '<p>On January 19, 2026 the board recorded it. The applicant was dismissed on February 12, 2026.</p>';
+    expect(checkSourceDateFidelity(source, html)).toEqual([]);
+  });
+
+  it('flags a dated particular generalised away', () => {
+    const html = '<p>The respondent\'s records state that it sought a fresh perspective. The applicant was dismissed on February 12, 2026.</p>';
+    const flags = checkSourceDateFidelity(source, html);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toContain('January 19, 2026');
+    expect(flags[0]).not.toContain('February 12, 2026');
+  });
+
+  it('reports one flag naming each missing date', () => {
+    expect(checkSourceDateFidelity(source, '<p>Nothing dated here.</p>')).toHaveLength(1);
+  });
+
+  it('ignores dates the narrative adds of its own', () => {
+    expect(checkSourceDateFidelity('Ended February 12, 2026.', '<p>Filed March 3, 2026 about February 12, 2026.</p>')).toEqual([]);
+  });
+
+  it('reads the narrative text, not its markup', () => {
+    expect(checkSourceDateFidelity('On January 19, 2026.', '<p title="January 19, 2026">Nothing.</p>')).toHaveLength(1);
   });
 });
