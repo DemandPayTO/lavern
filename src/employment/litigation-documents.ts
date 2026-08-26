@@ -492,6 +492,8 @@ RULES:
 - The narrative must stand alone; the adjudicator may read Schedule A before anything else.
 - Every date and fact must come from the intake or from an attached document; nothing may be invented.
 - The one-year limitation (s. 34(1)): state the date of the last incident in the series prominently in the overview.
+- VOICE. Active, with the actor named. "The respondent eliminated the position", never "the position was eliminated". The passive hides who acted, and who acted is the point of the narrative. Use the passive only where the actor is genuinely unknown to the file, or where the fact is that nobody acted, as in "no concern about performance was raised".
+- POINT FIRST. Open each paragraph with the fact it pleads and let any particulars follow it. Do not build up to the fact through context or scene setting, and never hold it back to the last sentence. A date opening the sentence is correct form and is not throat clearing; a clause explaining why the fact matters is throat clearing, and is also argument.
 - LENGTH. Say each thing once, in the section where it belongs, and stop. Do not restate a fact in a later section for emphasis, and do not open a paragraph by summarising the paragraph before it.
 - Never write a section, heading or paragraph whose content is that a claim is NOT advanced. If harassment, disability accommodation or reprisal is not in issue, say nothing about it at all.
 - Do not add reserve-the-right or further-particulars boilerplate. Counsel adds those deliberately where they are wanted.

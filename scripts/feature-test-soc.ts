@@ -143,7 +143,9 @@ async function main() {
     .filter(Boolean);
   check('the facts came back as readable paragraphs', factParas.length >= 5, `${factParas.length}`);
 
-  const agentlessPassive = factParas.filter(t => /\b(?:was|were)\s+\w+ed\s+by\s+the\s+(?:Plaintiff|Defendant)\b/i.test(t));
+  // The passive that matters hides who did the contested thing. "was employed
+  // by the Defendant" is settled pleading idiom and names its actor already.
+  const agentlessPassive = factParas.filter(t => new RegExp(`\\b(?:was|were)\\s+(?:terminated|dismissed|eliminated|removed|replaced|denied|refused|rejected|excluded|demoted|reassigned|selected|appointed|filled)\\b`, 'i').test(t));
   check('the actor is named, not buried in the passive', agentlessPassive.length <= 1,
     `${agentlessPassive.length} paragraph(s): ${agentlessPassive.slice(0, 2).map(t => t.slice(0, 60)).join(' | ')}`);
 

@@ -164,6 +164,24 @@ async function main() {
     !/does not(,| ).{0,60}(advance|plead)/i.test(text) && !/freestanding claim of harassment/i.test(text),
     'found a section disclaiming unpleaded causes');
 
+  // 5b. Craft: active voice with the actor named, and the fact at the front of
+  //     the paragraph. Loose on purpose: some passive is correct, so the test
+  //     is that the passive is the exception rather than the register.
+  const saParas = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map(mm => mm[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;|\u00a0/g, ' ').replace(/^\s*\d+[.)]\s*/, '').replace(/\s+/g, ' ').trim())
+    .filter(t => t.length > 40);
+  check('the narrative came back as readable paragraphs', saParas.length >= 5, `${saParas.length}`);
+
+  // The passive that matters hides who did the contested thing. "was employed
+  // by the Respondent" is settled pleading idiom and names its actor already.
+  const saPassive = saParas.filter(t => new RegExp(`\\b(?:was|were)\\s+(?:terminated|dismissed|eliminated|removed|replaced|denied|refused|rejected|excluded|demoted|reassigned|selected|appointed|filled)\\b`, 'i').test(t));
+  check('the actor is named, not buried in the passive', saPassive.length <= 1,
+    `${saPassive.length}: ${saPassive.slice(0, 2).map(t => t.slice(0, 60)).join(' | ')}`);
+
+  const saWeak = saParas.filter(t => /^(?:There (?:was|were|is|are)\b|It (?:was|is)\b)/i.test(t));
+  check('no paragraph opens by circling the fact', saWeak.length === 0,
+    saWeak.slice(0, 2).map(t => t.slice(0, 60)).join(' | '));
+
   // 6. House style. A document filed with the Tribunal says "the applicant",
   //    never the correspondence register "our client".
   check('no em-dashes', !html.includes('—'));
