@@ -157,15 +157,15 @@ async function main() {
     agentlessPassive.length <= Math.max(2, Math.floor(factParas.length * 0.3)),
     `${agentlessPassive.length} of ${factParas.length} paragraphs`);
 
-  const weakOpener = factParas.filter(t => /^(?:There (?:was|were|is|are)\b|It (?:was|is)\b|In (?:the )?(?:circumstances|addition)\b)/i.test(t));
-  check('no paragraph opens by circling the fact', weakOpener.length === 0,
-    weakOpener.slice(0, 2).map(t => t.slice(0, 60)).join(' | '));
-
-  // Point first: a pleaded fact opens with its actor or its date, not with a
-  // subordinate clause building toward the fact.
-  const pointFirst = factParas.filter(t => /^(?:On|By|In|At|The Plaintiff|The Defendant|Throughout|Between|Prior to|Following)\b/i.test(t));
-  check('paragraphs lead with the fact', pointFirst.length >= Math.ceil(factParas.length * 0.7),
-    `${pointFirst.length} of ${factParas.length}`);
+  // Point first is tested by what the rule FORBIDS, not by a list of approved
+  // openers. An earlier version whitelisted "On", "The Plaintiff" and their
+  // kind, and duly failed a pass on "The memorandum records that ..." and
+  // "Since January 9, 2026 the Plaintiff has sought ...", both of which lead
+  // with the fact. The failure mode is a paragraph that circles before it
+  // lands: a subordinate clause, or throat clearing, ahead of the fact.
+  const circling = factParas.filter(t => new RegExp(`^(?:Although|While|Whereas|Because|Given|Notwithstanding|In light of|In the circumstances|In circumstances|By way of background|As background|As a preliminary|There (?:was|were|is|are)|It (?:was|is|should|must|bears|would)|Notably|Significantly|Importantly|Critically|Tellingly|Of note)\\b`, 'i').test(t));
+  check('no paragraph circles before it lands on the fact', circling.length === 0,
+    circling.slice(0, 2).map(t => t.slice(0, 70)).join(' | '));
 
   // House style.
   check('no em-dashes in the facts', !factsHtml.includes('—'));

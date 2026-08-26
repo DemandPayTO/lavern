@@ -186,9 +186,15 @@ async function main() {
     saPassive.length <= Math.max(2, Math.floor(saParas.length * 0.3)),
     `${saPassive.length} of ${saParas.length} paragraphs`);
 
-  const saWeak = saParas.filter(t => /^(?:There (?:was|were|is|are)\b|It (?:was|is)\b)/i.test(t));
-  check('no paragraph opens by circling the fact', saWeak.length === 0,
-    saWeak.slice(0, 2).map(t => t.slice(0, 60)).join(' | '));
+  // Point first is tested by what the rule FORBIDS, not by a list of approved
+  // openers. An earlier version whitelisted "On", "The Plaintiff" and their
+  // kind, and duly failed a pass on "The memorandum records that ..." and
+  // "Since January 9, 2026 the Plaintiff has sought ...", both of which lead
+  // with the fact. The failure mode is a paragraph that circles before it
+  // lands: a subordinate clause, or throat clearing, ahead of the fact.
+  const saCircling = saParas.filter(t => new RegExp(`^(?:Although|While|Whereas|Because|Given|Notwithstanding|In light of|In the circumstances|In circumstances|By way of background|As background|As a preliminary|There (?:was|were|is|are)|It (?:was|is|should|must|bears|would)|Notably|Significantly|Importantly|Critically|Tellingly|Of note)\\b`, 'i').test(t));
+  check('no paragraph circles before it lands on the fact', saCircling.length === 0,
+    saCircling.slice(0, 2).map(t => t.slice(0, 70)).join(' | '));
 
   // 6. House style. A document filed with the Tribunal says "the applicant",
   //    never the correspondence register "our client".
