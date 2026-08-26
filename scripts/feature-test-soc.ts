@@ -134,6 +134,29 @@ async function main() {
   check('the facts are paragraphs', (factsHtml.match(/<p[\s>]/g) ?? []).length >= 5,
     `${(factsHtml.match(/<p[\s>]/g) ?? []).length} paragraphs`);
 
+  // Craft: active voice with the actor named, and the fact at the front of the
+  // paragraph. Tested loosely on purpose. Some passive is correct pleading
+  // ("no concern about performance was raised" has no actor by design), so the
+  // check is that the passive is the exception rather than the register.
+  const factParas = [...factsHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map(mm => mm[1].replace(/<[^>]+>/g, ' ').replace(/\{\{para\}\}\.?/g, '').replace(/^\s*\d+[.)]\s*/, '').trim())
+    .filter(Boolean);
+  check('the facts came back as readable paragraphs', factParas.length >= 5, `${factParas.length}`);
+
+  const agentlessPassive = factParas.filter(t => /\b(?:was|were)\s+\w+ed\s+by\s+the\s+(?:Plaintiff|Defendant)\b/i.test(t));
+  check('the actor is named, not buried in the passive', agentlessPassive.length <= 1,
+    `${agentlessPassive.length} paragraph(s): ${agentlessPassive.slice(0, 2).map(t => t.slice(0, 60)).join(' | ')}`);
+
+  const weakOpener = factParas.filter(t => /^(?:There (?:was|were|is|are)\b|It (?:was|is)\b|In (?:the )?(?:circumstances|addition)\b)/i.test(t));
+  check('no paragraph opens by circling the fact', weakOpener.length === 0,
+    weakOpener.slice(0, 2).map(t => t.slice(0, 60)).join(' | '));
+
+  // Point first: a pleaded fact opens with its actor or its date, not with a
+  // subordinate clause building toward the fact.
+  const pointFirst = factParas.filter(t => /^(?:On|By|In|At|The Plaintiff|The Defendant|Throughout|Between|Prior to|Following)\b/i.test(t));
+  check('paragraphs lead with the fact', pointFirst.length >= Math.ceil(factParas.length * 0.7),
+    `${pointFirst.length} of ${factParas.length}`);
+
   // House style.
   check('no em-dashes in the facts', !factsHtml.includes('—'));
   check('no contractions in the facts', !/\b(don't|can't|won't|doesn't|isn't|wasn't|couldn't|didn't)\b/i.test(facts));
