@@ -10,6 +10,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from './ChatMessage.js';
 import { colors, fonts, radii } from '../../staffing/styles/tokens.js';
+import { InlineSvg } from './InlineSvg.js';
 import type { BriefingQuestion } from '../data/questions.js';
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -98,10 +99,7 @@ export function BriefingChat({
             return (
               <div key={q.id} style={styles.thinkingRow}>
                 {interviewerAvatar && (
-                  <div
-                    style={styles.avatar}
-                    dangerouslySetInnerHTML={{ __html: interviewerAvatar }}
-                  />
+                  <InlineSvg style={styles.avatar} svg={interviewerAvatar} />
                 )}
                 <div style={styles.thinkingBubble}>
                   <span style={{ ...styles.thinkingDot, animationDelay: '0s' }} />
@@ -122,10 +120,7 @@ export function BriefingChat({
           >
             <div style={interviewerAvatar ? styles.questionRow : undefined}>
               {interviewerAvatar && (
-                <div
-                  style={styles.avatar}
-                  dangerouslySetInnerHTML={{ __html: interviewerAvatar }}
-                />
+                <InlineSvg style={styles.avatar} svg={interviewerAvatar} />
               )}
               <div style={styles.questionContent}>
                 <ChatMessage

@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { DocumentHtml } from './DocumentHtml.js';
 
 // ── Design Tokens ───────────────────────────────────────────────────────
 export const navy = '#0f1a2e';
@@ -296,13 +297,13 @@ export function DraftPreview({ html, reviewFlags, citations = [], downloadHref, 
           )}
         </div>
       </div>
-      <div
+      <DocumentHtml
         style={{
           background: '#fff', border: `1px solid ${border}`, padding: '28px 32px',
           fontFamily: serif, fontSize: 14, lineHeight: 1.7, color: ink,
           maxHeight: 600, overflowY: 'auto',
         }}
-        dangerouslySetInnerHTML={{ __html: html }}
+        html={html}
       />
 
       {reviewFlags.length > 0 && (

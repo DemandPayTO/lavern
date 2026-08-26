@@ -11,6 +11,7 @@
 import { useState, useCallback } from 'react';
 import { useResults } from './hooks/useStarlingApi.js';
 import { SOURCE_TAGS } from './hooks/stepMapping.js';
+import { DocumentHtml } from './DocumentHtml.js';
 
 // -- Design Tokens --------------------------------------------------------
 const navy = '#0f1a2e';
@@ -495,7 +496,7 @@ function DocumentPanel({ document: docContent }: { document: string }) {
   if (isHtml) {
     return (
       <div style={{ padding: '36px 56px', maxWidth: 760, margin: '0 auto', fontSize: 14, lineHeight: 1.75, color: '#1a2433' }}>
-        <div dangerouslySetInnerHTML={{ __html: docContent }} />
+        <DocumentHtml html={docContent} />
         <DocumentLegend />
       </div>
     );

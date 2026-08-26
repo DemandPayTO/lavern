@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { navy, orange, green, amber, red, muted, border, ink, sans } from '../tokens.js';
+import { DocumentHtml } from '../../DocumentHtml.js';
 
 export type SocOutlineSectionUI = {
   id: string;
@@ -114,7 +115,7 @@ export function SocOutlinePanel({
                   </div>
                 ) : hasText ? (
                   <>
-                    <div style={{ fontSize: 12.5, color: ink, lineHeight: 1.55, background: '#fbfaf7', border: `1px solid ${border}`, borderRadius: 2, padding: '10px 12px', maxHeight: 300, overflowY: 'auto' }} dangerouslySetInnerHTML={{ __html: s.html }} />
+                    <DocumentHtml style={{ fontSize: 12.5, color: ink, lineHeight: 1.55, background: '#fbfaf7', border: `1px solid ${border}`, borderRadius: 2, padding: '10px 12px', maxHeight: 300, overflowY: 'auto' }} html={s.html} />
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 6 }}>
                       <button onClick={() => startEdit(s)} style={btnText(navy)}>edit by hand</button>
                       {(s.edited || s.approved || s.draftStatus === 'drafted') && (

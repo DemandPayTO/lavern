@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { INTERVIEWER_PERSONAS, type InterviewerPersona } from '../data/interviewers.js';
 import { colors, fonts, radii, spacing } from '../../staffing/styles/tokens.js';
+import { InlineSvg } from './InlineSvg.js';
 
 interface Props {
   onSelect: (personaId: string) => void;
@@ -71,10 +72,7 @@ function InterviewerCard({ persona, isHovered, onHover, onLeave, onSelect }: Car
       data-testid={`interviewer-${persona.id}`}
     >
       {/* Portrait */}
-      <div
-        style={styles.portrait}
-        dangerouslySetInnerHTML={{ __html: persona.portrait }}
-      />
+      <InlineSvg style={styles.portrait} svg={persona.portrait} />
 
       {/* Name & Title */}
       <span style={styles.name}>{persona.name}</span>

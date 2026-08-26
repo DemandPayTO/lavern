@@ -93,10 +93,36 @@ lens_7() { # silent failure: truly empty catch blocks with no comment
   ! grep -rn "catch {}" src viz/src 2>/dev/null | grep -q . \
     && ! grep -rn "catch (.*) {}" src viz/src 2>/dev/null | grep -q .
 }
-lens_8() { # XSS sinks: no NEW dangerouslySetInnerHTML beyond the accepted baseline
-  local count
-  count=$(grep -rn "dangerouslySetInnerHTML" viz/src | wc -l | tr -d ' ')
-  [ "$count" -le 11 ]
+lens_8() { # XSS sinks: dangerouslySetInnerHTML lives in the two render components, nowhere else
+  # This replaced a bare count with a ceiling of 11 on 2026-08-26. The count was
+  # weak in both directions: it could not tell a sanitised sink from an
+  # unsanitised one (three panels were rendering raw model output while the
+  # count read as merely "drifted"), and it failed open, since adding an unsafe
+  # sink while deleting any old one held the total steady.
+  #
+  # Every sink now lives in one of two components, each carrying the trust
+  # boundary in its header:
+  #   viz/src/starling/DocumentHtml.tsx        server-sanitised document HTML
+  #   viz/src/briefing/components/InlineSvg.tsx  app-generated avatar/trophy SVG
+  #
+  # The invariant is zero, not a ceiling, so it cannot be quietly bumped: a new
+  # workspace panel gets the safe path by default. If a third family of sink is
+  # ever genuinely needed, add the component and list it here deliberately.
+  # Match the JSX usage, not the bare word: the components' own header comments
+  # name the prop, and so may a future doc comment.
+  local sink='dangerouslySetInnerHTML={{'
+  local stray
+  stray=$(grep -rnF "$sink" viz/src \
+    | grep -v "viz/src/starling/DocumentHtml.tsx" \
+    | grep -v "viz/src/briefing/components/InlineSvg.tsx")
+  if [ -n "$stray" ]; then
+    echo "$stray" >> "$LOG"
+    echo "raw dangerouslySetInnerHTML outside DocumentHtml/InlineSvg (render through them instead)" >> "$LOG"
+    return 1
+  fi
+  # Both components must still exist and hold exactly one sink each.
+  [ "$(grep -cF "$sink" viz/src/starling/DocumentHtml.tsx)" = "1" ] \
+    && [ "$(grep -cF "$sink" viz/src/briefing/components/InlineSvg.tsx)" = "1" ]
 }
 lens_9() { # SQL: no template-literal interpolation inside the prepare() SQL itself
   node -e '

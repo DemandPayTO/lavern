@@ -14,6 +14,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMatterDetail, useEmploymentData, useFirmTemplates, useApprovalsEnabled } from './hooks/useStarlingApi.js';
 import { ExtractionReviewPanel } from './ExtractionReviewPanel.js';
+import { DocumentHtml } from './DocumentHtml.js';
 import { StyleProfilePanel, useStyleProfiles } from './StyleProfilePanel.js';
 import { CaseFileDropPanel } from './CaseFileDropPanel.js';
 import { DocAnalysisPanel } from './DocAnalysisPanel.js';
@@ -3203,14 +3204,14 @@ export default function MatterDetailView() {
                       </>
                     );
                   })()}
-                  <div
+                  <DocumentHtml
                     className="starling-doc"
                     style={{
                       background: '#fff', border: `1px solid ${border}`, padding: '28px 32px',
                       fontFamily: serif, fontSize: 14, lineHeight: 1.7, color: ink,
                       maxHeight: 600, overflowY: 'auto',
                     }}
-                    dangerouslySetInnerHTML={{ __html: generatedHtml }}
+                    html={generatedHtml}
                   />
 
                   {/* Lawyer review flags — sections the model wants checked */}
@@ -3449,9 +3450,9 @@ export default function MatterDetailView() {
                 <div style={{ fontSize: 12, color: amber, marginBottom: 10 }}>
                   Review and edit before sending; Starling never contacts your clients.
                 </div>
-                <div
+                <DocumentHtml
                   style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.7, color: ink, maxHeight: 380, overflowY: 'auto', borderTop: `1px solid ${border}`, paddingTop: 12 }}
-                  dangerouslySetInnerHTML={{ __html: clientUpdateHtml }}
+                  html={clientUpdateHtml}
                 />
               </>
             )}

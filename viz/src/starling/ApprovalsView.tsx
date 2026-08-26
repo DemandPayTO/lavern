@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { navy, orange, cream, frame, green, amber, red, border, ink, muted, serif, sans } from './shared.js';
+import { DocumentHtml } from './DocumentHtml.js';
 
 interface ReviewSummary {
   matterLabel: string;
@@ -338,10 +339,10 @@ export default function ApprovalsView() {
                     </div>
                   </div>
                 ) : (
-                  <div
+                  <DocumentHtml
                     className="starling-doc"
                     style={{ background: '#fff', border: `1px solid ${border}`, padding: '24px 28px', fontFamily: serif, fontSize: 14, lineHeight: 1.7, maxHeight: 480, overflowY: 'auto', marginBottom: 16 }}
-                    dangerouslySetInnerHTML={{ __html: detail.html }}
+                    html={detail.html}
                   />
                 )}
 

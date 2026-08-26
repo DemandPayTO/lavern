@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { navy, orange, green, amber, red, muted, border, ink, sans } from '../tokens.js';
+import { DocumentHtml } from '../../DocumentHtml.js';
 
 export type FactumOutlineSectionUI = {
   id: string;
@@ -167,9 +168,9 @@ export function FactumOutlinePanel({
                   </div>
                 ) : (
                   <>
-                    <div
+                    <DocumentHtml
                       style={{ fontSize: 12.5, color: ink, lineHeight: 1.55, background: '#fbfaf7', border: `1px solid ${border}`, borderRadius: 2, padding: '10px 12px', maxHeight: 320, overflowY: 'auto' }}
-                      dangerouslySetInnerHTML={{ __html: s.html ?? '' }}
+                      html={s.html ?? ''}
                     />
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 6 }}>
                       <button

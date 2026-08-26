@@ -13,6 +13,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import type { ChronologyEntry, FieldConflict, ApplyExtractionResult } from './hooks/useStarlingApi.js';
+import { DocumentHtml } from './DocumentHtml.js';
 
 const navy = '#0f1a2e';
 const border = 'rgba(15,26,46,0.12)';
@@ -394,8 +395,8 @@ export function CaseFileDropPanel({ classifyDocument, extractParsed, getCaseRevi
               {memo.flags.map((f, i) => (
                 <div key={i} style={{ fontSize: 12.5, color: amber, marginBottom: 4 }}>⚑ {f}</div>
               ))}
-              <div className="starling-doc" style={{ border: `1px solid ${border}`, background: '#fff', padding: '18px 22px', marginTop: 6 }}
-                dangerouslySetInnerHTML={{ __html: memo.html }} />
+              <DocumentHtml className="starling-doc" style={{ border: `1px solid ${border}`, background: '#fff', padding: '18px 22px', marginTop: 6 }}
+                html={memo.html} />
               <div style={{ fontSize: 12, color: muted, marginTop: 6 }}>
                 Saved to this matter's draft history as {memo.title}.
               </div>

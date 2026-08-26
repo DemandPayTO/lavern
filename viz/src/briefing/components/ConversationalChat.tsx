@@ -11,6 +11,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { InterviewMessage } from '../hooks/useLLMInterview.js';
 import { colors, fonts, radii, spacing } from '../../staffing/styles/tokens.js';
+import { InlineSvg } from './InlineSvg.js';
 import { useVoiceInput } from '../../partner/hooks/useVoiceInput.js';
 
 // ── Component ─────────────────────────────────────────────────────────
@@ -138,12 +139,7 @@ export function ConversationalChat({
           >
             <div style={styles.avatarCol}>
               {interviewerAvatar ? (
-                <div
-                  style={styles.avatar}
-                  // TRUST BOUNDARY: interviewerAvatar is a static SVG string from interviewers.ts —
-                  // if this ever changes to user-supplied data, sanitize with DOMPurify first.
-                  dangerouslySetInnerHTML={{ __html: interviewerAvatar }}
-                />
+                <InlineSvg style={styles.avatar} svg={interviewerAvatar} />
               ) : (
                 <div style={styles.avatarFallback}>M</div>
               )}
@@ -170,12 +166,7 @@ export function ConversationalChat({
             {msg.role === 'assistant' && (
               <div style={styles.avatarCol}>
                 {interviewerAvatar ? (
-                  <div
-                    style={styles.avatar}
-                    // TRUST BOUNDARY: interviewerAvatar is a static SVG string from interviewers.ts —
-                  // if this ever changes to user-supplied data, sanitize with DOMPurify first.
-                  dangerouslySetInnerHTML={{ __html: interviewerAvatar }}
-                  />
+                  <InlineSvg style={styles.avatar} svg={interviewerAvatar} />
                 ) : (
                   <div style={styles.avatarFallback}>M</div>
                 )}

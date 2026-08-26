@@ -9,6 +9,7 @@
 import type { ContextMilestone } from '../hooks/useContextScore.js';
 import { TROPHY_DEFINITIONS } from '../data/trophies.js';
 import { colors, fonts, radii, spacing } from '../../staffing/styles/tokens.js';
+import { InlineSvg } from './InlineSvg.js';
 
 interface Props {
   milestones: ContextMilestone[];
@@ -39,10 +40,7 @@ export function TrophyShelf({ milestones, newMilestone }: Props) {
             title={trophy.description}
             data-testid={`trophy-${trophy.id}`}
           >
-            <div
-              style={styles.icon}
-              dangerouslySetInnerHTML={{ __html: trophy.svg }}
-            />
+            <InlineSvg style={styles.icon} svg={trophy.svg} />
             <span style={styles.label}>{trophy.label}</span>
           </div>
         );

@@ -4,6 +4,7 @@
 // (Option A).
 
 import { navy, orange, amber, border, ink, muted, sans } from '../tokens.js';
+import { DocumentHtml } from '../../DocumentHtml.js';
 import { TEXT_UPLOAD_ACCEPT } from '../../shared.js';
 
 type SocLibNode = {
@@ -91,8 +92,8 @@ export function SocPleadingLanguageOptions({
               ))}
               <details style={{ marginTop: 6 }}>
                 <summary style={{ fontSize: 12, color: navy, cursor: 'pointer' }}>Read it as it would plead</summary>
-                <div style={{ fontSize: 12, color: ink, background: '#fbfaf8', border: `1px solid ${border}`, padding: '8px 10px', marginTop: 5, lineHeight: 1.55 }}
-                  dangerouslySetInnerHTML={{ __html: p.validation?.renderAllOn ?? '' }} />
+                <DocumentHtml style={{ fontSize: 12, color: ink, background: '#fbfaf8', border: `1px solid ${border}`, padding: '8px 10px', marginTop: 5, lineHeight: 1.55 }}
+                  html={p.validation?.renderAllOn ?? ''} />
               </details>
               {p.additions.length > 0 && (
                 <div style={{ fontSize: 11.5, color: muted, marginTop: 5 }}>
