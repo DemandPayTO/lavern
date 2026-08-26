@@ -203,13 +203,18 @@ export function registerSocNodeRoutes(fastify: FastifyInstance): void {
       return reply.status(502).send({ ok: false, error: 'The Background Facts could not be drafted. Please try again.' });
     }
 
+    // The model's HTML is rendered in the dashboard via dangerouslySetInnerHTML
+    // and its facts can originate from the public intake portal, so the drafted
+    // section passes the same allowlist as a section the lawyer edits by hand.
+    const { sanitiseReviewHtml } = await import('../../../employment/document-reviews.js');
+    const cleanHtml = sanitiseReviewHtml(result.html);
     const draft = ((matter as Record<string, unknown>).socDraft ?? { sections: {} }) as import('../../../employment/soc-outline.js').SocDraftState;
     if (!draft.sections) draft.sections = {};
-    draft.sections[parsed.data.sectionId] = { html: result.html, approved: false, edited: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
+    draft.sections[parsed.data.sectionId] = { html: cleanHtml, approved: false, edited: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
     (matter as Record<string, unknown>).socDraft = draft;
     await saveEmploymentData(userId, matterId, matter, employment);
     const { stripParaMarkers } = await import('../../../employment/soc-outline.js');
-    return reply.send({ ok: true, sectionId: parsed.data.sectionId, html: stripParaMarkers(result.html), reviewFlags: result.reviewFlags, costUsd: result.costUsd });
+    return reply.send({ ok: true, sectionId: parsed.data.sectionId, html: stripParaMarkers(cleanHtml), reviewFlags: result.reviewFlags, costUsd: result.costUsd });
   });
 
   // Approve, edit by hand, or discard a section.

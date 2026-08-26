@@ -170,14 +170,18 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
 
     // Persist the section's draft on the matter. Redrafting replaces the draft
     // and clears its approval, so the lawyer re-reads what changed.
+    // The model's HTML is rendered in the dashboard via dangerouslySetInnerHTML
+    // and its facts can originate from the public intake portal, so the drafted
+    // section passes the same allowlist as a section the lawyer edits by hand.
+    const cleanHtml = sanitiseReviewHtml(result.html);
     const draft = ((matter as Record<string, unknown>).factumDraft ?? { sections: {} }) as FactumDraftState;
     if (!draft.sections) draft.sections = {};
-    draft.sections[sectionId] = { html: result.html, approved: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
+    draft.sections[sectionId] = { html: cleanHtml, approved: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
     (matter as Record<string, unknown>).factumDraft = draft;
     await saveEmploymentData(userId, matterId, matter, employment);
 
     logger.info('Factum section drafted', { matterId, sectionId, costUsd: result.costUsd.toFixed(4) });
-    return reply.send({ ok: true, sectionId, html: result.html, reviewFlags: result.reviewFlags, costUsd: result.costUsd });
+    return reply.send({ ok: true, sectionId, html: cleanHtml, reviewFlags: result.reviewFlags, costUsd: result.costUsd });
   });
 
   // Approve a drafted section, edit it by hand, un-approve it, or discard it.

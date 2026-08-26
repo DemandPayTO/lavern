@@ -100,12 +100,17 @@ export function registerMediationSectionRoutes(fastify: FastifyInstance): void {
       return reply.status(502).send({ ok: false, error: 'This section could not be drafted. Please try again.' });
     }
 
+    // The model's HTML is rendered in the dashboard via dangerouslySetInnerHTML
+    // and its facts can originate from the public intake portal, so the drafted
+    // section passes the same allowlist as a section the lawyer edits by hand.
+    const { sanitiseReviewHtml } = await import('../../../employment/document-reviews.js');
+    const cleanHtml = sanitiseReviewHtml(result.html);
     const draft = ((matter as Record<string, unknown>).mediationDraft ?? { sections: {} }) as MediationDraftState;
     if (!draft.sections) draft.sections = {};
-    draft.sections[parsed.data.sectionId] = { html: result.html, approved: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
+    draft.sections[parsed.data.sectionId] = { html: cleanHtml, approved: false, generatedAt: new Date().toISOString(), reviewFlags: result.reviewFlags };
     (matter as Record<string, unknown>).mediationDraft = draft;
     await saveEmploymentData(userId, matterId, matter, employment);
-    return reply.send({ ok: true, sectionId: parsed.data.sectionId, html: result.html, reviewFlags: result.reviewFlags, costUsd: result.costUsd });
+    return reply.send({ ok: true, sectionId: parsed.data.sectionId, html: cleanHtml, reviewFlags: result.reviewFlags, costUsd: result.costUsd });
   });
 
   fastify.put('/api/employment/:matterId/mediation-section', async (req: FastifyRequest, reply: FastifyReply) => {
