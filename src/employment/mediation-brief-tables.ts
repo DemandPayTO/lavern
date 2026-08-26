@@ -421,6 +421,44 @@ export function numberNarrativeParagraphs(html: string): string {
   });
 }
 
+/**
+ * Number a narrative the model may have written as a list.
+ *
+ * numberNarrativeParagraphs only numbers <p> elements, which is right: a
+ * sub-list under a paragraph (the remedies menu, for example) must keep its
+ * own lettering rather than joining the main run. But a model told to write
+ * plain paragraphs still reaches for <ol> perhaps one run in ten, and when it
+ * does, nothing is numbered at all and its own restarting list numbering is
+ * what ships. That is the failure the deterministic sequence exists to
+ * prevent, so the instruction cannot be the only defence.
+ *
+ * The fallback fires only on the exact failure condition: no paragraph was
+ * numbered. In that case the document is a list rather than prose, so its
+ * list items ARE the narrative and become paragraphs. A document with any
+ * numberable paragraph is left to numberNarrativeParagraphs untouched, which
+ * keeps genuine sub-lists intact in every healthy run.
+ */
+export function numberNarrativeAllowingLists(html: string): { html: string; convertedFromList: boolean } {
+  const numbered = numberNarrativeParagraphs(html);
+  if (/<p(?:\s[^>]*)?>\d{1,3}\.&nbsp;/.test(numbered)) {
+    return { html: numbered, convertedFromList: false };
+  }
+  // Innermost lists first, so a nested list is unwrapped before its parent
+  // and no item is lost. Attributes on the list are dropped with it.
+  let flat = html;
+  let guard = 0;
+  const innermostList = /<(ol|ul)(?:\s[^>]*)?>((?:(?!<(?:ol|ul)[\s>])[\s\S])*?)<\/\1>/i;
+  while (innermostList.test(flat) && guard < 20) {
+    flat = flat.replace(innermostList, (_m, _tag, inner: string) => {
+      const items = [...String(inner).matchAll(/<li(?:\s[^>]*)?>([\s\S]*?)<\/li>/gi)].map(m => m[1].trim());
+      if (items.length === 0) return '';
+      return items.map(t => `<p>${t}</p>`).join('\n');
+    });
+    guard += 1;
+  }
+  return { html: numberNarrativeParagraphs(flat), convertedFromList: flat !== html };
+}
+
 // ── Composition ──────────────────────────────────────────────────────────
 
 export function buildMediationFrontMatter(input: MediationFrontMatterInput): MediationFrontMatter {

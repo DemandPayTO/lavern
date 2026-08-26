@@ -14,7 +14,7 @@ import {
   buildComparablesTable,
   buildNegotiationTable,
   buildMediationFrontMatter,
-  numberNarrativeParagraphs, scrubNarrative, buildMediationCover, buildMediationSignOff,
+  numberNarrativeParagraphs, numberNarrativeAllowingLists, scrubNarrative, buildMediationCover, buildMediationSignOff,
 } from '../../src/employment/mediation-brief-tables.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult } from '../../src/types/employment-intake.js';
 import type { ComparableCase, CaseBasedRange } from '../../src/employment/case-comparables.js';
@@ -404,5 +404,57 @@ describe('revamp pins: the brief tells the truth', () => {
     const cover = buildMediationCover({ intake: { client_first_name: 'A', client_last_name: 'O', employer_legal_name: 'E' } as never, lawyerName: 'J', firmName: 'F', mediationDate: '2026-09-14' });
     expect(cover).toContain('September 14, 2026');
     expect(cover).not.toContain('2026-09-14');
+  });
+});
+
+describe('numberNarrativeAllowingLists', () => {
+  const nums = (html: string) => [...html.matchAll(/<p[^>]*>(\d+)\.&nbsp;/g)].map(m => Number(m[1]));
+
+  it('leaves a healthy paragraph narrative to the ordinary numbering', () => {
+    const html = '<h2>Overview</h2><p>First.</p><p>Second.</p><p>Third.</p>';
+    const out = numberNarrativeAllowingLists(html);
+    expect(out.convertedFromList).toBe(false);
+    expect(nums(out.html)).toEqual([1, 2, 3]);
+  });
+
+  it('keeps a genuine sub-list intact when paragraphs exist', () => {
+    const html = '<p>The applicant seeks:</p><ol><li>Compensation.</li><li>Reinstatement.</li></ol><p>And costs.</p>';
+    const out = numberNarrativeAllowingLists(html);
+    expect(out.convertedFromList).toBe(false);
+    expect(out.html).toContain('<ol>');
+    expect(out.html).toContain('<li>Compensation.</li>');
+    expect(nums(out.html)).toEqual([1, 2]);
+  });
+
+  it('numbers a narrative the model wrote as a list', () => {
+    const html = '<h2>The Facts</h2><ol><li>She was hired in 1988.</li><li>She was dismissed in 2026.</li><li>The role continued.</li></ol>';
+    const out = numberNarrativeAllowingLists(html);
+    expect(out.convertedFromList).toBe(true);
+    expect(nums(out.html)).toEqual([1, 2, 3]);
+    expect(out.html).not.toContain('<li>');
+  });
+
+  it('runs the sequence unbroken across headings when converting', () => {
+    const html = '<h2>A</h2><ol><li>One.</li><li>Two.</li></ol><h2>B</h2><ol><li>Three.</li><li>Four.</li></ol>';
+    expect(nums(numberNarrativeAllowingLists(html).html)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('loses no item from a nested list', () => {
+    const html = '<ol><li>Outer one.<ol><li>Inner.</li></ol></li><li>Outer two.</li></ol>';
+    const out = numberNarrativeAllowingLists(html);
+    expect(out.html).toContain('Inner.');
+    expect(out.html).toContain('Outer two.');
+    expect(nums(out.html).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('strips the model\'s own list numbers rather than doubling them', () => {
+    const html = '<ol><li>1. She was hired.</li><li>2. She was dismissed.</li></ol>';
+    const out = numberNarrativeAllowingLists(html);
+    expect(nums(out.html)).toEqual([1, 2]);
+    expect(out.html).not.toContain('1. 1.');
+  });
+
+  it('reports nothing to convert on an empty narrative', () => {
+    expect(numberNarrativeAllowingLists('<h2>Overview</h2>').convertedFromList).toBe(false);
   });
 });

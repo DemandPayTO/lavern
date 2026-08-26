@@ -25,7 +25,7 @@ import { checkCanonTextIntegrity } from './canon-verifier.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { buildAffidavitOfService, buildOfferWithdrawal, buildOfferAcceptance, buildCostsOutline, buildEsaFilingSheet, buildSccFilingSheet } from './court-forms.js';
 import type { CourtFormFields } from './court-forms.js';
-import { buildMediationFrontMatter, buildMediationCover, buildMediationSignOff, numberNarrativeParagraphs, scrubNarrative, esc } from './mediation-brief-tables.js';
+import { buildMediationFrontMatter, buildMediationCover, buildMediationSignOff, numberNarrativeParagraphs, numberNarrativeAllowingLists, scrubNarrative, esc } from './mediation-brief-tables.js';
 import { buildAffidavitOpening, buildJurat, buildExhibitBlock, scrubAffidavitBody } from './affidavit-furniture.js';
 import type { ComparableCase, CaseBasedRange } from './case-comparables.js';
 import type { NegotiationEntry } from './negotiation.js';
@@ -931,7 +931,14 @@ ${positions}`;
   // section and its cross-references then point at paragraphs that do not
   // exist.
   if (req.documentType === 'hrto_schedule_a') {
-    html = numberNarrativeParagraphs(html);
+    const numbered = numberNarrativeAllowingLists(html);
+    html = numbered.html;
+    if (numbered.convertedFromList) {
+      // Worth knowing when it happens: the instruction not to use a list was
+      // ignored, and the narrative was normalised to paragraphs so the
+      // sequence could be applied.
+      logger.info('Schedule A narrative arrived as a list and was normalised to paragraphs');
+    }
   }
 
   // Notice of Action: replace the placeholder with the pinned official
