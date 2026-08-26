@@ -148,7 +148,7 @@ describe('TasksView', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Calendar subscription' }));
     await userEvent.click(screen.getByRole('button', { name: 'Generate subscribe link' }));
     await waitFor(() => {
-      expect(screen.getByText('Your subscribe link (shown once — copy it now)')).toBeInTheDocument();
+      expect(screen.getByText('Your subscribe link (shown once, copy it now)')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Copy webcal link/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Copy https link/i })).toBeInTheDocument();
     });

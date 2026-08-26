@@ -2554,6 +2554,25 @@ export default function MatterDetailView() {
                 </div>
               )}
 
+              {/* Schedule "A" takes its allegations from the pleading already
+                  filed in the matter, so it attaches the same sources the
+                  mediation brief does. */}
+              {selectedDraft === 'schedulea' && showOptions && (
+                <MediationSourcesOptions
+                  generatedDocuments={employment.generatedDocuments}
+                  includeGenDemand={includeGenDemand} setIncludeGenDemand={setIncludeGenDemand}
+                  includeGenSoc={includeGenSoc} setIncludeGenSoc={setIncludeGenSoc}
+                  storedSources={storedSources}
+                  selectedSourceIds={selectedSourceIds} setSelectedSourceIds={setSelectedSourceIds}
+                  removeBriefSource={removeBriefSource}
+                  briefSourceInputRef={briefSourceInputRef}
+                  attachBriefSource={attachBriefSource}
+                  sourceParsing={sourceParsing} sourceError={sourceError}
+                  heading={'Sources for Schedule "A"'}
+                  description={'Schedule "A" takes its allegations from these documents rather than restating the intake. Attach the pleading that already particularises the discrimination: the notice of application, the statement of claim, the demand letter. Up to roughly 40 pages per document is read in full. The facts are taken across; the civil causes of action and relief are not.'}
+                />
+              )}
+
               {/* HRTO Form 1 data file — populates the official SmartForm */}
               {selectedDraft === 'schedulea' && (
                 <ScheduleAOptions sessionId={sessionId} />

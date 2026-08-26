@@ -8,6 +8,13 @@
  *
  * Usage: node scripts/scan-noncomment.mjs '<regex>' <dir-or-file> [...]
  * Exits 1 with the offending lines when the pattern is found.
+ *
+ * Exemption: a line carrying a "scan-ok" marker in a trailing comment is
+ * skipped. It exists for code that READS the pattern out of data rather
+ * than emitting it (splitting an em-dash out of an imported row, parsing a
+ * separator the lawyer typed). Removing the character there would break
+ * parsing, so the lens must be told, not silenced. Always give a reason:
+ *     const tier = raw.split('—')[0]; // scan-ok: parses the data, not output
  */
 
 import fs from 'node:fs';
@@ -45,8 +52,13 @@ for (const target of targets) {
   if (!fs.existsSync(target)) continue;
   for (const file of walk(target)) {
     if (!exts.has(path.extname(file)) || file.includes('.test.')) continue;
-    const stripped = stripComments(fs.readFileSync(file, 'utf8'));
+    const source = fs.readFileSync(file, 'utf8');
+    // The marker lives in a comment, so it must be read from the raw line:
+    // stripComments has already erased it from the scanned text.
+    const rawLines = source.split('\n');
+    const stripped = stripComments(source);
     stripped.split('\n').forEach((line, i) => {
+      if (/\bscan-ok\b/.test(rawLines[i] ?? '')) return;
       if (re.test(line)) {
         console.error(`${file}:${i + 1}: ${line.trim().slice(0, 160)}`);
         hits++;

@@ -397,7 +397,7 @@ function formContextForPrompt(guide: StyleGuide, label: string): string {
   const clauses = (guide.fixedClauses ?? [])
     .map(c => `[${c.part}]\n${c.text}`).join('\n\n');
   const notes = guide.notes.length ? `\nFILING AND FORMAT HABITS:\n${guide.notes.map(n => `- ${n}`).join('\n')}` : '';
-  return `THE FIRM'S FORM ("${label}", taken from the firm's own precedents — follow it exactly):
+  return `THE FIRM'S FORM ("${label}", taken from the firm's own precedents, follow it exactly):
 
 This is a COURT DOCUMENT, not prose. Reproduce the firm's structure and wording; do not improve, rephrase, or modernise it.
 
@@ -428,7 +428,7 @@ export function styleContextForPrompt(guide: StyleGuide, label: string): string 
   const depth = guide.typicalWords
     ? `\nDEPTH: The firm's documents of this type run about ${guide.typicalWords.toLocaleString('en-CA')} words. Write to that depth. Where an earlier instruction in this prompt states a smaller word limit, THIS depth governs; the firm knows its mediators.`
     : '';
-  return `THE FIRM'S STYLE ("${label}", learned from the firm's own precedents — follow it):
+  return `THE FIRM'S STYLE ("${label}", learned from the firm's own precedents, follow it):
 This firm's documents of this type flow as follows:
 ${flow}
 

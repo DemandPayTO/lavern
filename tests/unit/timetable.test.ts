@@ -98,7 +98,7 @@ describe('rendering for the generator', () => {
     const prompt = timetableForPrompt(dates);
     expect(prompt).toContain('January 20, 2027');
     expect(prompt).toContain('September 13, 2027');
-    expect(prompt).toContain('reproduce EXACTLY');
+    expect(prompt).toContain('Reproduce EXACTLY');
   });
 
   it('lists only the steps the lawyer dated', () => {

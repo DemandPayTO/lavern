@@ -120,7 +120,9 @@ export function buildImportProposals(rows: SheetRow[], currentNodes: SocNode[]):
     }
 
     const content = row.G ?? '';
-    const sheetTrigger = (row.D ?? '').split('—')[0].split('—')[0].trim();
+    // scan-ok: splits the em-dash out of an imported spreadsheet row; the
+    // character comes from the sheet, it is not emitted by us.
+    const sheetTrigger = (row.D ?? '').split('—')[0].trim(); // scan-ok: reads the sheet's character, emits none
     const triggerDiffers = sheetTrigger && sheetTrigger.toUpperCase() !== node.triggerCondition.toUpperCase()
       ? `The spreadsheet's trigger ("${sheetTrigger}") differs from the engine's ("${node.triggerCondition}"). Triggers live in code and did not change.`
       : undefined;

@@ -286,7 +286,13 @@ export function buildNegotiationTable(entries: NegotiationEntry[] | null | undef
   // presented to the mediator as the plaintiff's own offer.
   const partyLabel = (p: string) => (p === 'employer' ? 'Employer' : p === 'client' ? 'Plaintiff' : `[LAWYER: confirm party "${p}"]`);
   const rows = list.map((e) => {
-    const terms = [e.terms, e.note ? String(e.note).slice(0, 200) : null].filter(Boolean).join(' — ');
+    // Terms and note are lawyer-typed free text, so trailing punctuation is
+    // trimmed before joining: the cell must not read "salary continuance.. see note".
+    const terms = [e.terms, e.note ? String(e.note).slice(0, 200) : null]
+      .filter(Boolean)
+      .map((t) => String(t).trim().replace(/[.;,]+$/, ''))
+      .filter(Boolean)
+      .join('. ');
     return `<tr><td>${esc(e.date ?? '[LAWYER: date]')}</td><td>${esc(partyLabel(e.party))}</td><td>${esc(e.kind)}</td><td>${e.amountCad != null ? cad(e.amountCad) : ''}</td><td>${esc(terms)}</td></tr>`;
   });
 

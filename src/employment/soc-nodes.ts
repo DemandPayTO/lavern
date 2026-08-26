@@ -56,7 +56,9 @@ export function loadSocNodes(): SocNode[] {
     // "STATUTORY PLEADING — no section header" is an instruction, not a
     // heading: the block renders as bare paragraphs.
     sectionHeader: /no section/i.test(n.sectionHeader) ? '' : n.sectionHeader.trim(),
-    triggerCondition: n.triggerCondition.split('—')[0].trim() || 'ALWAYS',
+    // scan-ok: reads the em-dash out of the node data ("2 — Conditional"),
+    // it is not emitted by us.
+    triggerCondition: n.triggerCondition.split('—')[0].trim() || 'ALWAYS', // scan-ok: reads the node data's character, emits none
     assemblyOrder: parseInt(n.assemblyOrder, 10) || 99,
     lawyerReview: /yes/i.test(n.lawyerReview),
     content: n.content,

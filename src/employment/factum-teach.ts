@@ -49,7 +49,7 @@ export async function proposeFactumArgumentUpdates(
     .map(f => `--- FACTUM: ${f.name} ---\n${f.text.trim().slice(0, 24000)}`)
     .join('\n\n');
   const sectionList = nodes
-    .map(n => `- ${n.blockId} (${n.sectionHeader}) — currently: ${n.guidance.trim().slice(0, 400)}`)
+    .map(n => `- ${n.blockId} (${n.sectionHeader}), currently: ${n.guidance.trim().slice(0, 400)}`)
     .join('\n');
 
   let totalCostUsd = 0;

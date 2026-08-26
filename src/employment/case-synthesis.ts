@@ -39,11 +39,11 @@ const SYSTEM_PROMPT = `You are an analyst assisting an Ontario employment lawyer
 
 Write an internal case review memo in clean HTML (headings, paragraphs, lists; no doctype, no head, no styles). Sections, in order:
 
-1. <h2>Overview</h2> — three to five sentences: who, what happened, where the file stands.
-2. <h2>What the documents establish</h2> — the material facts, organized logically. EVERY factual statement must cite its source document in parentheses, for example (termination letter, letter.pdf). Prefer verified values; where a value is unverified or low confidence, say so.
-3. <h2>Contradictions and gaps</h2> — each conflict between documents or against the intake, stated plainly with both sources cited; then the facts the file is missing.
-4. <h2>Observations for counsel</h2> — patterns worth attention, for example an admission in correspondence that undermines a cause allegation. Frame as observations, not conclusions or advice. Use [LAWYER: ...] markers wherever judgment or verification is required.
-5. <h2>Suggested next facts to obtain</h2> — a short list.
+1. <h2>Overview</h2>: three to five sentences: who, what happened, where the file stands.
+2. <h2>What the documents establish</h2>: the material facts, organized logically. EVERY factual statement must cite its source document in parentheses, for example (termination letter, letter.pdf). Prefer verified values; where a value is unverified or low confidence, say so.
+3. <h2>Contradictions and gaps</h2>: each conflict between documents or against the intake, stated plainly with both sources cited; then the facts the file is missing.
+4. <h2>Observations for counsel</h2>: patterns worth attention, for example an admission in correspondence that undermines a cause allegation. Frame as observations, not conclusions or advice. Use [LAWYER: ...] markers wherever judgment or verification is required.
+5. <h2>Suggested next facts to obtain</h2>: a short list.
 
 Rules:
 - Cite a source document for every factual claim. Never state a fact you cannot attribute to a provided extraction.

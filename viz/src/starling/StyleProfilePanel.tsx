@@ -200,11 +200,15 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
         <input value={editing.label} onChange={e => setEditing({ ...editing, label: e.target.value })}
           style={{ width: '100%', fontFamily: sans, fontSize: 13, padding: '8px 10px', border: `1px solid ${border}`, borderRadius: 2, boxSizing: 'border-box', marginBottom: 10 }} />
 
-        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Flow (one section per line: Heading — purpose)</label>
+        {/* The flow lines round-trip through an em-dash: the textarea prints
+            "Heading — purpose" and parses the same shape back on edit. The
+            separator is the lawyer's typed input, not generated prose, and
+            changing it would strand the style profiles already saved with it. */}
+        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: navy, marginBottom: 4 }}>Flow (one section per line: Heading — purpose)</label>{/* scan-ok: separator, parsed back below */}
         <textarea
-          value={editing.guide.flow.map(f => `${f.heading} — ${f.purpose}`).join('\n')}
+          value={editing.guide.flow.map(f => `${f.heading} — ${f.purpose}`).join('\n') /* scan-ok: separator, parsed back below */}
           onChange={e => setGuide({ flow: e.target.value.split('\n').map(l => {
-            const idx = l.indexOf('—');
+            const idx = l.indexOf('—'); // scan-ok: parses the separator the lawyer typed
             const heading = (idx >= 0 ? l.slice(0, idx) : l).trim();
             const purpose = (idx >= 0 ? l.slice(idx + 1) : '').trim();
             return heading ? { heading, purpose } : null;
@@ -472,7 +476,7 @@ export function StyleProfilePanel({ documentType, documentLabel, profiles, onCha
             Learned “{built.label}” (${built.costUsd.toFixed(2)}). Starling read your flow as:
           </div>
           <ol style={{ fontSize: 12.5, color: ink, margin: '6px 0 0', paddingLeft: 20 }}>
-            {built.guide.flow.map((f, i) => <li key={i}><b>{f.heading}</b> — {f.purpose}</li>)}
+            {built.guide.flow.map((f, i) => <li key={i}><b>{f.heading}</b> — {f.purpose}</li>)/* scan-ok: renders the lawyer's own separator */}
           </ol>
           {built.guide.recurringLanguage.length > 0 && (
             <div style={{ fontSize: 12.5, color: muted, marginTop: 6 }}>

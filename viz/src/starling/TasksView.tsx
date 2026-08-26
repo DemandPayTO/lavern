@@ -252,7 +252,7 @@ export default function TasksView() {
         ) : (
           <span
             aria-hidden="true"
-            title="Deadline — derives from the matter; change the underlying date on the file"
+            title="Deadline. It derives from the matter; change the underlying date on the file"
             style={{
               marginTop: 5, width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
               background: t.isCourt ? red : amber,
@@ -416,7 +416,7 @@ export default function TasksView() {
           <section aria-label="Calendar subscription" style={{ margin: '16px 0 0', padding: 16, background: '#fff', border: `1px solid ${border}` }}>
             {feedPath ? (
               <>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: navy }}>Your subscribe link (shown once — copy it now)</div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: navy }}>Your subscribe link (shown once, copy it now)</div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => copy('webcal', feedWebcalUrl!)} style={{ padding: '6px 12px', fontSize: 13, background: navy, color: '#fff', border: 'none', cursor: 'pointer', borderRadius: 2 }}>
                     {copied === 'webcal' ? 'Copied' : 'Copy webcal link (Outlook, Apple)'}
@@ -441,7 +441,7 @@ export default function TasksView() {
             )}
             {/* Subscribe instructions — always visible, not only right after minting */}
             <p style={{ margin: '12px 0 0', fontSize: 12.5, color: muted }}>
-              <b>Outlook:</b> the desktop app cannot subscribe directly (Import ICS gives a frozen snapshot — avoid it). Instead open{' '}
+              <b>Outlook:</b> the desktop app cannot subscribe directly (Import ICS gives a frozen snapshot, so avoid it). Instead open{' '}
               <b>outlook.office.com</b> → Calendar → Add calendar → <b>Subscribe from web</b>, paste the <b>https</b> link, and it
               syncs into desktop Outlook automatically and stays current.
               {' '}<b>Google:</b> Other calendars → From URL (https link). <b>Apple Calendar:</b> File → New Calendar Subscription (webcal link).

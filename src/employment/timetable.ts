@@ -167,7 +167,7 @@ export function validateCustomTimetable(
 /** The lawyer's own rows, rendered for the generator. */
 export function customTimetableForPrompt(rows: Array<{ label: string; date: string }>): string {
   const lines = rows.map(r => `- ${r.label}: ${longForm(r.date)}`);
-  return `PROPOSED TIMETABLE — reproduce EXACTLY these steps, in this order, with these dates and these step descriptions written exactly as shown. Do not add a step, omit a step, reorder them, reword a step, or reformat a date:\n${lines.join('\n')}`;
+  return `PROPOSED TIMETABLE. Reproduce EXACTLY these steps, in this order, with these dates and these step descriptions written exactly as shown. Do not add a step, omit a step, reorder them, reword a step, or reformat a date:\n${lines.join('\n')}`;
 }
 
 /** Docket entries for the lawyer's own rows. */
@@ -265,7 +265,7 @@ export function timetableForPrompt(dates: TimetableDates): string {
   // makes the rendering deterministic and the instruction honest.
   const supplied = TIMETABLE_STEPS.filter(step => dates[step.key]);
   const lines = supplied.map(step => `- ${step.label}: ${longForm(dates[step.key]!)}`);
-  return `PROPOSED TIMETABLE — reproduce EXACTLY these steps, in this order, with these dates written exactly as shown. Do not add a step, omit a step, reorder them, or reformat a date:\n${lines.join('\n')}`;
+  return `PROPOSED TIMETABLE. Reproduce EXACTLY these steps, in this order, with these dates written exactly as shown. Do not add a step, omit a step, reorder them, or reformat a date:\n${lines.join('\n')}`;
 }
 
 /** "2026-09-08" to "September 8, 2026", the form a court document uses. */
