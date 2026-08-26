@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import { pronounInstruction, filedNameInstruction } from './house-form.js';
+import { htmlFromModelText } from './model-html.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders, checkScheduleACivilRelief, checkSourceDateFidelity } from './citation-canon.js';
@@ -922,6 +923,18 @@ ${positions}`;
   let html = enforceHouseStyle(text.trim());
   const fenced = html.match(/```(?:html)?\s*([\s\S]*?)```/);
   if (fenced) html = fenced[1].trim();
+
+  // Every prompt here asks for HTML, and the model occasionally answers in
+  // Markdown anyway. Nothing downstream survives that: the numbering finds no
+  // <p>, and the lawyer receives a document with "## OVERVIEW" printed in it.
+  // The conversion is narrow enough to be a no-op on a correct response.
+  const converted = htmlFromModelText(html);
+  if (converted.convertedFromMarkdown) {
+    html = converted.html;
+    logger.info('Model returned Markdown where HTML was asked for; converted before assembly', {
+      documentType: req.documentType,
+    });
+  }
 
   // Schedule "A": the Tribunal and the respondent refer to the narrative by
   // paragraph number, so the sequence is ours, applied after generation. The
