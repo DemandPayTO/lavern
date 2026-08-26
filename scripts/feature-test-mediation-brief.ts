@@ -86,8 +86,11 @@ async function main() {
   const html = String(doc.html ?? '');
   check('brief generated', gen.status === 200 && html.length > 1500, `${gen.status} len=${html.length}`);
 
-  // Deterministic front matter present.
-  check('title block present', html.includes('<h1>Mediation Brief of the Plaintiff, Dana Woo</h1>'));
+  // Deterministic front matter present. The cover carries the title and the
+  // style of cause; the plaintiff is named in the party block, not the title.
+  check('title block present', html.includes('<h1>MEDIATION BRIEF OF THE PLAINTIFF</h1>'));
+  check('cover names the plaintiff in the party block',
+    /BETWEEN:[\s\S]{0,400}Dana Woo[\s\S]{0,200}Plaintiff/i.test(html));
   check('profile table present', html.includes('Profile of the Plaintiff') && html.includes('Operations Manager'));
   check('profile shows age and tenure', html.includes('52') && html.includes('2013-03-04 to 2026-02-27'));
   check('damages table present', html.includes('Damages Calculation'));
@@ -102,8 +105,10 @@ async function main() {
   check('narrative has a Settlement Position section', /<h2[^>]*>[^<]*Settlement Position/i.test(html));
 
   // Factum convention: narrative paragraphs numbered consecutively,
-  // starting at 1, with no gaps.
-  const paraNumbers = [...html.matchAll(/<p[^>]*>(\d+)\.&nbsp;/g)].map((m) => Number(m[1]));
+  // starting at 1, with no gaps. The numbering is emitted as "&nbsp;" but the
+  // route sanitises the HTML on the way out, which decodes the entity to a
+  // literal U+00A0, so both forms are accepted here.
+  const paraNumbers = [...html.matchAll(/<p[^>]*>(\d+)\.(?:&nbsp;|\u00a0)/g)].map((m) => Number(m[1]));
   check('narrative paragraphs are numbered', paraNumbers.length >= 5, `found ${paraNumbers.length}`);
   check('numbering starts at 1 and is consecutive',
     paraNumbers.length > 0 && paraNumbers[0] === 1 && paraNumbers.every((v, idx) => v === idx + 1),
