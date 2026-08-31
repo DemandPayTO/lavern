@@ -1098,7 +1098,7 @@ export default function MatterDetailView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sectionId,
-          claimAmount: amount && Number.isFinite(amount) ? amount : undefined,
+          claimAmount: amount && Number.isFinite(amount) ? amount : undefined, briefSourceIds: [...selectedSourceIds],
           lawyerName: profile.displayName || undefined,
           firmName: profile.firmName || undefined,
         }),
@@ -1110,7 +1110,7 @@ export default function MatterDetailView() {
       return;
     } finally { setFactumDraftBusyId(null); }
     refreshFactumOutline();
-  }, [sessionId, genDemandAmount, profile, refreshFactumOutline]);
+  }, [sessionId, genDemandAmount, profile, refreshFactumOutline, selectedSourceIds]);
 
   const draftAllFactumSections = useCallback(async () => {
     if (!sessionId) return;
@@ -1126,7 +1126,7 @@ export default function MatterDetailView() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sectionId,
-            claimAmount: amount && Number.isFinite(amount) ? amount : undefined,
+            claimAmount: amount && Number.isFinite(amount) ? amount : undefined, briefSourceIds: [...selectedSourceIds],
             lawyerName: profile.displayName || undefined,
             firmName: profile.firmName || undefined,
           }),
@@ -1137,7 +1137,7 @@ export default function MatterDetailView() {
       }
     } finally { setFactumDraftingAll(false); }
     refreshFactumOutline();
-  }, [sessionId, factumOutline, genDemandAmount, profile, refreshFactumOutline]);
+  }, [sessionId, factumOutline, genDemandAmount, profile, refreshFactumOutline, selectedSourceIds]);
 
   const putFactumSection = useCallback(async (body: { sectionId: string; action: 'approve' | 'unapprove' | 'save' | 'clear'; html?: string }) => {
     if (!sessionId) return;
@@ -2744,6 +2744,24 @@ export default function MatterDetailView() {
                   saveSection={saveSocSection}
                   clearSection={clearSocSection}
                   busyId={socSectionBusyId}
+                />
+              )}
+
+              {/* The factum argues from the record, so it attaches the same
+                  documents the claim and the brief read. */}
+              {selectedDraft === 'sjfactum' && showOptions && (
+                <MediationSourcesOptions
+                  generatedDocuments={employment.generatedDocuments}
+                  includeGenDemand={includeGenDemand} setIncludeGenDemand={setIncludeGenDemand}
+                  includeGenSoc={includeGenSoc} setIncludeGenSoc={setIncludeGenSoc}
+                  storedSources={storedSources}
+                  selectedSourceIds={selectedSourceIds} setSelectedSourceIds={setSelectedSourceIds}
+                  removeBriefSource={removeBriefSource}
+                  briefSourceInputRef={briefSourceInputRef}
+                  attachBriefSource={attachBriefSource}
+                  sourceParsing={sourceParsing} sourceError={sourceError}
+                  heading={'The record this factum argues from'}
+                  description={'The factum takes its facts from these documents: the dates, the figures, the words actually used. Attach the affidavits, the pleading, the correspondence. Up to roughly 40 pages per document is read in full.'}
                 />
               )}
 

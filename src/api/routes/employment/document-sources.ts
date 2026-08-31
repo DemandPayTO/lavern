@@ -43,6 +43,9 @@ const POLICY: Record<string, SourcePolicy> = {
   mediation_brief: { generatedDemand: true, generatedClaim: true, flagsGovern: true },
   // Schedule "A" takes its allegations from the pleading the lawyer attaches.
   hrto_schedule_a: { generatedDemand: true, generatedClaim: true, flagsGovern: true },
+  // The factum argues from the record: the claim frames the issues and the
+  // demand letter carries the position already taken.
+  sj_factum: { generatedDemand: true, generatedClaim: true, flagsGovern: true },
 };
 
 const DEFAULT_POLICY: SourcePolicy = { generatedDemand: false, generatedClaim: false, flagsGovern: true };

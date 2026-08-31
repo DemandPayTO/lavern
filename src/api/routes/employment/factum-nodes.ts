@@ -10,6 +10,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import { documentSources } from './document-sources.js';
 import { getMatterById } from '../../../db/database.js';
 import { getFirmFactumNodes, saveFirmFactumNode, deleteFirmFactumNode, getUserById } from '../../../db/database.js';
 import { getFirmFactumCustomSections, saveFirmFactumCustomSection, deleteFirmFactumCustomSection } from '../../../db/database.js';
@@ -103,6 +104,8 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
       claimAmount: z.number().positive().max(99_999_999).optional(),
       lawyerName: z.string().trim().max(200).optional(),
       firmName: z.string().trim().max(200).optional(),
+      /** The documents the lawyer ticked, so a section argues from the record. */
+      briefSourceIds: z.array(z.string().max(60)).max(8).optional(),
     }).safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Name the section to draft.' });
 
@@ -127,6 +130,11 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
     const { sectionId } = parsed.data;
 
     let sectionReq: FactumSectionRequest;
+    // Every section argues from the same record, whichever kind it is.
+    const factumDocs = documentSources(matter as Record<string, unknown>, {
+      documentType: 'sj_factum',
+      briefSourceIds: parsed.data.briefSourceIds,
+    }).sources;
     const structuralKind = structuralSectionKind(sectionId);
     if (structuralKind) {
       sectionReq = {
@@ -139,6 +147,7 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
         claimAmount: parsed.data.claimAmount,
         lawyerName: parsed.data.lawyerName,
         firmName: parsed.data.firmName,
+        sourceDocuments: factumDocs.length > 0 ? factumDocs : undefined,
       };
     } else {
       const node = selected.find(s => s.blockId === sectionId);
@@ -157,6 +166,7 @@ export function registerFactumNodeRoutes(fastify: FastifyInstance): void {
         claimAmount: parsed.data.claimAmount,
         lawyerName: parsed.data.lawyerName,
         firmName: parsed.data.firmName,
+        sourceDocuments: factumDocs.length > 0 ? factumDocs : undefined,
       };
     }
 

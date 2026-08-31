@@ -42,6 +42,13 @@ export interface FactumSectionRequest {
   claimAmount?: number;
   lawyerName?: string;
   firmName?: string;
+  /**
+   * The documents on the matter: the pleading, the demand letter, whatever the
+   * lawyer attached. The factum argues from the record, and a facts section
+   * written from intake fields alone states the case in generalities where the
+   * record gives particulars. The sections read nothing at all before this.
+   */
+  sourceDocuments?: Array<{ name: string; content: string }>;
 }
 
 export interface FactumSectionResult {
@@ -188,9 +195,21 @@ ${COMMON_RULES}`;
 
 function sectionUserPrompt(req: FactumSectionRequest): string {
   const facts = matterFactsBlock(req);
-  return `${facts}
+  // Titles are lawyer-supplied filenames and bodies are parsed uploads; both
+  // are data. Quotes are stripped from the attribute and any closing-tag
+  // lookalike in a body is defanged, so an attached file cannot break out of
+  // its frame and read as instructions.
+  const documents = (req.sourceDocuments ?? []).length > 0
+    ? `\n\nTHE DOCUMENTS ON THIS MATTER:
+These are the record. Take the facts from them: the dates, the figures, the words actually used, the document that records each one. Where a document gives a particular, plead the particular rather than a summary of it. Never state a fact these documents and the intake do not support, and never treat a document's argument as a fact.
 
-REFERRING TO THE CLIENT: ${pronounInstruction(req.intake.client_pronouns)}
+${(req.sourceDocuments ?? [])
+  .map(d => `<matter_document title="${d.name.replace(/["<>]/g, ' ')}">\n${d.content.replace(/<\/?matter_document/gi, '[document tag removed]')}\n</matter_document>`)
+  .join('\n\n')}`
+    : '';
+  return `${facts}${documents}
+
+REFERRING TO THE CLIENT: ${pronounInstruction(req.intake.client_pronouns, 'the plaintiff')}
 
 Draft the section now, following the output rules exactly.`;
 }
