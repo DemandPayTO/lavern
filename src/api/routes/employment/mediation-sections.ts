@@ -9,6 +9,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import { documentSources, documentSourcesText } from './document-sources.js';
 import { getMatterById } from '../../../db/database.js';
 import { loadEmploymentData, saveEmploymentData, logger } from './shared.js';
 import { mediationSections, buildMediationOutline } from '../../../employment/mediation-outline.js';
@@ -35,20 +36,20 @@ async function negotiationStateText(matter: Record<string, unknown>, employment:
 }
 
 /** The matter's positions (demand letter, statement of claim) as plain text. */
-async function positionsText(matter: Record<string, unknown>): Promise<string | undefined> {
+/**
+ * Drafted section by section, the brief reads exactly what it reads when it is
+ * drafted whole. It did not: this passed `extraSources: []`, so every document
+ * the lawyer attached was dropped on the section path while the whole-document
+ * path read all six. The lawyer saw a brief that ignored the file and had no
+ * way to tell why.
+ */
+function positionsText(matter: Record<string, unknown>, briefSourceIds?: string[]): string | undefined {
   try {
-    const { assembleBriefSources } = await import('../../../employment/brief-sources.js');
-    const dl = matter.generatedDemandLetter as Record<string, unknown> | undefined;
-    const soc = matter.generatedSOC as Record<string, unknown> | undefined;
-    const assembled = assembleBriefSources({
-      generatedDemandHtml: dl?.html as string | undefined,
-      generatedSocHtml: soc?.html as string | undefined,
-      includeGeneratedDemand: true,
-      includeGeneratedSoc: true,
-      extraSources: [],
+    const { sources } = documentSources(matter, {
+      documentType: 'mediation_brief',
+      briefSourceIds,
     });
-    const text = assembled.sources.map(s => `[${s.title}]\n${s.text}`).join('\n\n');
-    return text.trim() ? text : undefined;
+    return documentSourcesText(sources);
   } catch { return undefined; }
 }
 
@@ -70,6 +71,9 @@ export function registerMediationSectionRoutes(fastify: FastifyInstance): void {
     const parsed = z.object({
       sectionId: z.string().trim().min(1).max(60),
       claimAmount: z.number().positive().max(99_999_999).optional(),
+      /** The documents the lawyer ticked, so a section reads what the whole
+       *  brief reads. */
+      briefSourceIds: z.array(z.string().max(60)).max(8).optional(),
     }).safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ ok: false, error: 'Name the section to draft.' });
 
@@ -93,7 +97,7 @@ export function registerMediationSectionRoutes(fastify: FastifyInstance): void {
         approvedIssues: employment.approvedIssues ?? [],
         claimAmount: parsed.data.claimAmount,
         negotiationStateText: await negotiationStateText(matter as Record<string, unknown>, employment),
-        positionsText: await positionsText(matter as Record<string, unknown>),
+        positionsText: positionsText(matter as Record<string, unknown>, parsed.data.briefSourceIds),
       });
     } catch (err) {
       logger.error('Mediation section draft failed', { matterId, sectionId: parsed.data.sectionId, error: err instanceof Error ? err.message : String(err) });

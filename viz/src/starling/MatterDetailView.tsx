@@ -1184,14 +1184,14 @@ export default function MatterDetailView() {
       const res = await fetch(`/api/employment/${sessionId}/mediation-section/draft`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sectionId, claimAmount: amount && Number.isFinite(amount) ? amount : undefined }),
+        body: JSON.stringify({ sectionId, claimAmount: amount && Number.isFinite(amount) ? amount : undefined, briefSourceIds: [...selectedSourceIds] }),
       });
       const d = await res.json().catch(() => ({}));
       if (!d.ok) { setGenError((d as { error?: string }).error ?? 'This section could not be drafted.'); return; }
     } catch { setGenError('This section could not be drafted. Check the connection and try again.'); return; }
     finally { setMediationDraftBusyId(null); }
     refreshMediationOutline();
-  }, [sessionId, genDemandAmount, refreshMediationOutline]);
+  }, [sessionId, genDemandAmount, refreshMediationOutline, selectedSourceIds]);
 
   const draftAllMediationSections = useCallback(async () => {
     if (!sessionId) return;
@@ -1203,7 +1203,7 @@ export default function MatterDetailView() {
         const res = await fetch(`/api/employment/${sessionId}/mediation-section/draft`, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sectionId, claimAmount: amount && Number.isFinite(amount) ? amount : undefined }),
+          body: JSON.stringify({ sectionId, claimAmount: amount && Number.isFinite(amount) ? amount : undefined, briefSourceIds: [...selectedSourceIds] }),
         });
         const d = await res.json().catch(() => ({}));
         if (!d.ok) { setGenError((d as { error?: string }).error ?? 'A section could not be drafted.'); break; }
@@ -1211,7 +1211,7 @@ export default function MatterDetailView() {
       }
     } finally { setMediationDraftingAll(false); }
     refreshMediationOutline();
-  }, [sessionId, mediationOutline, genDemandAmount, refreshMediationOutline]);
+  }, [sessionId, mediationOutline, genDemandAmount, refreshMediationOutline, selectedSourceIds]);
 
   const putMediationSection = useCallback(async (body: { sectionId: string; action: 'approve' | 'unapprove' | 'save' | 'clear'; html?: string }) => {
     if (!sessionId) return;

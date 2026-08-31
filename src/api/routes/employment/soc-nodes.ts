@@ -8,6 +8,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import { documentSources } from './document-sources.js';
 import sanitizeHtmlLib from 'sanitize-html';
 import { config } from '../../../config.js';
 import { employmentIntakeSchema, createEmploymentMatterData } from '../../../types/employment-intake.js';
@@ -52,7 +53,6 @@ import {
   directionForGeneration,
   ensureAnalysisFresh,
   findGeneratedDocKey,
-  buildSocSources,
   fromParagraphsSafe,
   loadEmploymentData,
   loadStyleForGeneration,
@@ -206,7 +206,10 @@ export function registerSocNodeRoutes(fastify: FastifyInstance): void {
         // whole claim reads. This route passed nothing before, so the
         // section-by-section facts were written from intake fields alone.
         sourceDocuments: (() => {
-          const docs = buildSocSources(matter as Record<string, unknown>, parsed.data.briefSourceIds);
+          const docs = documentSources(matter as Record<string, unknown>, {
+            documentType: 'statement_of_claim',
+            briefSourceIds: parsed.data.briefSourceIds,
+          }).sources;
           return docs.length > 0 ? docs : undefined;
         })(),
       });

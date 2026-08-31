@@ -8,6 +8,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import { documentSources } from './document-sources.js';
 import sanitizeHtmlLib from 'sanitize-html';
 import { config } from '../../../config.js';
 import { employmentIntakeSchema, createEmploymentMatterData } from '../../../types/employment-intake.js';
@@ -57,7 +58,6 @@ import {
   directionForGeneration,
   ensureAnalysisFresh,
   findGeneratedDocKey,
-  buildSocSources,
   fromParagraphsSafe,
   loadEmploymentData,
   loadStyleForGeneration,
@@ -479,7 +479,10 @@ export function registerGeneratorRoutes(fastify: FastifyInstance): void {
     // matter (generated or adopted) rides along automatically, plus any
     // document the lawyer attached to the claim workspace. Blanks fill
     // from them with verified quotes; every fill is flagged on the draft.
-    const socSources = buildSocSources(matter as Record<string, unknown>, parsed.data.briefSourceIds);
+    const socSources = documentSources(matter as Record<string, unknown>, {
+      documentType: 'statement_of_claim',
+      briefSourceIds: parsed.data.briefSourceIds,
+    }).sources;
 
     const result = await generateStatementOfClaim({
       intake: employment.intake,
@@ -742,28 +745,15 @@ nodeReport: result.nodeReport,
     // already stated in the civil pleading, so the lawyer attaches that
     // pleading and the narrative is drawn from it rather than re-derived
     // from the intake fields.
-    const SOURCE_GROUNDED_TYPES = ['mediation_brief', 'hrto_schedule_a'];
-    if (SOURCE_GROUNDED_TYPES.includes(parsed.data.documentType)) {
-      const { assembleBriefSources } = await import('../../../employment/brief-sources.js');
-      const dl = (matter as Record<string, unknown>).generatedDemandLetter as Record<string, unknown> | undefined;
-      const soc = (matter as Record<string, unknown>).generatedSOC as Record<string, unknown> | undefined;
-      const stored = (((matter as Record<string, unknown>).briefSources ?? []) as Array<{ id: string; name: string; text: string }>);
-      const selectedStored = parsed.data.briefSourceIds
-        ? stored.filter(sd => parsed.data.briefSourceIds!.includes(sd.id))
-        : [];
-      const assembled = assembleBriefSources({
-        generatedDemandHtml: dl?.html,
-        generatedSocHtml: soc?.html,
-        includeGeneratedDemand: parsed.data.includeGeneratedDemand,
-        includeGeneratedSoc: parsed.data.includeGeneratedSoc,
-        extraSources: [
-          ...selectedStored.map(sd => ({ name: sd.name, text: sd.text })),
-          ...(parsed.data.extraSources ?? []),
-        ],
-      });
-      positionDocuments = assembled.sources;
-      droppedSources = assembled.dropped;
-    }
+    const assembled = documentSources(matter as Record<string, unknown>, {
+      documentType: parsed.data.documentType,
+      briefSourceIds: parsed.data.briefSourceIds,
+      extraSources: parsed.data.extraSources,
+      includeGeneratedDemand: parsed.data.includeGeneratedDemand,
+      includeGeneratedClaim: parsed.data.includeGeneratedSoc,
+    });
+    positionDocuments = assembled.sources.map(sd => ({ title: sd.name, text: sd.content }));
+    droppedSources = assembled.dropped;
     if (parsed.data.documentType === 'mediation_brief') {
       negotiationEntries = ((matter as Record<string, unknown>).negotiation ?? null) as import('../../../employment/negotiation.js').NegotiationEntry[] | null;
       if (negotiationEntries?.length) {
