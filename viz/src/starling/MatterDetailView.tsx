@@ -46,21 +46,18 @@ import { TimetablePackageOptions } from './matter/workspaces/TimetablePackageOpt
 import { TemplateStyleOptions } from './matter/workspaces/TemplateStyleOptions.js';
 import { ReplyOptions } from './matter/workspaces/ReplyOptions.js';
 import { SocPleadingOptions } from './matter/workspaces/SocPleadingOptions.js';
-import { SocOutlinePanel } from './matter/workspaces/SocOutlinePanel.js';
-import type { SocOutlineSectionUI } from './matter/workspaces/SocOutlinePanel.js';
 import { DemandSourcesOptions } from './matter/workspaces/DemandSourcesOptions.js';
 import { MediationSourcesOptions } from './matter/workspaces/MediationSourcesOptions.js';
 import { SocPleadingLanguageOptions } from './matter/workspaces/SocPleadingLanguageOptions.js';
 import { FactumArgumentOptions } from './matter/workspaces/FactumArgumentOptions.js';
 import { FactumArgumentLanguageOptions } from './matter/workspaces/FactumArgumentLanguageOptions.js';
-import { FactumOutlinePanel } from './matter/workspaces/FactumOutlinePanel.js';
-import type { FactumOutlineSectionUI } from './matter/workspaces/FactumOutlinePanel.js';
-import { MediationOutlinePanel } from './matter/workspaces/MediationOutlinePanel.js';
-import type { MediationOutlineSectionUI } from './matter/workspaces/MediationOutlinePanel.js';
 import { CourtFormOptions } from './matter/workspaces/CourtFormOptions.js';
 import { ReadinessNotice } from './matter/workspaces/ReadinessNotice.js';
 import { GenerationOptions } from './matter/workspaces/GenerationOptions.js';
 import { ScheduleAOptions } from './matter/workspaces/ScheduleAOptions.js';
+import { DocumentOutlinePanel } from './matter/workspaces/DocumentOutlinePanel.js';
+import { socOutlineSections, factumOutlineSections, mediationOutlineSections, OUTLINE_COPY } from './matter/workspaces/outline-adapters.js';
+import type { SocOutlineSectionUI, FactumOutlineSectionUI, MediationOutlineSectionUI } from './matter/workspaces/outline-adapters.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -2739,9 +2736,10 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'soc' && showOptions && socOutline.length > 0 && (
-                <SocOutlinePanel
-                  sections={socOutline}
-                  draftFacts={draftSocFacts}
+                <DocumentOutlinePanel
+                  {...OUTLINE_COPY.soc}
+                  sections={socOutlineSections(socOutline)}
+                  draftSection={draftSocFacts}
                   approveSection={approveSocSection}
                   saveSection={saveSocSection}
                   clearSection={clearSocSection}
@@ -2759,8 +2757,9 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'sjfactum' && showOptions && (
-                <FactumOutlinePanel
-                  sections={factumOutline}
+                <DocumentOutlinePanel
+                  {...OUTLINE_COPY.factum}
+                  sections={factumOutlineSections(factumOutline)}
                   draftSection={draftFactumSection}
                   draftAll={draftAllFactumSections}
                   approveSection={approveFactumSection}
@@ -2867,8 +2866,9 @@ export default function MatterDetailView() {
               )}
 
               {selectedDraft === 'mediation' && showOptions && mediationOutline.length > 0 && (
-                <MediationOutlinePanel
-                  sections={mediationOutline}
+                <DocumentOutlinePanel
+                  {...OUTLINE_COPY.mediation}
+                  sections={mediationOutlineSections(mediationOutline)}
                   draftSection={draftMediationSection}
                   draftAll={draftAllMediationSections}
                   approveSection={approveMediationSection}
