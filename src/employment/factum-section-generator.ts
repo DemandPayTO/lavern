@@ -17,6 +17,7 @@ import { enforceHouseStyle } from '../utils/house-style.js';
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import { pronounInstruction } from './house-form.js';
+import { frameSourceDocuments } from './source-framing.js';
 import { computeBardalFactors } from './timeline-generator.js';
 import { checkCitationIntegrity, checkFillInPlaceholders } from './citation-canon.js';
 import { checkCanonTextIntegrity } from './canon-verifier.js';
@@ -199,14 +200,11 @@ function sectionUserPrompt(req: FactumSectionRequest): string {
   // are data. Quotes are stripped from the attribute and any closing-tag
   // lookalike in a body is defanged, so an attached file cannot break out of
   // its frame and read as instructions.
-  const documents = (req.sourceDocuments ?? []).length > 0
-    ? `\n\nTHE DOCUMENTS ON THIS MATTER:
-These are the record. Take the facts from them: the dates, the figures, the words actually used, the document that records each one. Where a document gives a particular, plead the particular rather than a summary of it. Never state a fact these documents and the intake do not support, and never treat a document's argument as a fact.
-
-${(req.sourceDocuments ?? [])
-  .map(d => `<matter_document title="${d.name.replace(/["<>]/g, ' ')}">\n${d.content.replace(/<\/?matter_document/gi, '[document tag removed]')}\n</matter_document>`)
-  .join('\n\n')}`
-    : '';
+  const framed = frameSourceDocuments(
+    req.sourceDocuments ?? [],
+    "THE DOCUMENTS ON THIS MATTER. These are the record. Take the facts from them: the dates, the figures, the words actually used, the document that records each one. Where a document gives a particular, plead the particular rather than a summary of it. Never state a fact these documents and the intake do not support, and never treat a document's argument as a fact.",
+  );
+  const documents = framed ? `\n\n${framed}` : '';
   return `${facts}${documents}
 
 REFERRING TO THE CLIENT: ${pronounInstruction(req.intake.client_pronouns, 'the plaintiff')}

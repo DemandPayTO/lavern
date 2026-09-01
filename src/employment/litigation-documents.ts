@@ -19,6 +19,7 @@ import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import { pronounInstruction, filedNameInstruction } from './house-form.js';
 import { htmlFromModelText } from './model-html.js';
+import { frameSourceDocuments } from './source-framing.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { extractCitations } from './citation-extractor.js';
 import { checkCitationIntegrity, checkFillInPlaceholders, checkScheduleACivilRelief, checkSourceDateFidelity } from './citation-canon.js';
@@ -865,9 +866,10 @@ export async function generateLitigationDocument(
     // both are data. Quotes are stripped from the attribute and any
     // closing-tag lookalike in a body is defanged so an attached file
     // cannot break out of its frame and read as instructions.
-    const positions = req.positionDocuments
-      .map(d => `<position_document title="${d.title.replace(/["<>]/g, ' ')}">\n${d.text.replace(/<\/?position_document/gi, '[position document tag removed]')}\n</position_document>`)
-      .join('\n\n');
+    const positions = frameSourceDocuments(
+      req.positionDocuments.map(d => ({ name: d.title, content: d.text })),
+      '',
+    ).trimStart();
     // Schedule "A" is drawn FROM the attached pleading rather than merely
     // kept consistent with it: the allegations are already particularised
     // there, and re-deriving them from intake fields is what produced

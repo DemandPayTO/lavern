@@ -14,6 +14,7 @@
 
 import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { enforceHouseStyle } from '../utils/house-style.js';
+import { frameSourceDocuments } from './source-framing.js';
 import { createLogger } from '../utils/logger.js';
 import { pronounInstruction } from './house-form.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
@@ -484,9 +485,10 @@ export async function generateSocBackgroundFacts(
     .filter(n => activeIds.has(n.blockId) && n.blockId !== AI_NARRATIVE_BLOCK && n.sectionHeader)
     .map(n => n.sectionHeader);
 
-  const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 6)
-    .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n"""\n${d.content.slice(0, 20_000)}\n"""`)
-    .join('\n\n');
+  const sourceMaterial = frameSourceDocuments(
+    (req.sourceDocuments ?? []).slice(0, 6).map(d => ({ name: d.name, content: d.content.slice(0, 20_000) })),
+    'THE DOCUMENTS ON THIS MATTER. Plead only facts from them, and never copy their argument.',
+  );
   const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]
     .filter(Boolean).join('\n\n');
 
@@ -551,9 +553,10 @@ async function generateNodeAssembledSoc(
   if (useFactsDraft) {
     narrativeHtml = factsDraft!.html;
   } else {
-    const sourceMaterial = (req.sourceDocuments ?? []).slice(0, 6)
-      .map(d => `SOURCE MATERIAL, "${d.name}" (plead only facts; never copy argument):\n\"\"\"\n${d.content.slice(0, 20_000)}\n\"\"\"`)
-      .join('\n\n');
+    const sourceMaterial = frameSourceDocuments(
+      (req.sourceDocuments ?? []).slice(0, 6).map(d => ({ name: d.name, content: d.content.slice(0, 20_000) })),
+      'THE DOCUMENTS ON THIS MATTER. Plead only facts from them, and never copy their argument.',
+    );
     const userPrompt = [buildNarrativePrompt(req, causes), sourceMaterial || undefined, req.styleContext]
       .filter(Boolean).join('\n\n');
     let narrative = '';
