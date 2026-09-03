@@ -45,16 +45,30 @@ async function main() {
     hire_date: '2013-03-04', termination_date: '2026-02-27', annual_salary: 104000,
   } });
 
-  // Notes with ONE explicit date ("by July 31") and one undated task.
-  const notes = `Call with Dana on 2026-07-15. She wants to counter the 12-week offer from Meridian Logistics Inc. Employer alleged cause but has no warning letters. I will draft a counter-offer letter and send it to opposing counsel by July 31. Dana will send me her job search log at some point. Please email Dana a reminder about keeping her mitigation records.`;
+  // Notes with ONE explicit date and one undated task.
+  //
+  // The dates are relative to today, not pinned. A fixed date is a bomb on a
+  // timer: this test pinned July 31, and once that fell outside the docket's
+  // thirty-day overdue window the item was correctly dropped from the feed and
+  // the test failed on working code. The same bomb went off in the
+  // intake-lifecycle iCal test in July (c006c21).
+  const iso = (daysFromToday: number): string => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + daysFromToday);
+    return d.toISOString().slice(0, 10);
+  };
+  const callDate = iso(-14);
+  const dueDate = iso(21);
+  const notes = `Call with Dana on ${callDate}. She wants to counter the 12-week offer from Meridian Logistics Inc. Employer alleged cause but has no warning letters. I will draft a counter-offer letter and send it to opposing counsel by ${dueDate}. Dana will send me her job search log at some point. Please email Dana a reminder about keeping her mitigation records.`;
 
-  const analyze = await api('POST', `/api/employment/${mid}/debrief/analyze`, { rawNotes: notes, callType: 'client', callDate: '2026-07-15' });
+  const analyze = await api('POST', `/api/employment/${mid}/debrief/analyze`, { rawNotes: notes, callType: 'client', callDate });
   check('analyze succeeds', analyze.status === 200 && analyze.json.ok === true, JSON.stringify(analyze.json).slice(0, 200));
   const proposed = analyze.json.proposed as { summary: string; actionItems: Array<{ task: string; dueDate: string | null; kind: string; emailSubject?: string; emailBody?: string }> };
   check('proposed summary present', Boolean(proposed?.summary));
   check('extracted multiple action items', (proposed?.actionItems?.length ?? 0) >= 2, `got ${proposed?.actionItems?.length}`);
   const dated = proposed.actionItems.filter(i => i.dueDate);
-  check('at least one dated item (July 31)', dated.some(i => i.dueDate === '2026-07-31'), JSON.stringify(dated).slice(0, 200));
+  check('at least one dated item, read from the notes', dated.some(i => i.dueDate === dueDate),
+    `expected ${dueDate}, got ${JSON.stringify(dated).slice(0, 200)}`);
   check('no item has an invented malformed date', proposed.actionItems.every(i => i.dueDate === null || /^\d{4}-\d{2}-\d{2}$/.test(i.dueDate)));
   check('an email item carries a draft', proposed.actionItems.some(i => i.kind === 'email' && (i.emailBody || i.emailSubject)));
 
