@@ -9,7 +9,8 @@ export function GenerationOptions({
   selectedDraft,
   genTone, setGenTone, genDemandAmount, setGenDemandAmount,
   dlDeadlineDays, setDlDeadlineDays,
-  genProcedure, setGenProcedure, genCourtLocation, setGenCourtLocation,
+  genProcedure, setGenProcedure, genProceedingForm, setGenProceedingForm,
+  genCourtLocation, setGenCourtLocation,
   amountPrefilled, setAmountPrefilled,
 }: {
   selectedDraft: string;
@@ -20,6 +21,8 @@ export function GenerationOptions({
   dlDeadlineDays: number;
   setDlDeadlineDays: React.Dispatch<React.SetStateAction<number>>;
   genProcedure: string;
+  genProceedingForm: 'action' | 'application';
+  setGenProceedingForm: React.Dispatch<React.SetStateAction<'action' | 'application'>>;
   setGenProcedure: React.Dispatch<React.SetStateAction<string>>;
   genCourtLocation: string;
   setGenCourtLocation: React.Dispatch<React.SetStateAction<string>>;
@@ -51,6 +54,18 @@ export function GenerationOptions({
       )}
       {(selectedDraft === 'soc') && (
         <>
+          <div>
+            <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>How the proceeding is commenced</div>
+            <select value={genProceedingForm} onChange={e => setGenProceedingForm(e.target.value as 'action' | 'application')} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>
+              <option value="action">Action (Statement of Claim, Form 14A)</option>
+              <option value="application">Application (Notice of Application, Form 14E)</option>
+            </select>
+            <div style={{ fontSize: 11.5, color: muted, marginTop: 3, lineHeight: 1.5 }}>
+              {genProceedingForm === 'application'
+                ? 'An application is heard on affidavit evidence, with no discovery and no trial. It asks the court to declare the termination provision unenforceable, the dismissal wrongful, and the notice period owed. Causes that need findings of fact, including bad faith, misrepresentation and defamation, are left out and listed for you after generating.'
+                : 'The claim pleads every approved cause and every head of damages.'}
+            </div>
+          </div>
           <div>
             <div style={{ fontSize: 12.5, color: muted, marginBottom: 5, fontWeight: 600 }}>Procedure Type</div>
             <select value={genProcedure} onChange={e => setGenProcedure(e.target.value)} style={{ width: '100%', fontFamily: sans, fontSize: 14, padding: '10px 12px', border: `1px solid ${border}`, borderRadius: 2, background: '#fff', color: ink }}>

@@ -54,6 +54,9 @@ export interface SocShellInput {
   plaintiffName: string;
   defendantName: string;
   procedureType: 'simplified' | 'ordinary' | 'small_claims';
+  /** An action carries a Statement of Claim; an application carries a Notice
+   *  of Application, with the parties named accordingly. */
+  proceedingForm?: 'action' | 'application';
   lawyerName: string;
   firmName: string;
   firmAddress?: string;
@@ -72,6 +75,7 @@ export interface SocShellInput {
  * service of the defendant.
  */
 export function buildSocFrontMatter(input: SocShellInput): string {
+  const application = input.proceedingForm === 'application';
   const fileNo = input.courtFileNumber?.trim()
     ? esc(input.courtFileNumber)
     : '[LAWYER: assigned on issuance]';
@@ -81,24 +85,29 @@ export function buildSocFrontMatter(input: SocShellInput): string {
     '<p class="centre"><strong>ONTARIO<br>SUPERIOR COURT OF JUSTICE</strong></p>',
     '<p><strong>B E T W E E N:</strong></p>',
     `<p class="centre"><strong>${esc(input.plaintiffName.toUpperCase())}</strong></p>`,
-    '<p class="centre">Plaintiff</p>',
+    `<p class="centre">${application ? 'Applicant' : 'Plaintiff'}</p>`,
     '<p class="centre">- and -</p>',
     `<p class="centre"><strong>${esc(input.defendantName.toUpperCase())}</strong></p>`,
-    '<p class="centre">Defendant</p>',
+    `<p class="centre">${application ? 'Respondent' : 'Defendant'}</p>`,
   ];
 
-  parts.push('<p class="centre"><strong><u>STATEMENT OF CLAIM</u></strong></p>');
+  parts.push(`<p class="centre"><strong><u>${application ? 'NOTICE OF APPLICATION' : 'STATEMENT OF CLAIM'}</u></strong></p>`);
 
-  parts.push(form14aNoticeHtml());
+  // The official form carries its own notice to the responding party. For the
+  // claim that text is pinned; for the application it is left to the form the
+  // lawyer files on, exactly as the Notice of Action does.
+  parts.push(application
+    ? '<p>[LAWYER: the notice to the respondent, the hearing date and the place of hearing are carried by Form 14E; complete them on the official form.]</p>'
+    : form14aNoticeHtml());
 
   parts.push(
     '<p>Date: _______________________</p>',
     '<p>Issued by: _______________________<br>Local Registrar</p>',
     `<p>Address of court office:<br>[LAWYER: address of the court office at ${esc(input.courtLocation)}]</p>`,
-    `<p><strong>TO:</strong> ${esc(input.defendantName)}<br>[LAWYER: address for service of the Defendant]</p>`,
+    `<p><strong>TO:</strong> ${esc(input.defendantName)}<br>[LAWYER: address for service of the ${application ? 'Respondent' : 'Defendant'}]</p>`,
   );
 
-  if (input.procedureType === 'simplified') {
+  if (input.procedureType === 'simplified' && !application) {
     parts.push('<p><strong>THIS ACTION IS BROUGHT AGAINST YOU UNDER THE SIMPLIFIED PROCEDURE PROVIDED IN RULE 76 OF THE RULES OF CIVIL PROCEDURE.</strong></p>');
   }
 
@@ -129,7 +138,7 @@ export function buildSocClosing(input: SocShellInput): string {
     `<p class="right">Court File No.: ${input.courtFileNumber?.trim() ? esc(input.courtFileNumber) : '_______________'}</p>`,
     '<p class="centre"><strong>ONTARIO<br>SUPERIOR COURT OF JUSTICE</strong></p>',
     `<p class="centre">PROCEEDING COMMENCED AT ${esc(input.courtLocation.toUpperCase())}</p>`,
-    '<p class="centre"><strong><u>STATEMENT OF CLAIM</u></strong></p>',
+    `<p class="centre"><strong><u>${input.proceedingForm === 'application' ? 'NOTICE OF APPLICATION' : 'STATEMENT OF CLAIM'}</u></strong></p>`,
     `<p>${contact}</p>`,
   ].join('\n');
 }

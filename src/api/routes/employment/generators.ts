@@ -422,6 +422,12 @@ export function registerGeneratorRoutes(fastify: FastifyInstance): void {
      * from, and a claim that reads one document pleads in generalities.
      */
     briefSourceIds: z.array(z.string().max(60)).max(8).optional(),
+    /**
+     * Commence as an action (Statement of Claim) or an application (Notice of
+     * Application). An application is heard on affidavit evidence, so the
+     * causes that need findings of fact are dropped and reported.
+     */
+    proceedingForm: z.enum(['action', 'application']).optional(),
   });
 
   fastify.post('/api/employment/:matterId/statement-of-claim', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -489,6 +495,7 @@ export function registerGeneratorRoutes(fastify: FastifyInstance): void {
       approvedIssues: employment.approvedIssues,
       analysis: employment.analysis,
       procedureType: parsed.data.procedureType,
+      proceedingForm: parsed.data.proceedingForm,
       claimAmount: parsed.data.claimAmount,
       lawyerName: parsed.data.lawyerName,
       lawyerBlock: parsed.data.lawyerBlock,
@@ -517,7 +524,7 @@ export function registerGeneratorRoutes(fastify: FastifyInstance): void {
     }
 
     recordDraftHistory(matter as Record<string, unknown>, {
-      docType: 'statement_of_claim', title: 'Statement of Claim', html: sanitiseHtml(result.html),
+      docType: 'statement_of_claim', title: parsed.data.proceedingForm === 'application' ? 'Notice of Application' : 'Statement of Claim', html: sanitiseHtml(result.html),
       costUsd: result.costUsd, meta: { procedureType: result.procedureType, claimAmount: parsed.data.claimAmount },
     }, { userId, matterId });
     (matter as Record<string, unknown>).generatedSOC = {

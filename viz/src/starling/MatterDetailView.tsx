@@ -176,6 +176,8 @@ export default function MatterDetailView() {
 
   const [genCourtLocation, setGenCourtLocation] = useState(profile.defaultCourtLocation || 'Toronto');
   const [genProcedure, setGenProcedure] = useState('simplified');
+  // An action by default: the claim is the ordinary way to commence.
+  const [genProceedingForm, setGenProceedingForm] = useState<'action' | 'application'>('action');
   const [amountPrefilled, setAmountPrefilled] = useState(false);
   const socPrefillDone = useRef(false);
   // Structured inputs for the deterministic court forms
@@ -1842,7 +1844,7 @@ export default function MatterDetailView() {
         // The claim reads the same store, but never the generated demand
         // letter toggles: the demand letter on the matter rides along on its
         // own, and the claim is never a source for itself.
-        ...(selectedDraft === 'soc' ? { briefSourceIds: [...selectedSourceIds] } : {}),
+        ...(selectedDraft === 'soc' ? { briefSourceIds: [...selectedSourceIds], proceedingForm: genProceedingForm } : {}),
       },
     );
     setGenerating(false);
@@ -2838,6 +2840,7 @@ export default function MatterDetailView() {
                   genDemandAmount={genDemandAmount} setGenDemandAmount={setGenDemandAmount}
                   dlDeadlineDays={dlDeadlineDays} setDlDeadlineDays={setDlDeadlineDays}
                   genProcedure={genProcedure} setGenProcedure={setGenProcedure}
+                  genProceedingForm={genProceedingForm} setGenProceedingForm={setGenProceedingForm}
                   genCourtLocation={genCourtLocation} setGenCourtLocation={setGenCourtLocation}
                   amountPrefilled={amountPrefilled} setAmountPrefilled={setAmountPrefilled}
                 />

@@ -28,6 +28,7 @@ import {
   numberSocParagraphs, AI_NARRATIVE_BLOCK, type SocNodeStatus,
 } from './soc-nodes.js';
 import { buildSocFrontMatter, buildSocClosing, FORM_14A_CURRENCY_FLAG } from './soc-shell.js';
+import { applicationRelief, letterReliefItems, relabelParties, suppressedForApplication, type ProceedingForm } from './proceeding-form.js';
 import { fillSocSlots, PROSE_SLOTS } from './soc-slot-fill.js';
 import type { GateResult } from '../types/employment-intake.js';
 
@@ -46,6 +47,9 @@ export interface SOCRequest {
   approvedIssues: string[];
   analysis: IntakeAnalysisResult;
   procedureType: ProcedureType;
+  /** Commenced as an action (Statement of Claim) or an application (Notice of
+   *  Application). Defaults to an action. */
+  proceedingForm?: ProceedingForm;
   /** Total damages claimed. */
   claimAmount: number;
   /** Lawyer and firm details. */
@@ -531,6 +535,15 @@ async function generateNodeAssembledSoc(
   });
   const report = nodeStatuses(nodes, ctx, req.approvedIssues, req.nodeOverrides ?? {});
   const activeIds = new Set(report.filter(r => r.status === 'firing' || r.status === 'forced_on').map(r => r.blockId));
+  // An application is heard on affidavit evidence, so the causes that need
+  // findings of fact cannot travel with it. They are dropped here and reported
+  // below: a cause the lawyer approved must never simply go missing.
+  const form: ProceedingForm = req.proceedingForm ?? 'action';
+  const headersById = Object.fromEntries(nodes.map(n => [n.blockId, n.sectionHeader]));
+  const { suppressed, flags: suppressionFlags } = form === 'application'
+    ? suppressedForApplication([...activeIds], headersById)
+    : { suppressed: [] as string[], flags: [] as string[] };
+  for (const id of suppressed) activeIds.delete(id);
   const active = nodes.filter(n => activeIds.has(n.blockId));
 
   logger.info('Assembling SOC from nodes', {
@@ -630,6 +643,21 @@ async function generateNodeAssembledSoc(
   const sections: string[] = [];
   const missingByHeader: Array<{ header: string; missing: string[] }> = [];
   for (const node of active) {
+    // The claim opens "The Plaintiff claims against the Defendant" and lists
+    // heads of damages; the application asks the court to declare something.
+    if (form === 'application' && node.blockId === 'SOC_CLAIM_01') {
+      const dmg = req.analysis?.damagesEstimate;
+      sections.push(applicationRelief({
+        respondent: (req.intake.employer_legal_name ?? req.intake.employer_operating_name)
+          || (typeof ctx2.employer_name === 'string' && ctx2.employer_name.trim() ? ctx2.employer_name.trim() : '')
+          || '[LAWYER: employer name]',
+        noticeMonths: dmg?.commonLawHighMonths ?? null,
+        amountCad: req.claimAmount ?? dmg?.totalEstimateHigh ?? null,
+        challengesTerminationClause: activeIds.has('SOC_TERM_CLAUSE_01'),
+        humanRights: activeIds.has('SOC_HRC_01'),
+      }));
+      continue;
+    }
     if (node.blockId === AI_NARRATIVE_BLOCK) {
       sections.push(`<h2>${node.sectionHeader || 'BACKGROUND FACTS'}</h2>\n${narrativeHtml}`);
       continue;
@@ -649,7 +677,10 @@ async function generateNodeAssembledSoc(
     sections.push(rendered.header ? `<h2>${rendered.header}</h2>\n${rendered.html}` : rendered.html);
   }
 
-  const numbered = numberSocParagraphs(sections.join('\n'));
+  const numbered = relabelParties(
+    letterReliefItems(numberSocParagraphs(sections.join('\n'))),
+    form,
+  );
 
   const shellInput = {
     courtFileNumber: req.courtFileNumber,
@@ -661,6 +692,7 @@ async function generateNodeAssembledSoc(
       || (typeof ctx2.employer_name === 'string' && ctx2.employer_name.trim() ? ctx2.employer_name.trim() : '')
       || '[LAWYER: employer name]',
     procedureType: req.procedureType as 'simplified' | 'ordinary',
+    proceedingForm: form,
     lawyerName: req.lawyerName,
     firmName: req.firmName,
     firmAddress: req.firmAddress,
@@ -677,6 +709,7 @@ async function generateNodeAssembledSoc(
       lawyerReviewFlags.push(`The firm marks "${node.sectionHeader || node.blockId}" for review whenever it is used. Read it before finalising.`);
     }
   }
+  lawyerReviewFlags.push(...suppressionFlags);
   lawyerReviewFlags.push(...fillFlags);
   for (const m of missingByHeader) {
     lawyerReviewFlags.push(`"${m.header}" needs: ${m.missing.map(x => x.replace(/_/g, ' ')).join(', ')}. Each is marked [LAWYER: ...] in the text.`);
