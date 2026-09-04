@@ -381,7 +381,7 @@ export function registerExtractionRoutes(fastify: FastifyInstance): void {
         // higher ceiling, doubling the wait exactly on long notes. A cut-off
         // reply is salvaged downstream instead, so one pass is enough.
         maxTokens: 6144,
-        maxRetries: 2,
+        maxRetries: 4,
       });
       text = result.text;
     } catch (err) {

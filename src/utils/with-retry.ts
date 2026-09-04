@@ -7,8 +7,24 @@
  * single 429 / 529 / 503 / 502 from upstream surfaces as a hard 500 to
  * the user — even though v0.11.2 claims "retry hardening."
  *
- * Default policy: 3 retries, exponential backoff (1s → 2s → 4s, capped 8s),
+ * Default policy: 3 retries, exponential backoff (1s, 2s, 4s, capped 8s),
  * with the same retryable-error detection as the SDK retry wrapper.
+ *
+ * Overload is treated separately, because it is a different kind of failure.
+ * A 529 means upstream capacity is momentarily gone, and capacity comes back
+ * in tens of seconds rather than in one. The default policy started at one
+ * second, which is far shorter than an overload lasts.
+ *
+ * What changes for overload is the DEFAULT ramp, not the caller's budget. The
+ * caller owns how many attempts it can afford and how long it is willing to
+ * wait, because only the caller knows whether it sits inside a request. Where
+ * a caller has not said, overload starts at four seconds and climbs to thirty
+ * rather than starting at one and stopping at eight. Where waiting is worth
+ * more attempts, the call site raises maxRetries and says so.
+ *
+ * Jitter is applied to every delay. Without it a batch of concurrent calls
+ * retries in lockstep and collides again on exactly the beat that was already
+ * congested.
  */
 
 import { createLogger } from './logger.js';
@@ -18,6 +34,12 @@ const logger = createLogger('RETRY');
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504, 529]);
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_MAX_DELAY_MS = 8_000;
+
+/** Upstream capacity, not a fault in the request. */
+const OVERLOAD_STATUS = 529;
+const OVERLOAD_BASE_DELAY_MS = 4_000;
+const OVERLOAD_MAX_DELAY_MS = 30_000;
+
 
 function getErrorStatus(error: unknown): number | undefined {
   if (error && typeof error === 'object' && 'status' in error) {
@@ -40,6 +62,12 @@ function isRetryableMessage(error: unknown): boolean {
     msg.includes('network') ||
     msg.includes('socket hang up')
   );
+}
+
+export function isOverloadError(error: unknown): boolean {
+  if (getErrorStatus(error) === OVERLOAD_STATUS) return true;
+  const text = error instanceof Error ? error.message : String(error ?? '');
+  return /overloaded/i.test(text);
 }
 
 export function isRetryableError(error: unknown): boolean {
@@ -66,7 +94,9 @@ export async function withRetry<T>(
   opts: WithRetryOptions = {},
 ): Promise<T> {
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
-  const maxDelay = opts.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
+  // Left undefined where the caller did not say, so the per-error default can
+  // apply: an overload ramps further than an ordinary blip.
+  const explicitMaxDelay = opts.maxDelayMs;
   const label = opts.label ?? 'unknown';
 
   let lastError: unknown;
@@ -76,11 +106,17 @@ export async function withRetry<T>(
     } catch (error) {
       lastError = error;
       if (attempt >= maxRetries || !isRetryableError(error)) throw error;
-      const delay = Math.min(1000 * Math.pow(2, attempt), maxDelay);
+      // Overload outlasts an ordinary blip, so it ramps further by default.
+      const overloaded = isOverloadError(error);
+      const base = overloaded ? OVERLOAD_BASE_DELAY_MS : 1000;
+      const cap = explicitMaxDelay ?? (overloaded ? OVERLOAD_MAX_DELAY_MS : DEFAULT_MAX_DELAY_MS);
+      // Jitter of plus or minus 25 per cent, so concurrent callers separate.
+      const backoff = Math.min(base * Math.pow(2, attempt), cap);
+      const delay = Math.round(backoff * (0.75 + Math.random() * 0.5));
       const status = getErrorStatus(error);
       const reason = status ? `HTTP ${status}` : (error instanceof Error ? error.message.slice(0, 100) : 'unknown');
       logger.warn('withRetry: transient failure, retrying', {
-        label, reason, delayMs: delay, attempt: attempt + 1, maxRetries,
+        label, reason, delayMs: delay, attempt: attempt + 1, maxRetries, overloaded,
       });
       await new Promise(resolve => setTimeout(resolve, delay));
     }

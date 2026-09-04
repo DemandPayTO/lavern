@@ -222,7 +222,7 @@ export async function generateApplication(
       user: userPrompt,
       tier: 'opus',
       maxTokens: 10240,
-      maxRetries: 2,
+      maxRetries: 4,
       definedTerms: definedTerms ?? undefined,
     });
     text = result.text;

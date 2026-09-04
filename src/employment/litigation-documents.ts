@@ -911,7 +911,10 @@ ${positions}`;
       maxTokens: req.styleTypicalWords
         ? Math.min(30_000, Math.max(10_240, Math.ceil(req.styleTypicalWords * 3)))
         : 10_240,
-      maxRetries: 2,
+      // Four attempts rather than two: on overload the ramp is 4s, 8s, 16s,
+      // 30s, so a congested minute is ridden out rather than surfacing to the
+      // lawyer as a failed draft. The server's request budget is 11 minutes.
+      maxRetries: 4,
       timeoutMs: getTimeoutMs(req.documentType),
       definedTerms: definedTerms ?? undefined,
       extendOnTruncation: true,

@@ -246,7 +246,7 @@ export async function generateFactumSection(
       // generous ceiling covers a dense facts section without ever needing the
       // whole-document budget.
       maxTokens: 6_000,
-      maxRetries: 2,
+      maxRetries: 4,
       timeoutMs: 240_000,
       definedTerms: definedTerms ?? undefined,
       extendOnTruncation: true,

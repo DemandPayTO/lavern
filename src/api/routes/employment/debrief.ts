@@ -121,7 +121,7 @@ export function registerDebriefRoutes(fastify: FastifyInstance): void {
         // would otherwise surface as "could not structure the notes".
         maxTokens: 8192,
         extendOnTruncation: true,
-        maxRetries: 2,
+        maxRetries: 4,
         definedTerms: definedTerms.length > 0 ? definedTerms : undefined,
       });
       text = result.text;

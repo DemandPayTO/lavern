@@ -342,7 +342,7 @@ export async function generateStatementOfClaim(
       tier: 'opus',
       maxTokens: req.styleTypicalWords ? Math.min(30_000, Math.max(12288, Math.ceil(req.styleTypicalWords * 3))) : 12288,
     extendOnTruncation: true,
-      maxRetries: 2,
+      maxRetries: 4,
       definedTerms: definedTerms ?? undefined,
     });
     text = result.text;
@@ -502,7 +502,7 @@ export async function generateSocBackgroundFacts(
     tier: 'opus',
     maxTokens: 6144,
     extendOnTruncation: true,
-    maxRetries: 2,
+    maxRetries: 4,
     definedTerms: definedTerms ?? undefined,
   });
 
@@ -580,7 +580,7 @@ async function generateNodeAssembledSoc(
         tier: 'opus',
         maxTokens: 6144,
         extendOnTruncation: true,
-        maxRetries: 2,
+        maxRetries: 4,
         definedTerms: definedTerms ?? undefined,
       });
       narrative = result.text;

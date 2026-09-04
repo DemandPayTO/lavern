@@ -110,7 +110,7 @@ export async function generateMediationSection(
       user: parts.join('\n\n'),
       tier: 'opus',
       maxTokens: 4_000,
-      maxRetries: 2,
+      maxRetries: 4,
       timeoutMs: 240_000,
       definedTerms: definedTerms ?? undefined,
       extendOnTruncation: true,

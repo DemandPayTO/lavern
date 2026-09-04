@@ -60,7 +60,7 @@ export async function proposeFactumArgumentUpdates(
       user: `THE FIRM'S FACTUMS:\n\n${factumText}\n\nARGUMENT SECTIONS TO UPDATE:\n${sectionList}`,
       tier: 'sonnet',
       maxTokens: 12000,
-      maxRetries: 2,
+      maxRetries: 4,
     });
     totalCostUsd = result.cost;
     let jsonText = result.text.trim();

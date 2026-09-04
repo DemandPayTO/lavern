@@ -368,7 +368,7 @@ export async function runDocAnalysis(req: DocAnalysisRequest): Promise<DocAnalys
     tier: 'sonnet',
     maxTokens: 6144,
     extendOnTruncation: true,
-    maxRetries: 2,
+    maxRetries: 4,
     definedTerms: req.definedTerms,
   });
 

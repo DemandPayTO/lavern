@@ -403,7 +403,7 @@ export async function generateDemandLetter(
     tier: 'opus',    // Use strongest model for legal drafting
     maxTokens: req.styleTypicalWords ? Math.min(30_000, Math.max(8192, Math.ceil(req.styleTypicalWords * 3))) : 8192,
     extendOnTruncation: true,
-    maxRetries: 2,
+    maxRetries: 4,
     definedTerms: definedTerms ?? undefined,
   });
     text = result.text;

@@ -217,7 +217,7 @@ export async function proposeNodeUpdates(
         user: `CURRENT TEMPLATE BLOCK (${node.sectionHeader || node.blockId}):\n\n${node.content}\n\nTHE FIRM'S OWN PASSAGES FOR THIS CAUSE:\n\n${passages}`,
         tier: 'sonnet',
         maxTokens: 8192,
-        maxRetries: 2,
+        maxRetries: 4,
       });
       totalCostUsd += result.cost;
 

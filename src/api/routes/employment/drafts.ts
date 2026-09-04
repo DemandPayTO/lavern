@@ -265,7 +265,7 @@ export function registerDraftRoutes(fastify: FastifyInstance): void {
         }),
         tier: 'opus',
         maxTokens: 8192,
-        maxRetries: 2,
+        maxRetries: 4,
         extendOnTruncation: true,
       });
       cost = result.cost;

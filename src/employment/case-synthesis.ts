@@ -96,7 +96,7 @@ export async function generateCaseSynthesis(
     user,
     tier: 'sonnet',
     maxTokens: 8192,
-    maxRetries: 2,
+    maxRetries: 4,
     definedTerms: definedTerms ?? undefined,
   });
 

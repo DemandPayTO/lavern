@@ -194,7 +194,7 @@ export function registerRevisionRoutes(fastify: FastifyInstance): void {
         }),
         tier: 'sonnet',
         maxTokens: 4096,
-        maxRetries: 2,
+        maxRetries: 4,
       });
       text = result.text; cost = result.cost;
     } catch (err) {
@@ -343,7 +343,7 @@ export function registerRevisionRoutes(fastify: FastifyInstance): void {
           user: `PARAGRAPHS TO REVISE:\n${shown}${researchBlock}\n\nAPPROVED INSTRUCTIONS:\n${instructions}`,
           tier: 'opus',
           maxTokens: applyBudget,
-          maxRetries: 2,
+          maxRetries: 4,
           extendOnTruncation: true,
         });
         const raw = result.text.trim();
