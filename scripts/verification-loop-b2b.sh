@@ -1,16 +1,44 @@
 #!/bin/bash
-# Overnight verification loop — B2B (Starling / lavern).
+# Verification loop — B2B (Starling / lavern).
 #
-# Each pass runs the CORE battery (backend vitest, viz vitest, tsc on both,
-# and every $0 functional script against a live local server) PLUS one
-# rotating lens. A pass fails if anything in it fails. The loop stops at the
-# first failure (fix, then rerun from pass 1) or after 15 consecutive clean
-# passes.
+# Three tiers, because one tier was the wrong shape. Running twelve feature
+# tests fifteen times costs real money in live model calls, and on a day of
+# rapid iteration most of that was spent re-proving generation behaviour that
+# had not been touched. The repetition is what catches intermittent model
+# defects, so it is kept for the deep tier and paid for deliberately.
 #
-# Usage: bash scripts/verification-loop-b2b.sh [start_pass]
+#   --fast   tests, tsc and the lenses. One pass, no model calls, seconds.
+#            This is the tier to run while iterating.
+#   (none)   five passes, everything. The deploy gate. Roughly $5.
+#   --deep   fifteen passes, everything. Roughly $14. Run it when the
+#            generation path itself changed, or overnight.
+#
+# A pass fails if anything in it fails; the loop stops at the first failure.
+#
+# Resuming: pass a start pass to continue a run. The commit the run began on
+# is recorded, and resuming refuses if the tree has moved, because passes
+# banked against different bytes are not evidence about these ones.
+#
+# Usage: bash scripts/verification-loop-b2b.sh [--fast|--deep] [start_pass]
 
 set -u
 cd "$(dirname "$0")/.."
+
+TIER=gate
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --fast) TIER=fast ;;
+    --deep) TIER=deep ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+case "$TIER" in
+  fast) PASSES=1 ;;
+  gate) PASSES=5 ;;
+  deep) PASSES=15 ;;
+esac
+
 SCRATCH="${LOOP_SCRATCH:-/tmp}/b2b-loop"
 mkdir -p "$SCRATCH"
 LOG="$SCRATCH/loop.log"
@@ -42,6 +70,10 @@ core() {
   say "core: tsc backend + viz"
   npx tsc --noEmit >> "$LOG" 2>&1 || fail "backend tsc"
   (cd viz && npx tsc --noEmit >> "$LOG" 2>&1) || fail "viz tsc"
+  if [ "$TIER" = fast ]; then
+    say "core: functional scripts skipped (fast tier makes no model calls)"
+    return 0
+  fi
   say "core: functional scripts against live server"
   start_server || { stop_server; fail "server boot"; }
   local script rc=0
@@ -162,13 +194,47 @@ lens_15() { # end-to-end LOCAL-MODE smoke against the live server ($0, no dispat
   return $rc
 }
 
-START=${1:-1}
-say "B2B verification loop starting at pass $START"
-for PASS in $(seq "$START" 15); do
-  say "════ PASS $PASS/15 ════"
+START=${ARGS[0]:-1}
+SHA=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+SHA_FILE="$SCRATCH/run-sha"
+
+# Passes banked against different bytes are not evidence about these ones, so
+# a resume onto a moved tree is refused rather than quietly accepted.
+if [ "$START" -gt 1 ] && [ -f "$SHA_FILE" ]; then
+  PREV=$(cat "$SHA_FILE")
+  if [ "$PREV" != "$SHA" ]; then
+    say "Refusing to resume at pass $START: the run began on $PREV and the tree is now $SHA."
+    say "Start again from pass 1."
+    exit 1
+  fi
+fi
+[ "$START" -le 1 ] && echo "$SHA" > "$SHA_FILE"
+
+# A start pass beyond the tier's count makes seq produce nothing, so the loop
+# body never runs and the script would announce a clean run having verified
+# nothing at all. A gate that can report a false green is worse than no gate.
+if [ "$START" -gt "$PASSES" ]; then
+  say "Refusing to start at pass $START: the $TIER tier runs $PASSES pass(es)."
+  exit 1
+fi
+
+# Fifteen lenses over fewer passes: every lens still runs, several per pass,
+# so a short run does not silently drop the security checks.
+run_lenses_for_pass() {
+  local pass=$1 total=$2 i
+  for i in $(seq 1 15); do
+    if [ $(( (i - 1) % total + 1 )) -eq "$pass" ]; then
+      say "lens $i"
+      "lens_$i" || fail "lens_$i"
+    fi
+  done
+}
+
+say "B2B verification loop: $TIER tier, $PASSES pass(es), starting at $START (HEAD $SHA)"
+for PASS in $(seq "$START" "$PASSES"); do
+  say "════ PASS $PASS/$PASSES ════"
   core
-  say "lens $PASS"
-  "lens_$PASS" || fail "lens_$PASS"
+  run_lenses_for_pass "$PASS" "$PASSES"
   say "PASS $PASS clean"
 done
-say "ALL 15 CONSECUTIVE PASSES CLEAN"
+say "ALL $PASSES CONSECUTIVE PASSES CLEAN ($TIER tier)"
