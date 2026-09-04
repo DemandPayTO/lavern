@@ -58,7 +58,44 @@ describe('isOverloadError', () => {
   });
 });
 
+describe('isRetryableError', () => {
+  // The SDK raises this with no status attached. It matched nothing, so a
+  // network blip threw on the first attempt with no retry at all, and the
+  // call site's maxRetries was never consulted.
+  it('retries the SDK bare connection error', () => {
+    expect(isRetryableError(new Error('Connection error.'))).toBe(true);
+  });
+
+  it('retries it by class name even if the message changes', () => {
+    const err = new Error('something the SDK reworded');
+    err.name = 'APIConnectionError';
+    expect(isRetryableError(err)).toBe(true);
+  });
+
+  it('retries a connection timeout', () => {
+    expect(isRetryableError(new Error('Request timed out.'))).toBe(true);
+  });
+
+  it('still refuses an error that is genuinely the request\'s fault', () => {
+    expect(isRetryableError(new Error('invalid_request_error: max_tokens too large'))).toBe(false);
+  });
+
+  it('treats a connection error as ordinary, not as overload', () => {
+    expect(isOverloadError(new Error('Connection error.'))).toBe(false);
+  });
+});
+
 describe('withRetry', () => {
+  it('retries a bare connection error on the ordinary ramp', async () => {
+    const fn = vi.fn()
+      .mockRejectedValueOnce(new Error('Connection error.'))
+      .mockResolvedValue('drafted');
+    const out = await runWithDelays(fn, { maxRetries: 4 });
+    expect(out.ok).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(out.delays).toEqual([1000]);
+  });
+
   it('returns the value without retrying when the call succeeds', async () => {
     const fn = vi.fn().mockResolvedValue('ok');
     const out = await runWithDelays(fn);

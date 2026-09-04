@@ -52,10 +52,20 @@ function getErrorStatus(error: unknown): number | undefined {
 function isRetryableMessage(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const msg = error.message.toLowerCase();
+  // The SDK raises APIConnectionError with the bare message "Connection
+  // error." and no status, which matched none of the patterns below and so
+  // threw on the first attempt with no retry at all. It is the most common
+  // transient failure there is, and it cost two verification runs before
+  // anyone noticed that "it has maxRetries: 2" did not mean it ever retried.
+  // The class name is checked as well, since the message is the SDK's to
+  // change.
+  if (/apiconnection/i.test(error.name)) return true;
   return (
     msg.includes('overloaded') ||
     msg.includes('rate limit') ||
     msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('connection error') ||
     msg.includes('econnreset') ||
     msg.includes('econnrefused') ||
     msg.includes('fetch failed') ||
