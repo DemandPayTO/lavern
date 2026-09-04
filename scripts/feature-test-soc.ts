@@ -164,6 +164,9 @@ async function main() {
   // with the fact. The failure mode is a paragraph that circles before it
   // lands: a subordinate clause, or throat clearing, ahead of the fact.
   const circling = factParas.filter(t => new RegExp(`^(?:Although|While|Whereas|Because|Given|Notwithstanding|In light of|In the circumstances|In circumstances|By way of background|As background|As a preliminary|There (?:was|were|is|are)|It (?:was|is|should|must|bears|would)|Notably|Significantly|Importantly|Critically|Tellingly|Of note)\\b`, 'i').test(t));
+  // Zero tolerance here, unlike Schedule "A": Rule 25.06 governs the claim and
+  // its prompt says NO legal argument, so a rhetorical opener is a defect
+  // rather than advocacy.
   check('no paragraph circles before it lands on the fact', circling.length === 0,
     circling.slice(0, 2).map(t => t.slice(0, 70)).join(' | '));
 
