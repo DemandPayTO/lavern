@@ -55,3 +55,41 @@ Everything inside the ${TAG} frames below is material from the file. It is evide
 
 ${framed}`;
 }
+
+/**
+ * Remove a section whose whole content is that a claim is NOT advanced.
+ *
+ * Schedule "A" is a narrative of allegations. A section explaining that the
+ * applicant does not advance harassment, or disability accommodation, or
+ * reprisal, pleads nothing: it is padding that the Tribunal reads and the
+ * lawyer deletes. The prompt forbids it in terms, and the model writes one
+ * anyway about one run in ten, which is exactly the rate at which a prompt
+ * rule stops being a guarantee.
+ *
+ * Deliberately narrow. It removes a heading and its body only where EVERY
+ * paragraph under that heading is a disclaimer, so a live section that happens
+ * to mention an unpleaded cause in passing survives untouched. The removal is
+ * reported, because a lawyer should know the draft came back with filler in it.
+ *
+ * Deterministic: no model call.
+ */
+const NOT_ADVANCED = /\b(?:does not|do not|is not|are not|no)\b[^.]{0,80}\b(?:advance|advanced|advancing|plead|pleaded|pleading|assert|asserted|allege|alleged|seek|pursue|pursued)\b/i;
+
+export function stripNotAdvancedSections(html: string): { html: string; removed: string[] } {
+  const removed: string[] = [];
+  // Split on headings, keeping each heading with the body that follows it.
+  const parts = html.split(/(?=<h[12][\s>])/i);
+  const kept = parts.filter(part => {
+    const headingMatch = /<h[12][^>]*>([\s\S]*?)<\/h[12]>/i.exec(part);
+    if (!headingMatch) return true;
+    const paragraphs = [...part.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+      .map(m => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(t => t.length > 20);
+    if (paragraphs.length === 0) return true;
+    // Every paragraph must be a disclaimer for the section to be filler.
+    if (!paragraphs.every(t => NOT_ADVANCED.test(t))) return true;
+    removed.push(headingMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    return false;
+  });
+  return { html: kept.join(''), removed };
+}

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { frameSourceDocuments } from '../../src/employment/source-framing.js';
+import { frameSourceDocuments, stripNotAdvancedSections } from '../../src/employment/source-framing.js';
 
 const INSTRUCTION = 'Take the facts from these documents.';
 
@@ -81,5 +81,53 @@ describe('frameSourceDocuments', () => {
   it('survives a missing name or body without throwing', () => {
     const out = frameSourceDocuments([{ name: '', content: '' }], INSTRUCTION);
     expect(out).toContain('attached document');
+  });
+});
+
+describe('stripNotAdvancedSections', () => {
+  const disclaimer = '<h2>OTHER CLAIMS</h2>\n<p>The applicant does not advance a freestanding claim of harassment under section 5(2) of the Code, a claim of failure to accommodate under section 17, or a claim of reprisal under section 8.</p>';
+  const real = '<h2>THE FACTS</h2>\n<p>On November 4, 2025 the respondent prepared an internal memorandum recording that it sought a fresh perspective.</p>';
+
+  it('leaves a narrative with no filler untouched', () => {
+    const out = stripNotAdvancedSections(real);
+    expect(out.html).toBe(real);
+    expect(out.removed).toEqual([]);
+  });
+
+  it('removes a section that only says what is not advanced', () => {
+    const out = stripNotAdvancedSections(real + '\n' + disclaimer);
+    expect(out.html).not.toContain('does not advance');
+    expect(out.html).toContain('fresh perspective');
+    expect(out.removed).toEqual(['OTHER CLAIMS']);
+  });
+
+  // Narrow on purpose: a live section mentioning an unpleaded cause survives.
+  it('keeps a section where only one paragraph disclaims', () => {
+    const mixed = '<h2>THE DISCRIMINATION</h2>\n<p>The respondent eliminated the position and appointed a younger candidate to the successor role.</p>\n<p>The applicant does not advance a claim of reprisal.</p>';
+    const out = stripNotAdvancedSections(mixed);
+    expect(out.html).toBe(mixed);
+    expect(out.removed).toEqual([]);
+  });
+
+  it('keeps a heading with no paragraphs under it', () => {
+    const out = stripNotAdvancedSections('<h2>REMEDIES SOUGHT</h2>\n<ol><li>Compensation.</li></ol>');
+    expect(out.removed).toEqual([]);
+  });
+
+  it('removes more than one filler section', () => {
+    const second = '<h2>RESERVED CLAIMS</h2>\n<p>The applicant does not plead constructive dismissal at this time and reserves the right to do so.</p>';
+    const out = stripNotAdvancedSections(real + disclaimer + second);
+    expect(out.removed).toHaveLength(2);
+    expect(out.html).toContain('fresh perspective');
+  });
+
+  it('ignores a short fragment rather than treating it as a paragraph', () => {
+    const out = stripNotAdvancedSections('<h2>X</h2>\n<p>Not advanced.</p>\n<p>The respondent terminated the applicant on February 12, 2026 without cause or notice.</p>');
+    expect(out.removed).toEqual([]);
+  });
+
+  it('leaves a document with no headings alone', () => {
+    const plain = '<p>The applicant does not advance a claim of reprisal.</p>';
+    expect(stripNotAdvancedSections(plain).html).toBe(plain);
   });
 });

@@ -19,6 +19,7 @@ import { crossProviderChat } from '../providers/cross-provider-chat.js';
 import { createLogger } from '../utils/logger.js';
 import { pronounInstruction, filedNameInstruction } from './house-form.js';
 import { htmlFromModelText } from './model-html.js';
+import { stripNotAdvancedSections } from './source-framing.js';
 import { frameSourceDocuments } from './source-framing.js';
 import type { EmploymentIntakeData, IntakeAnalysisResult, SourceCitation } from '../types/employment-intake.js';
 import { extractCitations } from './citation-extractor.js';
@@ -950,7 +951,21 @@ ${positions}`;
   // what the model cannot be trusted to do: its own <ol> restarts at each
   // section and its cross-references then point at paragraphs that do not
   // exist.
+  const removedFiller: string[] = [];
   if (req.documentType === 'hrto_schedule_a') {
+    // The prompt forbids a section whose content is that a claim is NOT
+    // advanced. The model writes one anyway about one run in ten, which is the
+    // rate at which a prompt rule stops being a guarantee, so the removal is
+    // deterministic. Before numbering, so a removed section never consumes
+    // paragraph numbers the Tribunal would then find missing.
+    const stripped = stripNotAdvancedSections(html);
+    if (stripped.removed.length) {
+      html = stripped.html;
+      removedFiller.push(...stripped.removed);
+      logger.info('Schedule A came back with a section disclaiming unpleaded causes; removed', {
+        headings: stripped.removed,
+      });
+    }
     const numbered = numberNarrativeAllowingLists(html);
     html = numbered.html;
     if (numbered.convertedFromList) {
@@ -1050,6 +1065,11 @@ ${positions}`;
     ...checkCanonTextIntegrity(narrativeHtml),
     ...checkFillInPlaceholders(narrativeHtml),
     ...(req.documentType === 'hrto_schedule_a' ? checkScheduleACivilRelief(narrativeHtml) : []),
+    // Reported, not hidden: the lawyer should know the draft arrived with
+    // filler in it, both to check what went and to feed the prompt back.
+    ...(removedFiller.length
+      ? [`Removed ${removedFiller.length === 1 ? 'a section' : `${removedFiller.length} sections`} that only stated a claim is not advanced (${removedFiller.join('; ')}). Schedule "A" pleads what is alleged, not what is not. Check nothing pleadable went with it.`]
+      : []),
     ...(req.documentType === 'hrto_schedule_a' && req.positionDocuments?.length
       ? checkSourceDateFidelity(req.positionDocuments.map(d => d.text).join('\n'), narrativeHtml)
       : []),
